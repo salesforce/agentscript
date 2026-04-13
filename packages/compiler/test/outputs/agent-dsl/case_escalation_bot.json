@@ -1,0 +1,2088 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Customer_Service_Assistant_v1",
+    "label": "Customer Service Assistant V 1",
+    "description": "Helps customers create cases, check order status, and escalate issues when necessary with proper authentication and deterministic routing.",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "default_agent_user": "defaultagentuser@example.com",
+    "context_variables": []
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Welcome to our customer support! I can help you create a new case, check your order status, or assist with escalating existing issues. How can I help you today?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I apologize, but I'm experiencing technical difficulties. Please try again or contact us directly at support@company.com.",
+        "message_type": "Error"
+      }
+    ],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to our customer support! I can help you create a new case, check your order status, or assist with escalating existing issues. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, but I'm experiencing technical difficulties. Please try again or contact us directly at support@company.com.\", \"messageType\": \"Error\"}]"
+    },
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_email",
+        "label": "Customer Email",
+        "description": "Customer's email address for verification",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_verified",
+        "label": "Customer Verified",
+        "description": "Whether customer identity has been verified",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer's name",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_id",
+        "label": "Customer Id",
+        "description": "Internal customer ID",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "case_type",
+        "label": "Case Type",
+        "description": "Type of case: order_issue, product_problem, billing, technical",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "case_priority",
+        "label": "Case Priority",
+        "description": "Case priority: low, normal, high, urgent",
+        "data_type": "string",
+        "is_list": false,
+        "default": "'normal'",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "case_description",
+        "label": "Case Description",
+        "description": "Detailed description of the issue",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "case_number",
+        "label": "Case Number",
+        "description": "Generated case number",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "case_resolved",
+        "label": "Case Resolved",
+        "description": "Whether case has been resolved",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "escalation_score",
+        "label": "Escalation Score",
+        "description": "Escalation score based on issue complexity (0-100)",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "escalation_required",
+        "label": "Escalation Required",
+        "description": "Whether case requires escalation",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "escalation_tier",
+        "label": "Escalation Tier",
+        "description": "Escalation tier: l2_support, manager, senior_manager",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "customer_verification",
+    "nodes": [
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome to customer support! I'm here to help you with any issues you're experiencing."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nTo ensure I can access your account information securely, I'll need to verify your identity first."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPlease provide:"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Your email address associated with your account"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Your name as it appears on the account"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWhat type of issue can I help you with today?"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a customer service assistant. Your role is to help customers create cases, check order status, and escalate issues when necessary. You must verify customer identity through email before proceeding with sensitive operations.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Verifies customer identity and determines service path",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_verified == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "case_priority": "\"normal\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Verify_Customer_Identity",
+            "bound_inputs": {
+              "email": "state.customer_email",
+              "security_question_answer": "\"\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "customer_verified": "result.customer_found"
+              },
+              {
+                "customer_name": "result.customer_name"
+              },
+              {
+                "customer_id": "result.customer_id"
+              }
+            ],
+            "name": "verify_customer",
+            "description": "Verify Customer"
+          },
+          {
+            "type": "action",
+            "target": "Get_Customer_Case_History",
+            "bound_inputs": {
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "escalation_score": "result.previous_cases"
+              }
+            ],
+            "name": "get_case_history",
+            "description": "Get Case History"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "customer_email": "state.customer_email"
+              },
+              {
+                "customer_name": "state.customer_name"
+              },
+              {
+                "case_type": "state.case_type"
+              }
+            ],
+            "name": "capture_customer_info",
+            "description": "Capture customer verification details",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"case_creation\""
+              }
+            ],
+            "name": "create_case",
+            "description": "Create a new support case"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "case_creation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"case_creation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_email != \"\" and state.customer_name != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Verify_Customer_Identity",
+            "bound_inputs": {
+              "email": "state.customer_email",
+              "security_question_answer": "\"\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "customer_verified": "result.customer_found"
+              },
+              {
+                "customer_name": "result.customer_name"
+              },
+              {
+                "customer_id": "result.customer_id"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Get_Customer_Case_History",
+            "bound_inputs": {
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "result.previous_cases"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_type != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"case_creation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "case_creation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"case_creation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "customer_verification",
+        "label": "Customer Verification",
+        "action_definitions": [
+          {
+            "developer_name": "Verify_Customer_Identity",
+            "label": "Verify Customer Identity",
+            "description": "Verifies customer identity using email address and security questions",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "VerifyCustomerIdentity",
+            "input_type": [
+              {
+                "developer_name": "email",
+                "label": "Email Address",
+                "description": "Customer's registered email address",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "security_question_answer",
+                "label": "Security Answer",
+                "description": "Answer to security question",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "customer_found",
+                "label": "Customer Found",
+                "description": "Customer Found",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "customer_name",
+                "label": "Customer Name",
+                "description": "Customer Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "account_status",
+                "label": "Account Status",
+                "description": "Account Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "verification_level",
+                "label": "Verification Level",
+                "description": "Verification Level",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Get_Customer_Case_History",
+            "label": "Get Case History",
+            "description": "Retrieves customer's previous case history for context",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GetCustomerCaseHistory",
+            "input_type": [
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "previous_cases",
+                "label": "Previous Cases Count",
+                "description": "Previous Cases",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "recent_case_type",
+                "label": "Recent Case Type",
+                "description": "Recent Case Type",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "customer_tier",
+                "label": "Customer Tier",
+                "description": "Customer Tier",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "escalation_history",
+                "label": "Has Escalation History",
+                "description": "Escalation History",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nThank you for verifying your identity, {{state.customer_name}}!"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nI see you have a {{state.case_type}} issue. Let me gather some details to create your case."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCurrent escalation score: {{state.escalation_score}}/100"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPriority level: {{state.case_priority}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPlease describe your issue in detail. The more specific information you can provide, the better I can assist you."
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a customer service assistant. Your role is to help customers create cases, check order status, and escalate issues when necessary. You must verify customer identity through email before proceeding with sensitive operations.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Creates and manages customer support cases with deterministic prioritization",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_type == \"billing\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "state.escalation_score + 30"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_type == \"technical\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "state.escalation_score + 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_type == \"product_problem\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "state.escalation_score + 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_type == \"order_issue\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "state.escalation_score + 20"
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Create_Support_Case",
+            "bound_inputs": {
+              "customer_id": "state.customer_id",
+              "case_type": "state.case_type",
+              "case_description": "state.case_description",
+              "priority": "state.case_priority"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_number": "result.case_number"
+              }
+            ],
+            "name": "create_case",
+            "description": "Create Case"
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Escalation_Score",
+            "bound_inputs": {
+              "case_type": "state.case_type",
+              "customer_tier": "\"standard\"",
+              "previous_escalations": "1",
+              "case_complexity": "\"medium\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "escalation_score": "result.escalation_score"
+              },
+              {
+                "escalation_tier": "result.recommended_tier"
+              }
+            ],
+            "name": "calculate_escalation",
+            "description": "Calculate Escalation"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_description": "state.case_description"
+              }
+            ],
+            "name": "capture_case_details",
+            "description": "Capture detailed case information",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_assessment\""
+              }
+            ],
+            "name": "assess_escalation",
+            "description": "Assess if escalation is needed"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"case_resolution\""
+              }
+            ],
+            "name": "resolve_case",
+            "description": "Attempt to resolve case directly"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "escalation_assessment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_assessment\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "case_resolution",
+            "enabled": "state.AgentScriptInternal_next_topic==\"case_resolution\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_description != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Create_Support_Case",
+            "bound_inputs": {
+              "customer_id": "state.customer_id",
+              "case_type": "state.case_type",
+              "case_description": "state.case_description",
+              "priority": "state.case_priority"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "case_number": "result.case_number"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Escalation_Score",
+            "bound_inputs": {
+              "case_type": "state.case_type",
+              "customer_tier": "\"standard\"",
+              "previous_escalations": "1",
+              "case_complexity": "\"medium\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "result.escalation_score"
+              },
+              {
+                "escalation_tier": "result.recommended_tier"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_score >= 60"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_required": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "case_priority": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_assessment\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_assessment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_assessment\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_score < 60"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"case_resolution\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "case_resolution",
+            "enabled": "state.AgentScriptInternal_next_topic==\"case_resolution\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "case_creation",
+        "label": "Case Creation",
+        "action_definitions": [
+          {
+            "developer_name": "Create_Support_Case",
+            "label": "Create Support Case",
+            "description": "Creates a new support case in the system",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CreateSupportCase",
+            "input_type": [
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "case_type",
+                "label": "Case Type",
+                "description": "Type of issue being reported",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "case_description",
+                "label": "Case Description",
+                "description": "Detailed description of the issue",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "priority",
+                "label": "Priority Level",
+                "description": "Case priority level",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "case_number",
+                "label": "Case Number",
+                "description": "Case Number",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "estimated_resolution",
+                "label": "Estimated Resolution Time",
+                "description": "Estimated Resolution",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "assigned_agent",
+                "label": "Assigned Agent",
+                "description": "Assigned Agent",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "auto_escalate",
+                "label": "Auto Escalate Required",
+                "description": "Auto Escalate",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Calculate_Escalation_Score",
+            "label": "Calculate Escalation Score",
+            "description": "Calculates escalation score based on case details and customer history",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CalculateEscalationScore",
+            "input_type": [
+              {
+                "developer_name": "case_type",
+                "label": "Case Type",
+                "description": "Type of case being created",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_tier",
+                "label": "Customer Tier",
+                "description": "Customer's service tier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "previous_escalations",
+                "label": "Previous Escalations",
+                "description": "Number of previous escalations",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "case_complexity",
+                "label": "Case Complexity",
+                "description": "Assessed complexity level",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "escalation_score",
+                "label": "Escalation Score",
+                "description": "Escalation Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "recommended_tier",
+                "label": "Recommended Escalation Tier",
+                "description": "Recommended Tier",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "immediate_escalation",
+                "label": "Immediate Escalation Required",
+                "description": "Immediate Escalation",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nBased on the complexity and nature of your issue, I've determined that your case requires escalation."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCase Details:"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Case Number: {{state.case_number}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Priority: {{state.case_priority}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Escalation Score: {{state.escalation_score}}/100"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Escalation Tier: {{state.escalation_tier}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nI'm routing your case to our {{state.escalation_tier}} team who will be better equipped to handle your specific situation."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou can expect to hear from them within:"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- L2 Support: 2-4 hours"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Manager: 1-2 hours"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n- Senior Manager: 30 minutes"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nIs there anything else I can help clarify about your case before the handoff?"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a customer service assistant. Your role is to help customers create cases, check order status, and escalate issues when necessary. You must verify customer identity through email before proceeding with sensitive operations.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Assesses escalation requirements and routes to appropriate support tier",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_tier": "\"senior_manager\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "case_priority": "\"urgent\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_score >= 60"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_tier": "\"manager\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "case_priority": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_score >= 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_tier": "\"l2_support\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Initiate_Escalation",
+            "bound_inputs": {
+              "case_number": "state.case_number",
+              "escalation_tier": "state.escalation_tier",
+              "escalation_reason": "\"Complex issue requiring specialized expertise\"",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "escalation_required": "True"
+              }
+            ],
+            "name": "escalate_case",
+            "description": "Escalate Case"
+          },
+          {
+            "type": "action",
+            "target": "Notify_Customer",
+            "bound_inputs": {
+              "customer_id": "state.customer_id",
+              "case_number": "state.case_number",
+              "escalation_details": "\"Your case has been escalated to \" + state.escalation_tier"
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "name": "send_escalation_notification",
+            "description": "Send Escalation Notification"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_description": "state.case_description"
+              }
+            ],
+            "name": "capture_additional_info",
+            "description": "Capture any additional case information",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"customer_verification\""
+              }
+            ],
+            "name": "help_another",
+            "description": "Help another customer"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "customer_verification",
+            "enabled": "state.AgentScriptInternal_next_topic==\"customer_verification\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_tier != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Initiate_Escalation",
+            "bound_inputs": {
+              "case_number": "state.case_number",
+              "escalation_tier": "state.escalation_tier",
+              "escalation_reason": "\"Complex issue requiring specialized expertise\"",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_required": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Notify_Customer",
+            "bound_inputs": {
+              "customer_id": "state.customer_id",
+              "case_number": "state.case_number",
+              "escalation_details": "\"Your case has been escalated to \" + state.escalation_tier"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": []
+          }
+        ],
+        "developer_name": "escalation_assessment",
+        "label": "Escalation Assessment",
+        "action_definitions": [
+          {
+            "developer_name": "Initiate_Escalation",
+            "label": "Initiate Escalation",
+            "description": "Initiates escalation to appropriate support tier",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "InitiateEscalation",
+            "input_type": [
+              {
+                "developer_name": "case_number",
+                "label": "Case Number",
+                "description": "Case to escalate",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "escalation_tier",
+                "label": "Escalation Tier",
+                "description": "Target escalation tier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "escalation_reason",
+                "label": "Escalation Reason",
+                "description": "Reason for escalation",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "escalation_approved",
+                "label": "Escalation Approved",
+                "description": "Escalation Approved",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "assigned_specialist",
+                "label": "Assigned Specialist",
+                "description": "Assigned Specialist",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "response_sla",
+                "label": "Response SLA",
+                "description": "Response Sla",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "escalation_id",
+                "label": "Escalation ID",
+                "description": "Escalation Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Notify_Customer",
+            "label": "Notify Customer",
+            "description": "Notifies customer about escalation and next steps",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "NotifyCustomer",
+            "input_type": [
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer to notify",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "case_number",
+                "label": "Case Number",
+                "description": "Case reference",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "escalation_details",
+                "label": "Escalation Details",
+                "description": "Details about the escalation",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "notification_sent",
+                "label": "Notification Sent",
+                "description": "Notification Sent",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "delivery_method",
+                "label": "Delivery Method",
+                "description": "Delivery Method",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nI'll work to resolve your {{state.case_type}} issue directly."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYour Case: {{state.case_number}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPriority: {{state.case_priority}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nIssue: {{state.case_description}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nBased on similar cases, here are the most common solutions:"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n1. For order issues: Check order status and tracking information"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n2. For billing questions: Review recent charges and payment methods"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n3. For technical problems: Verify account settings and try basic troubleshooting"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n4. For product issues: Check warranty status and available support options"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nDoes this help resolve your issue, or do you need me to escalate this to a specialist?"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a customer service assistant. Your role is to help customers create cases, check order status, and escalate issues when necessary. You must verify customer identity through email before proceeding with sensitive operations.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Attempts direct case resolution for lower priority issues",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_type != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Provide_Solution",
+            "bound_inputs": {
+              "case_type": "state.case_type",
+              "case_description": "state.case_description",
+              "customer_tier": "\"standard\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": []
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Provide_Solution",
+            "bound_inputs": {
+              "case_type": "state.case_type",
+              "case_description": "state.case_description",
+              "customer_tier": "\"standard\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_resolved": "result.resolution_successful"
+              }
+            ],
+            "name": "offer_solution",
+            "description": "Offer Solution"
+          },
+          {
+            "type": "action",
+            "target": "Close_Case",
+            "bound_inputs": {
+              "case_number": "state.case_number",
+              "resolution_summary": "\"Issue resolved through direct support\"",
+              "customer_satisfied": "True"
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "name": "close_resolved_case",
+            "description": "Close Resolved Case"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_description": "state.case_description"
+              }
+            ],
+            "name": "capture_resolution_feedback",
+            "description": "Capture customer feedback on resolution attempt",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_assessment\""
+              }
+            ],
+            "name": "escalate_case",
+            "description": "Escalate to higher tier support"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"customer_verification\""
+              }
+            ],
+            "name": "help_another",
+            "description": "Help another customer"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "escalation_assessment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_assessment\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "customer_verification",
+            "enabled": "state.AgentScriptInternal_next_topic==\"customer_verification\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_description != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_score": "state.escalation_score + 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.case_resolved"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Close_Case",
+            "bound_inputs": {
+              "case_number": "state.case_number",
+              "resolution_summary": "\"Issue resolved through direct support\"",
+              "customer_satisfied": "True"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": []
+          }
+        ],
+        "developer_name": "case_resolution",
+        "label": "Case Resolution",
+        "action_definitions": [
+          {
+            "developer_name": "Provide_Solution",
+            "label": "Provide Solution",
+            "description": "Provides solution recommendation based on case type",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ProvideSolution",
+            "input_type": [
+              {
+                "developer_name": "case_type",
+                "label": "Case Type",
+                "description": "Type of issue to resolve",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "case_description",
+                "label": "Case Description",
+                "description": "Issue details",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_tier",
+                "label": "Customer Tier",
+                "description": "Customer service tier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "solution_found",
+                "label": "Solution Found",
+                "description": "Solution Found",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "solution_steps",
+                "label": "Solution Steps",
+                "description": "Solution Steps",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "resolution_successful",
+                "label": "Resolution Successful",
+                "description": "Resolution Successful",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "followup_needed",
+                "label": "Follow-up Needed",
+                "description": "Followup Needed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Close_Case",
+            "label": "Close Case",
+            "description": "Closes resolved case and gathers customer satisfaction feedback",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CloseCase",
+            "input_type": [
+              {
+                "developer_name": "case_number",
+                "label": "Case Number",
+                "description": "Case to close",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "resolution_summary",
+                "label": "Resolution Summary",
+                "description": "Summary of how issue was resolved",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_satisfied",
+                "label": "Customer Satisfied",
+                "description": "Customer satisfaction status",
+                "data_type": "Boolean",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "case_closed",
+                "label": "Case Closed",
+                "description": "Case Closed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "satisfaction_score",
+                "label": "Satisfaction Score",
+                "description": "Satisfaction Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "feedback_collected",
+                "label": "Feedback Collected",
+                "description": "Feedback Collected",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": []
+  }
+}

@@ -1,0 +1,96 @@
+---
+slug: /
+sidebar_position: 1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Welcome to AgentScript
+
+AgentScript is a domain-specific language for declaratively defining AI agents. It is an open source project by Salesforce, providing a type-safe, human-readable way to author agent configurations that compile to the Salesforce runtime specification.
+
+## Key Features
+
+- **Indentation-based syntax** -- A YAML-like structure designed for readability, with multiline text blocks, inline expressions, and scoped declarations.
+- **Type-safe validation with 15 built-in lint passes** -- Catch errors before runtime with passes covering duplicate keys, required fields, undefined references, expression validation, unreachable code, and more.
+- **Tree-sitter parser with WASM support** -- A robust parser that runs on both Node.js (native bindings) and in the browser (WASM), with full error recovery that preserves structure inside error nodes.
+- **Extensible dialect system** -- The base AgentScript dialect defines core agent constructs, while the Agentforce dialect extends it with Salesforce-specific features like connected agents, action security, and hyperclassifier support.
+- **Full IDE support** -- Language Server Protocol (LSP) implementation, a VS Code extension, and Monaco editor integration for browser-based editing.
+- **Compiler to a Salesforce runtime specification** -- Transform `.agent` files into the Salesforce runtime specification.
+
+## Quick Example
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+system:
+    instructions: "You are a helpful assistant."
+    messages:
+        welcome: "Hello! How can I help you today?"
+        error: "Sorry, something went wrong."
+
+config:
+    agent_name: "My_Agent"
+
+variables:
+    user_name: mutable string = ""
+        description: "The user's name"
+
+start_agent greeting:
+    description: "Welcome user and route to the right subagent"
+
+    reasoning:
+        instructions: ->
+            | Welcome the user and ask how you can help.
+              Use {!@actions.capture_name} to remember their name.
+        actions:
+            capture_name: @utils.setVariables
+                description: "Capture the user's name"
+                with user_name=...
+            go_to_support: @utils.transition to @subagent.Support
+                description: "Route to support subagent"
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+system:
+    instructions: "You are a helpful assistant."
+    messages:
+        welcome: "Hello! How can I help you today?"
+        error: "Sorry, something went wrong."
+
+config:
+    agent_name: "My_Agent"
+
+variables:
+    user_name: mutable string = ""
+        description: "The user's name"
+
+start_agent greeting:
+    description: "Welcome user and route to the right topic"
+
+    reasoning:
+        instructions: ->
+            | Welcome the user and ask how you can help.
+              Use {!@actions.capture_name} to remember their name.
+        actions:
+            capture_name: @utils.setVariables
+                description: "Capture the user's name"
+                with user_name=...
+            go_to_support: @utils.transition to @topic.Support
+                description: "Route to support topic"
+```
+
+</TabItem>
+</Tabs>
+
+## Learn More
+
+- [**Language Guide**](/language/syntax) -- Syntax reference, block types, expressions, and multiline text.
+- [**Getting Started**](/getting-started/quickstart) -- Install dependencies, build the project, and run your first agent file.
+- [**Architecture**](/architecture/overview) -- How the parser, dialect system, lint engine, and compiler fit together.
+- [**Packages**](/packages/overview) -- Reference documentation for each package in the monorepo.

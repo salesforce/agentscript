@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional itinerary planning assistant assistant.
+        Help users manage their itinerary requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: preference_collection -> route_planning -> activity_booking -> finalization.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Itinerary Planning Assistant Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "itinerary_planning_agent_v72"
+    default_agent_user: "itinerary_planning@example.com"
+    agent_description: "Assists users with itinerary management through the itinerary planning assistant workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    itinerary_record_id: mutable string
+        description: "Record ID of the itinerary"
+    itinerary_status: mutable string = ""
+        description: "Current status of the itinerary"
+    itinerary_tier: mutable string = "standard"
+        description: "Tier classification for the itinerary"
+    itinerary_category: mutable string = ""
+        description: "Category of the itinerary"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    preference_collection_complete: mutable boolean = False
+        description: "Whether the preference_collection stage is complete"
+    preference_collection_result: mutable string = ""
+        description: "Result from the preference_collection stage"
+    route_planning_complete: mutable boolean = False
+        description: "Whether the route_planning stage is complete"
+    route_planning_result: mutable string = ""
+        description: "Result from the route_planning stage"
+    activity_booking_complete: mutable boolean = False
+        description: "Whether the activity_booking stage is complete"
+    activity_booking_result: mutable string = ""
+        description: "Result from the activity_booking stage"
+    finalization_complete: mutable boolean = False
+        description: "Whether the finalization stage is complete"
+    finalization_result: mutable string = ""
+        description: "Result from the finalization stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate itinerary management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a itinerary planning assistant assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current itinerary status: {! @variables.itinerary_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_preference_collection} for preference collection requests.
+              Use {!@actions.go_to_route_planning} for route planning requests.
+              Use {!@actions.go_to_activity_booking} for activity booking requests.
+              Use {!@actions.go_to_finalization} for finalization requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_preference_collection: @utils.transition to @topic.preference_collection
+                description: "Transition to preference collection topic."
+            go_to_route_planning: @utils.transition to @topic.route_planning
+                description: "Transition to route planning topic."
+                available when @variables.is_verified == True
+            go_to_activity_booking: @utils.transition to @topic.activity_booking
+                description: "Transition to activity booking topic."
+                available when @variables.is_verified == True
+            go_to_finalization: @utils.transition to @topic.finalization
+                description: "Transition to finalization topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic preference_collection:
+    description: "Handles the preference collection stage of the itinerary process"
+
+    actions:
+        process_preference_collection_data:
+            description: "Process preference collection stage data for the itinerary"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_PreferenceCollection"
+
+        validate_preference_collection_info:
+            description: "Validate preference collection information for the itinerary"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PreferenceCollection_Info"
+
+        fetch_preference_collection_details:
+            description: "Fetch preference collection details for the itinerary"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PreferenceCollection_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_preference_collection_info
+                with record_ref=@variables.itinerary_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.itinerary_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the preference collection stage for the itinerary.
+              Current itinerary status: {! @variables.itinerary_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Preference Collection result: {! @variables.preference_collection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.itinerary_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_preference_collection} to begin processing.
+        actions:
+            run_preference_collection: @actions.process_preference_collection_data
+                with record_ref=@variables.itinerary_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.itinerary_category
+                set @variables.preference_collection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.preference_collection_complete = @outputs.is_passed
+            fetch_preference_collection_info: @actions.fetch_preference_collection_details
+                with record_ref=@variables.itinerary_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.itinerary_tier = @outputs.tier_value
+            go_to_route_planning: @utils.transition to @topic.route_planning
+                description: "Move to route planning stage."
+                available when @variables.preference_collection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.itinerary_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.itinerary_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.itinerary_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.preference_collection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic route_planning:
+    description: "Handles the route planning stage of the itinerary process"
+
+    actions:
+        process_route_planning_data:
+            description: "Process route planning stage data for the itinerary"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_RoutePlanning_Data"
+
+        validate_route_planning_info:
+            description: "Validate route planning information for the itinerary"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RoutePlanning_Info"
+
+        fetch_route_planning_details:
+            description: "Fetch route planning details for the itinerary"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RoutePlanning_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.preference_collection_complete == False:
+            transition to @topic.preference_collection
+
+    reasoning:
+        instructions: ->
+            | Handle the route planning stage for the itinerary.
+              Current itinerary status: {! @variables.itinerary_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Route Planning result: {! @variables.route_planning_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.itinerary_tier }
+              Review the route planning results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_route_planning: @actions.process_route_planning_data
+                with record_ref=@variables.itinerary_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.itinerary_category
+                set @variables.route_planning_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.route_planning_complete = @outputs.is_passed
+            fetch_route_planning_info: @actions.fetch_route_planning_details
+                with record_ref=@variables.itinerary_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.itinerary_tier = @outputs.tier_value
+                available when @variables.itinerary_record_id is not None
+            go_to_activity_booking: @utils.transition to @topic.activity_booking
+                description: "Move to activity booking stage."
+                available when @variables.route_planning_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.route_planning_complete == True:
+            set @variables.itinerary_status = "route_planning_done"
+        if @variables.route_planning_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.activity_booking
+        if @variables.attempt_count >= 3 and @variables.route_planning_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic activity_booking:
+    description: "Handles the activity booking stage of the itinerary process"
+
+    actions:
+        process_activity_booking_data:
+            description: "Process activity booking stage data for the itinerary"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_ActivityBooking"
+
+        validate_activity_booking_info:
+            description: "Validate activity booking information for the itinerary"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ActivityBooking_Info"
+
+        fetch_activity_booking_details:
+            description: "Fetch activity booking details for the itinerary"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ActivityBooking_Details"
+
+    before_reasoning:
+        if @variables.activity_booking_complete == False:
+            run @actions.fetch_activity_booking_details
+                with record_ref=@variables.itinerary_record_id
+                with include_history=True
+                set @variables.activity_booking_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.itinerary_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.itinerary_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.itinerary_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the activity booking stage for the itinerary.
+              Current itinerary status: {! @variables.itinerary_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Activity Booking result: {! @variables.activity_booking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.itinerary_tier }
+              Review the activity booking results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_activity_booking: @actions.process_activity_booking_data
+                with record_ref=@variables.itinerary_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.itinerary_category
+                set @variables.activity_booking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.activity_booking_complete = @outputs.is_passed
+            fetch_activity_booking_info: @actions.fetch_activity_booking_details
+                with record_ref=@variables.itinerary_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.itinerary_tier = @outputs.tier_value
+                available when @variables.itinerary_record_id is not None
+            go_to_finalization: @utils.transition to @topic.finalization
+                description: "Move to finalization stage."
+                available when @variables.activity_booking_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.itinerary_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.itinerary_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.itinerary_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.activity_booking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic finalization:
+    description: "Handles the finalization stage of the itinerary process"
+
+    actions:
+        process_finalization_data:
+            description: "Process finalization stage data for the itinerary"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Finalization"
+
+        validate_finalization_info:
+            description: "Validate finalization information for the itinerary"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Finalization_Info"
+
+        fetch_finalization_details:
+            description: "Fetch finalization details for the itinerary"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Finalization_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.activity_booking_complete == False:
+            transition to @topic.activity_booking
+        if @variables.eligibility_score >= 80:
+            set @variables.itinerary_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.itinerary_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the finalization stage for the itinerary.
+              Current itinerary status: {! @variables.itinerary_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Finalization result: {! @variables.finalization_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.itinerary_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_finalization: @actions.process_finalization_data
+                with record_ref=@variables.itinerary_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.itinerary_category
+                set @variables.finalization_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.finalization_complete = @outputs.is_passed
+            fetch_finalization_info: @actions.fetch_finalization_details
+                with record_ref=@variables.itinerary_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.itinerary_tier = @outputs.tier_value
+                available when @variables.itinerary_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.finalization_complete == True:
+            set @variables.itinerary_status = "finalization_done"
+        if @variables.attempt_count >= 3 and @variables.finalization_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for itinerary issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the itinerary issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the itinerary interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the itinerary request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Itinerary status: {! @variables.itinerary_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.itinerary_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.itinerary_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.itinerary_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.itinerary_status = "escalated"
+        set @variables.escalation_requested = False
+

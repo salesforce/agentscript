@@ -1,0 +1,233 @@
+---
+sidebar_position: 2
+title: Blocks
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Blocks
+
+AgentScript programs are composed of top-level blocks that define the structure and behavior of an agent. Each block type serves a specific purpose.
+
+## system
+
+The `system` block defines system-level instructions and pre-defined messages for the agent.
+
+**Fields:**
+
+| Field              | Description                                                                |
+| ------------------ | -------------------------------------------------------------------------- |
+| `instructions`     | System-level instructions for the agent. Supports `{!expr}` interpolation. |
+| `messages`         | Pre-defined messages.                                                      |
+| `messages.welcome` | Welcome message shown to the user.                                         |
+| `messages.error`   | Error message shown when something goes wrong (required).                  |
+
+```agentscript
+system:
+    instructions: |
+        You are a helpful, professional assistant for customer support.
+        Always be polite, concise, and reassuring.
+    messages:
+        welcome: "Hello! How can I help you today?"
+        error: "Sorry, something went wrong. Please try again."
+```
+
+## config
+
+The `config` block defines metadata about the agent.
+
+**Fields:**
+
+| Field         | Description                 |
+| ------------- | --------------------------- |
+| `agent_name`  | The agent's identifier.     |
+| `description` | A description of the agent. |
+
+```agentscript
+config:
+    agent_name: "My_Agent"
+    description: "An AI assistant for customer support"
+```
+
+## language
+
+The `language` block configures locale and language support.
+
+**Fields:**
+
+| Field                    | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `default_locale`         | Primary locale (e.g., `"en_US"`).                    |
+| `additional_locales`     | Comma-separated list of additional locales.          |
+| `all_additional_locales` | Boolean. When `True`, support all available locales. |
+
+```agentscript
+language:
+    default_locale: "en_US"
+    additional_locales: "fr, de"
+    all_additional_locales: True
+```
+
+## variables
+
+The `variables` block declares all variables used by the agent. Each variable has a modifier, type, and optional default value.
+
+**Variable properties:**
+
+| Property      | Description                             |
+| ------------- | --------------------------------------- |
+| `description` | Describes the variable's purpose.       |
+| `label`       | UI display label.                       |
+| `is_required` | Whether the variable must have a value. |
+
+```agentscript
+variables:
+    customer_email: mutable string = ""
+        description: "Customer's email address"
+    customer_verified: mutable boolean = False
+        description: "Whether identity has been verified"
+    customer_id: mutable string = ""
+    escalation_score: mutable number = 0
+```
+
+See [Syntax](syntax.mdx) for details on modifiers (`mutable`, `linked`) and available types.
+
+## start_agent
+
+The `start_agent` block defines the entry point for the agent. Exactly one `start_agent` block is required per agent. It has the same fields as a `subagent` block (formerly `topic`).
+
+```agentscript
+start_agent welcome:
+    description: "Welcome the user and verify identity"
+
+    reasoning:
+        instructions: ->
+            | Welcome the user and ask how you can help.
+```
+
+## subagent
+
+A `subagent` block defines a conversational subagent that the agent can handle (formerly `topic`). An agent can have zero or more subagents.
+
+**Fields:**
+
+| Field              | Description                                                                 |
+| ------------------ | --------------------------------------------------------------------------- |
+| `description`      | What this subagent does (required).                                         |
+| `label`            | UI display label.                                                           |
+| `system`           | Subagent-level system instruction override (only the `instructions` field). |
+| `actions`          | Actions available within this subagent.                                     |
+| `before_reasoning` | Procedure that runs before the reasoning loop.                              |
+| `reasoning`        | Reasoning block with instructions and tool bindings.                        |
+| `after_reasoning`  | Procedure that runs after the reasoning loop.                               |
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+subagent Order_Management:
+    description: "Handles order lookups, updates, and summaries"
+
+    system:
+        instructions: "Focus on helping the user with their order."
+
+    before_reasoning:
+        if @variables.verified is not True:
+            transition to @subagent.Identity
+        run @actions.Check_Business_Hours
+            set @variables.is_business_hours = @outputs.is_business_hours
+
+    actions:
+        Lookup_Order:
+            description: "Retrieve order details"
+            inputs:
+                order_number: string
+                    description: "The order number to look up"
+                    is_required: True
+            outputs:
+                status: string
+                    description: "Order status"
+                order_id: string
+            target: "flow://Lookup_Order"
+
+    reasoning:
+        instructions: ->
+            | Ask for the Order Number and call {!@actions.lookup_order}.
+        actions:
+            lookup_order: @actions.Lookup_Order
+                with order_number=...
+                set @variables.status = @outputs.status
+
+    after_reasoning:
+        set @variables.request_count = @variables.request_count + 1
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+topic Order_Management:
+    description: "Handles order lookups, updates, and summaries"
+
+    system:
+        instructions: "Focus on helping the user with their order."
+
+    before_reasoning:
+        if @variables.verified is not True:
+            transition to @topic.Identity
+        run @actions.Check_Business_Hours
+            set @variables.is_business_hours = @outputs.is_business_hours
+
+    actions:
+        Lookup_Order:
+            description: "Retrieve order details"
+            inputs:
+                order_number: string
+                    description: "The order number to look up"
+                    is_required: True
+            outputs:
+                status: string
+                    description: "Order status"
+                order_id: string
+            target: "flow://Lookup_Order"
+
+    reasoning:
+        instructions: ->
+            | Ask for the Order Number and call {!@actions.lookup_order}.
+        actions:
+            lookup_order: @actions.Lookup_Order
+                with order_number=...
+                set @variables.status = @outputs.status
+
+    after_reasoning:
+        set @variables.request_count = @variables.request_count + 1
+```
+
+</TabItem>
+</Tabs>
+
+## connected_subagent
+
+The `connected_subagent` block defines a connection to an external agent.
+
+**Fields:**
+
+| Field          | Description                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| `target`       | URI of the external agent (required). E.g., `"agentforce://Agent_Name"`. |
+| `label`        | Human-readable label.                                                    |
+| `description`  | Description of the agent's capabilities.                                 |
+| `loading_text` | Message shown while the external agent executes.                         |
+| `inputs`       | Input parameters to pass to the agent.                                   |
+
+```agentscript
+connected_subagent external_agent:
+    target: "agentforce://External_Agent"
+    label: "External Agent"
+    description: "Handles specialized tasks"
+    loading_text: "Calling external agent..."
+    inputs:
+        param1: string
+            description: "Input parameter"
+```

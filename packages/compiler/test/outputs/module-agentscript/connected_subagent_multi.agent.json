@@ -1,0 +1,168 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "EnterpriseHub",
+    "label": "Enterprise Hub",
+    "description": "Enterprise Hub",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [
+      {
+        "developer_name": "Account_Id",
+        "label": "Account Id",
+        "description": "Account_Id",
+        "data_type": "string"
+      },
+      {
+        "developer_name": "User_Email",
+        "label": "User Email",
+        "description": "User_Email",
+        "data_type": "string"
+      }
+    ],
+    "default_agent_user": "admin_user"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Session_Context",
+        "label": "Session Context",
+        "description": "Session Context",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Escalation_Reason",
+        "label": "Escalation Reason",
+        "description": "Escalation Reason",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "Coordinator",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Central coordinator that delegates to specialized connected agents",
+        "tools": [],
+        "developer_name": "Coordinator",
+        "label": "Coordinator",
+        "action_definitions": [],
+        "instructions": "You are an enterprise hub that coordinates between multiple specialized agents.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou coordinate between multiple specialized agents.\nAssess the user's request and determine which agent to involve.\nPass along all relevant context."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "HR_Assistant",
+        "label": "HR Assistant",
+        "description": "Handles HR inquiries including PTO, benefits, and policy questions",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "HR_Assistant",
+        "loading_text": "Connecting you with HR...",
+        "bound_inputs": {
+          "employee_email": "variables.User_Email",
+          "account_id": "variables.Account_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "IT_Support",
+        "label": "IT Support",
+        "description": "Handles technical issues, password resets, and system access requests",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "IT_Support",
+        "loading_text": "Connecting you with IT Support...",
+        "bound_inputs": {
+          "user_email": "variables.User_Email"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Finance_Agent",
+        "label": "Finance Agent",
+        "description": "Handles expense reports, invoicing, and budget inquiries",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Finance_Agent",
+        "bound_inputs": {
+          "account_id": "variables.Account_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Legal_Review",
+        "label": "Legal Review",
+        "description": "Routes contract reviews and compliance questions to the legal team",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Legal_Review",
+        "loading_text": "Initiating legal review...",
+        "bound_inputs": {
+          "account_id": "variables.Account_Id",
+          "context": "state.Session_Context"
+        }
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

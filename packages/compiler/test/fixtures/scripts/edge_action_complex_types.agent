@@ -1,0 +1,83 @@
+system:
+    instructions: "You are a helpful assistant for orders, profiles, and product searches."
+    messages:
+        welcome: "Hello! I can help with orders, profiles, and products."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Complex_Types_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with actions using complex_data_type_name on inputs and outputs"
+
+start_agent main:
+    description: "Agent with actions using complex_data_type_name on inputs and outputs"
+
+    actions:
+        Process_Order:
+            description: "Process an order with complex types"
+            target: "flow://Process_Order_Flow"
+            inputs:
+                order: object
+                    label: "Order Object"
+                    is_required: True
+                    complex_data_type_name: "OrderRecord"
+                line_items: list[object]
+                    label: "Line Items"
+                    is_required: True
+                    complex_data_type_name: "LineItemRecord"
+            outputs:
+                processed_order: object
+                    label: "Processed Order"
+                    complex_data_type_name: "OrderRecord"
+                invoice: object
+                    label: "Invoice"
+                    complex_data_type_name: "InvoiceRecord"
+
+        Update_Profile:
+            description: "Update user profile with complex data"
+            target: "apex://ProfileController.updateProfile"
+            inputs:
+                profile: object
+                    label: "Profile Data"
+                    is_required: True
+                    complex_data_type_name: "UserProfile"
+                preferences: object
+                    label: "User Preferences"
+                    complex_data_type_name: "PreferencesRecord"
+            outputs:
+                updated_profile: object
+                    label: "Updated Profile"
+                    complex_data_type_name: "UserProfile"
+
+        Search_Products:
+            description: "Search products with complex filters"
+            target: "externalService://ProductService.search"
+            inputs:
+                filters: object
+                    label: "Search Filters"
+                    is_required: True
+                    complex_data_type_name: "SearchFilters"
+            outputs:
+                products: list[object]
+                    label: "Product Results"
+                    complex_data_type_name: "ProductRecord"
+                facets: object
+                    label: "Search Facets"
+                    complex_data_type_name: "FacetResults"
+
+    reasoning:
+        instructions: ->
+            | Help the user with orders, profiles, and product searches.
+              These actions use complex data types.
+
+        actions:
+            Order_Action: @actions.Process_Order
+                with order=...
+                with line_items=...
+
+            Profile_Action: @actions.Update_Profile
+                with profile=...
+                with preferences=...
+
+            Search_Action: @actions.Search_Products
+                with filters=...

@@ -1,0 +1,60 @@
+system:
+    instructions: "You are a support assistant with conditional escalation."
+    messages:
+        welcome: "Welcome to support!"
+        error: "An error occurred."
+
+config:
+    developer_name: "Edge_Escalation_Conditional"
+    default_agent_user: "test_user"
+    description: "Tests conditional escalation based on variable checks"
+
+variables:
+    needs_escalation: mutable boolean = False
+    attempt_count: mutable number = 0
+    issue_type: mutable string = ""
+
+start_agent main:
+    description: "Tests conditional escalation in before and after reasoning"
+
+    actions:
+        try_resolve:
+            description: "Attempts to resolve the issue automatically"
+            inputs:
+                issue_type: string
+            outputs:
+                resolved: boolean
+            target: "flow://TryResolve"
+
+    before_reasoning:
+        if @variables.attempt_count > 3:
+            set @variables.needs_escalation = True
+
+    reasoning:
+        instructions: ->
+            | I'll try to resolve your issue. Attempt: {! @variables.attempt_count }
+
+        actions:
+            resolve: @actions.try_resolve
+                with issue_type=@variables.issue_type
+                set @variables.needs_escalation = @outputs.resolved
+
+            escalate_to_human: @utils.transition to @topic.escalation
+
+    after_reasoning:
+        if @variables.needs_escalation == True:
+            transition to @topic.escalation
+        if @variables.issue_type == "urgent":
+            set @variables.needs_escalation = True
+            transition to @topic.escalation
+
+topic escalation:
+    description: "Handles escalated cases"
+
+    reasoning:
+        instructions: ->
+            | Your case is being escalated to a human agent.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Transfer to live agent"

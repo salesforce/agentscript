@@ -1,0 +1,228 @@
+system:
+    instructions: "You are a comprehensive service agent with many available actions."
+    messages:
+        welcome: "Hello! I can help with many different tasks."
+        error: "Something went wrong."
+
+config:
+    developer_name: "EdgeActionMany"
+    default_agent_user: "service@example.com"
+    agent_label: "Many Actions Agent"
+    description: "Agent with 10+ actions defined and invoked in reasoning"
+
+variables:
+    customer_id: linked string
+        description: "The customer ID"
+    account_balance: mutable number = 0
+        description: "Current account balance"
+    order_status: mutable string
+        description: "Status of the current order"
+    shipping_address: mutable string
+        description: "Shipping address on file"
+    payment_method: mutable string
+        description: "Current payment method"
+    refund_amount: mutable number = 0
+        description: "Amount to refund"
+    ticket_id: mutable string
+        description: "Support ticket ID"
+    loyalty_points: mutable number = 0
+        description: "Customer loyalty points"
+    coupon_code: mutable string
+        description: "Applied coupon code"
+    product_list: mutable list[object]
+        description: "List of products"
+    notification_sent: mutable boolean = False
+        description: "Whether notification was sent"
+
+start_agent main:
+    description: "Route customer to appropriate service topic"
+
+    reasoning:
+        actions:
+            go_to_service: @utils.transition to @topic.full_service
+
+topic full_service:
+    description: "Full service topic with many actions"
+
+    actions:
+        get_account:
+            description: "Retrieve customer account details"
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    is_required: True
+            outputs:
+                balance: number
+                    label: "Account Balance"
+                loyalty: number
+                    label: "Loyalty Points"
+            target: "flow://Get_Account_Details"
+
+        update_address:
+            description: "Update shipping address"
+            inputs:
+                customer_id: string
+                    is_required: True
+                new_address: string
+                    is_required: True
+            outputs:
+                success: boolean
+            target: "flow://Update_Address"
+
+        check_order:
+            description: "Check order status"
+            inputs:
+                order_id: string
+                    is_required: True
+            outputs:
+                status: string
+                tracking_number: string
+            target: "flow://Check_Order_Status"
+
+        process_refund:
+            description: "Process a refund"
+            inputs:
+                order_id: string
+                    is_required: True
+                amount: number
+                    is_required: True
+            outputs:
+                refund_id: string
+                refund_status: string
+            target: "flow://Process_Refund"
+
+        apply_coupon:
+            description: "Apply a coupon code"
+            inputs:
+                coupon_code: string
+                    is_required: True
+                customer_id: string
+                    is_required: True
+            outputs:
+                discount: number
+                valid: boolean
+            target: "flow://Apply_Coupon"
+
+        send_notification:
+            description: "Send notification to customer"
+            inputs:
+                customer_id: string
+                    is_required: True
+                message: string
+                    is_required: True
+            outputs:
+                sent: boolean
+            target: "flow://Send_Notification"
+
+        create_ticket:
+            description: "Create support ticket"
+            inputs:
+                subject: string
+                    is_required: True
+                details: string
+                    is_required: False
+            outputs:
+                ticket_id: string
+            target: "flow://Create_Ticket"
+
+        list_products:
+            description: "List available products"
+            inputs:
+                category: string
+                    is_required: False
+            outputs:
+                products: list[object]
+            target: "apex://ProductService.listProducts"
+
+        update_payment:
+            description: "Update payment method"
+            inputs:
+                customer_id: string
+                    is_required: True
+                payment_type: string
+                    is_required: True
+            outputs:
+                updated: boolean
+            target: "flow://Update_Payment"
+
+        redeem_points:
+            description: "Redeem loyalty points"
+            inputs:
+                customer_id: string
+                    is_required: True
+                points: number
+                    is_required: True
+            outputs:
+                remaining_points: number
+                discount_applied: number
+            target: "flow://Redeem_Points"
+
+        cancel_order:
+            description: "Cancel an existing order"
+            inputs:
+                order_id: string
+                    is_required: True
+            outputs:
+                cancelled: boolean
+            target: "flow://Cancel_Order"
+
+    reasoning:
+        instructions: ->
+            | Help the customer with their request. You have access to many tools.
+              Use {!@actions.get_account} to look up account info.
+              Use {!@actions.check_order} to check order status.
+              Use {!@actions.process_refund} for refunds.
+              Use {!@actions.apply_coupon} for coupons.
+              Use {!@actions.create_ticket} to create support tickets.
+
+        actions:
+            get_account: @actions.get_account
+                with customer_id=@variables.customer_id
+                set @variables.account_balance = @outputs.balance
+                set @variables.loyalty_points = @outputs.loyalty
+
+            check_order: @actions.check_order
+                with order_id=...
+                set @variables.order_status = @outputs.status
+
+            process_refund: @actions.process_refund
+                with order_id=...
+                with amount=...
+                set @variables.ticket_id = @outputs.refund_id
+
+            apply_coupon: @actions.apply_coupon
+                with coupon_code=...
+                with customer_id=@variables.customer_id
+
+            send_notification: @actions.send_notification
+                with customer_id=@variables.customer_id
+                with message=...
+                set @variables.notification_sent = @outputs.sent
+
+            create_ticket: @actions.create_ticket
+                with subject=...
+                with details=...
+                set @variables.ticket_id = @outputs.ticket_id
+
+            list_products: @actions.list_products
+                with category=...
+                set @variables.product_list = @outputs.products
+
+            update_payment: @actions.update_payment
+                with customer_id=@variables.customer_id
+                with payment_type=...
+
+            redeem_points: @actions.redeem_points
+                with customer_id=@variables.customer_id
+                with points=...
+                set @variables.loyalty_points = @outputs.remaining_points
+
+            update_address: @actions.update_address
+                with customer_id=@variables.customer_id
+                with new_address=...
+
+            cancel_order: @actions.cancel_order
+                with order_id=...
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent"

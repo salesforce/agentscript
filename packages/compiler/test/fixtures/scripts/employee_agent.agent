@@ -1,0 +1,72 @@
+# A simple agentforce employee agent. This script is to validate that agent_type is retained in generated DSL
+system:
+  instructions: "You are an agent helping employees with all internal employee operations like record CRUD"
+  messages:
+    welcome: "hello"
+    error: "goodbye"
+config:
+  developer_name: "aea_1"
+  agent_id: "1"
+  agent_type: "AgentforceEmployeeAgent"
+
+language:
+  default_locale: "en_US"
+
+variables:
+  customer_name: mutable string
+  issue_type: mutable string = "general"
+  priority: mutable number = 1
+
+start_agent greeting:
+  description: "Greet the customer and gather basic information"
+
+  actions:
+    collect_info:
+        description: "collect all the info needed"
+        inputs:
+          name: string
+          issue: string
+          metadata: object
+            complex_data_type_name: "@apexClassType/c__RequestMetadata"
+        outputs:
+          name: string
+          issue: string
+          citations: list[object]
+            complex_data_type_name: "@apexClassType/c__CitationData"
+        target: "apex://collect_info"
+
+  reasoning:
+    instructions: ->
+        | Hello! I'm here to help you today.
+          Could you please tell me your name and how I can assist you?
+
+    actions:
+        collect_info: @actions.collect_info
+            with name=..., issue=...
+
+topic hello:
+  description: "Say hello to the world"
+
+  actions:
+    collect_info:
+        description: "collect all the info needed"
+        inputs:
+          name: string
+          issue: string
+          metadata: object
+            complex_data_type_name: "@apexClassType/c__RequestMetadata"
+        outputs:
+          name: string
+          issue: string
+          citations: list[object]
+            complex_data_type_name: "@apexClassType/c__CitationData"
+        target: "apex://collect_info"
+
+  reasoning:
+    instructions: ->
+        | Hello! I'm here to help you today.
+          Could you please tell me your name and how I can assist you?
+
+    actions:
+        collect_info: @actions.collect_info
+            with name=..., issue=...

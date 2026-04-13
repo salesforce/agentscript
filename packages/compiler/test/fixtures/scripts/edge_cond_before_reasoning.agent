@@ -1,0 +1,51 @@
+system:
+    instructions: "You are a support assistant with complex pre-processing logic."
+    messages:
+        welcome: "Welcome to support!"
+        error: "Something went wrong."
+
+config:
+    developer_name: "Edge_Cond_Before_Reasoning"
+    default_agent_user: "test_user"
+    description: "Tests complex before_reasoning with multiple if/else, set, and run"
+
+variables:
+    user_tier: mutable string = "standard"
+    is_verified: mutable boolean = False
+    priority: mutable number = 0
+    greeting: mutable string = ""
+    needs_auth: mutable boolean = True
+
+start_agent main:
+    description: "Complex before_reasoning with multiple conditionals and actions"
+
+    actions:
+        check_auth:
+            description: "Checks user authentication status"
+            inputs:
+                user_tier: string
+            outputs:
+                verified: boolean
+            target: "flow://CheckAuth"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            set @variables.needs_auth = True
+            set @variables.greeting = "Please verify your identity."
+        else:
+            set @variables.needs_auth = False
+            set @variables.greeting = "Welcome back!"
+        if @variables.user_tier == "premium":
+            set @variables.priority = 10
+        else:
+            set @variables.priority = 1
+        if @variables.is_verified == True and @variables.user_tier == "premium":
+            set @variables.greeting = "Welcome back, valued premium member!"
+        run @actions.check_auth
+            with user_tier=@variables.user_tier
+            set @variables.is_verified = @outputs.verified
+
+    reasoning:
+        instructions: ->
+            | {! @variables.greeting }
+              How can I assist you today?

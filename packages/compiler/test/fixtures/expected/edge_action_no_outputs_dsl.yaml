@@ -1,0 +1,172 @@
+# NOTE: Differs from Python compiler — TS uses explicit label for input descriptions
+# when no description is set. Python uses normalizeDeveloperName(name) instead,
+# which discards the author's explicit label.
+schema_version: "2.0"
+global_configuration:
+  developer_name: No_Outputs_Agent
+  label: No Outputs Agent
+  description: Agent with actions that have inputs but no outputs
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: user@test.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you log events, send notifications, and record
+        feedback.
+      message_type: Welcome
+    - message: An error occurred while processing your request.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+  initial_node: main
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Agent with actions that have inputs but no outputs
+      tools:
+        - type: action
+          target: Log_Event
+          bound_inputs: {}
+          llm_inputs:
+            - event_type
+            - event_data
+          state_updates: []
+          name: Log_Action
+          description: Log Action
+        - type: action
+          target: Send_Notification
+          bound_inputs: {}
+          llm_inputs:
+            - user_id
+            - message
+          state_updates: []
+          name: Notify_Action
+          description: Notify Action
+        - type: action
+          target: Record_Feedback
+          bound_inputs: {}
+          llm_inputs:
+            - rating
+            - comment
+          state_updates: []
+          name: Feedback_Action
+          description: Feedback Action
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: Log_Event
+          label: Log Event
+          description: Log an event to the system
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Log_Event_Flow
+          input_type:
+            - developer_name: event_type
+              label: Event Type
+              description: Event Type
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: event_data
+              label: Event Data
+              description: Event Data
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type: []
+        - developer_name: Send_Notification
+          label: Send Notification
+          description: Send a push notification
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: NotificationController.send
+          input_type:
+            - developer_name: user_id
+              label: User ID
+              description: User ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: message
+              label: Notification Message
+              description: Notification Message
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type: []
+        - developer_name: Record_Feedback
+          label: Record Feedback
+          description: Record user feedback
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Record_Feedback_Flow
+          input_type:
+            - developer_name: rating
+              label: Rating
+              description: Rating
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: comment
+              label: Comment
+              description: Comment
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type: []
+      instructions: You are a helpful assistant for logging and notifications.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user log events, send notifications, and record
+                feedback.
+
+                These actions do not return outputs.
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you log events, send
+      notifications, and record feedback.", "messageType": "Welcome"},
+      {"message": "An error occurred while processing your request.",
+      "messageType": "Error"}]'

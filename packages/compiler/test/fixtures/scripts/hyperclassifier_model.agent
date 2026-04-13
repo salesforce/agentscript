@@ -1,0 +1,66 @@
+config:
+   agent_name: "HelloWorld_Agent"
+   agent_label: "Hello World Agent"
+   description: "An agent that routes the user to appropriate topic"
+   default_agent_user: "User1"
+
+system:
+   messages:
+      welcome: "Hello! I'm a simple agent here to help you reach the correct handler."
+      error: "Sorry, I encountered an error."
+   instructions:|
+      You are a friendly assistant who routes the users appropriately.
+
+start_agent topic_selector:
+    label: "Order Lookup"
+
+    description: "looks up users orders"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+topic create_account:
+    label: "Create Account"
+
+    description: "creates a new account for the user"
+
+    actions:
+        create_account:
+            description: "creates a new user account"
+            inputs:
+                phone: number
+                email: string
+            outputs:
+                account_id: string
+            target: "apex://create_account"
+
+    reasoning:
+        instructions: ->
+            | Create an account by invoking create_account action.
+
+        actions:
+            create_account: @actions.create_account
+                with phone = ...
+                with email = ...
+
+topic delete_account:
+    label: "Delete Account"
+
+    description: "deletes an existing account for the user"
+
+    actions:
+        delete_account:
+            description: "deletes an existing user account"
+            inputs:
+                account_id: string
+            outputs:
+                account_id: string
+            target: "apex://delete_account"
+
+    reasoning:
+        instructions: ->
+            | Delete an existing account by invoking delete_account action.
+
+        actions:
+            delete_account: @actions.delete_account
+                with account_id = ...

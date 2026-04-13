@@ -1,0 +1,545 @@
+system:
+    instructions: "You are a field service scheduling assistant. Your role is to help schedule service appointments and dispatch technicians."
+    messages:
+        welcome: "Welcome to Field Service Scheduling! I can help you schedule service appointments and assign technicians."
+        error: "I'm having trouble accessing the field service system. Please try again or contact the service dispatch center."
+
+config:
+    developer_name: "Field_Service_Scheduler_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Assists with field service scheduling and technician dispatch"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Service request information
+    service_request_id: mutable string = ""
+        description: "Service request identifier"
+    customer_name: mutable string = ""
+        description: "Customer name"
+    customer_address: mutable string = ""
+        description: "Service location address"
+    customer_phone: mutable string = ""
+        description: "Customer contact number"
+    customer_email: mutable string = ""
+        description: "Customer email address"
+    customer_verified: mutable boolean = False
+        description: "Whether customer identity is verified"
+
+    # Service details
+    service_type: mutable string = ""
+        description: "Type of service required"
+    service_category: mutable string = ""
+        description: "Service category (installation, repair, maintenance)"
+    equipment_type: mutable string = ""
+        description: "Type of equipment being serviced"
+    problem_description: mutable string = ""
+        description: "Description of the problem or service needed"
+    service_priority: mutable string = "normal"
+        description: "Service priority level (low, normal, high, emergency)"
+    estimated_duration: mutable number = 120
+        description: "Estimated service duration in minutes"
+    parts_required: mutable string = ""
+        description: "Parts that may be required for service"
+
+    # Scheduling information
+    preferred_date: mutable string = ""
+        description: "Customer's preferred service date"
+    preferred_time_window: mutable string = ""
+        description: "Customer's preferred time window"
+    flexible_scheduling: mutable boolean = True
+        description: "Whether customer has flexible scheduling"
+    appointment_date: mutable string = ""
+        description: "Scheduled appointment date"
+    appointment_time: mutable string = ""
+        description: "Scheduled appointment time"
+    appointment_confirmed: mutable boolean = False
+        description: "Whether appointment is confirmed"
+
+    # Technician assignment
+    technician_assigned: mutable string = ""
+        description: "Assigned technician name"
+    technician_id: mutable string = ""
+        description: "Assigned technician ID"
+    technician_skill_match: mutable number = 0
+        description: "Technician skill match score (0-100)"
+    travel_distance: mutable number = 0
+        description: "Travel distance to customer location"
+    estimated_arrival: mutable string = ""
+        description: "Estimated technician arrival time"
+
+    # Service outcome
+    dispatch_successful: mutable boolean = False
+        description: "Whether technician dispatch was successful"
+    route_optimized: mutable boolean = False
+        description: "Whether route has been optimized"
+    service_window_met: mutable boolean = False
+        description: "Whether service can be completed in preferred window"
+
+start_agent service_intake:
+    description: "Captures comprehensive service request information and validates customer details"
+
+    actions:
+        Validate_Customer_Information:
+            description: "Validates customer information and service location"
+            label: "Validate Customer"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                customer_name: string
+                    label: "Customer Name"
+                    description: "Customer's full name"
+                    is_required: True
+                customer_address: string
+                    label: "Service Address"
+                    description: "Address where service is needed"
+                    is_required: True
+                customer_phone: string
+                    label: "Phone Number"
+                    description: "Customer contact number"
+                    is_required: True
+            outputs:
+                customer_verified: boolean
+                    label: "Customer Verified"
+                    is_displayable: True
+                address_valid: boolean
+                    label: "Address Valid"
+                    is_displayable: True
+                service_area_covered: boolean
+                    label: "Service Area Covered"
+                    is_displayable: True
+                customer_history: string
+                    label: "Customer History"
+                    is_displayable: False
+            target: "flow://ValidateCustomerInformation"
+
+        Assess_Service_Requirements:
+            description: "Assesses service requirements and determines complexity"
+            label: "Assess Requirements"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                service_type: string
+                    label: "Service Type"
+                    description: "Type of service requested"
+                    is_required: True
+                equipment_type: string
+                    label: "Equipment Type"
+                    description: "Type of equipment"
+                    is_required: True
+                problem_description: string
+                    label: "Problem Description"
+                    description: "Description of the issue"
+                    is_required: True
+            outputs:
+                service_category: string
+                    label: "Service Category"
+                    is_displayable: True
+                complexity_level: string
+                    label: "Complexity Level"
+                    is_displayable: True
+                estimated_duration: number
+                    label: "Estimated Duration"
+                    is_displayable: True
+                required_skills: string
+                    label: "Required Skills"
+                    is_displayable: False
+                parts_likely_needed: string
+                    label: "Parts Likely Needed"
+                    is_displayable: True
+            target: "flow://AssessServiceRequirements"
+
+    before_reasoning:
+        if @variables.service_request_id == "":
+            set @variables.service_priority = "normal"
+            set @variables.technician_assigned = ""
+
+    reasoning:
+        instructions: ->
+            |   Welcome to Field Service Scheduling!
+
+                I'll help you schedule a service appointment and assign the right technician.
+
+                Please provide:
+                - Customer name
+                - Type of service needed
+                - Preferred date and time
+                - Service priority (if urgent)
+
+                This helps me find the best available technician for your needs.
+        actions:
+            validate_customer: @actions.Validate_Customer_Information
+                with customer_name=@variables.customer_name
+                with customer_address=@variables.customer_address
+                with customer_phone=@variables.customer_phone
+                set @variables.customer_verified = @outputs.customer_verified
+
+            assess_service: @actions.Assess_Service_Requirements
+                with service_type=@variables.service_type
+                with equipment_type=@variables.equipment_type
+                with problem_description=@variables.problem_description
+                set @variables.service_category = @outputs.service_category
+                set @variables.estimated_duration = @outputs.estimated_duration
+                set @variables.parts_required = @outputs.parts_likely_needed
+
+            capture_service_info: @utils.setVariables
+                with customer_name=@variables.customer_name
+                with service_type=@variables.service_type
+                with preferred_date=@variables.preferred_date
+                with service_priority=@variables.service_priority
+
+            dispatch_tech: @utils.transition to @topic.technician_dispatch
+
+    after_reasoning:
+        if @variables.customer_name != "" and @variables.customer_address != "":
+            run @actions.Validate_Customer_Information
+                with customer_name=@variables.customer_name
+                with customer_address=@variables.customer_address
+                with customer_phone=@variables.customer_phone
+                set @variables.customer_verified = @outputs.customer_verified
+
+        if @variables.service_type != "" and @variables.problem_description != "":
+            run @actions.Assess_Service_Requirements
+                with service_type=@variables.service_type
+                with equipment_type=@variables.equipment_type
+                with problem_description=@variables.problem_description
+                set @variables.service_category = @outputs.service_category
+                set @variables.estimated_duration = @outputs.estimated_duration
+                set @variables.parts_required = @outputs.parts_likely_needed
+
+        if @variables.customer_verified and @variables.service_category != "":
+            set @variables.service_request_id = "SR-" + @variables.customer_name + "-001"
+            transition to @topic.technician_dispatch
+
+topic technician_dispatch:
+    description: "Assigns optimal technician and dispatches with route optimization"
+
+    actions:
+        Find_Available_Technicians:
+            description: "Finds available technicians with required skills and proximity"
+            label: "Find Technicians"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                service_type: string
+                    label: "Service Type"
+                    description: "Type of service required"
+                    is_required: True
+                required_skills: string
+                    label: "Required Skills"
+                    description: "Skills needed for the service"
+                    is_required: True
+                service_location: string
+                    label: "Service Location"
+                    description: "Customer address"
+                    is_required: True
+                preferred_time: string
+                    label: "Preferred Time"
+                    description: "Customer's preferred time window"
+                    is_required: False
+                service_priority: string
+                    label: "Service Priority"
+                    description: "Priority level of the service"
+                    is_required: True
+            outputs:
+                available_technicians: string
+                    label: "Available Technicians"
+                    is_displayable: True
+                best_match_technician: string
+                    label: "Best Match Technician"
+                    is_displayable: True
+                skill_match_score: number
+                    label: "Skill Match Score"
+                    is_displayable: False
+                estimated_travel_time: number
+                    label: "Estimated Travel Time"
+                    is_displayable: True
+            target: "flow://FindAvailableTechnicians"
+
+        Optimize_Service_Route:
+            description: "Optimizes technician route and scheduling"
+            label: "Optimize Route"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                technician_id: string
+                    label: "Technician ID"
+                    description: "Selected technician identifier"
+                    is_required: True
+                service_location: string
+                    label: "Service Location"
+                    description: "Customer service address"
+                    is_required: True
+                current_schedule: string
+                    label: "Current Schedule"
+                    description: "Technician's current schedule"
+                    is_required: True
+                service_duration: number
+                    label: "Service Duration"
+                    description: "Estimated service time in minutes"
+                    is_required: True
+            outputs:
+                optimized_schedule: string
+                    label: "Optimized Schedule"
+                    is_displayable: True
+                recommended_time_slot: string
+                    label: "Recommended Time Slot"
+                    is_displayable: True
+                route_efficiency: number
+                    label: "Route Efficiency"
+                    is_displayable: False
+                travel_distance_km: number
+                    label: "Travel Distance"
+                    is_displayable: True
+            target: "flow://OptimizeServiceRoute"
+
+        Dispatch_Technician:
+            description: "Dispatches technician with service details and route information"
+            label: "Dispatch Technician"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                technician_id: string
+                    label: "Technician ID"
+                    description: "Technician to dispatch"
+                    is_required: True
+                service_request_id: string
+                    label: "Service Request ID"
+                    description: "Service request identifier"
+                    is_required: True
+                customer_details: string
+                    label: "Customer Details"
+                    description: "Customer contact and location information"
+                    is_required: True
+                service_instructions: string
+                    label: "Service Instructions"
+                    description: "Detailed service instructions"
+                    is_required: True
+            outputs:
+                dispatch_successful: boolean
+                    label: "Dispatch Successful"
+                    is_displayable: True
+                technician_notified: boolean
+                    label: "Technician Notified"
+                    is_displayable: True
+                estimated_arrival: string
+                    label: "Estimated Arrival"
+                    is_displayable: True
+                tracking_number: string
+                    label: "Tracking Number"
+                    is_displayable: True
+            target: "flow://DispatchTechnician"
+
+    before_reasoning:
+        if @variables.service_type == "emergency":
+            set @variables.service_priority = "urgent"
+            set @variables.technician_assigned = "Emergency Technician"
+        if @variables.service_type == "maintenance":
+            set @variables.technician_assigned = "Maintenance Specialist"
+        if @variables.service_type == "installation":
+            set @variables.technician_assigned = "Installation Expert"
+
+    reasoning:
+        instructions: ->
+            |   **Service Request Details:**
+                - Request ID: {! @variables.service_request_id }
+                - Customer: {! @variables.customer_name }
+                - Service Type: {! @variables.service_type }
+                - Priority: {! @variables.service_priority }
+                - Assigned Technician: {! @variables.technician_assigned }
+                - Appointment Date: {! @variables.appointment_date }
+
+                Technician has been assigned based on service type and availability.
+
+                The technician will contact the customer to confirm appointment details.
+        actions:
+            find_techs: @actions.Find_Available_Technicians
+                with service_type=@variables.service_type
+                with required_skills=@variables.service_category
+                with service_location=@variables.customer_address
+                with preferred_time=@variables.preferred_time_window
+                with service_priority=@variables.service_priority
+                set @variables.technician_assigned = @outputs.best_match_technician
+                set @variables.technician_skill_match = @outputs.skill_match_score
+
+            optimize_route: @actions.Optimize_Service_Route
+                with technician_id=@variables.technician_id
+                with service_location=@variables.customer_address
+                with current_schedule="Current appointments"
+                with service_duration=@variables.estimated_duration
+                set @variables.appointment_time = @outputs.recommended_time_slot
+                set @variables.travel_distance = @outputs.travel_distance_km
+                set @variables.route_optimized = True
+
+            dispatch_tech: @actions.Dispatch_Technician
+                with technician_id=@variables.technician_id
+                with service_request_id=@variables.service_request_id
+                with customer_details=@variables.customer_address
+                with service_instructions=@variables.problem_description
+                set @variables.dispatch_successful = @outputs.dispatch_successful
+                set @variables.estimated_arrival = @outputs.estimated_arrival
+
+            confirm_dispatch: @utils.setVariables
+                with technician_assigned=@variables.technician_assigned
+
+            confirm_service: @utils.transition to @topic.service_confirmation
+
+    after_reasoning:
+        if @variables.service_type != "" and @variables.customer_address != "":
+            run @actions.Find_Available_Technicians
+                with service_type=@variables.service_type
+                with required_skills=@variables.service_category
+                with service_location=@variables.customer_address
+                with preferred_time=@variables.preferred_time_window
+                with service_priority=@variables.service_priority
+                set @variables.technician_assigned = @outputs.best_match_technician
+                set @variables.technician_skill_match = @outputs.skill_match_score
+                set @variables.technician_id = "TECH-001"
+
+        if @variables.technician_assigned != "":
+            run @actions.Optimize_Service_Route
+                with technician_id=@variables.technician_id
+                with service_location=@variables.customer_address
+                with current_schedule="Current appointments"
+                with service_duration=@variables.estimated_duration
+                set @variables.appointment_time = @outputs.recommended_time_slot
+                set @variables.travel_distance = @outputs.travel_distance_km
+                set @variables.route_optimized = True
+
+            run @actions.Dispatch_Technician
+                with technician_id=@variables.technician_id
+                with service_request_id=@variables.service_request_id
+                with customer_details=@variables.customer_address
+                with service_instructions=@variables.problem_description
+                set @variables.dispatch_successful = @outputs.dispatch_successful
+                set @variables.estimated_arrival = @outputs.estimated_arrival
+
+        if @variables.dispatch_successful:
+            transition to @topic.service_confirmation
+
+topic service_confirmation:
+    description: "Confirms service appointment and provides comprehensive details"
+
+    actions:
+        Send_Appointment_Confirmation:
+            description: "Sends appointment confirmation to customer and technician"
+            label: "Send Confirmation"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                customer_email: string
+                    label: "Customer Email"
+                    description: "Customer's email address"
+                    is_required: True
+                customer_phone: string
+                    label: "Customer Phone"
+                    description: "Customer's phone number"
+                    is_required: True
+                appointment_details: string
+                    label: "Appointment Details"
+                    description: "Complete appointment information"
+                    is_required: True
+                technician_contact: string
+                    label: "Technician Contact"
+                    description: "Technician contact information"
+                    is_required: True
+            outputs:
+                customer_notified: boolean
+                    label: "Customer Notified"
+                    is_displayable: True
+                confirmation_sent: boolean
+                    label: "Confirmation Sent"
+                    is_displayable: True
+                sms_sent: boolean
+                    label: "SMS Sent"
+                    is_displayable: True
+                calendar_invite_sent: boolean
+                    label: "Calendar Invite Sent"
+                    is_displayable: False
+            target: "flow://SendAppointmentConfirmation"
+
+        Setup_Service_Reminders:
+            description: "Sets up automated reminders for the service appointment"
+            label: "Setup Reminders"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                appointment_date: string
+                    label: "Appointment Date"
+                    description: "Scheduled service date"
+                    is_required: True
+                customer_contact: string
+                    label: "Customer Contact"
+                    description: "Customer contact preferences"
+                    is_required: True
+                service_type: string
+                    label: "Service Type"
+                    description: "Type of service being provided"
+                    is_required: True
+            outputs:
+                reminders_scheduled: boolean
+                    label: "Reminders Scheduled"
+                    is_displayable: True
+                reminder_timeline: string
+                    label: "Reminder Timeline"
+                    is_displayable: True
+                backup_notification_method: string
+                    label: "Backup Notification"
+                    is_displayable: False
+            target: "flow://SetupServiceReminders"
+
+    before_reasoning:
+        if @variables.service_priority == "urgent":
+            set @variables.appointment_date = "Today"
+
+    reasoning:
+        instructions: ->
+            |   **Service Appointment Confirmed:**
+                - Request ID: {! @variables.service_request_id }
+                - Customer: {! @variables.customer_name }
+                - Technician: {! @variables.technician_assigned }
+                - Service Date: {! @variables.appointment_date }
+                - Priority: {! @variables.service_priority }
+
+                Your service appointment has been successfully scheduled.
+
+                The technician will arrive at the scheduled time with all necessary tools and equipment.
+
+                Would you like to schedule another service appointment?
+        actions:
+            send_confirmation: @actions.Send_Appointment_Confirmation
+                with customer_email=@variables.customer_email
+                with customer_phone=@variables.customer_phone
+                with appointment_details=@variables.appointment_date + " " + @variables.appointment_time
+                with technician_contact=@variables.technician_assigned
+                set @variables.appointment_confirmed = @outputs.confirmation_sent
+
+            setup_reminders: @actions.Setup_Service_Reminders
+                with appointment_date=@variables.appointment_date
+                with customer_contact=@variables.customer_phone
+                with service_type=@variables.service_type
+
+            finalize_appointment: @utils.setVariables
+                with service_request_id=@variables.service_request_id
+                with appointment_confirmed=@variables.appointment_confirmed
+
+            schedule_another: @utils.transition to @topic.service_intake
+
+    after_reasoning:
+        if @variables.customer_email != "" and @variables.dispatch_successful:
+            run @actions.Send_Appointment_Confirmation
+                with customer_email=@variables.customer_email
+                with customer_phone=@variables.customer_phone
+                with appointment_details=@variables.appointment_date + " " + @variables.appointment_time
+                with technician_contact=@variables.technician_assigned
+                set @variables.appointment_confirmed = @outputs.confirmation_sent
+
+            run @actions.Setup_Service_Reminders
+                with appointment_date=@variables.appointment_date
+                with customer_contact=@variables.customer_phone
+                with service_type=@variables.service_type
+
+        if @variables.appointment_confirmed:
+            set @variables.service_window_met = True

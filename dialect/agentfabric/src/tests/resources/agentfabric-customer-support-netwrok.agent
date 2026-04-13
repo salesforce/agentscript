@@ -1,0 +1,162 @@
+# @dialect: AGENTFABRIC=1.0-BETA
+
+system:
+  instructions: "You are a customer support coordinator."
+
+config:
+  agent_name: "customer-support-flow"
+  label: "Customer Support Workflow"
+  description: "Handles customer support requests with intelligent routing."
+  default_llm: @llm.openai_gpt4
+
+llm:
+  openai_gpt4:
+    target: "llm://openai_connection"
+    kind: "openai"
+    model: "gpt-4o"
+
+action_definitions:
+  search_articles:
+    target: "mcp://knowledge_base_connection"
+    kind: "mcp:tool"
+    tool_name: "search_articles"
+
+  get_article:
+    target: "mcp://knowledge_base_connection"
+    kind: "mcp:tool"
+    tool_name: "get_article"
+
+  billing_agent:
+    target: "a2a://billing_agent_connection"
+    kind: "a2a:send_message"
+
+variables:
+  requestTimestamp: mutable string = ""
+  customerMessage: mutable string = ""
+  output_response: mutable string = ""
+
+trigger customerSupportTrigger:
+  target: "brokers://customer-support-flow/a2a"
+  on_message: ->
+    transition to @executor.set_context
+
+executor set_context:
+  do: ->
+    set @variables.requestTimestamp = "2026-03-06T10:23:24.371729+00:00"
+    set @variables.customerMessage = @request.payload.message
+  on_exit: ->
+    transition to @generator.analyze_request
+
+generator analyze_request:
+  llm: @llm.openai_gpt4
+  prompt: ->
+    | Analyze the following customer support request and categorize it as one of: 'billing', 'technical', 'general'. Also extract key entities and sentiment.
+    |
+    | Request: {!@variables.customerMessage}
+  outputs:
+    properties:
+      category:
+        type: "string"
+        description: "The category of the customer request"
+        enum:
+          - "billing"
+          - "technical"
+          - "general"
+      entities:
+        type: "array"
+        description: "Key entities extracted from the request"
+        items:
+          type: "string"
+      sentiment:
+        type: "string"
+        description: "The sentiment of the request"
+        enum:
+          - "positive"
+          - "neutral"
+          - "negative"
+      summary:
+        type: "string"
+        description: "A brief summary of the customer request"
+  on_exit: ->
+    transition to @router.route_request
+
+router route_request:
+  routes:
+    - target: @executor.billing_handler
+      when: @generator.analyze_request.output.category == "billing"
+      label: "Billing"
+    - target: @subagent.technical_handler
+      when: @generator.analyze_request.output.category == "technical"
+      label: "Technical"
+  otherwise:
+    target: @orchestrator.general_response
+
+executor billing_handler:
+  do: ->
+    run @actions.billing_agent
+      with message = @variables.customerMessage
+  on_exit: ->
+    transition to @executor.set_output_response_from_billing_agent
+
+subagent technical_handler:
+  description: "Handles technical support issues using knowledge-base tools."
+  llm: @llm.openai_gpt4
+  reasoning:
+    instructions: ->
+      | You are a technical support specialist. Help the customer with their technical issue.
+      |
+      | Customer Issue: {!@variables.customerMessage}
+      |
+      | Provide a helpful, clear response addressing their technical concern.
+    actions:
+      kb_search: @actions.search_articles
+      kb_get_article: @actions.get_article
+  on_exit: ->
+    transition to @executor.set_output_response_from_technical_agent
+
+orchestrator general_response:
+  description: "Handles general customer support responses and routing."
+  llm: @llm.openai_gpt4
+  system:
+    instructions: "You are a friendly customer support agent. Help the customer with their inquiry."
+  reasoning:
+    instructions: ->
+      | Customer Message: {!@variables.customerMessage}
+      |
+      | Use the available tools to find relevant information and provide a helpful response.
+    actions:
+      kb_search: @actions.search_articles
+      kb_get_article: @actions.get_article
+      billing_delegate: @actions.billing_agent
+  on_exit: ->
+    transition to @executor.set_output_response_from_general_agent
+
+executor set_output_response_from_billing_agent:
+  do: ->
+    set @variables.output_response = @executor.billing_handler.output
+  on_exit: ->
+    transition to @echo.send_response
+
+executor set_output_response_from_technical_agent:
+  do: ->
+    set @variables.output_response = @subagent.technical_handler.output
+  on_exit: ->
+    transition to @echo.send_response
+
+executor set_output_response_from_general_agent:
+  do: ->
+    set @variables.output_response = @orchestrator.general_response.output
+  on_exit: ->
+    transition to @echo.send_response
+
+echo send_response:
+  kind: "a2a:response"
+  message: "{!@variables.output_response}"
+  on_exit: ->
+    transition to @executor.cleanup
+
+executor cleanup:
+  do: ->
+    set @variables.customerMessage = ""
+    set @variables.requestTimestamp = ""
+    set @variables.output_response = ""

@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional batch tracking specialist assistant.
+        Help users manage their batch requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: creation -> process_logging -> quality_check -> release.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Batch Tracking Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "batch_tracking_agent_v86"
+    default_agent_user: "batch_tracking@example.com"
+    agent_description: "Assists users with batch management through the batch tracking specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    batch_record_id: mutable string
+        description: "Record ID of the batch"
+    batch_status: mutable string = ""
+        description: "Current status of the batch"
+    batch_tier: mutable string = "standard"
+        description: "Tier classification for the batch"
+    batch_category: mutable string = ""
+        description: "Category of the batch"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    creation_complete: mutable boolean = False
+        description: "Whether the creation stage is complete"
+    creation_result: mutable string = ""
+        description: "Result from the creation stage"
+    process_logging_complete: mutable boolean = False
+        description: "Whether the process_logging stage is complete"
+    process_logging_result: mutable string = ""
+        description: "Result from the process_logging stage"
+    quality_check_complete: mutable boolean = False
+        description: "Whether the quality_check stage is complete"
+    quality_check_result: mutable string = ""
+        description: "Result from the quality_check stage"
+    release_complete: mutable boolean = False
+        description: "Whether the release stage is complete"
+    release_result: mutable string = ""
+        description: "Result from the release stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate batch management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a batch tracking specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current batch status: {! @variables.batch_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_creation} for creation requests.
+              Use {!@actions.go_to_process_logging} for process logging requests.
+              Use {!@actions.go_to_quality_check} for quality check requests.
+              Use {!@actions.go_to_release} for release requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_creation: @utils.transition to @topic.creation
+                description: "Transition to creation topic."
+            go_to_process_logging: @utils.transition to @topic.process_logging
+                description: "Transition to process logging topic."
+                available when @variables.is_verified == True
+            go_to_quality_check: @utils.transition to @topic.quality_check
+                description: "Transition to quality check topic."
+                available when @variables.is_verified == True
+            go_to_release: @utils.transition to @topic.release
+                description: "Transition to release topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic creation:
+    description: "Handles the creation stage of the batch process"
+
+    actions:
+        process_creation_data:
+            description: "Process creation stage data for the batch"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Creation"
+
+        validate_creation_info:
+            description: "Validate creation information for the batch"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Creation_Info"
+
+        fetch_creation_details:
+            description: "Fetch creation details for the batch"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Creation_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_creation_info
+                with record_ref=@variables.batch_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.batch_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the creation stage for the batch.
+              Current batch status: {! @variables.batch_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Creation result: {! @variables.creation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.batch_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_creation} to begin processing.
+        actions:
+            run_creation: @actions.process_creation_data
+                with record_ref=@variables.batch_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.batch_category
+                set @variables.creation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.creation_complete = @outputs.is_passed
+            fetch_creation_info: @actions.fetch_creation_details
+                with record_ref=@variables.batch_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.batch_tier = @outputs.tier_value
+            go_to_process_logging: @utils.transition to @topic.process_logging
+                description: "Move to process logging stage."
+                available when @variables.creation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.batch_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.batch_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.batch_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.creation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic process_logging:
+    description: "Handles the process logging stage of the batch process"
+
+    actions:
+        process_process_logging_data:
+            description: "Process process logging stage data for the batch"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_ProcessLogging"
+
+        validate_process_logging_info:
+            description: "Validate process logging information for the batch"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ProcessLogging_Info"
+
+        fetch_process_logging_details:
+            description: "Fetch process logging details for the batch"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ProcessLogging_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.creation_complete == False:
+            transition to @topic.creation
+
+    reasoning:
+        instructions: ->
+            | Handle the process logging stage for the batch.
+              Current batch status: {! @variables.batch_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Process Logging result: {! @variables.process_logging_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.batch_tier }
+              Review the process logging results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_process_logging: @actions.process_process_logging_data
+                with record_ref=@variables.batch_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.batch_category
+                set @variables.process_logging_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.process_logging_complete = @outputs.is_passed
+            fetch_process_logging_info: @actions.fetch_process_logging_details
+                with record_ref=@variables.batch_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.batch_tier = @outputs.tier_value
+                available when @variables.batch_record_id is not None
+            go_to_quality_check: @utils.transition to @topic.quality_check
+                description: "Move to quality check stage."
+                available when @variables.process_logging_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.process_logging_complete == True:
+            set @variables.batch_status = "process_logging_done"
+        if @variables.process_logging_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.quality_check
+        if @variables.attempt_count >= 3 and @variables.process_logging_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic quality_check:
+    description: "Handles the quality check stage of the batch process"
+
+    actions:
+        process_quality_check_data:
+            description: "Process quality check stage data for the batch"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_QualityCheck_Data"
+
+        validate_quality_check_info:
+            description: "Validate quality check information for the batch"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_QualityCheck_Info"
+
+        fetch_quality_check_details:
+            description: "Fetch quality check details for the batch"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_QualityCheck_Details"
+
+    before_reasoning:
+        if @variables.quality_check_complete == False:
+            run @actions.fetch_quality_check_details
+                with record_ref=@variables.batch_record_id
+                with include_history=True
+                set @variables.quality_check_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.batch_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.batch_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.batch_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the quality check stage for the batch.
+              Current batch status: {! @variables.batch_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Quality Check result: {! @variables.quality_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.batch_tier }
+              Review the quality check results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_quality_check: @actions.process_quality_check_data
+                with record_ref=@variables.batch_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.batch_category
+                set @variables.quality_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.quality_check_complete = @outputs.is_passed
+            fetch_quality_check_info: @actions.fetch_quality_check_details
+                with record_ref=@variables.batch_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.batch_tier = @outputs.tier_value
+                available when @variables.batch_record_id is not None
+            go_to_release: @utils.transition to @topic.release
+                description: "Move to release stage."
+                available when @variables.quality_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.batch_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.batch_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.batch_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.quality_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic release:
+    description: "Handles the release stage of the batch process"
+
+    actions:
+        process_release_data:
+            description: "Process release stage data for the batch"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Release"
+
+        validate_release_info:
+            description: "Validate release information for the batch"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Release_Info"
+
+        fetch_release_details:
+            description: "Fetch release details for the batch"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Release_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.quality_check_complete == False:
+            transition to @topic.quality_check
+        if @variables.eligibility_score >= 80:
+            set @variables.batch_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.batch_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the release stage for the batch.
+              Current batch status: {! @variables.batch_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Release result: {! @variables.release_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.batch_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_release: @actions.process_release_data
+                with record_ref=@variables.batch_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.batch_category
+                set @variables.release_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.release_complete = @outputs.is_passed
+            fetch_release_info: @actions.fetch_release_details
+                with record_ref=@variables.batch_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.batch_tier = @outputs.tier_value
+                available when @variables.batch_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.release_complete == True:
+            set @variables.batch_status = "release_done"
+        if @variables.attempt_count >= 3 and @variables.release_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for batch issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the batch issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the batch interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the batch request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Batch status: {! @variables.batch_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.batch_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.batch_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.batch_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.batch_status = "escalated"
+        set @variables.escalation_requested = False
+

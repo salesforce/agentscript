@@ -1,0 +1,232 @@
+# NOTE: Differs from Python compiler — TS uses explicit label for input descriptions
+# when no description is set. Python uses normalizeDeveloperName(name) instead,
+# which discards the author's explicit label.
+schema_version: "2.0"
+global_configuration:
+  developer_name: Flow_Actions_Agent
+  label: Flow Actions Agent
+  description: Agent with multiple flow:// action targets
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: user@test.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you manage customer records.
+      message_type: Welcome
+    - message: An error occurred while processing your request.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: customer_id
+      label: Customer Id
+      description: Customer identifier
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+  initial_node: main
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Agent with multiple flow:// action targets
+      tools:
+        - type: action
+          target: Get_Customer
+          bound_inputs:
+            customer_id: state.customer_id
+          llm_inputs: []
+          state_updates: []
+          name: Get_Action
+          description: Get Action
+        - type: action
+          target: Update_Customer
+          bound_inputs:
+            customer_id: state.customer_id
+          llm_inputs:
+            - field_name
+            - field_value
+          state_updates: []
+          name: Update_Action
+          description: Update Action
+        - type: action
+          target: Delete_Customer
+          bound_inputs:
+            customer_id: state.customer_id
+          llm_inputs:
+            - reason
+          state_updates: []
+          name: Delete_Action
+          description: Delete Action
+        - type: action
+          target: Search_Customers
+          bound_inputs: {}
+          llm_inputs:
+            - query
+          state_updates: []
+          name: Search_Action
+          description: Search Action
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: Get_Customer
+          label: Get Customer
+          description: Retrieve customer information
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Get_Customer_Details
+          input_type:
+            - developer_name: customer_id
+              label: Customer ID
+              description: Customer ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: name
+              label: Customer Name
+              description: Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: email
+              label: Customer Email
+              description: Email
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Update_Customer
+          label: Update Customer
+          description: Update customer profile
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Update_Customer_Profile
+          input_type:
+            - developer_name: customer_id
+              label: Customer ID
+              description: Customer ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: field_name
+              label: Field to Update
+              description: Field to Update
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: field_value
+              label: New Value
+              description: New Value
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: success
+              label: Update Success
+              description: Success
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Delete_Customer
+          label: Delete Customer
+          description: Delete customer record
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Delete_Customer_Record
+          input_type:
+            - developer_name: customer_id
+              label: Customer ID
+              description: Customer ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: reason
+              label: Deletion Reason
+              description: Deletion Reason
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: deleted
+              label: Deletion Confirmed
+              description: Deleted
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Search_Customers
+          label: Search Customers
+          description: Search for customers
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Search_Customers_Flow
+          input_type:
+            - developer_name: query
+              label: Search Query
+              description: Search Query
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: results
+              label: Search Results
+              description: Results
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a helpful customer management agent.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Help the user manage customer records using the available flows.
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you manage customer records.",
+      "messageType": "Welcome"}, {"message": "An error occurred while processing
+      your request.", "messageType": "Error"}]'

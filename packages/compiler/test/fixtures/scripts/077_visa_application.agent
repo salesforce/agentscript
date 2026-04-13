@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional visa application assistant assistant.
+        Help users manage their visa requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: requirement_check -> document_collection -> submission -> tracking.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Visa Application Assistant Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "visa_application_agent_v77"
+    default_agent_user: "visa_application@example.com"
+    agent_description: "Assists users with visa management through the visa application assistant workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    visa_record_id: mutable string
+        description: "Record ID of the visa"
+    visa_status: mutable string = ""
+        description: "Current status of the visa"
+    visa_tier: mutable string = "standard"
+        description: "Tier classification for the visa"
+    visa_category: mutable string = ""
+        description: "Category of the visa"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    requirement_check_complete: mutable boolean = False
+        description: "Whether the requirement_check stage is complete"
+    requirement_check_result: mutable string = ""
+        description: "Result from the requirement_check stage"
+    document_collection_complete: mutable boolean = False
+        description: "Whether the document_collection stage is complete"
+    document_collection_result: mutable string = ""
+        description: "Result from the document_collection stage"
+    submission_complete: mutable boolean = False
+        description: "Whether the submission stage is complete"
+    submission_result: mutable string = ""
+        description: "Result from the submission stage"
+    tracking_complete: mutable boolean = False
+        description: "Whether the tracking stage is complete"
+    tracking_result: mutable string = ""
+        description: "Result from the tracking stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate visa management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a visa application assistant assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current visa status: {! @variables.visa_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_requirement_check} for requirement check requests.
+              Use {!@actions.go_to_document_collection} for document collection requests.
+              Use {!@actions.go_to_submission} for submission requests.
+              Use {!@actions.go_to_tracking} for tracking requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_requirement_check: @utils.transition to @topic.requirement_check
+                description: "Transition to requirement check topic."
+            go_to_document_collection: @utils.transition to @topic.document_collection
+                description: "Transition to document collection topic."
+                available when @variables.is_verified == True
+            go_to_submission: @utils.transition to @topic.submission
+                description: "Transition to submission topic."
+                available when @variables.is_verified == True
+            go_to_tracking: @utils.transition to @topic.tracking
+                description: "Transition to tracking topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic requirement_check:
+    description: "Handles the requirement check stage of the visa process"
+
+    actions:
+        process_requirement_check_data:
+            description: "Process requirement check stage data for the visa"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_RequirementCheck"
+
+        validate_requirement_check_info:
+            description: "Validate requirement check information for the visa"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RequirementCheck_Info"
+
+        fetch_requirement_check_details:
+            description: "Fetch requirement check details for the visa"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RequirementCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_requirement_check_info
+                with record_ref=@variables.visa_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.visa_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the requirement check stage for the visa.
+              Current visa status: {! @variables.visa_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Requirement Check result: {! @variables.requirement_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.visa_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_requirement_check} to begin processing.
+        actions:
+            run_requirement_check: @actions.process_requirement_check_data
+                with record_ref=@variables.visa_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.visa_category
+                set @variables.requirement_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.requirement_check_complete = @outputs.is_passed
+            fetch_requirement_check_info: @actions.fetch_requirement_check_details
+                with record_ref=@variables.visa_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.visa_tier = @outputs.tier_value
+            go_to_document_collection: @utils.transition to @topic.document_collection
+                description: "Move to document collection stage."
+                available when @variables.requirement_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.visa_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.visa_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.visa_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.requirement_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic document_collection:
+    description: "Handles the document collection stage of the visa process"
+
+    actions:
+        process_document_collection_data:
+            description: "Process document collection stage data for the visa"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_DocumentCollection"
+
+        validate_document_collection_info:
+            description: "Validate document collection information for the visa"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DocumentCollection_Info"
+
+        fetch_document_collection_details:
+            description: "Fetch document collection details for the visa"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DocumentCollection_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.requirement_check_complete == False:
+            transition to @topic.requirement_check
+
+    reasoning:
+        instructions: ->
+            | Handle the document collection stage for the visa.
+              Current visa status: {! @variables.visa_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Document Collection result: {! @variables.document_collection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.visa_tier }
+              Review the document collection results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_document_collection: @actions.process_document_collection_data
+                with record_ref=@variables.visa_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.visa_category
+                set @variables.document_collection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.document_collection_complete = @outputs.is_passed
+            fetch_document_collection_info: @actions.fetch_document_collection_details
+                with record_ref=@variables.visa_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.visa_tier = @outputs.tier_value
+                available when @variables.visa_record_id is not None
+            go_to_submission: @utils.transition to @topic.submission
+                description: "Move to submission stage."
+                available when @variables.document_collection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.document_collection_complete == True:
+            set @variables.visa_status = "document_collection_done"
+        if @variables.document_collection_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.submission
+        if @variables.attempt_count >= 3 and @variables.document_collection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic submission:
+    description: "Handles the submission stage of the visa process"
+
+    actions:
+        process_submission_data:
+            description: "Process submission stage data for the visa"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Submission_Data"
+
+        validate_submission_info:
+            description: "Validate submission information for the visa"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Submission_Info"
+
+        fetch_submission_details:
+            description: "Fetch submission details for the visa"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Submission_Details"
+
+    before_reasoning:
+        if @variables.submission_complete == False:
+            run @actions.fetch_submission_details
+                with record_ref=@variables.visa_record_id
+                with include_history=True
+                set @variables.submission_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.visa_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.visa_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.visa_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the submission stage for the visa.
+              Current visa status: {! @variables.visa_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Submission result: {! @variables.submission_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.visa_tier }
+              Review the submission results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_submission: @actions.process_submission_data
+                with record_ref=@variables.visa_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.visa_category
+                set @variables.submission_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.submission_complete = @outputs.is_passed
+            fetch_submission_info: @actions.fetch_submission_details
+                with record_ref=@variables.visa_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.visa_tier = @outputs.tier_value
+                available when @variables.visa_record_id is not None
+            go_to_tracking: @utils.transition to @topic.tracking
+                description: "Move to tracking stage."
+                available when @variables.submission_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.visa_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.visa_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.visa_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.submission_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic tracking:
+    description: "Handles the tracking stage of the visa process"
+
+    actions:
+        process_tracking_data:
+            description: "Process tracking stage data for the visa"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Tracking"
+
+        validate_tracking_info:
+            description: "Validate tracking information for the visa"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Tracking_Info"
+
+        fetch_tracking_details:
+            description: "Fetch tracking details for the visa"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Tracking_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.submission_complete == False:
+            transition to @topic.submission
+        if @variables.eligibility_score >= 80:
+            set @variables.visa_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.visa_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the tracking stage for the visa.
+              Current visa status: {! @variables.visa_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Tracking result: {! @variables.tracking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.visa_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_tracking: @actions.process_tracking_data
+                with record_ref=@variables.visa_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.visa_category
+                set @variables.tracking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.tracking_complete = @outputs.is_passed
+            fetch_tracking_info: @actions.fetch_tracking_details
+                with record_ref=@variables.visa_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.visa_tier = @outputs.tier_value
+                available when @variables.visa_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.tracking_complete == True:
+            set @variables.visa_status = "tracking_done"
+        if @variables.attempt_count >= 3 and @variables.tracking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for visa issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the visa issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the visa interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the visa request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Visa status: {! @variables.visa_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.visa_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.visa_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.visa_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.visa_status = "escalated"
+        set @variables.escalation_requested = False
+

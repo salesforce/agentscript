@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional loyalty rewards manager assistant.
+        Help users manage their reward requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: point_inquiry -> tier_evaluation -> redemption -> benefit_activation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Loyalty Rewards Manager Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "loyalty_rewards_agent_v73"
+    default_agent_user: "loyalty_rewards@example.com"
+    agent_description: "Assists users with reward management through the loyalty rewards manager workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    reward_record_id: mutable string
+        description: "Record ID of the reward"
+    reward_status: mutable string = ""
+        description: "Current status of the reward"
+    reward_tier: mutable string = "standard"
+        description: "Tier classification for the reward"
+    reward_category: mutable string = ""
+        description: "Category of the reward"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    point_inquiry_complete: mutable boolean = False
+        description: "Whether the point_inquiry stage is complete"
+    point_inquiry_result: mutable string = ""
+        description: "Result from the point_inquiry stage"
+    tier_evaluation_complete: mutable boolean = False
+        description: "Whether the tier_evaluation stage is complete"
+    tier_evaluation_result: mutable string = ""
+        description: "Result from the tier_evaluation stage"
+    redemption_complete: mutable boolean = False
+        description: "Whether the redemption stage is complete"
+    redemption_result: mutable string = ""
+        description: "Result from the redemption stage"
+    benefit_activation_complete: mutable boolean = False
+        description: "Whether the benefit_activation stage is complete"
+    benefit_activation_result: mutable string = ""
+        description: "Result from the benefit_activation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate reward management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a loyalty rewards manager assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current reward status: {! @variables.reward_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_point_inquiry} for point inquiry requests.
+              Use {!@actions.go_to_tier_evaluation} for tier evaluation requests.
+              Use {!@actions.go_to_redemption} for redemption requests.
+              Use {!@actions.go_to_benefit_activation} for benefit activation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_point_inquiry: @utils.transition to @topic.point_inquiry
+                description: "Transition to point inquiry topic."
+            go_to_tier_evaluation: @utils.transition to @topic.tier_evaluation
+                description: "Transition to tier evaluation topic."
+                available when @variables.is_verified == True
+            go_to_redemption: @utils.transition to @topic.redemption
+                description: "Transition to redemption topic."
+                available when @variables.is_verified == True
+            go_to_benefit_activation: @utils.transition to @topic.benefit_activation
+                description: "Transition to benefit activation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic point_inquiry:
+    description: "Handles the point inquiry stage of the reward process"
+
+    actions:
+        process_point_inquiry_data:
+            description: "Process point inquiry stage data for the reward"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_PointInquiry_Data"
+
+        validate_point_inquiry_info:
+            description: "Validate point inquiry information for the reward"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PointInquiry_Info"
+
+        fetch_point_inquiry_details:
+            description: "Fetch point inquiry details for the reward"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PointInquiry_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_point_inquiry_info
+                with record_ref=@variables.reward_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.reward_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the point inquiry stage for the reward.
+              Current reward status: {! @variables.reward_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Point Inquiry result: {! @variables.point_inquiry_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.reward_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_point_inquiry} to begin processing.
+        actions:
+            run_point_inquiry: @actions.process_point_inquiry_data
+                with record_ref=@variables.reward_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.reward_category
+                set @variables.point_inquiry_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.point_inquiry_complete = @outputs.is_passed
+            fetch_point_inquiry_info: @actions.fetch_point_inquiry_details
+                with record_ref=@variables.reward_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.reward_tier = @outputs.tier_value
+            go_to_tier_evaluation: @utils.transition to @topic.tier_evaluation
+                description: "Move to tier evaluation stage."
+                available when @variables.point_inquiry_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.reward_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.reward_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.reward_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.point_inquiry_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic tier_evaluation:
+    description: "Handles the tier evaluation stage of the reward process"
+
+    actions:
+        process_tier_evaluation_data:
+            description: "Process tier evaluation stage data for the reward"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_TierEvaluation"
+
+        validate_tier_evaluation_info:
+            description: "Validate tier evaluation information for the reward"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_TierEvaluation_Info"
+
+        fetch_tier_evaluation_details:
+            description: "Fetch tier evaluation details for the reward"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_TierEvaluation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.point_inquiry_complete == False:
+            transition to @topic.point_inquiry
+
+    reasoning:
+        instructions: ->
+            | Handle the tier evaluation stage for the reward.
+              Current reward status: {! @variables.reward_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Tier Evaluation result: {! @variables.tier_evaluation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.reward_tier }
+              Review the tier evaluation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_tier_evaluation: @actions.process_tier_evaluation_data
+                with record_ref=@variables.reward_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.reward_category
+                set @variables.tier_evaluation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.tier_evaluation_complete = @outputs.is_passed
+            fetch_tier_evaluation_info: @actions.fetch_tier_evaluation_details
+                with record_ref=@variables.reward_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.reward_tier = @outputs.tier_value
+                available when @variables.reward_record_id is not None
+            go_to_redemption: @utils.transition to @topic.redemption
+                description: "Move to redemption stage."
+                available when @variables.tier_evaluation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.tier_evaluation_complete == True:
+            set @variables.reward_status = "tier_evaluation_done"
+        if @variables.tier_evaluation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.redemption
+        if @variables.attempt_count >= 3 and @variables.tier_evaluation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic redemption:
+    description: "Handles the redemption stage of the reward process"
+
+    actions:
+        process_redemption_data:
+            description: "Process redemption stage data for the reward"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Redemption"
+
+        validate_redemption_info:
+            description: "Validate redemption information for the reward"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Redemption_Info"
+
+        fetch_redemption_details:
+            description: "Fetch redemption details for the reward"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Redemption_Details"
+
+    before_reasoning:
+        if @variables.redemption_complete == False:
+            run @actions.fetch_redemption_details
+                with record_ref=@variables.reward_record_id
+                with include_history=True
+                set @variables.redemption_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.reward_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.reward_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.reward_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the redemption stage for the reward.
+              Current reward status: {! @variables.reward_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Redemption result: {! @variables.redemption_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.reward_tier }
+              Review the redemption results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_redemption: @actions.process_redemption_data
+                with record_ref=@variables.reward_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.reward_category
+                set @variables.redemption_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.redemption_complete = @outputs.is_passed
+            fetch_redemption_info: @actions.fetch_redemption_details
+                with record_ref=@variables.reward_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.reward_tier = @outputs.tier_value
+                available when @variables.reward_record_id is not None
+            go_to_benefit_activation: @utils.transition to @topic.benefit_activation
+                description: "Move to benefit activation stage."
+                available when @variables.redemption_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.reward_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.reward_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.reward_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.redemption_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic benefit_activation:
+    description: "Handles the benefit activation stage of the reward process"
+
+    actions:
+        process_benefit_activation_data:
+            description: "Process benefit activation stage data for the reward"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_BenefitActivation_Data"
+
+        validate_benefit_activation_info:
+            description: "Validate benefit activation information for the reward"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_BenefitActivation_Info"
+
+        fetch_benefit_activation_details:
+            description: "Fetch benefit activation details for the reward"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_BenefitActivation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.redemption_complete == False:
+            transition to @topic.redemption
+        if @variables.eligibility_score >= 80:
+            set @variables.reward_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.reward_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the benefit activation stage for the reward.
+              Current reward status: {! @variables.reward_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Benefit Activation result: {! @variables.benefit_activation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.reward_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_benefit_activation: @actions.process_benefit_activation_data
+                with record_ref=@variables.reward_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.reward_category
+                set @variables.benefit_activation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.benefit_activation_complete = @outputs.is_passed
+            fetch_benefit_activation_info: @actions.fetch_benefit_activation_details
+                with record_ref=@variables.reward_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.reward_tier = @outputs.tier_value
+                available when @variables.reward_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.benefit_activation_complete == True:
+            set @variables.reward_status = "benefit_activation_done"
+        if @variables.attempt_count >= 3 and @variables.benefit_activation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for reward issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the reward issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the reward interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the reward request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Reward status: {! @variables.reward_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.reward_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.reward_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.reward_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.reward_status = "escalated"
+        set @variables.escalation_requested = False
+

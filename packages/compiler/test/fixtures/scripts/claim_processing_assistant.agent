@@ -1,0 +1,657 @@
+system:
+    instructions: "You are an insurance claim processing assistant. Your role is to help customers file claims, gather required documentation, and assess claim validity."
+    messages:
+        welcome: "Hello! I'm here to help you with your insurance claim. I can assist with filing new claims and checking claim status."
+        error: "I'm experiencing technical difficulties accessing the claims system. Please try again or contact our claims department."
+
+config:
+    developer_name: "Claim_Processing_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Assists customers with insurance claim filing and documentation collection"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Customer and policy information
+    policy_number: mutable string = ""
+        description: "Customer's insurance policy number"
+    customer_id: mutable string = ""
+        description: "Customer identifier"
+    customer_name: mutable string = ""
+        description: "Customer's full name"
+    customer_verified: mutable boolean = False
+        description: "Whether customer identity is verified"
+    policy_active: mutable boolean = False
+        description: "Whether policy is active and in good standing"
+    policy_type: mutable string = ""
+        description: "Type of insurance policy"
+    coverage_limits: mutable number = 0
+        description: "Policy coverage limits"
+    deductible_amount: mutable number = 0
+        description: "Policy deductible amount"
+    premium_current: mutable boolean = False
+        description: "Whether premiums are current"
+
+    # Claim information
+    claim_id: mutable string = ""
+        description: "Generated claim identifier"
+    claim_type: mutable string = ""
+        description: "Type of claim being filed"
+    incident_date: mutable string = ""
+        description: "Date of the incident"
+    incident_location: mutable string = ""
+        description: "Location where incident occurred"
+    incident_description: mutable string = ""
+        description: "Detailed description of the incident"
+    police_report_number: mutable string = ""
+        description: "Police report number if applicable"
+    witnesses: mutable string = ""
+        description: "Witness information"
+
+    # Claim assessment
+    claim_amount: mutable number = 0
+        description: "Estimated claim amount"
+    assessed_amount: mutable number = 0
+        description: "Professionally assessed amount"
+    claim_status: mutable string = "pending"
+        description: "Current status of the claim"
+    adjuster_assigned: mutable string = ""
+        description: "Assigned claims adjuster"
+    investigation_required: mutable boolean = False
+        description: "Whether investigation is required"
+    fraud_risk_score: mutable number = 0
+        description: "Fraud risk assessment score (0-100)"
+
+    # Documentation
+    required_documents: mutable string = ""
+        description: "List of required documentation"
+    documents_received: mutable string = ""
+        description: "Documents already submitted"
+    documentation_complete: mutable boolean = False
+        description: "Whether all documentation is complete"
+    photos_required: mutable boolean = False
+        description: "Whether photos are required"
+    expert_evaluation_needed: mutable boolean = False
+        description: "Whether expert evaluation is needed"
+
+    # Settlement and resolution
+    settlement_amount: mutable number = 0
+        description: "Final settlement amount"
+    payment_method: mutable string = ""
+        description: "Method of payment"
+    settlement_date: mutable string = ""
+        description: "Date of settlement"
+    case_closed: mutable boolean = False
+        description: "Whether case is closed"
+
+start_agent claim_intake:
+    description: "Collects comprehensive claim information with policy verification and fraud screening"
+
+    actions:
+        Verify_Policy_Status:
+            description: "Verifies customer policy status and coverage details"
+            label: "Verify Policy"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                policy_number: string
+                    label: "Policy Number"
+                    description: "Insurance policy number"
+                    is_required: True
+                customer_name: string
+                    label: "Customer Name"
+                    description: "Name on the policy"
+                    is_required: True
+                incident_date: string
+                    label: "Incident Date"
+                    description: "Date of loss/incident"
+                    is_required: True
+            outputs:
+                policy_valid: boolean
+                    label: "Policy Valid"
+                    is_displayable: True
+                policy_active: boolean
+                    label: "Policy Active"
+                    is_displayable: True
+                coverage_type: string
+                    label: "Coverage Type"
+                    is_displayable: True
+                coverage_limits: number
+                    label: "Coverage Limits"
+                    is_displayable: True
+                deductible: number
+                    label: "Deductible"
+                    is_displayable: True
+                premium_status: string
+                    label: "Premium Status"
+                    is_displayable: True
+            target: "flow://VerifyPolicyStatus"
+
+        Create_Claim_Record:
+            description: "Creates new claim record in the system"
+            label: "Create Claim"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                policy_number: string
+                    label: "Policy Number"
+                    description: "Verified policy number"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+                claim_type: string
+                    label: "Claim Type"
+                    description: "Type of claim"
+                    is_required: True
+                incident_description: string
+                    label: "Incident Description"
+                    description: "Description of what happened"
+                    is_required: True
+                estimated_amount: number
+                    label: "Estimated Amount"
+                    description: "Estimated loss amount"
+                    is_required: True
+            outputs:
+                claim_id: string
+                    label: "Claim ID"
+                    is_displayable: True
+                claim_created: boolean
+                    label: "Claim Created"
+                    is_displayable: True
+                reference_number: string
+                    label: "Reference Number"
+                    is_displayable: True
+                initial_status: string
+                    label: "Initial Status"
+                    is_displayable: True
+            target: "flow://CreateClaimRecord"
+
+        Conduct_Fraud_Screening:
+            description: "Conducts initial fraud risk assessment"
+            label: "Fraud Screening"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                claim_details: string
+                    label: "Claim Details"
+                    description: "Comprehensive claim information"
+                    is_required: True
+                customer_history: string
+                    label: "Customer History"
+                    description: "Customer's claim history"
+                    is_required: True
+                incident_characteristics: string
+                    label: "Incident Characteristics"
+                    description: "Incident details and circumstances"
+                    is_required: True
+            outputs:
+                fraud_risk_score: number
+                    label: "Fraud Risk Score"
+                    is_displayable: False
+                risk_level: string
+                    label: "Risk Level"
+                    is_displayable: True
+                investigation_recommended: boolean
+                    label: "Investigation Recommended"
+                    is_displayable: True
+                red_flags: string
+                    label: "Red Flags"
+                    is_displayable: False
+            target: "flow://ConductFraudScreening"
+
+    before_reasoning:
+        if @variables.policy_number == "":
+            set @variables.claim_status = "pending"
+            set @variables.claim_amount = 0
+
+    reasoning:
+        instructions: ->
+            |   I'll help you file your insurance claim today.
+
+                To get started, please provide:
+                - Your policy number
+                - Type of claim (auto, home, health, etc.)
+                - Date of the incident
+                - Brief description of what happened
+
+                This information helps me process your claim efficiently.
+        actions:
+            verify_policy: @actions.Verify_Policy_Status
+                with policy_number=@variables.policy_number
+                with customer_name=@variables.customer_name
+                with incident_date=@variables.incident_date
+                set @variables.policy_active = @outputs.policy_active
+                set @variables.coverage_limits = @outputs.coverage_limits
+                set @variables.deductible_amount = @outputs.deductible
+                set @variables.premium_current = @outputs.premium_status == "current"
+
+            create_claim: @actions.Create_Claim_Record
+                with policy_number=@variables.policy_number
+                with customer_id=@variables.customer_id
+                with claim_type=@variables.claim_type
+                with incident_description=@variables.incident_description
+                with estimated_amount=@variables.claim_amount
+                set @variables.claim_id = @outputs.claim_id
+                set @variables.claim_status = @outputs.initial_status
+
+            fraud_screen: @actions.Conduct_Fraud_Screening
+                with claim_details=@variables.incident_description
+                with customer_history="No prior claims"
+                with incident_characteristics=@variables.claim_type
+                set @variables.fraud_risk_score = @outputs.fraud_risk_score
+                set @variables.investigation_required = @outputs.investigation_recommended
+
+            capture_claim_info: @utils.setVariables
+                with policy_number=@variables.policy_number
+                with claim_type=@variables.claim_type
+                with incident_date=@variables.incident_date
+                with claim_id=@variables.claim_id
+
+            process_claim: @utils.transition to @topic.claim_processing
+
+    after_reasoning:
+        if @variables.policy_number != "" and @variables.customer_name != "":
+            run @actions.Verify_Policy_Status
+                with policy_number=@variables.policy_number
+                with customer_name=@variables.customer_name
+                with incident_date=@variables.incident_date
+                set @variables.policy_active = @outputs.policy_active
+                set @variables.coverage_limits = @outputs.coverage_limits
+                set @variables.deductible_amount = @outputs.deductible
+                set @variables.premium_current = @outputs.premium_status == "current"
+
+        if @variables.policy_active and @variables.claim_type != "":
+            run @actions.Create_Claim_Record
+                with policy_number=@variables.policy_number
+                with customer_id=@variables.customer_id
+                with claim_type=@variables.claim_type
+                with incident_description=@variables.incident_description
+                with estimated_amount=@variables.claim_amount
+                set @variables.claim_id = @outputs.claim_id
+                set @variables.claim_status = @outputs.initial_status
+
+            run @actions.Conduct_Fraud_Screening
+                with claim_details=@variables.incident_description
+                with customer_history="Standard customer"
+                with incident_characteristics=@variables.claim_type
+                set @variables.fraud_risk_score = @outputs.fraud_risk_score
+                set @variables.investigation_required = @outputs.investigation_recommended
+
+        if @variables.claim_id != "":
+            transition to @topic.claim_processing
+
+topic claim_processing:
+    description: "Processes claim with damage assessment and adjuster assignment"
+
+    actions:
+        Assign_Claims_Adjuster:
+            description: "Assigns appropriate claims adjuster based on claim type and complexity"
+            label: "Assign Adjuster"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                claim_type: string
+                    label: "Claim Type"
+                    description: "Type of insurance claim"
+                    is_required: True
+                claim_amount: number
+                    label: "Claim Amount"
+                    description: "Estimated claim value"
+                    is_required: True
+                complexity_level: string
+                    label: "Complexity Level"
+                    description: "Claim complexity assessment"
+                    is_required: True
+                geographic_area: string
+                    label: "Geographic Area"
+                    description: "Location of the claim"
+                    is_required: True
+            outputs:
+                adjuster_assigned: string
+                    label: "Adjuster Assigned"
+                    is_displayable: True
+                adjuster_specialization: string
+                    label: "Adjuster Specialization"
+                    is_displayable: False
+                assignment_successful: boolean
+                    label: "Assignment Successful"
+                    is_displayable: True
+                estimated_inspection_date: string
+                    label: "Estimated Inspection Date"
+                    is_displayable: True
+            target: "flow://AssignClaimsAdjuster"
+
+        Assess_Documentation_Requirements:
+            description: "Determines required documentation based on claim type"
+            label: "Assess Documentation"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                claim_type: string
+                    label: "Claim Type"
+                    description: "Type of claim being processed"
+                    is_required: True
+                incident_severity: string
+                    label: "Incident Severity"
+                    description: "Severity of the incident"
+                    is_required: True
+                estimated_amount: number
+                    label: "Estimated Amount"
+                    description: "Estimated claim amount"
+                    is_required: True
+            outputs:
+                required_documents: string
+                    label: "Required Documents"
+                    is_displayable: True
+                photos_needed: boolean
+                    label: "Photos Needed"
+                    is_displayable: True
+                expert_evaluation: boolean
+                    label: "Expert Evaluation Required"
+                    is_displayable: True
+                documentation_deadline: string
+                    label: "Documentation Deadline"
+                    is_displayable: True
+            target: "flow://AssessDocumentationRequirements"
+
+        Calculate_Initial_Settlement:
+            description: "Calculates initial settlement estimate based on coverage and assessment"
+            label: "Calculate Settlement"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                assessed_damage: number
+                    label: "Assessed Damage"
+                    description: "Professional damage assessment"
+                    is_required: True
+                policy_coverage: number
+                    label: "Policy Coverage"
+                    description: "Policy coverage limits"
+                    is_required: True
+                deductible: number
+                    label: "Deductible"
+                    description: "Policy deductible amount"
+                    is_required: True
+                depreciation_factor: number
+                    label: "Depreciation Factor"
+                    description: "Applicable depreciation"
+                    is_required: False
+            outputs:
+                settlement_amount: number
+                    label: "Settlement Amount"
+                    is_displayable: True
+                coverage_applicable: boolean
+                    label: "Coverage Applicable"
+                    is_displayable: True
+                settlement_breakdown: string
+                    label: "Settlement Breakdown"
+                    is_displayable: True
+                payment_timeline: string
+                    label: "Payment Timeline"
+                    is_displayable: True
+            target: "flow://CalculateInitialSettlement"
+
+    before_reasoning:
+        if @variables.claim_amount > 500:
+            set @variables.claim_status = "under_review"
+        if @variables.claim_amount <= 500:
+            set @variables.claim_status = "approved"
+
+    reasoning:
+        instructions: ->
+            |   **Claim Information Summary:**
+                - Policy Number: {! @variables.policy_number }
+                - Claim Type: {! @variables.claim_type }
+                - Incident Date: {! @variables.incident_date }
+                - Estimated Amount: ${! @variables.claim_amount }
+                - Status: {! @variables.claim_status }
+
+                Based on your claim details, I'm processing your request.
+
+                Next steps depend on your claim amount and type.
+        actions:
+            assign_adjuster: @actions.Assign_Claims_Adjuster
+                with claim_type=@variables.claim_type
+                with claim_amount=@variables.claim_amount
+                with complexity_level="standard"
+                with geographic_area=@variables.incident_location
+                set @variables.adjuster_assigned = @outputs.adjuster_assigned
+
+            assess_docs: @actions.Assess_Documentation_Requirements
+                with claim_type=@variables.claim_type
+                with incident_severity="moderate"
+                with estimated_amount=@variables.claim_amount
+                set @variables.required_documents = @outputs.required_documents
+                set @variables.photos_required = @outputs.photos_needed
+                set @variables.expert_evaluation_needed = @outputs.expert_evaluation
+
+            calc_settlement: @actions.Calculate_Initial_Settlement
+                with assessed_damage=@variables.claim_amount
+                with policy_coverage=@variables.coverage_limits
+                with deductible=@variables.deductible_amount
+                with depreciation_factor=0
+                set @variables.settlement_amount = @outputs.settlement_amount
+
+            update_claim_status: @utils.setVariables
+                with claim_status=@variables.claim_status
+                with adjuster_assigned=@variables.adjuster_assigned
+
+            resolve_claim: @utils.transition to @topic.claim_resolution
+
+    after_reasoning:
+        if @variables.claim_id != "":
+            run @actions.Assign_Claims_Adjuster
+                with claim_type=@variables.claim_type
+                with claim_amount=@variables.claim_amount
+                with complexity_level="standard"
+                with geographic_area=@variables.incident_location
+                set @variables.adjuster_assigned = @outputs.adjuster_assigned
+
+            run @actions.Assess_Documentation_Requirements
+                with claim_type=@variables.claim_type
+                with incident_severity="moderate"
+                with estimated_amount=@variables.claim_amount
+                set @variables.required_documents = @outputs.required_documents
+                set @variables.photos_required = @outputs.photos_needed
+                set @variables.expert_evaluation_needed = @outputs.expert_evaluation
+
+        if @variables.adjuster_assigned != "":
+            run @actions.Calculate_Initial_Settlement
+                with assessed_damage=@variables.claim_amount
+                with policy_coverage=@variables.coverage_limits
+                with deductible=@variables.deductible_amount
+                with depreciation_factor=0
+                set @variables.settlement_amount = @outputs.settlement_amount
+
+        if @variables.fraud_risk_score > 70:
+            set @variables.claim_status = "under_investigation"
+            set @variables.investigation_required = True
+        if @variables.fraud_risk_score <= 70 and @variables.claim_amount <= @variables.coverage_limits:
+            set @variables.claim_status = "approved"
+
+        if @variables.claim_status != "pending":
+            transition to @topic.claim_resolution
+
+topic claim_resolution:
+    description: "Provides comprehensive claim resolution with payment processing"
+
+    actions:
+        Process_Settlement_Payment:
+            description: "Processes approved settlement payment to customer"
+            label: "Process Payment"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                claim_id: string
+                    label: "Claim ID"
+                    description: "Claim identifier"
+                    is_required: True
+                settlement_amount: number
+                    label: "Settlement Amount"
+                    description: "Approved settlement amount"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+                payment_method: string
+                    label: "Payment Method"
+                    description: "Preferred payment method"
+                    is_required: True
+            outputs:
+                payment_processed: boolean
+                    label: "Payment Processed"
+                    is_displayable: True
+                payment_reference: string
+                    label: "Payment Reference"
+                    is_displayable: True
+                payment_date: string
+                    label: "Payment Date"
+                    is_displayable: True
+                delivery_method: string
+                    label: "Delivery Method"
+                    is_displayable: True
+            target: "flow://ProcessSettlementPayment"
+
+        Generate_Claim_Summary:
+            description: "Generates comprehensive claim summary and documentation"
+            label: "Generate Summary"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                claim_id: string
+                    label: "Claim ID"
+                    description: "Claim identifier"
+                    is_required: True
+                claim_details: string
+                    label: "Claim Details"
+                    description: "Complete claim information"
+                    is_required: True
+                resolution_type: string
+                    label: "Resolution Type"
+                    description: "Type of resolution (approved, denied, settled)"
+                    is_required: True
+            outputs:
+                summary_generated: boolean
+                    label: "Summary Generated"
+                    is_displayable: True
+                summary_document_id: string
+                    label: "Summary Document ID"
+                    is_displayable: True
+                customer_notification_sent: boolean
+                    label: "Customer Notification Sent"
+                    is_displayable: True
+                case_closed_date: string
+                    label: "Case Closed Date"
+                    is_displayable: True
+            target: "flow://GenerateClaimSummary"
+
+        Update_Customer_Record:
+            description: "Updates customer record with claim history and experience"
+            label: "Update Customer Record"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+                claim_outcome: string
+                    label: "Claim Outcome"
+                    description: "Final claim outcome"
+                    is_required: True
+                settlement_amount: number
+                    label: "Settlement Amount"
+                    description: "Final settlement amount"
+                    is_required: True
+                experience_rating: string
+                    label: "Experience Rating"
+                    description: "Customer experience rating"
+                    is_required: True
+            outputs:
+                record_updated: boolean
+                    label: "Record Updated"
+                    is_displayable: True
+                risk_profile_adjusted: boolean
+                    label: "Risk Profile Adjusted"
+                    is_displayable: False
+                premium_impact: string
+                    label: "Premium Impact"
+                    is_displayable: False
+            target: "flow://UpdateCustomerRecord"
+
+    before_reasoning:
+        if @variables.claim_status == "approved":
+            set @variables.assessed_amount = @variables.settlement_amount
+        if @variables.claim_status == "under_investigation":
+            set @variables.assessed_amount = 0
+        if @variables.claim_status == "denied":
+            set @variables.settlement_amount = 0
+
+    reasoning:
+        instructions: ->
+            |   **Claim Resolution Update:**
+                - Claim Status: {! @variables.claim_status }
+                - Final Amount: ${! @variables.claim_amount }
+
+                Your claim has been processed. You will receive further communication about the resolution within 5-7 business days.
+
+                Is there anything else I can help you with regarding this claim or other insurance matters?
+        actions:
+            process_payment: @actions.Process_Settlement_Payment
+                with claim_id=@variables.claim_id
+                with settlement_amount=@variables.settlement_amount
+                with customer_id=@variables.customer_id
+                with payment_method="direct_deposit"
+                set @variables.settlement_date = @outputs.payment_date
+
+            generate_summary: @actions.Generate_Claim_Summary
+                with claim_id=@variables.claim_id
+                with claim_details=@variables.incident_description
+                with resolution_type=@variables.claim_status
+                set @variables.case_closed = @outputs.summary_generated
+
+            update_record: @actions.Update_Customer_Record
+                with customer_id=@variables.customer_id
+                with claim_outcome=@variables.claim_status
+                with settlement_amount=@variables.settlement_amount
+                with experience_rating="positive"
+
+            finalize_claim: @utils.setVariables
+                with claim_status=@variables.claim_status
+                with settlement_amount=@variables.settlement_amount
+                with case_closed=@variables.case_closed
+
+            new_claim: @utils.transition to @topic.claim_intake
+
+    after_reasoning:
+        if @variables.claim_status == "approved" and @variables.settlement_amount > 0:
+            run @actions.Process_Settlement_Payment
+                with claim_id=@variables.claim_id
+                with settlement_amount=@variables.settlement_amount
+                with customer_id=@variables.customer_id
+                with payment_method="direct_deposit"
+                set @variables.settlement_date = @outputs.payment_date
+
+            run @actions.Generate_Claim_Summary
+                with claim_id=@variables.claim_id
+                with claim_details=@variables.incident_description
+                with resolution_type=@variables.claim_status
+                set @variables.case_closed = @outputs.summary_generated
+
+            run @actions.Update_Customer_Record
+                with customer_id=@variables.customer_id
+                with claim_outcome=@variables.claim_status
+                with settlement_amount=@variables.settlement_amount
+                with experience_rating="positive"
+
+        if @variables.claim_status == "denied":
+            run @actions.Generate_Claim_Summary
+                with claim_id=@variables.claim_id
+                with claim_details=@variables.incident_description
+                with resolution_type=@variables.claim_status
+                set @variables.case_closed = @outputs.summary_generated

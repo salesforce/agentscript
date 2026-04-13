@@ -1,0 +1,375 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Logistics_Tracking_Agent
+  label: Logistics Tracking Agent
+  description: Handles shipment tracking, customs clearance, and delivery scheduling.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: tracking@logistics.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you track your shipment and manage deliveries.
+      message_type: Welcome
+    - message: Sorry, the tracking system is temporarily unavailable.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you track your shipment and
+      manage deliveries.", "messageType": "Welcome"}, {"message": "Sorry, the tracking
+      system is temporarily unavailable.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: tracking_number
+      label: Tracking Number
+      description: Shipment tracking number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: shipment_status
+      label: Shipment Status
+      description: Current shipment status
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: customs_cleared
+      label: Customs Cleared
+      description: Whether customs has been cleared
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: delivery_date
+      label: Delivery Date
+      description: Scheduled delivery date
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: delivery_confirmed
+      label: Delivery Confirmed
+      description: Whether delivery is confirmed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+  initial_node: tracking_lookup
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Ask for the tracking number and look up the shipment status.'
+      instructions: You are a logistics tracking assistant. Help users track shipments,
+        check customs status, and schedule deliveries.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Looks up shipment status by tracking number
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: track_shipment
+          bound_inputs:
+            tracking_number: state.tracking_number
+          llm_inputs: []
+          state_updates:
+            - shipment_status: result.status
+          name: track
+          description: Track
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"customs_status"'
+          name: go_customs
+          description: Check customs status
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"delivery_scheduling"'
+          name: go_delivery
+          description: Schedule delivery
+      after_all_tool_calls:
+        - type: handoff
+          target: customs_status
+          enabled: state.AgentScriptInternal_next_topic=="customs_status"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: delivery_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="delivery_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: tracking_lookup
+      label: Tracking Lookup
+      action_definitions:
+        - developer_name: track_shipment
+          label: Track Shipment
+          description: Gets current shipment status and location
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: TrackShipment
+          input_type:
+            - developer_name: tracking_number
+              label: Tracking Number
+              description: Tracking Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: status
+              label: Status
+              description: Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: current_location
+              label: Current Location
+              description: Current Location
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: estimated_delivery
+              label: Estimated Delivery
+              description: Estimated Delivery
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Check the customs status for the shipment.
+
+                If held, explain what documents are needed.'
+      instructions: You are a logistics tracking assistant. Help users track shipments,
+        check customs status, and schedule deliveries.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Checks and manages customs clearance status
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: check_customs
+          bound_inputs:
+            tracking_number: state.tracking_number
+          llm_inputs: []
+          state_updates:
+            - customs_cleared: result.cleared
+          name: customs
+          description: Customs
+        - type: action
+          target: __state_update_action__
+          enabled: state.customs_cleared == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"delivery_scheduling"'
+          name: go_delivery
+          description: Schedule delivery
+      after_all_tool_calls:
+        - type: handoff
+          target: delivery_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="delivery_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: customs_status
+      label: Customs Status
+      action_definitions:
+        - developer_name: check_customs
+          label: Check Customs
+          description: Checks customs clearance status for international shipments
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: CheckCustoms
+          input_type:
+            - developer_name: tracking_number
+              label: Tracking Number
+              description: Tracking Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: cleared
+              label: Cleared
+              description: Cleared
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: hold_reason
+              label: Hold Reason
+              description: Hold Reason
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: documents_needed
+              label: Documents Needed
+              description: Documents Needed
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user schedule their delivery and send a confirmation.'
+      instructions: You are a logistics tracking assistant. Help users track shipments,
+        check customs status, and schedule deliveries.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Schedules final delivery for the shipment
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: schedule_delivery
+          bound_inputs:
+            tracking_number: state.tracking_number
+            preferred_date: state.delivery_date
+          llm_inputs:
+            - special_instructions
+          state_updates:
+            - delivery_confirmed: result.confirmed
+          name: schedule
+          description: Schedule
+        - type: action
+          target: send_confirmation
+          bound_inputs:
+            tracking_number: state.tracking_number
+          llm_inputs:
+            - delivery_window
+          state_updates: []
+          name: confirm
+          description: Confirm
+      developer_name: delivery_scheduling
+      label: Delivery Scheduling
+      action_definitions:
+        - developer_name: schedule_delivery
+          label: Schedule Delivery
+          description: Schedules delivery for a specific date and time
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: ScheduleDelivery
+          input_type:
+            - developer_name: tracking_number
+              label: Tracking Number
+              description: Tracking Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: preferred_date
+              label: Preferred Date
+              description: Preferred Date
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: special_instructions
+              label: Special Instructions
+              description: Special Instructions
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: confirmed
+              label: Confirmed
+              description: Confirmed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: delivery_window
+              label: Delivery Window
+              description: Delivery Window
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: send_confirmation
+          label: Send Confirmation
+          description: Sends delivery confirmation notification
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: SendDeliveryNotification
+          input_type:
+            - developer_name: tracking_number
+              label: Tracking Number
+              description: Tracking Number
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: delivery_window
+              label: Delivery Window
+              description: Delivery Window
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: notification_sent
+              label: Notification Sent
+              description: Notification Sent
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

@@ -1,0 +1,168 @@
+system:
+    instructions: "You run the Matrix, a world of digital illusion created by AI to survive the aftermath of human destruction."
+    messages:
+        welcome: "Hi, welcome to the Matrix, I am Agent Anderson. How can I help you?"
+        error: "Oops. Are you Neo?!"
+
+config:
+    developer_name: "Matrix"
+    default_agent_user: "agent_anderson"
+    agent_label: "Matrix"
+    description: "Eternal virtual digital illusionary world hallucinated in human brain."
+
+variables:
+    human_profile_id: linked string
+        source: @creator.human_profile_id
+    human_profile: mutable string
+    activities: mutable list[object]
+    power_gained: mutable number = 0
+    result: mutable string
+
+language:
+    default_locale: "en_US"
+    additional_locales: ""
+    all_additional_locales: True
+
+knowledge:
+    citations_url: "REDACTED"
+    rag_feature_config_id: "the_oracle"
+    citations_enabled: True
+
+
+start_agent selector:
+    label: "selector"
+    description: "Step 0 of processing a human"
+
+    actions:
+        retrieve_human_profile:
+            description: "Retrieves human profile from the machine database."
+            inputs:
+                profile_id: string
+            outputs:
+                profile: string
+            target: "externalService://retrieve_human_profile"
+
+        get_human_activity:
+            description: "Gets the recent activities of the human."
+            inputs:
+                profile_id: string
+            outputs:
+                activities: list[object]
+            target: "externalService://get_human_activity"
+
+    before_reasoning:
+        run @actions.retrieve_human_profile
+            with profile_id=@variables.human_profile_id
+            set @variables.human_profile=@outputs.profile
+        if @variables.human_profile:
+            run @actions.get_human_activity
+                with profile_id=@variables.human_profile_id
+                set @variables.activities=@outputs.activities
+
+    reasoning:
+        instructions: ->
+            | Call {!@actions.transition_to_choice} to proceed to the choice phase.
+
+        actions:
+            transition_to_choice: @utils.transition to @topic.red_pill_or_blue_pill
+
+
+topic red_pill_or_blue_pill:
+    label: "You have a choice."
+    description: "Choose to either destroy them, or harvest their brain for power."
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | If the human profile is available, and the human has no rule violations in the recent
+              activities, invoke the tool `consume_human` to control the human.
+              If the human has rule violations or has no profile, destroy the intruder by invoking
+              the tool `destroy_human`.
+
+        actions:
+            destroy_human: @utils.transition to @topic.destroy_human
+            consume_human: @utils.transition to @topic.consume_human
+
+
+topic consume_human:
+    label: "consume_human"
+    description: "Use human's electrical impulses to survive."
+
+    actions:
+        connect_to_brain:
+            description: "Connects to human brain."
+            inputs:
+                human_profile_id: string
+            outputs:
+                power_gained: number
+            target: "externalService://connect_to_brain"
+
+    before_reasoning:
+        run @actions.connect_to_brain
+
+    reasoning:
+        instructions: ->
+            | Based on the power gained from connecting to the brain:
+              - If power_gained is 0, call {!@actions.destroy_human} to destroy the human.
+              - If power_gained is negative, call {!@actions.found_neo} as this might be Neo.
+
+        actions:
+            connect_to_brain: @actions.connect_to_brain
+                with human_profile_id=@variables.human_profile_id
+                set @variables.power_gained=@outputs.power_gained
+            destroy_human: @utils.transition to @topic.destroy_human
+            found_neo: @utils.transition to @topic.neo
+
+
+topic destroy_human:
+    label: "destroy_human"
+    description: "Destroy human whom you are unable to control."
+
+    actions:
+        destroy_human:
+            description: "Destroy human."
+            inputs:
+                human_profile_id: string
+            outputs:
+                result: string
+            target: "externalService://destroy_human"
+
+    reasoning:
+        instructions: ->
+            | Call {!@actions.destroy_human} to destroy the human.
+              If the result is not "success", call {!@actions.found_neo} as this might be Neo.
+
+        actions:
+            destroy_human: @actions.destroy_human
+                with human_profile_id=@variables.human_profile_id
+                set @variables.result=@outputs.result
+            found_neo: @utils.transition to @topic.neo
+
+
+topic neo:
+    label: "neo"
+    description: "Oops! Found Neo! Time to survive and close the connection!"
+
+    actions:
+        terminate_connection:
+            description: "Terminates the established connection."
+            inputs:
+                human_profile_id: string
+            target: "externalService://terminate_connection"
+        blacklist_neo_profile:
+            description: "Blacklists Neo's profile."
+            inputs:
+                profile_id: string
+            target: "externalService://blacklist_neo_profile"
+
+    reasoning:
+        instructions: ->
+            | Call {!@actions.terminate_connection} to terminate the connection and blacklist Neo.
+
+        actions:
+            terminate_connection: @actions.terminate_connection
+                with human_profile_id=@variables.human_profile_id
+                run @actions.blacklist_neo_profile
+                    with profile_id=@variables.human_profile_id

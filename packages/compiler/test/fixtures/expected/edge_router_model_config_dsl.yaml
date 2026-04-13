@@ -1,0 +1,188 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Router_Model_Config
+  label: Router Model Config
+  description: Multiple topics with model_config on start_agent and regular topics
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome! I'll connect you with the right specialist.
+      message_type: Welcome
+    - message: An error occurred. Please try again.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome! I''ll connect you with the right specialist.",
+      "messageType": "Welcome"}, {"message": "An error occurred. Please try again.",
+      "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: user_intent
+      label: User Intent
+      description: Classified user intent
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - model_configuration:
+        model_ref: sfdc_ai__DefaultEinsteinHyperClassifier
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Classify the user''s intent and route to the best topic.'
+      instructions: 'You are a routing agent with different model configurations per
+        topic.
+
+
+        {{state.AgentScriptInternal_agent_instructions}}'
+      type: router
+      description: Routes using hyperclassifier model
+      tools:
+        - name: go_complex
+          target: complex_analysis
+          description: Route to complex analysis requiring advanced model
+        - name: go_simple
+          target: simple_faq
+          description: Route to simple FAQ
+        - name: go_creative
+          target: creative_writing
+          description: Route to creative writing assistance
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Provide detailed analytical responses to complex questions.
+
+                Use step-by-step reasoning for multi-part problems.'
+      instructions: You are a routing agent with different model configurations per
+        topic.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles complex analytical questions requiring advanced reasoning
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_router
+          description: Return to router for new request
+      after_all_tool_calls:
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: complex_analysis
+      label: Complex Analysis
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Answer the user''s simple question directly and concisely.
+
+                If the question is too complex, transition to the complex analysis
+                topic.'
+      instructions: You are a routing agent with different model configurations per
+        topic.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Answers simple frequently asked questions
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"complex_analysis"'
+          name: go_complex
+          description: Escalate to complex analysis
+      after_all_tool_calls:
+        - type: handoff
+          target: complex_analysis
+          enabled: state.AgentScriptInternal_next_topic=="complex_analysis"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: simple_faq
+      label: Simple FAQ
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user with creative writing tasks.
+
+                Provide suggestions, edits, and feedback on their writing.'
+      instructions: You are a routing agent with different model configurations per
+        topic.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Assists with creative writing tasks
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: creative_writing
+      label: Creative Writing
+      action_definitions: []
+  surfaces: []

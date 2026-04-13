@@ -1,0 +1,487 @@
+---
+sidebar_position: 3
+title: Reasoning & Tools
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Reasoning & Tools
+
+Reasoning is the core of an AgentScript agent. It defines how the agent thinks, what tools it can use, and how it processes results. Actions are the tools available to the reasoning engine.
+
+## Actions
+
+Actions are defined in the `actions` block within a subagent. Each action describes an external capability the agent can invoke.
+
+**Fields:**
+
+| Field         | Description                                                                    |
+| ------------- | ------------------------------------------------------------------------------ |
+| `description` | What the tool does.                                                            |
+| `label`       | UI display name.                                                               |
+| `inputs`      | Input parameters, each with a type, `description`, and optional `is_required`. |
+| `outputs`     | Output parameters, each with a type and optional `description`.                |
+| `target`      | External URI to invoke (e.g., `"flow://Lookup_Order"`).                        |
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+actions:
+    Lookup_Order:
+        description: "Retrieve order details"
+        inputs:
+            order_number: string
+                description: "The order number to look up"
+                is_required: True
+        outputs:
+            status: string
+                description: "Order status"
+            order_id: string
+        target: "flow://Lookup_Order"
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+actions:
+    Lookup_Order:
+        description: "Retrieve order details"
+        inputs:
+            order_number: string
+                description: "The order number to look up"
+                is_required: True
+        outputs:
+            status: string
+                description: "Order status"
+            order_id: string
+        target: "flow://Lookup_Order"
+```
+
+</TabItem>
+</Tabs>
+
+## Reasoning Block
+
+The `reasoning` block tells the agent how to think and act. It contains `instructions` (what to do) and `actions` (the actions to use).
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+reasoning:
+    instructions: ->
+        | Analyze the user's request and look up their order.
+    actions:
+        lookup_order: @actions.Lookup_Order
+            with order_number=...
+            set @variables.status = @outputs.status
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+reasoning:
+    instructions: ->
+        | Analyze the user's request and look up their order.
+    actions:
+        lookup_order: @actions.Lookup_Order
+            with order_number=...
+            set @variables.status = @outputs.status
+```
+
+</TabItem>
+</Tabs>
+
+### Instructions
+
+Instructions use the `->` procedure syntax and can combine template text, conditionals, and run statements. The LLM follows these instructions during the reasoning loop.
+
+### Reasoning Tool Bindings
+
+Tool bindings in the `reasoning.actions` block connect subagent-level actions to the reasoning engine. Each binding has a local name and references an action or built-in utility.
+
+**Bind an action:**
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+lookup_order: @actions.Lookup_Order
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+lookup_order: @actions.Lookup_Order
+```
+
+</TabItem>
+</Tabs>
+
+**Pass parameters with `with`:**
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+lookup_order: @actions.Lookup_Order
+    with order_number=@variables.order_number
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+lookup_order: @actions.Lookup_Order
+    with order_number=@variables.order_number
+```
+
+</TabItem>
+</Tabs>
+
+**LLM slot-fill with `...`:**
+
+The ellipsis `...` tells the LLM to fill the parameter value from the conversation context:
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+search: @actions.Search_Products
+    with query=...
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+search: @actions.Search_Products
+    with query=...
+```
+
+</TabItem>
+</Tabs>
+
+**Capture outputs with `set`:**
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+lookup_order: @actions.Lookup_Order
+    with order_number=...
+    set @variables.status = @outputs.status
+    set @variables.order_id = @outputs.order_id
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+lookup_order: @actions.Lookup_Order
+    with order_number=...
+    set @variables.status = @outputs.status
+    set @variables.order_id = @outputs.order_id
+```
+
+</TabItem>
+</Tabs>
+
+**Conditional availability with `available when`:**
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+create_return: @actions.Create_Return
+    available when @variables.return_eligible == True
+    with order_id = @variables.order_id
+    set @variables.rma_number = @outputs.rma_number
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+create_return: @actions.Create_Return
+    available when @variables.return_eligible == True
+    with order_id = @variables.order_id
+    set @variables.rma_number = @outputs.rma_number
+```
+
+</TabItem>
+</Tabs>
+
+**Chain actions with `run`:**
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+verify: @actions.Verify_Customer
+    with email=@variables.customer_email
+    run @actions.Load_Profile
+        set @variables.profile = @outputs.profile
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+verify: @actions.Verify_Customer
+    with email=@variables.customer_email
+    run @actions.Load_Profile
+        set @variables.profile = @outputs.profile
+```
+
+</TabItem>
+</Tabs>
+
+**Override description:**
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+go_to_returns: @utils.transition to @subagent.Return_Management
+    description: "Route to returns when user wants to return items"
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+go_to_returns: @utils.transition to @topic.Return_Management
+    description: "Route to returns when user wants to return items"
+```
+
+</TabItem>
+</Tabs>
+
+## Built-in Utilities
+
+AgentScript provides built-in utilities via the `@utils` scope:
+
+| Utility                               | Description                                                                               |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `@utils.transition to @subagent.Name` | Navigate to another subagent.                                                             |
+| `@utils.setVariables`                 | Capture values from the conversation. Use `with param=...` to let the LLM extract values. |
+| `@utils.escalate`                     | Hand off the conversation to a human agent.                                               |
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+actions:
+    go_to_returns: @utils.transition to @subagent.Return_Management
+        description: "Route to returns when user wants to return items"
+        available when @variables.verified is True
+    capture_info: @utils.setVariables
+        description: "Capture customer information from conversation"
+        with member_email=...
+        with member_number=...
+    escalate: @utils.escalate
+        description: "Hand off to a live human agent"
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+actions:
+    go_to_returns: @utils.transition to @topic.Return_Management
+        description: "Route to returns when user wants to return items"
+        available when @variables.verified is True
+    capture_info: @utils.setVariables
+        description: "Capture customer information from conversation"
+        with member_email=...
+        with member_number=...
+    escalate: @utils.escalate
+        description: "Hand off to a live human agent"
+```
+
+</TabItem>
+</Tabs>
+
+## Procedures
+
+Procedures appear in `before_reasoning`, `after_reasoning`, and `instructions: ->` blocks. They contain ordered statements that execute sequentially.
+
+### Statement Types
+
+**Template statement** -- Output text with optional interpolation:
+
+```agentscript
+| Hello {!@variables.customer_name}, your order is {!@variables.status}.
+```
+
+**Set statement** -- Assign a value to a variable:
+
+```agentscript
+set @variables.checked_loyalty_tier = True
+```
+
+**Run statement** -- Execute an action with optional `with` and `set` clauses:
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+run @actions.Get_Loyalty_Tier
+    with member_email = @variables.member_email
+    set @variables.loyalty_tier = @outputs.loyalty_tier
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+run @actions.Get_Loyalty_Tier
+    with member_email = @variables.member_email
+    set @variables.loyalty_tier = @outputs.loyalty_tier
+```
+
+</TabItem>
+</Tabs>
+
+**If/elif/else** -- Conditional branching:
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+if @variables.loyalty_tier != "Premium":
+    | Basic members are not eligible for returns.
+elif @variables.loyalty_tier == "Premium":
+    | Process the return with {!@actions.create_return}.
+else:
+    | Please verify your account first.
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+if @variables.loyalty_tier != "Premium":
+    | Basic members are not eligible for returns.
+elif @variables.loyalty_tier == "Premium":
+    | Process the return with {!@actions.create_return}.
+else:
+    | Please verify your account first.
+```
+
+</TabItem>
+</Tabs>
+
+**Transition** -- Navigate to another subagent:
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+transition to @subagent.Identity
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+transition to @topic.Identity
+```
+
+</TabItem>
+</Tabs>
+
+## Full Example
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+reasoning:
+    instructions: ->
+        if @variables.checked_loyalty_tier == False:
+            run @actions.Get_Loyalty_Tier
+                with member_email = @variables.member_email
+                set @variables.loyalty_tier = @outputs.loyalty_tier
+            set @variables.checked_loyalty_tier = True
+        if @variables.loyalty_tier != "Premium":
+            | Basic members are not eligible for returns. Apologize and
+              explain alternatives like exchanges or store credit.
+        else:
+            | If the user wants a return, confirm which order and process
+              with {!@actions.create_return}.
+        | Analyze the user's request. Use {!@actions.lookup_order} to retrieve
+          order details. Current status: {! @variables.request_status }
+    actions:
+        lookup_order: @actions.Lookup_Order
+            with order_number=@variables.order_number
+            set @variables.status = @outputs.status
+            set @variables.order_id = @outputs.order_id
+        search: @actions.Search_Products
+            with query=...
+            set @variables.results = @outputs.products
+        create_return: @actions.Create_Return
+            available when @variables.return_eligible == True
+            with order_id = @variables.order_id
+            set @variables.rma_number = @outputs.rma_number
+        go_to_returns: @utils.transition to @subagent.Return_Management
+            description: "Route to returns when user wants to return items"
+            available when @variables.verified is True
+        capture_info: @utils.setVariables
+            description: "Capture customer information from conversation"
+            with member_email=...
+            with member_number=...
+        escalate: @utils.escalate
+            description: "Hand off to a live human agent"
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+reasoning:
+    instructions: ->
+        if @variables.checked_loyalty_tier == False:
+            run @actions.Get_Loyalty_Tier
+                with member_email = @variables.member_email
+                set @variables.loyalty_tier = @outputs.loyalty_tier
+            set @variables.checked_loyalty_tier = True
+        if @variables.loyalty_tier != "Premium":
+            | Basic members are not eligible for returns. Apologize and
+              explain alternatives like exchanges or store credit.
+        else:
+            | If the user wants a return, confirm which order and process
+              with {!@actions.create_return}.
+        | Analyze the user's request. Use {!@actions.lookup_order} to retrieve
+          order details. Current status: {! @variables.request_status }
+    actions:
+        lookup_order: @actions.Lookup_Order
+            with order_number=@variables.order_number
+            set @variables.status = @outputs.status
+            set @variables.order_id = @outputs.order_id
+        search: @actions.Search_Products
+            with query=...
+            set @variables.results = @outputs.products
+        create_return: @actions.Create_Return
+            available when @variables.return_eligible == True
+            with order_id = @variables.order_id
+            set @variables.rma_number = @outputs.rma_number
+        go_to_returns: @utils.transition to @topic.Return_Management
+            description: "Route to returns when user wants to return items"
+            available when @variables.verified is True
+        capture_info: @utils.setVariables
+            description: "Capture customer information from conversation"
+            with member_email=...
+            with member_number=...
+        escalate: @utils.escalate
+            description: "Hand off to a live human agent"
+```
+
+</TabItem>
+</Tabs>

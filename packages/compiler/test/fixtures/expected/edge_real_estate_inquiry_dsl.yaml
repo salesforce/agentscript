@@ -1,0 +1,327 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Real_Estate_Agent
+  label: Real Estate Agent
+  description: Handles property search, viewing scheduling, and notifications.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: realty@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome! I can help you find properties and schedule viewings.
+      message_type: Welcome
+    - message: Sorry, something went wrong with the property system.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome! I can help you find properties and schedule
+      viewings.", "messageType": "Welcome"}, {"message": "Sorry, something went wrong
+      with the property system.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: location
+      label: Location
+      description: Desired property location
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: budget
+      label: Budget
+      description: Maximum budget
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: bedrooms
+      label: Bedrooms
+      description: Number of bedrooms
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: property_id
+      label: Property Id
+      description: Selected property ID
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: viewing_scheduled
+      label: Viewing Scheduled
+      description: Whether a viewing is scheduled
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+  initial_node: property_intake
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Ask the user about their property preferences: location, budget, bedrooms,
+                property type.'
+      instructions: You are a real estate inquiry assistant. Help users search properties,
+        schedule viewings, and get notifications.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Gathers property search criteria from the user
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - location: state.location
+            - budget: state.budget
+            - bedrooms: state.bedrooms
+          name: save_prefs
+          description: Save search preferences
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"property_search"'
+          name: go_search
+          description: Search for properties
+      after_all_tool_calls:
+        - type: handoff
+          target: property_search
+          enabled: state.AgentScriptInternal_next_topic=="property_search"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: property_intake
+      label: Property Intake
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Search for properties matching the user''s criteria and present results.'
+      instructions: You are a real estate inquiry assistant. Help users search properties,
+        schedule viewings, and get notifications.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Searches for properties matching user criteria
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: search_listings
+          bound_inputs:
+            location: state.location
+            max_price: state.budget
+            min_bedrooms: state.bedrooms
+          llm_inputs: []
+          state_updates: []
+          name: search
+          description: Search
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"schedule_viewing"'
+          name: go_viewing
+          description: Schedule a property viewing
+      after_all_tool_calls:
+        - type: handoff
+          target: schedule_viewing
+          enabled: state.AgentScriptInternal_next_topic=="schedule_viewing"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: property_search
+      label: Property Search
+      action_definitions:
+        - developer_name: search_listings
+          label: Search Listings
+          description: Searches property listings
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: SearchListings
+          input_type:
+            - developer_name: location
+              label: Location
+              description: Location
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: max_price
+              label: Max Price
+              description: Max Price
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: min_bedrooms
+              label: Min Bedrooms
+              description: Min Bedrooms
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: listings
+              label: Listings
+              description: Listings
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: total_results
+              label: Total Results
+              description: Total Results
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user schedule a viewing for their selected property.'
+      instructions: You are a real estate inquiry assistant. Help users search properties,
+        schedule viewings, and get notifications.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Schedules property viewings for the user
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: book_viewing
+          bound_inputs:
+            property_id: state.property_id
+          llm_inputs:
+            - preferred_date
+          state_updates:
+            - viewing_scheduled: result.confirmed
+          name: book
+          description: Book
+        - type: action
+          target: send_notification
+          bound_inputs:
+            property_id: state.property_id
+          llm_inputs:
+            - viewing_time
+          state_updates: []
+          name: notify
+          description: Notify
+      developer_name: schedule_viewing
+      label: Schedule Viewing
+      action_definitions:
+        - developer_name: book_viewing
+          label: Book Viewing
+          description: Books a property viewing appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: BookViewing
+          input_type:
+            - developer_name: property_id
+              label: Property Id
+              description: Property Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: preferred_date
+              label: Preferred Date
+              description: Preferred Date
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: confirmed
+              label: Confirmed
+              description: Confirmed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: viewing_time
+              label: Viewing Time
+              description: Viewing Time
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: send_notification
+          label: Send Notification
+          description: Sends viewing confirmation notification
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: SendNotification
+          input_type:
+            - developer_name: property_id
+              label: Property Id
+              description: Property Id
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: viewing_time
+              label: Viewing Time
+              description: Viewing Time
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: sent
+              label: Sent
+              description: Sent
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

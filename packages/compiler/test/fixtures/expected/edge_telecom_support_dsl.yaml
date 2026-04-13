@@ -1,0 +1,454 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Telecom_Support_Agent
+  label: Telecom Support Agent
+  description: Handles billing support including account lookup, plan changes, and
+    escalation.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: support@telecom.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome to telecom support! I can help with billing, plan changes,
+        and account inquiries.
+      message_type: Welcome
+    - message: I encountered an issue. Please try again.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome to telecom support! I can help with billing,
+      plan changes, and account inquiries.", "messageType": "Welcome"}, {"message":
+      "I encountered an issue. Please try again.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: account_number
+      label: Account Number
+      description: Customer account number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: customer_name
+      label: Customer Name
+      description: Customer name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: current_plan
+      label: Current Plan
+      description: Current service plan
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: new_plan
+      label: New Plan
+      description: Selected new plan
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: balance
+      label: Balance
+      description: Current account balance
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: plan_changed
+      label: Plan Changed
+      description: Whether plan was successfully changed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+  initial_node: account_lookup
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Ask the customer for their account number and look up their details.
+
+                Route to the appropriate topic based on their need.'
+      instructions: You are a telecom billing support agent. Help customers with account
+        lookups, plan changes, billing inquiries, and escalations.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Looks up the customer account and determines their need
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: find_account
+          bound_inputs:
+            account_number: state.account_number
+          llm_inputs: []
+          state_updates:
+            - customer_name: result.customer_name
+            - current_plan: result.current_plan
+            - balance: result.balance
+          name: lookup
+          description: Lookup
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"billing_inquiry"'
+          name: go_billing
+          description: Handle billing questions
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"plan_comparison"'
+          name: go_plans
+          description: Compare and change plans
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation"'
+          name: go_escalation
+          description: Escalate complex issues
+      after_all_tool_calls:
+        - type: handoff
+          target: billing_inquiry
+          enabled: state.AgentScriptInternal_next_topic=="billing_inquiry"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: plan_comparison
+          enabled: state.AgentScriptInternal_next_topic=="plan_comparison"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation
+          enabled: state.AgentScriptInternal_next_topic=="escalation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: account_lookup
+      label: Account Lookup
+      action_definitions:
+        - developer_name: find_account
+          label: Find Account
+          description: Finds customer account by account number
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: FindAccount
+          input_type:
+            - developer_name: account_number
+              label: Account Number
+              description: Account Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: customer_name
+              label: Customer Name
+              description: Customer Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: current_plan
+              label: Current Plan
+              description: Current Plan
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: balance
+              label: Balance
+              description: Balance
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: account_status
+              label: Account Status
+              description: Account Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer understand their bill.
+
+                Current balance: {{state.balance}}
+
+                Show the billing breakdown and answer questions.'
+      instructions: You are a telecom billing support agent. Help customers with account
+        lookups, plan changes, billing inquiries, and escalations.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles billing questions and payment issues
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: get_billing_details
+          bound_inputs:
+            account_number: state.account_number
+          llm_inputs: []
+          state_updates: []
+          name: details
+          description: Details
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"plan_comparison"'
+          name: go_plans
+          description: Switch to plan changes
+      after_all_tool_calls:
+        - type: handoff
+          target: plan_comparison
+          enabled: state.AgentScriptInternal_next_topic=="plan_comparison"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: billing_inquiry
+      label: Billing Inquiry
+      action_definitions:
+        - developer_name: get_billing_details
+          label: Get Billing Details
+          description: Gets detailed billing breakdown
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: GetBillingDetails
+          input_type:
+            - developer_name: account_number
+              label: Account Number
+              description: Account Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: charges
+              label: Charges
+              description: Charges
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: due_date
+              label: Due Date
+              description: Due Date
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: payment_history
+              label: Payment History
+              description: Payment History
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Show available plans and help the customer choose.
+
+                Current plan: {{state.current_plan}}'
+      instructions: You are a telecom billing support agent. Help customers with account
+        lookups, plan changes, billing inquiries, and escalations.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Compares available plans and processes plan changes
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: compare_plans
+          bound_inputs:
+            current_plan: state.current_plan
+          llm_inputs: []
+          state_updates: []
+          name: compare
+          description: Compare
+        - type: action
+          target: change_plan
+          bound_inputs:
+            account_number: state.account_number
+            new_plan: state.new_plan
+          llm_inputs: []
+          state_updates:
+            - plan_changed: result.success
+          name: change
+          description: Change
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.plan_changed == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation"'
+        - type: handoff
+          target: escalation
+          enabled: state.AgentScriptInternal_next_topic=="escalation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: plan_comparison
+      label: Plan Comparison
+      action_definitions:
+        - developer_name: compare_plans
+          label: Compare Plans
+          description: Gets available plans for comparison
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: ComparePlans
+          input_type:
+            - developer_name: current_plan
+              label: Current Plan
+              description: Current Plan
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: available_plans
+              label: Available Plans
+              description: Available Plans
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: savings
+              label: Savings
+              description: Savings
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: change_plan
+          label: Change Plan
+          description: Changes the customer's service plan
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: ChangePlan
+          input_type:
+            - developer_name: account_number
+              label: Account Number
+              description: Account Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: new_plan
+              label: New Plan
+              description: New Plan
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: success
+              label: Success
+              description: Success
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: effective_date
+              label: Effective Date
+              description: Effective Date
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                This issue requires human attention. Escalate the conversation.'
+      instructions: You are a telecom billing support agent. Help customers with account
+        lookups, plan changes, billing inquiries, and escalations.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Escalates complex issues to a human agent
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '''__human__'''
+          name: escalate_to_human
+          description: Escalate to billing specialist
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: escalation
+      label: Escalation
+      action_definitions: []
+  surfaces: []

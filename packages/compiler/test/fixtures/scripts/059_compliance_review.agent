@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional compliance review specialist assistant.
+        Help users manage their compliance requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: document_scan -> regulation_check -> gap_identification -> action_plan.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Compliance Review Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "compliance_review_agent_v59"
+    default_agent_user: "compliance_review@example.com"
+    agent_description: "Assists users with compliance management through the compliance review specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    compliance_record_id: mutable string
+        description: "Record ID of the compliance"
+    compliance_status: mutable string = ""
+        description: "Current status of the compliance"
+    compliance_tier: mutable string = "standard"
+        description: "Tier classification for the compliance"
+    compliance_category: mutable string = ""
+        description: "Category of the compliance"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    document_scan_complete: mutable boolean = False
+        description: "Whether the document_scan stage is complete"
+    document_scan_result: mutable string = ""
+        description: "Result from the document_scan stage"
+    regulation_check_complete: mutable boolean = False
+        description: "Whether the regulation_check stage is complete"
+    regulation_check_result: mutable string = ""
+        description: "Result from the regulation_check stage"
+    gap_identification_complete: mutable boolean = False
+        description: "Whether the gap_identification stage is complete"
+    gap_identification_result: mutable string = ""
+        description: "Result from the gap_identification stage"
+    action_plan_complete: mutable boolean = False
+        description: "Whether the action_plan stage is complete"
+    action_plan_result: mutable string = ""
+        description: "Result from the action_plan stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate compliance management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a compliance review specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current compliance status: {! @variables.compliance_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_document_scan} for document scan requests.
+              Use {!@actions.go_to_regulation_check} for regulation check requests.
+              Use {!@actions.go_to_gap_identification} for gap identification requests.
+              Use {!@actions.go_to_action_plan} for action plan requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_document_scan: @utils.transition to @topic.document_scan
+                description: "Transition to document scan topic."
+            go_to_regulation_check: @utils.transition to @topic.regulation_check
+                description: "Transition to regulation check topic."
+                available when @variables.is_verified == True
+            go_to_gap_identification: @utils.transition to @topic.gap_identification
+                description: "Transition to gap identification topic."
+                available when @variables.is_verified == True
+            go_to_action_plan: @utils.transition to @topic.action_plan
+                description: "Transition to action plan topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic document_scan:
+    description: "Handles the document scan stage of the compliance process"
+
+    actions:
+        process_document_scan_data:
+            description: "Process document scan stage data for the compliance"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_DocumentScan"
+
+        validate_document_scan_info:
+            description: "Validate document scan information for the compliance"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DocumentScan_Info"
+
+        fetch_document_scan_details:
+            description: "Fetch document scan details for the compliance"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DocumentScan_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_document_scan_info
+                with record_ref=@variables.compliance_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.compliance_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the document scan stage for the compliance.
+              Current compliance status: {! @variables.compliance_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Document Scan result: {! @variables.document_scan_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.compliance_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_document_scan} to begin processing.
+        actions:
+            run_document_scan: @actions.process_document_scan_data
+                with record_ref=@variables.compliance_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.compliance_category
+                set @variables.document_scan_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.document_scan_complete = @outputs.is_passed
+            fetch_document_scan_info: @actions.fetch_document_scan_details
+                with record_ref=@variables.compliance_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.compliance_tier = @outputs.tier_value
+            go_to_regulation_check: @utils.transition to @topic.regulation_check
+                description: "Move to regulation check stage."
+                available when @variables.document_scan_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.compliance_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.compliance_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.compliance_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.document_scan_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic regulation_check:
+    description: "Handles the regulation check stage of the compliance process"
+
+    actions:
+        process_regulation_check_data:
+            description: "Process regulation check stage data for the compliance"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_RegulationCheck"
+
+        validate_regulation_check_info:
+            description: "Validate regulation check information for the compliance"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RegulationCheck_Info"
+
+        fetch_regulation_check_details:
+            description: "Fetch regulation check details for the compliance"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RegulationCheck_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.document_scan_complete == False:
+            transition to @topic.document_scan
+
+    reasoning:
+        instructions: ->
+            | Handle the regulation check stage for the compliance.
+              Current compliance status: {! @variables.compliance_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Regulation Check result: {! @variables.regulation_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.compliance_tier }
+              Review the regulation check results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_regulation_check: @actions.process_regulation_check_data
+                with record_ref=@variables.compliance_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.compliance_category
+                set @variables.regulation_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.regulation_check_complete = @outputs.is_passed
+            fetch_regulation_check_info: @actions.fetch_regulation_check_details
+                with record_ref=@variables.compliance_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.compliance_tier = @outputs.tier_value
+                available when @variables.compliance_record_id is not None
+            go_to_gap_identification: @utils.transition to @topic.gap_identification
+                description: "Move to gap identification stage."
+                available when @variables.regulation_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.regulation_check_complete == True:
+            set @variables.compliance_status = "regulation_check_done"
+        if @variables.regulation_check_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.gap_identification
+        if @variables.attempt_count >= 3 and @variables.regulation_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic gap_identification:
+    description: "Handles the gap identification stage of the compliance process"
+
+    actions:
+        process_gap_identification_data:
+            description: "Process gap identification stage data for the compliance"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_GapIdentification_Data"
+
+        validate_gap_identification_info:
+            description: "Validate gap identification information for the compliance"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_GapIdentification_Info"
+
+        fetch_gap_identification_details:
+            description: "Fetch gap identification details for the compliance"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_GapIdentification_Details"
+
+    before_reasoning:
+        if @variables.gap_identification_complete == False:
+            run @actions.fetch_gap_identification_details
+                with record_ref=@variables.compliance_record_id
+                with include_history=True
+                set @variables.gap_identification_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.compliance_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.compliance_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.compliance_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the gap identification stage for the compliance.
+              Current compliance status: {! @variables.compliance_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Gap Identification result: {! @variables.gap_identification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.compliance_tier }
+              Review the gap identification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_gap_identification: @actions.process_gap_identification_data
+                with record_ref=@variables.compliance_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.compliance_category
+                set @variables.gap_identification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.gap_identification_complete = @outputs.is_passed
+            fetch_gap_identification_info: @actions.fetch_gap_identification_details
+                with record_ref=@variables.compliance_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.compliance_tier = @outputs.tier_value
+                available when @variables.compliance_record_id is not None
+            go_to_action_plan: @utils.transition to @topic.action_plan
+                description: "Move to action plan stage."
+                available when @variables.gap_identification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.compliance_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.compliance_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.compliance_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.gap_identification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic action_plan:
+    description: "Handles the action plan stage of the compliance process"
+
+    actions:
+        process_action_plan_data:
+            description: "Process action plan stage data for the compliance"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_ActionPlan"
+
+        validate_action_plan_info:
+            description: "Validate action plan information for the compliance"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ActionPlan_Info"
+
+        fetch_action_plan_details:
+            description: "Fetch action plan details for the compliance"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ActionPlan_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.gap_identification_complete == False:
+            transition to @topic.gap_identification
+        if @variables.eligibility_score >= 80:
+            set @variables.compliance_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.compliance_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the action plan stage for the compliance.
+              Current compliance status: {! @variables.compliance_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Action Plan result: {! @variables.action_plan_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.compliance_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_action_plan: @actions.process_action_plan_data
+                with record_ref=@variables.compliance_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.compliance_category
+                set @variables.action_plan_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.action_plan_complete = @outputs.is_passed
+            fetch_action_plan_info: @actions.fetch_action_plan_details
+                with record_ref=@variables.compliance_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.compliance_tier = @outputs.tier_value
+                available when @variables.compliance_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.action_plan_complete == True:
+            set @variables.compliance_status = "action_plan_done"
+        if @variables.attempt_count >= 3 and @variables.action_plan_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for compliance issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the compliance issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the compliance interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the compliance request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Compliance status: {! @variables.compliance_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.compliance_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.compliance_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.compliance_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.compliance_status = "escalated"
+        set @variables.escalation_requested = False
+

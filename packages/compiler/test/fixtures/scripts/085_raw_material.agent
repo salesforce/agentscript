@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional raw material procurement agent assistant.
+        Help users manage their material requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: requirement_calc -> vendor_selection -> purchase_order -> delivery_tracking.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Raw Material Procurement Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "raw_material_agent_v85"
+    default_agent_user: "raw_material@example.com"
+    agent_description: "Assists users with material management through the raw material procurement agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    material_record_id: mutable string
+        description: "Record ID of the material"
+    material_status: mutable string = ""
+        description: "Current status of the material"
+    material_tier: mutable string = "standard"
+        description: "Tier classification for the material"
+    material_category: mutable string = ""
+        description: "Category of the material"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    requirement_calc_complete: mutable boolean = False
+        description: "Whether the requirement_calc stage is complete"
+    requirement_calc_result: mutable string = ""
+        description: "Result from the requirement_calc stage"
+    vendor_selection_complete: mutable boolean = False
+        description: "Whether the vendor_selection stage is complete"
+    vendor_selection_result: mutable string = ""
+        description: "Result from the vendor_selection stage"
+    purchase_order_complete: mutable boolean = False
+        description: "Whether the purchase_order stage is complete"
+    purchase_order_result: mutable string = ""
+        description: "Result from the purchase_order stage"
+    delivery_tracking_complete: mutable boolean = False
+        description: "Whether the delivery_tracking stage is complete"
+    delivery_tracking_result: mutable string = ""
+        description: "Result from the delivery_tracking stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate material management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a raw material procurement agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current material status: {! @variables.material_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_requirement_calc} for requirement calc requests.
+              Use {!@actions.go_to_vendor_selection} for vendor selection requests.
+              Use {!@actions.go_to_purchase_order} for purchase order requests.
+              Use {!@actions.go_to_delivery_tracking} for delivery tracking requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_requirement_calc: @utils.transition to @topic.requirement_calc
+                description: "Transition to requirement calc topic."
+            go_to_vendor_selection: @utils.transition to @topic.vendor_selection
+                description: "Transition to vendor selection topic."
+                available when @variables.is_verified == True
+            go_to_purchase_order: @utils.transition to @topic.purchase_order
+                description: "Transition to purchase order topic."
+                available when @variables.is_verified == True
+            go_to_delivery_tracking: @utils.transition to @topic.delivery_tracking
+                description: "Transition to delivery tracking topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic requirement_calc:
+    description: "Handles the requirement calc stage of the material process"
+
+    actions:
+        process_requirement_calc_data:
+            description: "Process requirement calc stage data for the material"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_RequirementCalc_Data"
+
+        validate_requirement_calc_info:
+            description: "Validate requirement calc information for the material"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RequirementCalc_Info"
+
+        fetch_requirement_calc_details:
+            description: "Fetch requirement calc details for the material"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RequirementCalc_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_requirement_calc_info
+                with record_ref=@variables.material_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.material_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the requirement calc stage for the material.
+              Current material status: {! @variables.material_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Requirement Calc result: {! @variables.requirement_calc_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.material_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_requirement_calc} to begin processing.
+        actions:
+            run_requirement_calc: @actions.process_requirement_calc_data
+                with record_ref=@variables.material_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.material_category
+                set @variables.requirement_calc_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.requirement_calc_complete = @outputs.is_passed
+            fetch_requirement_calc_info: @actions.fetch_requirement_calc_details
+                with record_ref=@variables.material_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.material_tier = @outputs.tier_value
+            go_to_vendor_selection: @utils.transition to @topic.vendor_selection
+                description: "Move to vendor selection stage."
+                available when @variables.requirement_calc_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.material_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.material_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.material_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.requirement_calc_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic vendor_selection:
+    description: "Handles the vendor selection stage of the material process"
+
+    actions:
+        process_vendor_selection_data:
+            description: "Process vendor selection stage data for the material"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_VendorSelection"
+
+        validate_vendor_selection_info:
+            description: "Validate vendor selection information for the material"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_VendorSelection_Info"
+
+        fetch_vendor_selection_details:
+            description: "Fetch vendor selection details for the material"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_VendorSelection_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.requirement_calc_complete == False:
+            transition to @topic.requirement_calc
+
+    reasoning:
+        instructions: ->
+            | Handle the vendor selection stage for the material.
+              Current material status: {! @variables.material_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Vendor Selection result: {! @variables.vendor_selection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.material_tier }
+              Review the vendor selection results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_vendor_selection: @actions.process_vendor_selection_data
+                with record_ref=@variables.material_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.material_category
+                set @variables.vendor_selection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.vendor_selection_complete = @outputs.is_passed
+            fetch_vendor_selection_info: @actions.fetch_vendor_selection_details
+                with record_ref=@variables.material_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.material_tier = @outputs.tier_value
+                available when @variables.material_record_id is not None
+            go_to_purchase_order: @utils.transition to @topic.purchase_order
+                description: "Move to purchase order stage."
+                available when @variables.vendor_selection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.vendor_selection_complete == True:
+            set @variables.material_status = "vendor_selection_done"
+        if @variables.vendor_selection_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.purchase_order
+        if @variables.attempt_count >= 3 and @variables.vendor_selection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic purchase_order:
+    description: "Handles the purchase order stage of the material process"
+
+    actions:
+        process_purchase_order_data:
+            description: "Process purchase order stage data for the material"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_PurchaseOrder"
+
+        validate_purchase_order_info:
+            description: "Validate purchase order information for the material"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PurchaseOrder_Info"
+
+        fetch_purchase_order_details:
+            description: "Fetch purchase order details for the material"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PurchaseOrder_Details"
+
+    before_reasoning:
+        if @variables.purchase_order_complete == False:
+            run @actions.fetch_purchase_order_details
+                with record_ref=@variables.material_record_id
+                with include_history=True
+                set @variables.purchase_order_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.material_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.material_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.material_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the purchase order stage for the material.
+              Current material status: {! @variables.material_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Purchase Order result: {! @variables.purchase_order_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.material_tier }
+              Review the purchase order results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_purchase_order: @actions.process_purchase_order_data
+                with record_ref=@variables.material_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.material_category
+                set @variables.purchase_order_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.purchase_order_complete = @outputs.is_passed
+            fetch_purchase_order_info: @actions.fetch_purchase_order_details
+                with record_ref=@variables.material_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.material_tier = @outputs.tier_value
+                available when @variables.material_record_id is not None
+            go_to_delivery_tracking: @utils.transition to @topic.delivery_tracking
+                description: "Move to delivery tracking stage."
+                available when @variables.purchase_order_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.material_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.material_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.material_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.purchase_order_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic delivery_tracking:
+    description: "Handles the delivery tracking stage of the material process"
+
+    actions:
+        process_delivery_tracking_data:
+            description: "Process delivery tracking stage data for the material"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_DeliveryTracking_Data"
+
+        validate_delivery_tracking_info:
+            description: "Validate delivery tracking information for the material"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DeliveryTracking_Info"
+
+        fetch_delivery_tracking_details:
+            description: "Fetch delivery tracking details for the material"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DeliveryTracking_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.purchase_order_complete == False:
+            transition to @topic.purchase_order
+        if @variables.eligibility_score >= 80:
+            set @variables.material_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.material_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the delivery tracking stage for the material.
+              Current material status: {! @variables.material_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Delivery Tracking result: {! @variables.delivery_tracking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.material_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_delivery_tracking: @actions.process_delivery_tracking_data
+                with record_ref=@variables.material_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.material_category
+                set @variables.delivery_tracking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.delivery_tracking_complete = @outputs.is_passed
+            fetch_delivery_tracking_info: @actions.fetch_delivery_tracking_details
+                with record_ref=@variables.material_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.material_tier = @outputs.tier_value
+                available when @variables.material_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.delivery_tracking_complete == True:
+            set @variables.material_status = "delivery_tracking_done"
+        if @variables.attempt_count >= 3 and @variables.delivery_tracking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for material issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the material issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the material interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the material request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Material status: {! @variables.material_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.material_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.material_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.material_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.material_status = "escalated"
+        set @variables.escalation_requested = False
+

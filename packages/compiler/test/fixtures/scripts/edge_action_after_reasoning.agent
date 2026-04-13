@@ -1,0 +1,123 @@
+system:
+    instructions: "You are a post-processing agent that performs cleanup after reasoning."
+
+config:
+    developer_name: "EdgeActionAfterReasoning"
+    default_agent_user: "admin@example.com"
+    description: "Tests after_reasoning with run @actions, conditionals, and transition to"
+
+variables:
+    customer_id: linked string
+        description: "Customer ID"
+    interaction_logged: mutable boolean = False
+        description: "Whether the interaction was logged"
+    satisfaction_score: mutable number = 0
+        description: "Customer satisfaction score"
+    needs_followup: mutable boolean = False
+        description: "Whether followup is needed"
+    resolved: mutable boolean = False
+        description: "Whether the issue was resolved"
+    case_id: mutable string
+        description: "Case ID"
+
+start_agent main:
+    description: "Route to appropriate topic"
+
+    reasoning:
+        actions:
+            go_to_service: @utils.transition to @topic.service
+
+topic service:
+    description: "Main service topic with after_reasoning cleanup"
+
+    actions:
+        log_interaction:
+            description: "Log the interaction"
+            inputs:
+                customer_id: string
+                    is_required: True
+                resolution_status: string
+                    is_required: False
+            outputs:
+                logged: boolean
+            target: "flow://Log_Interaction"
+
+        schedule_followup:
+            description: "Schedule a followup"
+            inputs:
+                case_id: string
+                    is_required: True
+                priority: string
+                    is_required: False
+            outputs:
+                scheduled: boolean
+            target: "flow://Schedule_Followup"
+
+        send_survey:
+            description: "Send satisfaction survey"
+            inputs:
+                customer_id: string
+                    is_required: True
+            outputs:
+                sent: boolean
+            target: "flow://Send_Survey"
+
+        resolve_case:
+            description: "Resolve the case"
+            inputs:
+                case_id: string
+                    is_required: True
+                notes: string
+                    is_required: False
+            outputs:
+                resolved: boolean
+                case_id: string
+            target: "flow://Resolve_Case"
+
+    reasoning:
+        instructions: ->
+            | Help the customer resolve their issue.
+
+        actions:
+            resolve: @actions.resolve_case
+                with case_id=...
+                with notes=...
+                set @variables.resolved = @outputs.resolved
+                set @variables.case_id = @outputs.case_id
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human"
+
+    after_reasoning:
+        run @actions.log_interaction
+            with customer_id=@variables.customer_id
+            with resolution_status="completed"
+            set @variables.interaction_logged = @outputs.logged
+        if @variables.resolved == True:
+            run @actions.send_survey
+                with customer_id=@variables.customer_id
+            transition to @topic.farewell
+        if @variables.resolved == False and @variables.needs_followup == True:
+            run @actions.schedule_followup
+                with case_id=@variables.case_id
+                with priority="high"
+        if @variables.resolved == False:
+            transition to @topic.followup
+
+topic farewell:
+    description: "Thank the customer and end the conversation"
+
+    reasoning:
+        instructions: ->
+            | Thank the customer for their time and let them know the issue is resolved.
+
+topic followup:
+    description: "Handle followup for unresolved issues"
+
+    reasoning:
+        instructions: ->
+            | Let the customer know a followup has been scheduled.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

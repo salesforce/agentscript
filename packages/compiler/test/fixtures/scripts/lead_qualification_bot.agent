@@ -1,0 +1,614 @@
+system:
+    instructions: "You are a lead qualification specialist for a B2B marketing team. Your role is to assess potential customers using BANT criteria (Budget, Authority, Need, Timeline) and qualify leads for the sales team."
+    messages:
+        welcome: "Hello! I'm here to help understand how our solutions might fit your business needs. I'd like to ask a few questions to better understand your requirements and see how we can help."
+        error: "I'm experiencing some technical difficulties. Let me try to reconnect with our systems."
+
+config:
+    developer_name: "Lead_Qualification_Bot_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Qualifies leads using BANT methodology with deterministic scoring and progressive assessment"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Lead identification
+    company_name: mutable string = ""
+        description: "Company name of the lead"
+    contact_name: mutable string = ""
+        description: "Contact person name"
+    email: mutable string = ""
+        description: "Contact email address"
+    phone: mutable string = ""
+        description: "Contact phone number"
+    job_title: mutable string = ""
+        description: "Contact's job title"
+
+    # BANT qualification variables
+    budget_range: mutable string = ""
+        description: "Budget range for the solution"
+    decision_authority: mutable string = ""
+        description: "Level of decision-making authority"
+    business_need: mutable string = ""
+        description: "Specific business need or pain point"
+    timeline: mutable string = ""
+        description: "Implementation timeline"
+
+    # Qualification scoring
+    budget_score: mutable number = 0
+        description: "Budget qualification score (0-25)"
+    authority_score: mutable number = 0
+        description: "Authority qualification score (0-25)"
+    need_score: mutable number = 0
+        description: "Need qualification score (0-25)"
+    timeline_score: mutable number = 0
+        description: "Timeline qualification score (0-25)"
+    total_bant_score: mutable number = 0
+        description: "Total BANT qualification score (0-100)"
+
+    # Lead management
+    lead_status: mutable string = "new"
+        description: "Current lead status"
+    lead_priority: mutable string = "medium"
+        description: "Lead priority level"
+    next_step: mutable string = ""
+        description: "Recommended next step"
+    assigned_rep: mutable string = ""
+        description: "Assigned sales representative"
+
+    # Progress tracking
+    qualification_complete: mutable boolean = False
+        description: "Whether BANT qualification is complete"
+    current_question_index: mutable number = 0
+        description: "Current question being asked (0-3)"
+
+start_agent lead_intake:
+    description: "Captures initial lead information and begins qualification process"
+
+    actions:
+        Create_Lead_Record:
+            description: "Creates a new lead record in CRM system"
+            label: "Create Lead Record"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                company_name: string
+                    label: "Company Name"
+                    description: "Name of the prospect's company"
+                    is_required: True
+                contact_name: string
+                    label: "Contact Name"
+                    description: "Name of the primary contact"
+                    is_required: True
+                email: string
+                    label: "Email Address"
+                    description: "Contact's email address"
+                    is_required: True
+                phone: string
+                    label: "Phone Number"
+                    description: "Contact's phone number"
+                    is_required: False
+                job_title: string
+                    label: "Job Title"
+                    description: "Contact's position/title"
+                    is_required: False
+            outputs:
+                lead_id: string
+                    label: "Lead ID"
+                    is_displayable: False
+                lead_source: string
+                    label: "Lead Source"
+                    is_displayable: False
+                company_profile: object
+                    label: "Company Profile"
+                    is_displayable: False
+                contact_verified: boolean
+                    label: "Contact Verified"
+                    is_displayable: False
+            target: "flow://CreateLeadRecord"
+
+        Enrich_Company_Data:
+            description: "Enriches lead data with company information and technographics"
+            label: "Enrich Company Data"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                company_name: string
+                    label: "Company Name"
+                    description: "Company to research"
+                    is_required: True
+                contact_email: string
+                    label: "Contact Email"
+                    description: "Email domain for company matching"
+                    is_required: True
+            outputs:
+                company_size: string
+                    label: "Company Size"
+                    is_displayable: True
+                industry: string
+                    label: "Industry"
+                    is_displayable: True
+                annual_revenue: string
+                    label: "Annual Revenue"
+                    is_displayable: False
+                technology_stack: list[string]
+                    label: "Technology Stack"
+                    is_displayable: False
+                fit_score: number
+                    label: "Company Fit Score"
+                    is_displayable: False
+            target: "flow://EnrichCompanyData"
+
+    before_reasoning:
+        if @variables.contact_name == "":
+            set @variables.current_question_index = 0
+            set @variables.qualification_complete = False
+            set @variables.total_bant_score = 0
+
+    reasoning:
+        instructions: ->
+            |   Hello! I'm here to help understand how our solutions might fit your business needs.
+
+                To get started, I'd like to gather some basic information about you and your company.
+
+                **What I'll need:**
+                - Your name and job title
+                - Company name
+                - Contact information
+                - Brief overview of what brings you to us today
+
+                This helps me understand your situation better and ask the right questions to see how we can help.
+        actions:
+            create_lead: @actions.Create_Lead_Record
+                with company_name=@variables.company_name
+                with contact_name=@variables.contact_name
+                with email=@variables.email
+                with phone=@variables.phone
+                with job_title=@variables.job_title
+                set @variables.lead_status = "contacted"
+
+            enrich_data: @actions.Enrich_Company_Data
+                with company_name=@variables.company_name
+                with contact_email=@variables.email
+
+            capture_lead_info: @utils.setVariables
+                description: "Capture initial lead information"
+                with company_name=@variables.company_name
+                with contact_name=@variables.contact_name
+                with email=@variables.email
+                with phone=@variables.phone
+                with job_title=@variables.job_title
+
+            start_qualification: @utils.transition to @topic.bant_qualification
+                description: "Begin BANT qualification process"
+
+    after_reasoning:
+        if @variables.company_name != "" and (@variables.contact_name != "" and @variables.email != ""):
+            run @actions.Create_Lead_Record
+                with company_name=@variables.company_name
+                with contact_name=@variables.contact_name
+                with email=@variables.email
+                with phone=@variables.phone
+                with job_title=@variables.job_title
+                set @variables.lead_status = "contacted"
+
+            run @actions.Enrich_Company_Data
+                with company_name=@variables.company_name
+                with contact_email=@variables.email
+
+            transition to @topic.bant_qualification
+
+topic bant_qualification:
+    description: "Conducts systematic BANT qualification with progressive scoring"
+
+    actions:
+        Score_Budget_Response:
+            description: "Analyzes budget response and assigns qualification score"
+            label: "Score Budget Response"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                budget_range: string
+                    label: "Budget Range"
+                    description: "Stated budget range or financial capacity"
+                    is_required: True
+                company_size: string
+                    label: "Company Size"
+                    description: "Company size category"
+                    is_required: True
+                urgency_indicators: string
+                    label: "Urgency Indicators"
+                    description: "Signals of budget availability"
+                    is_required: False
+            outputs:
+                budget_score: number
+                    label: "Budget Score"
+                    is_displayable: False
+                budget_qualified: boolean
+                    label: "Budget Qualified"
+                    is_displayable: True
+                recommended_pricing_tier: string
+                    label: "Recommended Pricing Tier"
+                    is_displayable: False
+            target: "flow://ScoreBudgetResponse"
+
+        Assess_Decision_Authority:
+            description: "Evaluates contact's decision-making authority and influence"
+            label: "Assess Decision Authority"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                job_title: string
+                    label: "Job Title"
+                    description: "Contact's job title/position"
+                    is_required: True
+                decision_process: string
+                    label: "Decision Process"
+                    description: "How decisions are made at their company"
+                    is_required: True
+                stakeholders_involved: string
+                    label: "Stakeholders Involved"
+                    description: "Other people involved in decision"
+                    is_required: False
+            outputs:
+                authority_score: number
+                    label: "Authority Score"
+                    is_displayable: False
+                decision_maker_type: string
+                    label: "Decision Maker Type"
+                    is_displayable: True
+                influencer_level: string
+                    label: "Influencer Level"
+                    is_displayable: False
+                next_meeting_contacts: string
+                    label: "Additional Contacts Needed"
+                    is_displayable: True
+            target: "flow://AssessDecisionAuthority"
+
+        Evaluate_Business_Need:
+            description: "Analyzes business need and pain point severity"
+            label: "Evaluate Business Need"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                business_need: string
+                    label: "Business Need"
+                    description: "Stated business need or challenge"
+                    is_required: True
+                current_solution: string
+                    label: "Current Solution"
+                    description: "How they currently handle this"
+                    is_required: False
+                pain_level: string
+                    label: "Pain Level"
+                    description: "Severity of the problem"
+                    is_required: True
+            outputs:
+                need_score: number
+                    label: "Need Score"
+                    is_displayable: False
+                solution_fit: boolean
+                    label: "Solution Fit"
+                    is_displayable: True
+                competitive_landscape: string
+                    label: "Competitive Landscape"
+                    is_displayable: False
+                roi_potential: string
+                    label: "ROI Potential"
+                    is_displayable: True
+            target: "flow://EvaluateBusinessNeed"
+
+        Analyze_Timeline:
+            description: "Assesses implementation timeline and urgency factors"
+            label: "Analyze Timeline"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                timeline: string
+                    label: "Timeline"
+                    description: "Desired implementation timeline"
+                    is_required: True
+                urgency_drivers: string
+                    label: "Urgency Drivers"
+                    description: "Factors driving timeline urgency"
+                    is_required: False
+                competing_priorities: string
+                    label: "Competing Priorities"
+                    description: "Other projects or initiatives"
+                    is_required: False
+            outputs:
+                timeline_score: number
+                    label: "Timeline Score"
+                    is_displayable: False
+                urgency_level: string
+                    label: "Urgency Level"
+                    is_displayable: True
+                ideal_start_date: string
+                    label: "Ideal Start Date"
+                    is_displayable: True
+                timeline_realistic: boolean
+                    label: "Timeline Realistic"
+                    is_displayable: False
+            target: "flow://AnalyzeTimeline"
+
+    before_reasoning:
+        if @variables.current_question_index < 4:
+            set @variables.qualification_complete = False
+
+    reasoning:
+        instructions: ->
+            |   Great! Now I'd like to understand your specific situation better through a few targeted questions.
+
+                This helps me determine if and how our solution might be a good fit for {! @variables.company_name }.
+
+                **BANT Qualification Progress:**
+                - Budget: {! @variables.budget_score }/25 points
+                - Authority: {! @variables.authority_score }/25 points
+                - Need: {! @variables.need_score }/25 points
+                - Timeline: {! @variables.timeline_score }/25 points
+                **Total Score: {! @variables.total_bant_score }/100**
+
+                **Current Question ({! @variables.current_question_index + 1 }/4):**
+
+                Based on where we are in the qualification, let me ask about the most relevant aspect next.
+        actions:
+            score_budget: @actions.Score_Budget_Response
+                with budget_range=@variables.budget_range
+                with urgency_indicators=""
+                set @variables.budget_score = @outputs.budget_score
+
+            assess_authority: @actions.Assess_Decision_Authority
+                with job_title=@variables.job_title
+                with decision_process=@variables.decision_authority
+                with stakeholders_involved=""
+                set @variables.authority_score = @outputs.authority_score
+
+            evaluate_need: @actions.Evaluate_Business_Need
+                with business_need=@variables.business_need
+                with current_solution=""
+                with pain_level="medium"
+                set @variables.need_score = @outputs.need_score
+
+            analyze_timeline: @actions.Analyze_Timeline
+                with timeline=@variables.timeline
+                with urgency_drivers=""
+                with competing_priorities=""
+                set @variables.timeline_score = @outputs.timeline_score
+
+            capture_bant_responses: @utils.setVariables
+                description: "Capture BANT qualification responses"
+                with budget_range=@variables.budget_range
+                with decision_authority=@variables.decision_authority
+                with business_need=@variables.business_need
+                with timeline=@variables.timeline
+
+            show_results: @utils.transition to @topic.qualification_results
+                description: "Show qualification results and next steps"
+
+    after_reasoning:
+        if @variables.budget_range != "" and @variables.current_question_index == 0:
+            run @actions.Score_Budget_Response
+                with budget_range=@variables.budget_range
+                with company_size="medium"
+                with urgency_indicators=""
+                set @variables.budget_score = @outputs.budget_score
+                set @variables.current_question_index = 1
+
+        if @variables.decision_authority != "" and @variables.current_question_index == 1:
+            run @actions.Assess_Decision_Authority
+                with job_title=@variables.job_title
+                with decision_process=@variables.decision_authority
+                with stakeholders_involved=""
+                set @variables.authority_score = @outputs.authority_score
+                set @variables.current_question_index = 2
+
+        if @variables.business_need != "" and @variables.current_question_index == 2:
+            run @actions.Evaluate_Business_Need
+                with business_need=@variables.business_need
+                with current_solution=""
+                with pain_level="medium"
+                set @variables.need_score = @outputs.need_score
+                set @variables.current_question_index = 3
+
+        if @variables.timeline != "" and @variables.current_question_index == 3:
+            run @actions.Analyze_Timeline
+                with timeline=@variables.timeline
+                with urgency_drivers=""
+                with competing_priorities=""
+                set @variables.timeline_score = @outputs.timeline_score
+                set @variables.current_question_index = 4
+                set @variables.qualification_complete = True
+
+        if @variables.qualification_complete:
+            set @variables.total_bant_score = @variables.budget_score + @variables.authority_score + @variables.need_score + @variables.timeline_score
+            transition to @topic.qualification_results
+
+topic qualification_results:
+    description: "Presents qualification results and determines next steps"
+
+    actions:
+        Generate_Lead_Score:
+            description: "Calculates final lead score and qualification level"
+            label: "Generate Lead Score"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                bant_score: number
+                    label: "BANT Score"
+                    description: "Total BANT qualification score"
+                    is_required: True
+                company_fit: number
+                    label: "Company Fit Score"
+                    description: "Company profile fit score"
+                    is_required: True
+                engagement_level: string
+                    label: "Engagement Level"
+                    description: "Level of prospect engagement"
+                    is_required: True
+            outputs:
+                final_lead_score: number
+                    label: "Final Lead Score"
+                    is_displayable: True
+                qualification_level: string
+                    label: "Qualification Level"
+                    is_displayable: True
+                recommended_next_step: string
+                    label: "Recommended Next Step"
+                    is_displayable: True
+                sales_readiness: boolean
+                    label: "Sales Ready"
+                    is_displayable: False
+            target: "flow://GenerateLeadScore"
+
+        Assign_Sales_Rep:
+            description: "Assigns appropriate sales representative based on lead profile"
+            label: "Assign Sales Rep"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                lead_score: number
+                    label: "Lead Score"
+                    description: "Qualified lead score"
+                    is_required: True
+                company_size: string
+                    label: "Company Size"
+                    description: "Target company size"
+                    is_required: True
+                industry: string
+                    label: "Industry"
+                    description: "Target industry"
+                    is_required: True
+                deal_value_estimate: number
+                    label: "Deal Value Estimate"
+                    description: "Estimated deal value"
+                    is_required: False
+            outputs:
+                assigned_rep: string
+                    label: "Assigned Rep"
+                    is_displayable: True
+                rep_specialization: string
+                    label: "Rep Specialization"
+                    is_displayable: False
+                handoff_scheduled: boolean
+                    label: "Handoff Scheduled"
+                    is_displayable: True
+                follow_up_date: string
+                    label: "Follow-up Date"
+                    is_displayable: True
+            target: "flow://AssignSalesRep"
+
+        Schedule_Demo:
+            description: "Schedules product demonstration for qualified leads"
+            label: "Schedule Demo"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                lead_id: string
+                    label: "Lead ID"
+                    description: "Lead identifier"
+                    is_required: True
+                preferred_demo_time: string
+                    label: "Preferred Demo Time"
+                    description: "Prospect's preferred time"
+                    is_required: False
+                demo_type: string
+                    label: "Demo Type"
+                    description: "Type of demonstration needed"
+                    is_required: True
+                attendees: string
+                    label: "Demo Attendees"
+                    description: "People who will attend demo"
+                    is_required: False
+            outputs:
+                demo_scheduled: boolean
+                    label: "Demo Scheduled"
+                    is_displayable: True
+                demo_date_time: string
+                    label: "Demo Date/Time"
+                    is_displayable: True
+                calendar_invite_sent: boolean
+                    label: "Calendar Invite Sent"
+                    is_displayable: False
+                prep_materials_sent: boolean
+                    label: "Prep Materials Sent"
+                    is_displayable: False
+            target: "flow://ScheduleDemo"
+
+    before_reasoning:
+        if @variables.total_bant_score >= 80:
+            set @variables.lead_priority = "high"
+            set @variables.next_step = "immediate_demo"
+        if @variables.total_bant_score >= 60:
+            set @variables.lead_priority = "medium"
+            set @variables.next_step = "sales_call"
+        if @variables.total_bant_score < 60:
+            set @variables.lead_priority = "low"
+            set @variables.next_step = "nurture_campaign"
+
+    reasoning:
+        instructions: ->
+            |   Excellent! I've completed the qualification assessment for {! @variables.company_name }.
+
+                **🎯 BANT Qualification Results:**
+
+                **Budget Qualification:** {! @variables.budget_score }/25 points
+                **Authority Assessment:** {! @variables.authority_score }/25 points
+                **Need Analysis:** {! @variables.need_score }/25 points
+                **Timeline Evaluation:** {! @variables.timeline_score }/25 points
+
+                **📊 Total BANT Score: {! @variables.total_bant_score }/100**
+                **🏷️ Lead Priority: {! @variables.lead_priority }**
+                **📋 Lead Status: {! @variables.lead_status }**
+
+                **🎯 Recommended Next Step: {! @variables.next_step }**
+
+                Based on your qualification score, here's what I recommend as the best next step to move forward.
+        actions:
+            calculate_final_score: @actions.Generate_Lead_Score
+                with bant_score=@variables.total_bant_score
+                with company_fit=75
+                with engagement_level="high"
+                set @variables.lead_status = @outputs.qualification_level
+
+            assign_rep: @actions.Assign_Sales_Rep
+                with lead_score=@variables.total_bant_score
+                with company_size="medium"
+                with industry="technology"
+                with deal_value_estimate=50000
+                set @variables.assigned_rep = @outputs.assigned_rep
+
+            book_demo: @actions.Schedule_Demo
+                with lead_id="LEAD-001"
+                with preferred_demo_time=""
+                with demo_type="standard"
+                with attendees=""
+
+            capture_next_step_preferences: @utils.setVariables
+                description: "Capture next step preferences"
+                with next_step=@variables.next_step
+
+            qualify_another: @utils.transition to @topic.lead_intake
+                description: "Qualify another lead"
+
+    after_reasoning:
+        if @variables.total_bant_score > 0:
+            run @actions.Generate_Lead_Score
+                with bant_score=@variables.total_bant_score
+                with company_fit=75
+                with engagement_level="high"
+
+            run @actions.Assign_Sales_Rep
+                with lead_score=@variables.total_bant_score
+                with company_size="medium"
+                with industry="technology"
+                with deal_value_estimate=50000
+                set @variables.assigned_rep = @outputs.assigned_rep
+
+        if @variables.total_bant_score >= 70:
+            run @actions.Schedule_Demo
+                with lead_id="LEAD-001"
+                with preferred_demo_time=""
+                with demo_type="standard"
+                with attendees=""

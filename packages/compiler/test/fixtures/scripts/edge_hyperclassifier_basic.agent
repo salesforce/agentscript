@@ -1,0 +1,59 @@
+system:
+    instructions: "You are an intelligent routing agent using hyperclassifier to select topics."
+    messages:
+        welcome: "Hi there! I'll route you to the right department."
+        error: "Something went wrong. Please try again."
+
+config:
+    developer_name: "Hyperclassifier_Basic"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Basic hyperclassifier with topic selector pattern"
+
+language:
+    default_locale: "en_US"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Uses hyperclassifier to determine the best topic for the user's request"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Select the tool that best matches the user's message and conversation history.
+              If it's unclear, make your best guess.
+        actions:
+            go_to_orders: @utils.transition to @topic.order_management
+                description: "Route to order management"
+            go_to_returns: @utils.transition to @topic.returns
+                description: "Route to returns processing"
+            go_to_off_topic: @utils.transition to @topic.off_topic
+                description: "Handle off-topic requests"
+
+topic order_management:
+    label: "Order Management"
+    description: "Handles order tracking, modifications, and cancellations"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their order.
+              You can look up order status, modify orders, or process cancellations.
+
+topic returns:
+    label: "Returns"
+    description: "Processes product returns and exchanges"
+
+    reasoning:
+        instructions: ->
+            | Guide the user through the return or exchange process.
+              Verify eligibility and provide return instructions.
+
+topic off_topic:
+    label: "Off Topic"
+    description: "Redirects off-topic conversations"
+
+    reasoning:
+        instructions: ->
+            | The user's request is off-topic. Politely redirect them to topics we can help with.
+              Do not answer general knowledge questions.

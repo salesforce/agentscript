@@ -1,0 +1,81 @@
+# Router node with connected-agents — demonstrates hyperclassifier with mixed tool types.
+# Exercises: router tool compilation, connected-agent support in router nodes,
+# transition + supervision tool coexistence.
+
+system:
+  instructions: "You are a helpful routing agent."
+
+config:
+  developer_name: "Router_Connected_Test"
+  agent_label: "Router with Connected Agents"
+  description: "Tests router nodes with connected agents"
+  default_agent_user: "test@example.com"
+
+variables:
+  Customer_Id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "Customer identifier"
+
+start_agent topic_selector:
+  label: "Topic Selector"
+  description: "Routes to appropriate handler"
+
+  model_config:
+    model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+  actions:
+    search_knowledge:
+      description: "Search knowledge base"
+      target: "standardInvocableAction://searchKnowledge"
+      inputs:
+        query: string
+      outputs:
+        articles: string
+
+  reasoning:
+    instructions: ->
+      | Determine the best destination based on user intent.
+    actions:
+      go_billing: @utils.transition to @topic.billing
+        description: "Route to billing topic"
+
+      call_crm: @connected_subagent.CRM_Agent
+        description: "Delegate to CRM agent for account operations"
+
+      call_support: @connected_subagent.Support_Agent
+        description: "Delegate to support agent for technical issues"
+
+      go_general: @utils.transition to @topic.general_help
+        description: "Route to general help"
+
+topic billing:
+  label: "Billing"
+  description: "Handles billing inquiries"
+  reasoning:
+    instructions: ->
+      | Answer billing questions.
+
+topic general_help:
+  label: "General Help"
+  description: "General assistance"
+  reasoning:
+    instructions: ->
+      | Provide general help.
+
+connected_subagent CRM_Agent:
+  target: "agentforce://CRM_Agent"
+  label: "CRM Agent"
+  description: "Handles customer relationship management"
+  loading_text: "Connecting to CRM..."
+  inputs:
+    customer_id: string = @variables.Customer_Id
+    operation_type: string
+
+connected_subagent Support_Agent:
+  target: "agentforce://Support_Agent"
+  label: "Support Agent"
+  description: "Provides technical support"
+  loading_text: "Connecting to support..."
+  inputs:
+    customer_id: string = @variables.Customer_Id
+    issue_type: string

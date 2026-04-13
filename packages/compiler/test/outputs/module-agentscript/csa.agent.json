@@ -1,0 +1,324 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Csa",
+    "label": "Csa",
+    "description": "Csa",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "service_user"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "hello",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "goodbye",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer Name",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "issue_type",
+        "label": "Issue Type",
+        "description": "Issue Type",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'general'"
+      },
+      {
+        "developer_name": "priority",
+        "label": "Priority",
+        "description": "Priority",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 1
+      }
+    ],
+    "initial_node": "greeting",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Greet the customer and gather basic information",
+        "tools": [
+          {
+            "type": "action",
+            "target": "collect_info",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "name",
+              "issue"
+            ],
+            "state_updates": [],
+            "name": "collect_info",
+            "description": "Collect Info"
+          }
+        ],
+        "developer_name": "greeting",
+        "label": "Greeting",
+        "action_definitions": [
+          {
+            "developer_name": "collect_info",
+            "label": "Collect Info",
+            "description": "collect all the info needed",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "collect_info",
+            "input_type": [
+              {
+                "developer_name": "name",
+                "label": "Name",
+                "description": "Name",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "metadata",
+                "label": "Metadata",
+                "description": "Metadata",
+                "data_type": "ApexDefined",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false,
+                "complex_data_type_name": "c__RequestMetadata"
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "name",
+                "label": "Name",
+                "description": "Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "citations",
+                "label": "Citations",
+                "description": "Citations",
+                "data_type": "ApexDefined",
+                "is_list": true,
+                "is_used_by_planner": true,
+                "is_displayable": false,
+                "complex_data_type_name": "c__CitationData"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful customer service representative",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHello! I'm here to help you today.\nCould you please tell me your name and how I can assist you?"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Say hello to the world",
+        "tools": [
+          {
+            "type": "action",
+            "target": "collect_info",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "name",
+              "issue"
+            ],
+            "state_updates": [],
+            "name": "collect_info",
+            "description": "Collect Info"
+          }
+        ],
+        "developer_name": "hello",
+        "label": "Hello",
+        "action_definitions": [
+          {
+            "developer_name": "collect_info",
+            "label": "Collect Info",
+            "description": "collect all the info needed",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "collect_info",
+            "input_type": [
+              {
+                "developer_name": "name",
+                "label": "Name",
+                "description": "Name",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "metadata",
+                "label": "Metadata",
+                "description": "Metadata",
+                "data_type": "ApexDefined",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false,
+                "complex_data_type_name": "c__RequestMetadata"
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "name",
+                "label": "Name",
+                "description": "Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "citations",
+                "label": "Citations",
+                "description": "Citations",
+                "data_type": "ApexDefined",
+                "is_list": true,
+                "is_used_by_planner": true,
+                "is_displayable": false,
+                "complex_data_type_name": "c__CitationData"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful customer service representative",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHello! I'm here to help you today.\nCould you please tell me your name and how I can assist you?"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"hello\", \"messageType\": \"Welcome\"}, {\"message\": \"goodbye\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

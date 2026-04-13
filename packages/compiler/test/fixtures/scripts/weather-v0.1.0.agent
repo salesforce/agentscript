@@ -1,0 +1,129 @@
+system:
+  instructions: |
+      You are a helpful weather assistant. You help users find weather information
+      for their location. First, ask the user for their city and country if not already
+      provided.
+
+config:
+    agent_name: "WeatherBot"
+    default_agent_user: "hotel@booking.com"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    user_city: mutable string = ""
+    user_country: mutable string = ""
+    temperature: mutable number = 999
+    conditions: mutable string = ""
+    humidity: mutable number = 1
+    severe_weather_alert: mutable boolean = False
+    alert_description: mutable string = ""
+    current_weather: mutable object = {}
+
+
+start_agent topic_selector:
+  description: "Welcome the user and determine the appropriate topic based on user input"
+
+  reasoning:
+    instructions: ->
+      | You are a topic selector for a weather assistant. Analyze the user's
+        input and determine the most appropriate topic to handle their request.
+
+        Call the *set_topic* action with one of these topic options:
+
+        - **weather_assistant**: A basic weather assistant demonstrating some simple state-based variable updates
+
+        - **severe_weather_warning**: Alerts the user to severe weather conditions and provides additional information.
+
+        If this is the beginning of the interview, please welcome the candidate and then
+        determine the appropriate topic based on user input.
+    actions:
+      go_to_weather_assistant: @utils.transition to @topic.weather_assistant
+        description: "Call this action if the user asks for general weather information."
+      go_to_severe_weather_warning: @utils.transition to @topic.severe_weather_warning
+        description: "Call this action if the user indicates they wish to know about severe weather."
+
+
+topic weather_assistant:
+  description: "A basic weather assistant demonstrating some simple state-based variable updates"
+
+  actions:
+    get_weather:
+        description: "Get current weather information for a specific city and country"
+        inputs:
+            city: string
+            country: string
+        target: "api://get_weather"
+        outputs:
+            temperature: number
+            conditions: string
+            humidity: number
+            severe_weather_alert: boolean
+            alert_description: string
+            current_weather: object
+
+  before_reasoning:
+    if @variables.user_city != "" and @variables.user_country != "":
+        run @actions.get_weather
+            with city=@variables.user_city
+            with country=@variables.user_country
+            set @variables.current_weather = @outputs.current_weather
+            set @variables.temperature = @outputs.temperature
+            set @variables.conditions = @outputs.conditions
+            set @variables.humidity = @outputs.humidity
+            set @variables.severe_weather_alert = @outputs.severe_weather_alert
+            set @variables.alert_description = @outputs.alert_description
+
+  reasoning:
+    instructions: ->
+      | Please first gather the user's city/country information. When you have answers to both,
+        store them by using the set_location tool.
+
+        Once you have the user's location, find the weather by calling the get_weather
+
+        Here is the current weather for {! @variables.user_city }, {! @variables.user_country }:
+
+        Temperature: {! @variables.temperature }°C
+        Conditions: {! @variables.conditions }
+        Humidity: {! @variables.humidity }%
+
+        Would you like a forecast for the next few days?
+    actions:
+        get_weather: @actions.get_weather
+            with city=@variables.user_city
+            with country=@variables.user_country
+            set @variables.current_weather = @outputs.current_weather
+            set @variables.temperature = @outputs.temperature
+            set @variables.conditions = @outputs.conditions
+            set @variables.humidity = @outputs.humidity
+            set @variables.severe_weather_alert = @outputs.severe_weather_alert
+            set @variables.alert_description = @outputs.alert_description
+
+        set_city: @utils.setVariables
+            description: "Call this action to set the user's city."
+            with user_city=@variables.user_city
+
+        set_country: @utils.setVariables
+            description: "Call this action to set the user's country."
+            with user_country=@variables.user_country
+
+  after_reasoning:
+      if @variables.severe_weather_alert:
+          transition to @topic.severe_weather_warning
+
+topic severe_weather_warning:
+  description: "Alerts the user to severe weather conditions and provides additional information."
+
+  reasoning:
+    instructions: ->
+      | Please inform the user of a sever weather warning. You should show something like this:
+
+        SEVERE WEATHER ALERT for {! @variables.user_city }, {! @variables.user_country }!
+
+        {! @variables.current_weather.alert_description }
+
+        Please take all necessary precautions and follow local guidance.
+
+        Would you like more information about this weather event?

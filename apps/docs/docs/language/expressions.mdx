@@ -1,0 +1,268 @@
+---
+sidebar_position: 4
+title: Expressions
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Expressions
+
+AgentScript expressions are used in conditions, assignments, template interpolation, and action parameters.
+
+## Literals
+
+### Strings
+
+String values are enclosed in double quotes. Supported escape sequences are `\"`, `\\`, `\n`, `\t`, and `\r`:
+
+```agentscript
+name: "Hello, world!"
+message: "Line one\nLine two"
+escaped: "She said \"hello\""
+```
+
+### Numbers
+
+Integer and decimal numbers, including negative values:
+
+```agentscript
+count: 123
+price: 3.14
+offset: -42
+ratio: .5
+```
+
+### Booleans
+
+```agentscript
+verified: True
+disabled: False
+```
+
+### None
+
+Represents a null or empty value:
+
+```agentscript
+result: None
+```
+
+### Datetime
+
+ISO 8601 format — `2025-09-04`, `2025-09-04T12:01`, `2025-09-04T12:01:59.123Z`
+
+```agentscript
+date: 2025-09-04
+timestamp: 2025-09-04T12:01:59.123Z
+```
+
+### Ellipsis
+
+The `...` placeholder tells the LLM to fill the value from the conversation context:
+
+```agentscript
+with query=...
+with order_number=...
+```
+
+### Lists
+
+```agentscript
+empty: []
+numbers: [1, 2, 3]
+```
+
+### Dictionaries
+
+```agentscript
+empty: {}
+config: {"key": "value"}
+```
+
+## References
+
+References use the `@scope.field` syntax to access variables, actions, subagents (formerly topics), outputs, and utilities.
+
+| Reference           | Description                 |
+| ------------------- | --------------------------- |
+| `@variables.name`   | Variable reference.         |
+| `@actions.Name`     | Action reference.           |
+| `@subagent.Name`    | Subagent reference.         |
+| `@outputs.field`    | Action output reference.    |
+| `@utils.transition` | Built-in utility reference. |
+
+### Member Access
+
+Nested fields are accessed with dot notation:
+
+```agentscript
+@variables.customer.address.city
+```
+
+### Subscript Access
+
+List elements are accessed by index:
+
+```agentscript
+items[0]
+```
+
+## Operators
+
+### Comparison Operators
+
+| Operator | Description                 |
+| -------- | --------------------------- |
+| `==`     | Equal to                    |
+| `!=`     | Not equal to                |
+| `<`      | Less than                   |
+| `>`      | Greater than                |
+| `<=`     | Less than or equal to       |
+| `>=`     | Greater than or equal to    |
+| `is`     | Identity comparison         |
+| `is not` | Negated identity comparison |
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+if @variables.status == "shipped":
+    | Your order has shipped.
+if @variables.verified is not True:
+    transition to @subagent.Identity
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+if @variables.status == "shipped":
+    | Your order has shipped.
+if @variables.verified is not True:
+    transition to @topic.Identity
+```
+
+</TabItem>
+</Tabs>
+
+### Logical Operators
+
+| Operator | Description |
+| -------- | ----------- |
+| `and`    | Logical AND |
+| `or`     | Logical OR  |
+| `not`    | Logical NOT |
+
+```agentscript
+if @variables.verified == True and @variables.is_business_hours == True:
+    | We can process your request now.
+```
+
+### Arithmetic Operators
+
+| Operator | Description    |
+| -------- | -------------- |
+| `+`      | Addition       |
+| `-`      | Subtraction    |
+| `*`      | Multiplication |
+| `/`      | Division       |
+
+```agentscript
+set @variables.request_count = @variables.request_count + 1
+```
+
+### Ternary Expression
+
+```agentscript
+value if condition else alternative
+```
+
+## Template Interpolation
+
+Inside `|` template lines, `{!expression}` evaluates the expression and inserts the result:
+
+```agentscript
+| Hello {!@variables.customer_name}, your order {!@variables.order_id}
+  is {!@variables.status}.
+| Use {!@actions.lookup_order} to check order details.
+| Current status: {! @variables.request_status }
+```
+
+Interpolation works with any valid expression, including references and member access.
+
+## Statements
+
+Statements appear inside procedures (`before_reasoning`, `after_reasoning`, and `instructions: ->`).
+
+### Template Statement
+
+Output text to the LLM, with optional interpolation:
+
+```agentscript
+| Ask the customer for their order number.
+| The current loyalty tier is {!@variables.loyalty_tier}.
+```
+
+### Set Statement
+
+Assign a value to a variable:
+
+```agentscript
+set @variables.checked = True
+set @variables.count = @variables.count + 1
+```
+
+### Run Statement
+
+Execute an action, with optional `with` (input) and `set` (output) clauses:
+
+```agentscript
+run @actions.Get_Loyalty_Tier
+    with member_email = @variables.member_email
+    set @variables.loyalty_tier = @outputs.loyalty_tier
+```
+
+### If / elif / else
+
+Conditional branching based on expressions:
+
+```agentscript
+if @variables.loyalty_tier != "Premium":
+    | Basic members are not eligible for returns.
+elif @variables.return_eligible == True:
+    | Processing your return request.
+else:
+    | Please contact support for assistance.
+```
+
+### Transition
+
+Navigate to another subagent (formerly topic):
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+transition to @subagent.Order_Management
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+transition to @topic.Order_Management
+```
+
+</TabItem>
+</Tabs>
+
+### Available When
+
+Guard a tool's availability with a condition:
+
+```agentscript
+create_return: @actions.Create_Return
+    available when @variables.return_eligible == True
+    with order_id = @variables.order_id
+```

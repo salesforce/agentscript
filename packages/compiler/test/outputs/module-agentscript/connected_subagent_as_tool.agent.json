@@ -1,0 +1,458 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "ConnectedAgentToolDemo",
+    "label": "Connected Agent Tool Demo",
+    "description": "Demonstrates connected agents invoked as tools from reasoning actions.",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [
+      {
+        "developer_name": "Customer_Id",
+        "label": "Customer Id",
+        "description": "Customer context identifier",
+        "data_type": "string",
+        "field_mapping": "MessagingEndUser.ContactId"
+      }
+    ],
+    "default_agent_user": "demo_user"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I can connect you with specialized agents for orders, returns, or billing.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "Something went wrong. Please try again.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Order_Id",
+        "label": "Order Id",
+        "description": "Order Id",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Refund_Status",
+        "label": "Refund Status",
+        "description": "Refund Status",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Agent_Response",
+        "label": "Agent Response",
+        "description": "Agent Response",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "Coordinator",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Routes customer to the right agent or action",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Lookup_Customer",
+            "bound_inputs": {
+              "customer_id": "variables.Customer_Id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "Agent_Response": "result.name"
+              }
+            ],
+            "name": "lookup",
+            "description": "Lookup"
+          },
+          {
+            "type": "supervision",
+            "target": "Refund_Processor",
+            "state_updates": [],
+            "name": "call_refund_agent",
+            "description": "Delegate refund processing to the specialized agent"
+          },
+          {
+            "type": "supervision",
+            "target": "Order_Specialist",
+            "state_updates": [],
+            "name": "call_order_agent",
+            "description": "Delegate order inquiries to the order specialist"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"Billing\""
+              }
+            ],
+            "name": "go_to_billing",
+            "description": "Route to billing topic"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "'__human__'"
+              }
+            ],
+            "name": "escalate",
+            "description": "Escalate to a human agent"
+          }
+        ],
+        "developer_name": "Coordinator",
+        "label": "Coordinator",
+        "action_definitions": [
+          {
+            "developer_name": "Lookup_Customer",
+            "label": "Lookup Customer",
+            "description": "Look up customer details",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Lookup_Customer",
+            "input_type": [
+              {
+                "developer_name": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "name",
+                "label": "Name",
+                "description": "Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "tier",
+                "label": "Tier",
+                "description": "Tier",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You coordinate specialized agents to handle customer requests.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a coordinator. Assess the customer's need and either\ninvoke a connected agent directly as a tool, or transition\nto a topic or connected agent."
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "Billing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"Billing\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "__human__",
+            "enabled": "state.AgentScriptInternal_next_topic == '__human__'",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles billing questions",
+        "tools": [
+          {
+            "type": "supervision",
+            "target": "Refund_Processor",
+            "state_updates": [],
+            "name": "process_refund",
+            "description": "Process a refund from the billing context"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"Coordinator\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Go back to triage"
+          }
+        ],
+        "developer_name": "Billing",
+        "label": "Billing",
+        "action_definitions": [],
+        "instructions": "You coordinate specialized agents to handle customer requests.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer with billing questions.\nYou can invoke the refund processor agent if a refund is needed."
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "Coordinator",
+            "enabled": "state.AgentScriptInternal_next_topic==\"Coordinator\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Manages complex order workflows",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Order_Details",
+            "bound_inputs": {
+              "order_id": "state.Order_Id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "Agent_Response": "result.status"
+              }
+            ],
+            "name": "get_order",
+            "description": "Get Order"
+          },
+          {
+            "type": "supervision",
+            "target": "Order_Specialist",
+            "state_updates": [],
+            "name": "delegate_to_specialist",
+            "description": "Hand off complex order issues to the specialist"
+          },
+          {
+            "type": "supervision",
+            "target": "Refund_Processor",
+            "state_updates": [],
+            "name": "delegate_refund",
+            "description": "Process a return or refund"
+          }
+        ],
+        "developer_name": "Order_Management",
+        "label": "Order Management",
+        "action_definitions": [
+          {
+            "developer_name": "Get_Order_Details",
+            "label": "Get Order Details",
+            "description": "Retrieve order information",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Get_Order_Details",
+            "input_type": [
+              {
+                "developer_name": "order_id",
+                "label": "Order Id",
+                "description": "Order Id",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "status",
+                "label": "Status",
+                "description": "Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "total",
+                "label": "Total",
+                "description": "Total",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You coordinate specialized agents to handle customer requests.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nManage the customer's order. You can look up details,\ninvoke the order specialist agent, or process refunds."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Refund_Processor",
+        "label": "Refund Processor",
+        "description": "Specialized agent for refund evaluation and processing",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Refund_Processor",
+        "loading_text": "Evaluating your refund request...",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id",
+          "order_id": "state.Order_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Order_Specialist",
+        "label": "Order Specialist",
+        "description": "Deep-dive agent for complex order inquiries",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Order_Specialist",
+        "loading_text": "Reviewing your order...",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Escalation_Agent",
+        "label": "Escalation Agent",
+        "description": "Agent for handling escalated customer issues",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Escalation_Agent",
+        "loading_text": "Connecting you to a senior agent...",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Feedback_Collector",
+        "label": "Feedback Collector",
+        "description": "Collects customer satisfaction feedback",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Feedback_Collector"
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can connect you with specialized agents for orders, returns, or billing.\", \"messageType\": \"Welcome\"}, {\"message\": \"Something went wrong. Please try again.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

@@ -1,0 +1,70 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
+import type { LintPass } from '@agentscript/language';
+import {
+  symbolTableAnalyzer,
+  undefinedReferencePass,
+  duplicateKeyPass,
+  requiredFieldPass,
+  singularCollectionPass,
+  constraintValidationPass,
+  positionIndexPass,
+  unreachableCodePass,
+  emptyBlockPass,
+  unusedVariablePass,
+  expressionValidationPass,
+} from '@agentscript/language';
+import { typeMapAnalyzer } from './type-map.js';
+import { reasoningActionsAnalyzer } from './reasoning-actions.js';
+import { actionIoRule } from './action-io.js';
+import { actionTypeCheckRule } from './action-type-check.js';
+
+export { typeMapAnalyzer, typeMapKey } from './type-map.js';
+export type {
+  TypeMap,
+  VariableTypeInfo,
+  ParamInfo,
+  OutputParamInfo,
+  BooleanField,
+  StringField,
+  ActionSignature,
+  ConnectedAgentInfo,
+  ConnectedAgentInputInfo,
+  TransitionTarget,
+} from './type-map.js';
+export {
+  reasoningActionsAnalyzer,
+  reasoningActionsKey,
+} from './reasoning-actions.js';
+export type { ReasoningActionEntry } from './reasoning-actions.js';
+export { actionIoRule } from './action-io.js';
+export { actionTypeCheckRule } from './action-type-check.js';
+
+/** All AgentScript lint passes in engine execution order. */
+export function defaultRules(): LintPass[] {
+  return [
+    // Base passes
+    symbolTableAnalyzer(),
+    duplicateKeyPass(),
+    requiredFieldPass(),
+    singularCollectionPass(),
+    constraintValidationPass(),
+    positionIndexPass(),
+    unreachableCodePass(),
+    emptyBlockPass(),
+    unusedVariablePass(),
+    expressionValidationPass(),
+    // AgentScript analyzers
+    typeMapAnalyzer(),
+    reasoningActionsAnalyzer(),
+    // Validation
+    undefinedReferencePass(),
+    actionIoRule(),
+    actionTypeCheckRule(),
+  ];
+}

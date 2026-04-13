@@ -1,0 +1,1184 @@
+================
+Error 01: Unclosed string literal should not swallow document
+================
+description: "An example topic
+reasoning:
+    instructions: ->
+        transition to @topic.hello
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content)
+              (MISSING "))))))
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 02: Single equals in if condition should parse as comparison
+================
+topic Example:
+    instructions: ->
+        if abc = "":
+            transition to @topic.hello
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (if_statement
+              condition: (expression
+                (comparison_expression
+                  (expression
+                    (atom
+                      (id)))
+                  (ERROR)
+                  (expression
+                    (atom
+                      (string)))))
+              consequence: (procedure
+                (transition_statement
+                  with_to_statement_list: (with_to_statement_list
+                    (to_statement
+                      target: (expression
+                        (member_expression
+                          (expression
+                            (atom
+                              (at_id
+                                (id))))
+                          (id))))))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 03: Missing colon after top-level key should preserve nested block
+================
+topic Example
+    description: "hello"
+other_topic test:
+    description: "world"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      (MISSING :)
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))))
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))))))
+
+================
+Error 04: Missing colon after if condition should not swallow document
+================
+topic Example:
+    instructions: ->
+        if @var.ready
+            run @action.go
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (if_statement
+              condition: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              (ERROR)
+              consequence: (procedure
+                (run_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 05: Standalone else should not become mapping key
+================
+topic Example:
+    instructions: ->
+        else:
+            run @action.go
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (ERROR
+              (run_statement
+                target: (expression
+                  (member_expression
+                    (expression
+                      (atom
+                        (at_id
+                          (id))))
+                    (id)))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 06: Incomplete comparison should not insert MISSING
+================
+topic Example:
+    instructions: ->
+        if @var.x ==:
+            run @action.go
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (if_statement
+              condition: (expression
+                (comparison_expression
+                  (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  (ERROR)))
+              consequence: (procedure
+                (run_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 07: Arrow with empty body should preserve procedure
+================
+instructions: ->
+description: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (procedure
+        (ERROR)))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 08: Mixed sequence and mapping should not destroy sequence
+================
+hello:
+    - "item1"
+    key: "value"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (sequence
+        (sequence_element
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))
+        (ERROR
+          (mapping_element
+            key: (key
+              (id))
+            colinear_value: (expression_with_to
+              expression: (expression
+                (atom
+                  (string
+                    (string_content)))))))))))
+
+================
+Error 09: Missing run target should not swallow document
+================
+topic Example:
+    instructions: ->
+        run
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (run_statement
+              target: (expression
+                (atom
+                  (ERROR))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 10: Set with double equals should not swallow document
+================
+topic Example:
+    instructions: ->
+        set @var.status == "active"
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (ERROR
+              (expression
+                (comparison_expression
+                  (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  (expression
+                    (atom
+                      (string
+                        (string_content)))))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 11: With clause missing equals should not swallow document
+================
+topic Example:
+    instructions: ->
+        run @action.test
+            with param "value"
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (run_statement
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              block_value: (procedure
+                (with_statement
+                  param: (id)
+                  (MISSING =)
+                  value: (expression
+                    (atom
+                      (string
+                        (string_content)))))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 12: Transition to without target should not swallow document
+================
+topic Example:
+    instructions: ->
+        transition to
+        run @action.fallback
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  (ERROR))))
+            (run_statement
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id))))))))))
+
+================
+Error 13: If with body at same indent should not swallow document
+================
+topic Example:
+    instructions: ->
+        if @var.ready:
+        run @action.go
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (if_statement
+              condition: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              (ERROR))
+            (run_statement
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 14: Incomplete binary expression should not cascade
+================
+value: 3 +
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (binary_expression
+            (expression
+              (atom
+                (number)))
+            (ERROR)))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 15: Unclosed parenthesis should not cascade
+================
+value: (a + b
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (parenthesized_expression
+            expression: (expression
+              (binary_expression
+                (expression
+                  (atom
+                    (id)))
+                (expression
+                  (atom
+                    (id)))))
+            (ERROR)))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 16: Unclosed bracket should not cascade
+================
+value: [1, 2, 3
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (list
+              (expression
+                (atom
+                  (number)))
+              (expression
+                (atom
+                  (number)))
+              (expression
+                (atom
+                  (number)))
+              (ERROR))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 17: Unclosed brace should not cascade
+================
+value: {a: 1
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (dictionary
+              (dictionary_pair
+                key: (key
+                  (id))
+                value: (expression
+                  (atom
+                    (number))))
+              (ERROR))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 18: Trailing dot should not cascade
+================
+value: @var.
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (member_expression
+            (expression
+              (atom
+                (at_id
+                  (id))))
+            (ERROR)))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 19: Member access with number should not split expression
+================
+value: @var.123
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (member_expression
+            (expression
+              (atom
+                (at_id
+                  (id))))
+            (ERROR
+              (number))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 20: At sign without identifier should not cascade
+================
+value: @
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (at_id
+              (ERROR))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 21: Single-quoted string should not reinterpret as identifier
+================
+value: 'hello'
+other: "world"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      (ERROR
+        (id)))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 22: Trailing comma should be valid syntax
+================
+value: func(a, b,)
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (call_expression
+            function: (expression
+              (atom
+                (id)))
+            argument: (expression
+              (atom
+                (id)))
+            argument: (expression
+              (atom
+                (id)))
+            argument: (expression
+              (atom
+                (MISSING id)))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 23: Empty parentheses should be valid syntax
+================
+value: ()
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (parenthesized_expression
+            expression: (expression
+              (atom
+                (MISSING id)))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 24: Unsupported modulo should not split expression
+================
+value: a % b
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (id))))
+      (ERROR
+        (id)))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 25: Incomplete ternary should not cascade
+================
+value: a if condition
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (ternary_expression
+            consequence: (expression
+              (atom
+                (id)))
+            condition: (expression
+              (atom
+                (id)))
+            (ERROR)))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 26: Unclosed template expression should preserve template
+================
+topic Example:
+    instructions: ->
+        |  Hello {!@var.name world
+        transition to @topic.hello
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (template
+              (template_content)
+              (template_expression
+                expression: (expression
+                  (member_expression
+                    (expression
+                      (atom
+                        (at_id
+                          (id))))
+                    (id)))
+                (ERROR
+                  (id))
+                (MISSING })))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 27: Empty template expression should not insert MISSING
+================
+topic Example:
+    instructions: ->
+        |  Hello {!} world
+        transition to @topic.hello
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (template
+              (template_content)
+              (template_expression
+                (ERROR))
+              (template_content))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+
+================
+Error 28: Invalid escape sequence should not error inside string
+================
+value: "hello\xworld"
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content)
+              (ERROR))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 29: Extra closing delimiter should not destroy value
+================
+value: (a + b))
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (parenthesized_expression
+            expression: (expression
+              (binary_expression
+                (expression
+                  (atom
+                    (id)))
+                (expression
+                  (atom
+                    (id))))))))
+      (ERROR))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 30: Three-word key should not error inside mapping element
+================
+topic test extra:
+    description: "hello"
+other:
+    name: "world"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      (MISSING :)
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (id))))
+      (ERROR)
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))))
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))))))
+
+================
+Error 31: Keyword as key should not swallow document
+================
+if: "value"
+other: "hello"
+---
+(source_file
+  (mapping
+    (if_statement
+      (ERROR
+        (string))
+      (ERROR))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 32: Hyphenated identifier should parse as key
+================
+my-variable: "value"
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)))
+    (ERROR
+      (id)
+      (string))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 33: Digit-starting identifier should not reinterpret as separate key
+================
+3var: "value"
+other: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (ERROR)
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (atom
+            (string
+              (string_content))))))))
+
+================
+Error 34: Empty procedure after arrow should not lose procedure
+================
+topic Example:
+    instructions: ->
+    description: "hello"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (ERROR)))
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))))))
+
+================
+Error 35: Unsupported for statement should not reinterpret as mapping key
+================
+topic Example:
+    instructions: ->
+        for item in list:
+            run @action.go
+        transition to @topic.world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (ERROR
+              (run_statement
+                target: (expression
+                  (member_expression
+                    (expression
+                      (atom
+                        (at_id
+                          (id))))
+                    (id)))))
+            (transition_statement
+              with_to_statement_list: (with_to_statement_list
+                (to_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))

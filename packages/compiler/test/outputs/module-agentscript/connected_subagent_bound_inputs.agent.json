@@ -1,0 +1,157 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "BoundInputDemo",
+    "label": "Bound Input Demo",
+    "description": "Bound Input Demo",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [
+      {
+        "developer_name": "Customer_Id",
+        "label": "Customer Id",
+        "description": "Linked context variable — valid for input binding",
+        "data_type": "string",
+        "field_mapping": "MessagingEndUser.ContactId"
+      },
+      {
+        "developer_name": "Session_Ref",
+        "label": "Session Ref",
+        "description": "Another linked variable",
+        "data_type": "string",
+        "field_mapping": "MessagingSession.Id"
+      }
+    ]
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Counter",
+        "label": "Counter",
+        "description": "Counter",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Notes",
+        "label": "Notes",
+        "description": "Notes",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "Main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Routes to connected agents",
+        "tools": [],
+        "developer_name": "Main",
+        "label": "Main",
+        "action_definitions": [],
+        "instructions": "Demonstrates connected agent input binding validation.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssess customer needs and delegate to the right agent."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Valid_Agent",
+        "label": "Valid Agent",
+        "description": "All inputs use linked variables — no lint errors",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Valid_Agent",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id",
+          "session": "variables.Session_Ref"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Mutable_Binding",
+        "label": "Mutable Binding",
+        "description": "Uses a mutable variable — triggers bound-input-not-linked",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Mutable_Binding",
+        "bound_inputs": {
+          "visit_count": "state.Counter",
+          "customer_id": "variables.Customer_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Computed_Binding",
+        "label": "Computed Binding",
+        "description": "Uses a computed expression — triggers bound-input-not-variable",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Computed_Binding",
+        "bound_inputs": {
+          "label": "variables.Customer_Id + \"_suffix\""
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Unbound_Agent",
+        "label": "Unbound Agent",
+        "description": "Inputs without defaults are fine",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Unbound_Agent"
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

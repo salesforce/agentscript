@@ -1,0 +1,163 @@
+schema_version: "2.0"
+global_configuration:
+  developer_name: Router_Connected_Test
+  label: Router with Connected Agents
+  description: Tests router nodes with connected agents
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables:
+    - developer_name: Customer_Id
+      label: Customer Id
+      description: Customer identifier
+      data_type: string
+      field_mapping: MessagingEndUser.ContactId
+  default_agent_user: test@example.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages: []
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - model_configuration:
+        model_ref: sfdc_ai__DefaultEinsteinHyperClassifier
+      type: router
+      description: Routes to appropriate handler
+      instructions: |-
+        You are a helpful routing agent.
+
+        {{state.AgentScriptInternal_agent_instructions}}
+      tools:
+        - name: go_billing
+          target: billing
+          description: Route to billing topic
+        - name: call_crm
+          target: CRM_Agent
+          description: Delegate to CRM agent for account operations
+        - name: call_support
+          target: Support_Agent
+          description: Delegate to support agent for technical issues
+        - name: go_general
+          target: general_help
+          description: Route to general help
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions:
+        - developer_name: search_knowledge
+          label: Search Knowledge
+          description: Search knowledge base
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: searchKnowledge
+          input_type:
+            - developer_name: query
+              label: Query
+              description: Query
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: articles
+              label: Articles
+              description: Articles
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Determine the best destination based on user intent.
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Handles billing inquiries
+      tools: []
+      developer_name: billing
+      label: Billing
+      action_definitions: []
+      instructions: You are a helpful routing agent.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Answer billing questions.
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: General assistance
+      tools: []
+      developer_name: general_help
+      label: General Help
+      action_definitions: []
+      instructions: You are a helpful routing agent.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Provide general help.
+    - type: related_agent
+      developer_name: CRM_Agent
+      label: CRM Agent
+      description: Handles customer relationship management
+      invocation_target_type: agentforce
+      invocation_target_name: CRM_Agent
+      loading_text: Connecting to CRM...
+      bound_inputs:
+        customer_id: variables.Customer_Id
+    - type: related_agent
+      developer_name: Support_Agent
+      label: Support Agent
+      description: Provides technical support
+      invocation_target_type: agentforce
+      invocation_target_name: Support_Agent
+      loading_text: Connecting to support...
+      bound_inputs:
+        customer_id: variables.Customer_Id
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true

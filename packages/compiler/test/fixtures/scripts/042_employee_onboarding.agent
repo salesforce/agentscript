@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional employee onboarding specialist assistant.
+        Help users manage their onboard requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: documentation -> system_setup -> orientation -> checklist_review.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Employee Onboarding Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "employee_onboarding_agent_v42"
+    default_agent_user: "employee_onboarding@example.com"
+    agent_description: "Assists users with onboard management through the employee onboarding specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    onboard_record_id: mutable string
+        description: "Record ID of the onboard"
+    onboard_status: mutable string = ""
+        description: "Current status of the onboard"
+    onboard_tier: mutable string = "standard"
+        description: "Tier classification for the onboard"
+    onboard_category: mutable string = ""
+        description: "Category of the onboard"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    documentation_complete: mutable boolean = False
+        description: "Whether the documentation stage is complete"
+    documentation_result: mutable string = ""
+        description: "Result from the documentation stage"
+    system_setup_complete: mutable boolean = False
+        description: "Whether the system_setup stage is complete"
+    system_setup_result: mutable string = ""
+        description: "Result from the system_setup stage"
+    orientation_complete: mutable boolean = False
+        description: "Whether the orientation stage is complete"
+    orientation_result: mutable string = ""
+        description: "Result from the orientation stage"
+    checklist_review_complete: mutable boolean = False
+        description: "Whether the checklist_review stage is complete"
+    checklist_review_result: mutable string = ""
+        description: "Result from the checklist_review stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate onboard management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a employee onboarding specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current onboard status: {! @variables.onboard_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_documentation} for documentation requests.
+              Use {!@actions.go_to_system_setup} for system setup requests.
+              Use {!@actions.go_to_orientation} for orientation requests.
+              Use {!@actions.go_to_checklist_review} for checklist review requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_documentation: @utils.transition to @topic.documentation
+                description: "Transition to documentation topic."
+            go_to_system_setup: @utils.transition to @topic.system_setup
+                description: "Transition to system setup topic."
+                available when @variables.is_verified == True
+            go_to_orientation: @utils.transition to @topic.orientation
+                description: "Transition to orientation topic."
+                available when @variables.is_verified == True
+            go_to_checklist_review: @utils.transition to @topic.checklist_review
+                description: "Transition to checklist review topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic documentation:
+    description: "Handles the documentation stage of the onboard process"
+
+    actions:
+        process_documentation_data:
+            description: "Process documentation stage data for the onboard"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Documentation"
+
+        validate_documentation_info:
+            description: "Validate documentation information for the onboard"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Documentation_Info"
+
+        fetch_documentation_details:
+            description: "Fetch documentation details for the onboard"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Documentation_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_documentation_info
+                with record_ref=@variables.onboard_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.onboard_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the documentation stage for the onboard.
+              Current onboard status: {! @variables.onboard_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Documentation result: {! @variables.documentation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.onboard_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_documentation} to begin processing.
+        actions:
+            run_documentation: @actions.process_documentation_data
+                with record_ref=@variables.onboard_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.onboard_category
+                set @variables.documentation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.documentation_complete = @outputs.is_passed
+            fetch_documentation_info: @actions.fetch_documentation_details
+                with record_ref=@variables.onboard_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.onboard_tier = @outputs.tier_value
+            go_to_system_setup: @utils.transition to @topic.system_setup
+                description: "Move to system setup stage."
+                available when @variables.documentation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.onboard_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.onboard_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.onboard_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.documentation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic system_setup:
+    description: "Handles the system setup stage of the onboard process"
+
+    actions:
+        process_system_setup_data:
+            description: "Process system setup stage data for the onboard"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_SystemSetup_Data"
+
+        validate_system_setup_info:
+            description: "Validate system setup information for the onboard"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SystemSetup_Info"
+
+        fetch_system_setup_details:
+            description: "Fetch system setup details for the onboard"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SystemSetup_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.documentation_complete == False:
+            transition to @topic.documentation
+
+    reasoning:
+        instructions: ->
+            | Handle the system setup stage for the onboard.
+              Current onboard status: {! @variables.onboard_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              System Setup result: {! @variables.system_setup_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.onboard_tier }
+              Review the system setup results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_system_setup: @actions.process_system_setup_data
+                with record_ref=@variables.onboard_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.onboard_category
+                set @variables.system_setup_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.system_setup_complete = @outputs.is_passed
+            fetch_system_setup_info: @actions.fetch_system_setup_details
+                with record_ref=@variables.onboard_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.onboard_tier = @outputs.tier_value
+                available when @variables.onboard_record_id is not None
+            go_to_orientation: @utils.transition to @topic.orientation
+                description: "Move to orientation stage."
+                available when @variables.system_setup_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.system_setup_complete == True:
+            set @variables.onboard_status = "system_setup_done"
+        if @variables.system_setup_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.orientation
+        if @variables.attempt_count >= 3 and @variables.system_setup_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic orientation:
+    description: "Handles the orientation stage of the onboard process"
+
+    actions:
+        process_orientation_data:
+            description: "Process orientation stage data for the onboard"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Orientation"
+
+        validate_orientation_info:
+            description: "Validate orientation information for the onboard"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Orientation_Info"
+
+        fetch_orientation_details:
+            description: "Fetch orientation details for the onboard"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Orientation_Details"
+
+    before_reasoning:
+        if @variables.orientation_complete == False:
+            run @actions.fetch_orientation_details
+                with record_ref=@variables.onboard_record_id
+                with include_history=True
+                set @variables.orientation_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.onboard_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.onboard_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.onboard_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the orientation stage for the onboard.
+              Current onboard status: {! @variables.onboard_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Orientation result: {! @variables.orientation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.onboard_tier }
+              Review the orientation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_orientation: @actions.process_orientation_data
+                with record_ref=@variables.onboard_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.onboard_category
+                set @variables.orientation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.orientation_complete = @outputs.is_passed
+            fetch_orientation_info: @actions.fetch_orientation_details
+                with record_ref=@variables.onboard_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.onboard_tier = @outputs.tier_value
+                available when @variables.onboard_record_id is not None
+            go_to_checklist_review: @utils.transition to @topic.checklist_review
+                description: "Move to checklist review stage."
+                available when @variables.orientation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.onboard_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.onboard_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.onboard_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.orientation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic checklist_review:
+    description: "Handles the checklist review stage of the onboard process"
+
+    actions:
+        process_checklist_review_data:
+            description: "Process checklist review stage data for the onboard"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_ChecklistReview"
+
+        validate_checklist_review_info:
+            description: "Validate checklist review information for the onboard"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ChecklistReview_Info"
+
+        fetch_checklist_review_details:
+            description: "Fetch checklist review details for the onboard"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ChecklistReview_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.orientation_complete == False:
+            transition to @topic.orientation
+        if @variables.eligibility_score >= 80:
+            set @variables.onboard_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.onboard_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the checklist review stage for the onboard.
+              Current onboard status: {! @variables.onboard_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Checklist Review result: {! @variables.checklist_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.onboard_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_checklist_review: @actions.process_checklist_review_data
+                with record_ref=@variables.onboard_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.onboard_category
+                set @variables.checklist_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.checklist_review_complete = @outputs.is_passed
+            fetch_checklist_review_info: @actions.fetch_checklist_review_details
+                with record_ref=@variables.onboard_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.onboard_tier = @outputs.tier_value
+                available when @variables.onboard_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.checklist_review_complete == True:
+            set @variables.onboard_status = "checklist_review_done"
+        if @variables.attempt_count >= 3 and @variables.checklist_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for onboard issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the onboard issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the onboard interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the onboard request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Onboard status: {! @variables.onboard_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.onboard_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.onboard_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.onboard_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.onboard_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,439 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Healthcare_Scheduling_Agent
+  label: Healthcare Scheduling Agent
+  description: Handles appointment scheduling with insurance verification and provider
+    search.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: scheduling@clinic.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you schedule a healthcare appointment.
+      message_type: Welcome
+    - message: Sorry, there was an issue with the scheduling system.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you schedule a healthcare appointment.",
+      "messageType": "Welcome"}, {"message": "Sorry, there was an issue with the scheduling
+      system.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: patient_id
+      label: Patient Id
+      description: Patient identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: insurance_verified
+      label: Insurance Verified
+      description: Whether insurance is verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: provider_id
+      label: Provider Id
+      description: Selected provider ID
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: appointment_date
+      label: Appointment Date
+      description: Requested appointment date
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: appointment_confirmed
+      label: Appointment Confirmed
+      description: Whether appointment is confirmed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: specialty
+      label: Specialty
+      description: Medical specialty needed
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: scheduling_intake
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Welcome the patient and ask about their scheduling needs.
+
+                Gather their patient ID, insurance info, and desired specialty.'
+      instructions: You are a healthcare appointment scheduling assistant. Help patients
+        find providers, verify insurance, and book appointments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Gathers patient information and determines scheduling needs
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"insurance_verification"'
+          name: go_insurance
+          description: Verify insurance first
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"provider_search"'
+          name: go_provider
+          description: Search for providers directly
+      after_all_tool_calls:
+        - type: handoff
+          target: insurance_verification
+          enabled: state.AgentScriptInternal_next_topic=="insurance_verification"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: provider_search
+          enabled: state.AgentScriptInternal_next_topic=="provider_search"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: scheduling_intake
+      label: Scheduling Intake
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Review insurance verification results and inform the patient.
+
+                If covered, proceed to provider search.'
+      instructions: You are a healthcare appointment scheduling assistant. Help patients
+        find providers, verify insurance, and book appointments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Verifies patient insurance coverage
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.patient_id != ""
+        - type: action
+          target: verify_insurance
+          bound_inputs:
+            patient_id: state.patient_id
+            insurance_id: state.patient_id
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - insurance_verified: result.covered
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: verify_insurance
+          bound_inputs:
+            patient_id: state.patient_id
+            insurance_id: state.patient_id
+          llm_inputs: []
+          state_updates:
+            - insurance_verified: result.covered
+          name: verify
+          description: Verify
+        - type: action
+          target: __state_update_action__
+          enabled: state.insurance_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"provider_search"'
+          name: go_provider
+          description: Find available providers
+      after_all_tool_calls:
+        - type: handoff
+          target: provider_search
+          enabled: state.AgentScriptInternal_next_topic=="provider_search"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.insurance_verified == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"provider_search"'
+        - type: handoff
+          target: provider_search
+          enabled: state.AgentScriptInternal_next_topic=="provider_search"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: insurance_verification
+      label: Insurance Verification
+      action_definitions:
+        - developer_name: verify_insurance
+          label: Verify Insurance
+          description: Verifies insurance coverage and benefits
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: VerifyInsurance
+          input_type:
+            - developer_name: patient_id
+              label: Patient Id
+              description: Patient Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: insurance_id
+              label: Insurance Id
+              description: Insurance Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: covered
+              label: Covered
+              description: Covered
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: copay_amount
+              label: Copay Amount
+              description: Copay Amount
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: network_type
+              label: Network Type
+              description: Network Type
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Search for available providers matching the patient''s needs.
+
+                Present options and help them choose.'
+      instructions: You are a healthcare appointment scheduling assistant. Help patients
+        find providers, verify insurance, and book appointments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Searches for available healthcare providers
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: search_providers
+          bound_inputs:
+            specialty: state.specialty
+            appointment_date: state.appointment_date
+          llm_inputs:
+            - insurance_network
+          state_updates: []
+          name: search
+          description: Search
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"appointment_booking"'
+          name: go_booking
+          description: Book the appointment
+      after_all_tool_calls:
+        - type: handoff
+          target: appointment_booking
+          enabled: state.AgentScriptInternal_next_topic=="appointment_booking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: provider_search
+      label: Provider Search
+      action_definitions:
+        - developer_name: search_providers
+          label: Search Providers
+          description: Searches for providers by specialty and availability
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: SearchProviders
+          input_type:
+            - developer_name: specialty
+              label: Specialty
+              description: Specialty
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: appointment_date
+              label: Appointment Date
+              description: Appointment Date
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: insurance_network
+              label: Insurance Network
+              description: Insurance Network
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: providers
+              label: Providers
+              description: Providers
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: available_slots
+              label: Available Slots
+              description: Available Slots
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Confirm the appointment details with the patient and book it.'
+      instructions: You are a healthcare appointment scheduling assistant. Help patients
+        find providers, verify insurance, and book appointments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Books the appointment with the selected provider
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: book_appointment
+          bound_inputs:
+            patient_id: state.patient_id
+            provider_id: state.provider_id
+            appointment_date: state.appointment_date
+          llm_inputs: []
+          state_updates:
+            - appointment_confirmed: result.confirmed
+          name: book
+          description: Book
+      developer_name: appointment_booking
+      label: Appointment Booking
+      action_definitions:
+        - developer_name: book_appointment
+          label: Book Appointment
+          description: Books the appointment and sends confirmation
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: BookAppointment
+          input_type:
+            - developer_name: patient_id
+              label: Patient Id
+              description: Patient Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: provider_id
+              label: Provider Id
+              description: Provider Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: appointment_date
+              label: Appointment Date
+              description: Appointment Date
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: confirmed
+              label: Confirmed
+              description: Confirmed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: confirmation_number
+              label: Confirmation Number
+              description: Confirmation Number
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

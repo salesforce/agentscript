@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional voter registration assistant assistant.
+        Help users manage their registration requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: eligibility_check -> data_collection -> verification -> confirmation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Voter Registration Assistant Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "voter_registration_agent_v97"
+    default_agent_user: "voter_registration@example.com"
+    agent_description: "Assists users with registration management through the voter registration assistant workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    registration_record_id: mutable string
+        description: "Record ID of the registration"
+    registration_status: mutable string = ""
+        description: "Current status of the registration"
+    registration_tier: mutable string = "standard"
+        description: "Tier classification for the registration"
+    registration_category: mutable string = ""
+        description: "Category of the registration"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    eligibility_check_complete: mutable boolean = False
+        description: "Whether the eligibility_check stage is complete"
+    eligibility_check_result: mutable string = ""
+        description: "Result from the eligibility_check stage"
+    data_collection_complete: mutable boolean = False
+        description: "Whether the data_collection stage is complete"
+    data_collection_result: mutable string = ""
+        description: "Result from the data_collection stage"
+    verification_complete: mutable boolean = False
+        description: "Whether the verification stage is complete"
+    verification_result: mutable string = ""
+        description: "Result from the verification stage"
+    confirmation_complete: mutable boolean = False
+        description: "Whether the confirmation stage is complete"
+    confirmation_result: mutable string = ""
+        description: "Result from the confirmation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate registration management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a voter registration assistant assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current registration status: {! @variables.registration_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_eligibility_check} for eligibility check requests.
+              Use {!@actions.go_to_data_collection} for data collection requests.
+              Use {!@actions.go_to_verification} for verification requests.
+              Use {!@actions.go_to_confirmation} for confirmation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_eligibility_check: @utils.transition to @topic.eligibility_check
+                description: "Transition to eligibility check topic."
+            go_to_data_collection: @utils.transition to @topic.data_collection
+                description: "Transition to data collection topic."
+                available when @variables.is_verified == True
+            go_to_verification: @utils.transition to @topic.verification
+                description: "Transition to verification topic."
+                available when @variables.is_verified == True
+            go_to_confirmation: @utils.transition to @topic.confirmation
+                description: "Transition to confirmation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic eligibility_check:
+    description: "Handles the eligibility check stage of the registration process"
+
+    actions:
+        process_eligibility_check_data:
+            description: "Process eligibility check stage data for the registration"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_EligibilityCheck_Data"
+
+        validate_eligibility_check_info:
+            description: "Validate eligibility check information for the registration"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_EligibilityCheck_Info"
+
+        fetch_eligibility_check_details:
+            description: "Fetch eligibility check details for the registration"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_EligibilityCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_eligibility_check_info
+                with record_ref=@variables.registration_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.registration_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the eligibility check stage for the registration.
+              Current registration status: {! @variables.registration_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Eligibility Check result: {! @variables.eligibility_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.registration_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_eligibility_check} to begin processing.
+        actions:
+            run_eligibility_check: @actions.process_eligibility_check_data
+                with record_ref=@variables.registration_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.registration_category
+                set @variables.eligibility_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.eligibility_check_complete = @outputs.is_passed
+            fetch_eligibility_check_info: @actions.fetch_eligibility_check_details
+                with record_ref=@variables.registration_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.registration_tier = @outputs.tier_value
+            go_to_data_collection: @utils.transition to @topic.data_collection
+                description: "Move to data collection stage."
+                available when @variables.eligibility_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.registration_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.registration_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.registration_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.eligibility_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic data_collection:
+    description: "Handles the data collection stage of the registration process"
+
+    actions:
+        process_data_collection_data:
+            description: "Process data collection stage data for the registration"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_DataCollection"
+
+        validate_data_collection_info:
+            description: "Validate data collection information for the registration"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DataCollection_Info"
+
+        fetch_data_collection_details:
+            description: "Fetch data collection details for the registration"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DataCollection_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.eligibility_check_complete == False:
+            transition to @topic.eligibility_check
+
+    reasoning:
+        instructions: ->
+            | Handle the data collection stage for the registration.
+              Current registration status: {! @variables.registration_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Data Collection result: {! @variables.data_collection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.registration_tier }
+              Review the data collection results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_data_collection: @actions.process_data_collection_data
+                with record_ref=@variables.registration_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.registration_category
+                set @variables.data_collection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.data_collection_complete = @outputs.is_passed
+            fetch_data_collection_info: @actions.fetch_data_collection_details
+                with record_ref=@variables.registration_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.registration_tier = @outputs.tier_value
+                available when @variables.registration_record_id is not None
+            go_to_verification: @utils.transition to @topic.verification
+                description: "Move to verification stage."
+                available when @variables.data_collection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.data_collection_complete == True:
+            set @variables.registration_status = "data_collection_done"
+        if @variables.data_collection_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.verification
+        if @variables.attempt_count >= 3 and @variables.data_collection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic verification:
+    description: "Handles the verification stage of the registration process"
+
+    actions:
+        process_verification_data:
+            description: "Process verification stage data for the registration"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Verification"
+
+        validate_verification_info:
+            description: "Validate verification information for the registration"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Verification_Info"
+
+        fetch_verification_details:
+            description: "Fetch verification details for the registration"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Verification_Details"
+
+    before_reasoning:
+        if @variables.verification_complete == False:
+            run @actions.fetch_verification_details
+                with record_ref=@variables.registration_record_id
+                with include_history=True
+                set @variables.verification_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.registration_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.registration_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.registration_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the verification stage for the registration.
+              Current registration status: {! @variables.registration_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Verification result: {! @variables.verification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.registration_tier }
+              Review the verification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_verification: @actions.process_verification_data
+                with record_ref=@variables.registration_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.registration_category
+                set @variables.verification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.verification_complete = @outputs.is_passed
+            fetch_verification_info: @actions.fetch_verification_details
+                with record_ref=@variables.registration_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.registration_tier = @outputs.tier_value
+                available when @variables.registration_record_id is not None
+            go_to_confirmation: @utils.transition to @topic.confirmation
+                description: "Move to confirmation stage."
+                available when @variables.verification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.registration_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.registration_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.registration_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.verification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic confirmation:
+    description: "Handles the confirmation stage of the registration process"
+
+    actions:
+        process_confirmation_data:
+            description: "Process confirmation stage data for the registration"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Confirmation_Data"
+
+        validate_confirmation_info:
+            description: "Validate confirmation information for the registration"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Confirmation_Info"
+
+        fetch_confirmation_details:
+            description: "Fetch confirmation details for the registration"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Confirmation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.verification_complete == False:
+            transition to @topic.verification
+        if @variables.eligibility_score >= 80:
+            set @variables.registration_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.registration_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the confirmation stage for the registration.
+              Current registration status: {! @variables.registration_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Confirmation result: {! @variables.confirmation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.registration_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_confirmation: @actions.process_confirmation_data
+                with record_ref=@variables.registration_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.registration_category
+                set @variables.confirmation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.confirmation_complete = @outputs.is_passed
+            fetch_confirmation_info: @actions.fetch_confirmation_details
+                with record_ref=@variables.registration_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.registration_tier = @outputs.tier_value
+                available when @variables.registration_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.confirmation_complete == True:
+            set @variables.registration_status = "confirmation_done"
+        if @variables.attempt_count >= 3 and @variables.confirmation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for registration issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the registration issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the registration interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the registration request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Registration status: {! @variables.registration_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.registration_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.registration_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.registration_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.registration_status = "escalated"
+        set @variables.escalation_requested = False
+

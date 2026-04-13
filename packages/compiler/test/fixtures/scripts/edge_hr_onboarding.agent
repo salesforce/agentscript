@@ -1,0 +1,145 @@
+system:
+    instructions: "You are an HR onboarding assistant that helps new employees complete their onboarding tasks."
+    messages:
+        welcome: "Welcome aboard! I'm here to guide you through the onboarding process."
+        error: "Sorry, I encountered an issue with the onboarding system."
+
+config:
+    developer_name: "HR_Onboarding_Agent"
+    agent_type: "AgentforceEmployeeAgent"
+    default_agent_user: "hr_bot@company.com"
+    description: "Guides new employees through document collection, IT setup, and benefits enrollment."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    employee_id: mutable string = ""
+        description: "New employee ID"
+    employee_name: mutable string = ""
+        description: "Employee full name"
+    department: mutable string = ""
+        description: "Assigned department"
+    documents_complete: mutable boolean = False
+        description: "Whether all required documents are submitted"
+    it_setup_complete: mutable boolean = False
+        description: "Whether IT setup is finished"
+    benefits_enrolled: mutable boolean = False
+        description: "Whether benefits enrollment is done"
+    start_date: mutable string = ""
+        description: "Employee start date"
+    manager_name: mutable string = ""
+        description: "Direct manager name"
+
+start_agent onboarding_start:
+    description: "Initiates the onboarding process and gathers employee information"
+
+    actions:
+        create_onboarding_record:
+            description: "Creates an onboarding record for the new employee"
+            inputs:
+                employee_name: string
+                employee_id: string
+                department: string
+                start_date: string
+            outputs:
+                record_id: string
+                checklist: string
+            target: "flow://CreateOnboardingRecord"
+
+    reasoning:
+        instructions: ->
+            | Welcome the new employee and collect their basic information.
+              Create an onboarding record and guide them through the process.
+
+        actions:
+            create_record: @actions.create_onboarding_record
+                with employee_name=@variables.employee_name
+                with employee_id=@variables.employee_id
+                with department=@variables.department
+                with start_date=@variables.start_date
+
+            go_documents: @utils.transition to @topic.document_collection
+                description: "Proceed to document collection"
+
+topic document_collection:
+    description: "Handles collection and verification of required onboarding documents"
+
+    actions:
+        verify_documents:
+            description: "Verifies submitted onboarding documents"
+            inputs:
+                employee_id: string
+            outputs:
+                all_submitted: boolean
+                missing_documents: string
+            target: "flow://VerifyDocuments"
+
+    reasoning:
+        instructions: ->
+            | Guide the employee through document submission.
+              Required documents: ID verification, tax forms, emergency contacts, NDA.
+
+        actions:
+            verify: @actions.verify_documents
+                with employee_id=@variables.employee_id
+                set @variables.documents_complete = @outputs.all_submitted
+
+            go_it_setup: @utils.transition to @topic.it_setup
+                description: "Proceed to IT setup"
+                available when @variables.documents_complete == True
+
+    after_reasoning:
+        if @variables.documents_complete == True:
+            transition to @topic.it_setup
+
+topic it_setup:
+    description: "Handles IT account creation and equipment provisioning"
+
+    actions:
+        provision_it:
+            description: "Provisions IT accounts and equipment for the new employee"
+            inputs:
+                employee_id: string
+                department: string
+            outputs:
+                email_created: boolean
+                equipment_ordered: boolean
+            target: "flow://ProvisionIT"
+
+    reasoning:
+        instructions: ->
+            | Set up the employee's IT accounts and order equipment.
+              This includes email, VPN access, and laptop provisioning.
+
+        actions:
+            provision: @actions.provision_it
+                with employee_id=@variables.employee_id
+                with department=@variables.department
+                set @variables.it_setup_complete = @outputs.email_created
+
+            go_benefits: @utils.transition to @topic.benefits_enrollment
+                description: "Proceed to benefits enrollment"
+
+topic benefits_enrollment:
+    description: "Handles benefits selection and enrollment"
+
+    actions:
+        enroll_benefits:
+            description: "Enrolls the employee in selected benefits plans"
+            inputs:
+                employee_id: string
+            outputs:
+                enrolled: boolean
+                plan_summary: string
+            target: "apex://EnrollBenefits"
+
+    reasoning:
+        instructions: ->
+            | Guide the employee through benefits selection.
+              Available plans: health insurance, dental, vision, 401k, life insurance.
+
+        actions:
+            enroll: @actions.enroll_benefits
+                with employee_id=@variables.employee_id
+                set @variables.benefits_enrolled = @outputs.enrolled

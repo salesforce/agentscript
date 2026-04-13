@@ -1,0 +1,320 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "ConnectedAgentFullDemo",
+    "label": "Connected Agent Full Demo",
+    "description": "Comprehensive connected agent feature demo",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [
+      {
+        "developer_name": "Customer_Id",
+        "label": "Customer Id",
+        "description": "Linked context variable — valid for bound inputs",
+        "data_type": "string",
+        "field_mapping": "MessagingEndUser.ContactId"
+      },
+      {
+        "developer_name": "Session_Id",
+        "label": "Session Id",
+        "description": "Another linked variable",
+        "data_type": "string",
+        "field_mapping": "MessagingSession.Id"
+      }
+    ],
+    "default_agent_user": "demo@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Order_Id",
+        "label": "Order Id",
+        "description": "Order Id",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "Counter",
+        "label": "Counter",
+        "description": "Counter",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "Coordinator",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Central coordinator — invokes connected agents as tools",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Lookup_Customer",
+            "bound_inputs": {
+              "customer_id": "variables.Customer_Id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "Order_Id": "result.name"
+              }
+            ],
+            "name": "lookup",
+            "description": "Lookup"
+          },
+          {
+            "type": "supervision",
+            "target": "Refund_Processor",
+            "state_updates": [],
+            "name": "call_refund",
+            "description": "Process a refund"
+          },
+          {
+            "type": "supervision",
+            "target": "Order_Specialist",
+            "state_updates": [],
+            "name": "call_order_llm",
+            "description": "Order specialist with LLM-provided search"
+          },
+          {
+            "type": "supervision",
+            "target": "Feedback_Agent",
+            "state_updates": [],
+            "name": "call_feedback",
+            "description": "Collect feedback — all inputs have defaults"
+          },
+          {
+            "type": "supervision",
+            "target": "Refund_Processor",
+            "state_updates": [],
+            "name": "call_refund_typo",
+            "description": "Typo in input name"
+          },
+          {
+            "type": "supervision",
+            "target": "Order_Specialist",
+            "state_updates": [],
+            "name": "call_order_missing",
+            "description": "Missing required input"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"Billing\""
+              }
+            ],
+            "name": "go_billing",
+            "description": "Route to billing"
+          }
+        ],
+        "developer_name": "Coordinator",
+        "label": "Coordinator",
+        "action_definitions": [
+          {
+            "developer_name": "Lookup_Customer",
+            "label": "Lookup Customer",
+            "description": "Standard action for comparison",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Lookup_Customer",
+            "input_type": [
+              {
+                "developer_name": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "name",
+                "label": "Name",
+                "description": "Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a coordinator. Use the available tools to help the customer.\naction.lookup: Look up customer details\naction.call_refund: Delegate to the refund processor\naction.call_order_llm: Delegate to the order specialist"
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "Billing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"Billing\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Billing topic with transition errors",
+        "tools": [],
+        "developer_name": "Billing",
+        "label": "Billing",
+        "action_definitions": [],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle billing. Use connected agents or transition as needed."
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Refund_Processor",
+        "label": "Refund Processor",
+        "description": "Handles refund evaluation and processing",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Refund_Processor",
+        "loading_text": "Evaluating your refund request...",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id",
+          "order_id": "state.Order_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Order_Specialist",
+        "label": "Order Specialist",
+        "description": "Deep-dive agent for complex order inquiries",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Order_Specialist",
+        "loading_text": "Reviewing your order...",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Feedback_Agent",
+        "label": "Feedback Agent",
+        "description": "Collects customer satisfaction feedback",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Feedback_Agent",
+        "bound_inputs": {
+          "customer_id": "variables.Customer_Id",
+          "session_id": "variables.Session_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Bad_Defaults_Agent",
+        "label": "Bad Defaults",
+        "description": "Agent with invalid input defaults (for lint testing)",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Bad_Defaults_Agent",
+        "bound_inputs": {
+          "channel": "\"web\"",
+          "count": "state.Counter"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developer_name": "Escalation_Agent",
+        "label": "Escalation Agent",
+        "description": "Handles escalated customer issues",
+        "invocation_target_type": "agentforce",
+        "invocation_target_name": "Escalation_Agent"
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

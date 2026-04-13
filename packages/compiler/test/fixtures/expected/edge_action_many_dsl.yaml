@@ -1,0 +1,623 @@
+# NOTE: Differs from Python compiler — TS uses explicit label for input descriptions
+# when no description is set. Python uses normalizeDeveloperName(name) instead,
+# which discards the author's explicit label.
+schema_version: "2.0"
+global_configuration:
+  developer_name: EdgeActionMany
+  label: Many Actions Agent
+  description: Agent with 10+ actions defined and invoked in reasoning
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables:
+    - developer_name: customer_id
+      label: Customer Id
+      description: The customer ID
+      data_type: string
+  default_agent_user: service@example.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help with many different tasks.
+      message_type: Welcome
+    - message: Something went wrong.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: account_balance
+      label: Account Balance
+      description: Current account balance
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: order_status
+      label: Order Status
+      description: Status of the current order
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: shipping_address
+      label: Shipping Address
+      description: Shipping address on file
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: payment_method
+      label: Payment Method
+      description: Current payment method
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: refund_amount
+      label: Refund Amount
+      description: Amount to refund
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: ticket_id
+      label: Ticket Id
+      description: Support ticket ID
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: loyalty_points
+      label: Loyalty Points
+      description: Customer loyalty points
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: coupon_code
+      label: Coupon Code
+      description: Applied coupon code
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: product_list
+      label: Product List
+      description: List of products
+      data_type: object
+      is_list: true
+      visibility: Internal
+    - developer_name: notification_sent
+      label: Notification Sent
+      description: Whether notification was sent
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+      default: false
+  initial_node: main
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Route customer to appropriate service topic
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"full_service"'
+          name: go_to_service
+          description: Full service topic with many actions
+      developer_name: main
+      label: Main
+      action_definitions: []
+      instructions: You are a comprehensive service agent with many available actions.
+      after_all_tool_calls:
+        - type: handoff
+          target: full_service
+          enabled: state.AgentScriptInternal_next_topic=="full_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Full service topic with many actions
+      tools:
+        - type: action
+          target: get_account
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs: []
+          state_updates:
+            - account_balance: result.balance
+            - loyalty_points: result.loyalty
+          name: get_account
+          description: Get Account
+        - type: action
+          target: check_order
+          bound_inputs: {}
+          llm_inputs:
+            - order_id
+          state_updates:
+            - order_status: result.status
+          name: check_order
+          description: Check Order
+        - type: action
+          target: process_refund
+          bound_inputs: {}
+          llm_inputs:
+            - order_id
+            - amount
+          state_updates:
+            - ticket_id: result.refund_id
+          name: process_refund
+          description: Process Refund
+        - type: action
+          target: apply_coupon
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs:
+            - coupon_code
+          state_updates: []
+          name: apply_coupon
+          description: Apply Coupon
+        - type: action
+          target: send_notification
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs:
+            - message
+          state_updates:
+            - notification_sent: result.sent
+          name: send_notification
+          description: Send Notification
+        - type: action
+          target: create_ticket
+          bound_inputs: {}
+          llm_inputs:
+            - subject
+            - details
+          state_updates:
+            - ticket_id: result.ticket_id
+          name: create_ticket
+          description: Create Ticket
+        - type: action
+          target: list_products
+          bound_inputs: {}
+          llm_inputs:
+            - category
+          state_updates:
+            - product_list: result.products
+          name: list_products
+          description: List Products
+        - type: action
+          target: update_payment
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs:
+            - payment_type
+          state_updates: []
+          name: update_payment
+          description: Update Payment
+        - type: action
+          target: redeem_points
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs:
+            - points
+          state_updates:
+            - loyalty_points: result.remaining_points
+          name: redeem_points
+          description: Redeem Points
+        - type: action
+          target: update_address
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs:
+            - new_address
+          state_updates: []
+          name: update_address
+          description: Update Address
+        - type: action
+          target: cancel_order
+          bound_inputs: {}
+          llm_inputs:
+            - order_id
+          state_updates: []
+          name: cancel_order
+          description: Cancel Order
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: "'__human__'"
+          name: escalate_to_human
+          description: Escalate to a human agent
+      developer_name: full_service
+      label: Full Service
+      action_definitions:
+        - developer_name: get_account
+          label: Get Account
+          description: Retrieve customer account details
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Get_Account_Details
+          input_type:
+            - developer_name: customer_id
+              label: Customer ID
+              description: Customer ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: balance
+              label: Account Balance
+              description: Balance
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: loyalty
+              label: Loyalty Points
+              description: Loyalty
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: update_address
+          label: Update Address
+          description: Update shipping address
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Update_Address
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: new_address
+              label: New Address
+              description: New Address
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: success
+              label: Success
+              description: Success
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: check_order
+          label: Check Order
+          description: Check order status
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Check_Order_Status
+          input_type:
+            - developer_name: order_id
+              label: Order Id
+              description: Order Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: status
+              label: Status
+              description: Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tracking_number
+              label: Tracking Number
+              description: Tracking Number
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: process_refund
+          label: Process Refund
+          description: Process a refund
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_Refund
+          input_type:
+            - developer_name: order_id
+              label: Order Id
+              description: Order Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: amount
+              label: Amount
+              description: Amount
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: refund_id
+              label: Refund Id
+              description: Refund Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: refund_status
+              label: Refund Status
+              description: Refund Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: apply_coupon
+          label: Apply Coupon
+          description: Apply a coupon code
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Apply_Coupon
+          input_type:
+            - developer_name: coupon_code
+              label: Coupon Code
+              description: Coupon Code
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: discount
+              label: Discount
+              description: Discount
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: valid
+              label: Valid
+              description: Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: send_notification
+          label: Send Notification
+          description: Send notification to customer
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Send_Notification
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: message
+              label: Message
+              description: Message
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: sent
+              label: Sent
+              description: Sent
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: create_ticket
+          label: Create Ticket
+          description: Create support ticket
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Create_Ticket
+          input_type:
+            - developer_name: subject
+              label: Subject
+              description: Subject
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: details
+              label: Details
+              description: Details
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: ticket_id
+              label: Ticket Id
+              description: Ticket Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: list_products
+          label: List Products
+          description: List available products
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: ProductService.listProducts
+          input_type:
+            - developer_name: category
+              label: Category
+              description: Category
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: products
+              label: Products
+              description: Products
+              data_type: LightningTypes
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: false
+              complex_data_type_name: lightning__objectType
+        - developer_name: update_payment
+          label: Update Payment
+          description: Update payment method
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Update_Payment
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: payment_type
+              label: Payment Type
+              description: Payment Type
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: updated
+              label: Updated
+              description: Updated
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: redeem_points
+          label: Redeem Points
+          description: Redeem loyalty points
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Redeem_Points
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: points
+              label: Points
+              description: Points
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: remaining_points
+              label: Remaining Points
+              description: Remaining Points
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: discount_applied
+              label: Discount Applied
+              description: Discount Applied
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: cancel_order
+          label: Cancel Order
+          description: Cancel an existing order
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Cancel_Order
+          input_type:
+            - developer_name: order_id
+              label: Order Id
+              description: Order Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: cancelled
+              label: Cancelled
+              description: Cancelled
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a comprehensive service agent with many available actions.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer with their request. You have access to many
+                tools.
+
+                Use action.get_account to look up account info.
+
+                Use action.check_order to check order status.
+
+                Use action.process_refund for refunds.
+
+                Use action.apply_coupon for coupons.
+
+                Use action.create_ticket to create support tickets.
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help with many different tasks.",
+      "messageType": "Welcome"}, {"message": "Something went wrong.",
+      "messageType": "Error"}]'

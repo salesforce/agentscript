@@ -1,0 +1,282 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "v1",
+    "label": "V 1",
+    "description": "An AI assistant for in-org business tasks.",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "default_agent_user": "mood_bot_user",
+    "context_variables": []
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I'm a Salesforce Employee Bot. How are you feeling today?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "message_type": "Error"
+      }
+    ],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm a Salesforce Employee Bot. How are you feeling today?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    },
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "A1",
+    "nodes": [
+      {
+        "instructions": "You are Salesforce employee support bot. You can help employees with their questions about Salesforce",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Asks the user if they want to know about something?",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"A2\""
+              }
+            ],
+            "name": "A2",
+            "description": "If the user query is about something related to Salesforce Tower in San Francisco"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "A2",
+            "enabled": "state.AgentScriptInternal_next_topic==\"A2\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "A1",
+        "label": "A 1",
+        "action_definitions": []
+      },
+      {
+        "instructions": "You are Salesforce SF Tower expert. You can help employees with their questions about Salesforce SF Tower",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Help user with questions related to Salesforce Tower in San Francisco.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"B1\""
+              }
+            ],
+            "name": "B1",
+            "description": "If user query mentions meeting room at all"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "B1",
+            "enabled": "state.AgentScriptInternal_next_topic==\"B1\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "A2",
+        "label": "A 2",
+        "action_definitions": []
+      },
+      {
+        "instructions": "You are Meeting room expert for Salesforce SF Tower. You can help employees with their meeting room in Salesforce SF Tower",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Help user with questions related to Meeting rooms in Salesforce SF Tower.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"B2\""
+              }
+            ],
+            "name": "B2",
+            "description": "If user query mentions microkitchen at all"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "B2",
+            "enabled": "state.AgentScriptInternal_next_topic==\"B2\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "B1",
+        "label": "B 1",
+        "action_definitions": []
+      },
+      {
+        "instructions": "You are microkitchen expert for Salesforce SF Tower. You can help employees with their microkitchen in Salesforce SF Tower",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Help user with questions related to microkitchen in Salesforce SF Tower.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"C1\""
+              }
+            ],
+            "name": "C1",
+            "description": "If user query mentions microkitchen buffet and food items at all"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "C1",
+            "enabled": "state.AgentScriptInternal_next_topic==\"C1\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "B2",
+        "label": "B 2",
+        "action_definitions": []
+      },
+      {
+        "instructions": "You are buffets in microkitchen expert for Salesforce SF Tower. You can help employees with their buffets in microkitchen in Salesforce SF Tower",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Help user with questions related to buffets in microkitchen in Salesforce SF Tower.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"C2\""
+              }
+            ],
+            "name": "C2",
+            "description": "If user query mentions food items in buffet at all"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "C2",
+            "enabled": "state.AgentScriptInternal_next_topic==\"C2\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "C1",
+        "label": "C 1",
+        "action_definitions": []
+      },
+      {
+        "instructions": "You are buffets in food items in buffets happening microkitchen expert for Salesforce SF Tower. You can help employees with their buffet food item related questions",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Help user with questions related to food items in buffets happening in microkitchen in Salesforce SF Tower.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"D1\""
+              }
+            ],
+            "name": "D1",
+            "description": "If user query questions anything about the missing food items in buffet at all"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "D1",
+            "enabled": "state.AgentScriptInternal_next_topic==\"D1\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "C2",
+        "label": "C 2",
+        "action_definitions": []
+      },
+      {
+        "instructions": "Let the user know that the missing item was Butter Croissant.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "You know the answer to the Microkitchen buffet missing food item at all.",
+        "tools": [],
+        "developer_name": "D1",
+        "label": "D 1",
+        "action_definitions": []
+      }
+    ],
+    "surfaces": []
+  }
+}

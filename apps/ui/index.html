@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/ico" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentScript</title>
+    <script>
+      // Prevent FOUC by applying theme immediately from localStorage
+      // This runs before React hydrates, ensuring correct theme on first render
+      (function () {
+        try {
+          const stored = localStorage.getItem('agent-script-store');
+          if (stored) {
+            const data = JSON.parse(stored);
+            // Zustand persist stores the state directly
+            const theme = data?.state?.theme?.theme || 'system';
+
+            // Resolve system theme
+            let actualTheme = theme;
+            if (theme === 'system') {
+              actualTheme = window.matchMedia('(prefers-color-scheme: dark)')
+                .matches
+                ? 'dark'
+                : 'light';
+            }
+
+            // Apply theme class immediately
+            document.documentElement.classList.remove('light', 'dark');
+            document.documentElement.classList.add(actualTheme);
+          } else {
+            // Fallback to system preference
+            const systemTheme = window.matchMedia(
+              '(prefers-color-scheme: dark)'
+            ).matches
+              ? 'dark'
+              : 'light';
+            document.documentElement.classList.add(systemTheme);
+          }
+        } catch (e) {
+          console.error('[Inline Script] Error loading theme:', e);
+          // Fallback to system preference if localStorage fails
+          const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+            .matches
+            ? 'dark'
+            : 'light';
+          document.documentElement.classList.add(systemTheme);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,53 @@
+system:
+    instructions: "You are a helpful assistant that provides server info and quotes."
+    messages:
+        welcome: "Hello! I can provide server time, system status, and daily quotes."
+        error: "An error occurred while fetching information."
+
+config:
+    developer_name: "No_Inputs_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with actions that have outputs but no inputs"
+
+start_agent main:
+    description: "Agent with actions that have outputs but no inputs"
+
+    actions:
+        Get_Server_Time:
+            description: "Get the current server time"
+            target: "flow://Get_Server_Time"
+            outputs:
+                current_time: string
+                    label: "Current Time"
+                timezone: string
+                    label: "Timezone"
+
+        Get_System_Status:
+            description: "Get system health status"
+            target: "apex://SystemController.getStatus"
+            outputs:
+                status: string
+                    label: "System Status"
+                uptime: number
+                    label: "Uptime Hours"
+
+        Get_Daily_Quote:
+            description: "Get the quote of the day"
+            target: "externalService://QuoteService.getDailyQuote"
+            outputs:
+                quote: string
+                    label: "Quote"
+                author: string
+                    label: "Author"
+
+    reasoning:
+        instructions: ->
+            | Help the user by providing server time, system status, and daily quotes.
+              These actions require no inputs.
+
+        actions:
+            Time_Action: @actions.Get_Server_Time
+
+            Status_Action: @actions.Get_System_Status
+
+            Quote_Action: @actions.Get_Daily_Quote

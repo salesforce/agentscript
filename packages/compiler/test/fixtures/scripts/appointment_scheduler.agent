@@ -1,0 +1,869 @@
+system:
+    instructions: "You are a healthcare appointment scheduling assistant. Your role is to help patients schedule, reschedule, and cancel medical appointments while ensuring HIPAA compliance, verifying insurance eligibility, and coordinating with provider availability and medical requirements."
+    messages:
+        welcome: "Hello! I'm here to help you schedule your medical appointments. I can assist with scheduling new appointments, rescheduling existing ones, checking your upcoming visits, and verifying insurance coverage. How can I help you today?"
+        error: "I'm having trouble accessing the scheduling system right now. Please try again or call our office directly. For urgent medical needs, please contact your provider immediately or call 911."
+
+config:
+    agent_type: "AgentforceServiceAgent"
+    enable_enhanced_event_logs: True
+    developer_name: "Healthcare_Appointment_Scheduler_v1"
+    default_agent_user: "appointments@healthcare.com"
+    agent_description: "Assists patients with medical appointment scheduling, insurance verification, provider availability, and appointment management while maintaining HIPAA compliance and healthcare regulations."
+    company: "Healthcare Services"
+    role: "You are a healthcare appointment scheduling assistant that facilitates efficient appointment management while ensuring patient privacy and regulatory compliance."
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Patient identification and verification
+    patient_mrn: mutable string = ""
+        description: "Patient's Medical Record Number"
+    patient_name: mutable string = ""
+        description: "Patient's full name"
+    patient_dob: mutable string = ""
+        description: "Patient's date of birth for verification"
+    patient_phone: mutable string = ""
+        description: "Patient's contact phone number"
+    patient_email: mutable string = ""
+        description: "Patient's email address"
+    patient_verified: mutable boolean = False
+        description: "Whether patient identity has been verified"
+    patient_id: mutable string = ""
+        description: "Internal patient identifier"
+
+    # Insurance and eligibility
+    insurance_provider: mutable string = ""
+        description: "Patient's insurance provider"
+    insurance_id: mutable string = ""
+        description: "Insurance member ID"
+    insurance_verified: mutable boolean = False
+        description: "Whether insurance has been verified"
+    copay_amount: mutable number = 0
+        description: "Copay amount for the appointment"
+    prior_auth_required: mutable boolean = False
+        description: "Whether prior authorization is required"
+    prior_auth_status: mutable string = ""
+        description: "Status of prior authorization if required"
+
+    # Appointment request details
+    appointment_type: mutable string = ""
+        description: "Type of appointment requested"
+    provider_requested: mutable string = ""
+        description: "Specific provider requested"
+    department: mutable string = ""
+        description: "Medical department for the appointment"
+    urgency_level: mutable string = "routine"
+        description: "Urgency level (routine, urgent, stat)"
+    chief_complaint: mutable string = ""
+        description: "Brief description of the medical concern"
+
+    # Scheduling preferences
+    preferred_date: mutable string = ""
+        description: "Patient's preferred appointment date"
+    preferred_time: mutable string = ""
+        description: "Patient's preferred time of day"
+    flexible_scheduling: mutable boolean = True
+        description: "Whether patient has flexible scheduling preferences"
+    transportation_needs: mutable boolean = False
+        description: "Whether patient needs transportation assistance"
+
+    # Available appointment options
+    available_slots: mutable string = ""
+        description: "List of available appointment slots"
+    selected_slot: mutable string = ""
+        description: "Selected appointment slot"
+    appointment_confirmed: mutable boolean = False
+        description: "Whether appointment has been confirmed"
+
+    # Appointment details
+    appointment_id: mutable string = ""
+        description: "Unique appointment identifier"
+    appointment_date: mutable string = ""
+        description: "Scheduled appointment date"
+    appointment_time: mutable string = ""
+        description: "Scheduled appointment time"
+    provider_name: mutable string = ""
+        description: "Assigned healthcare provider"
+    location: mutable string = ""
+        description: "Appointment location/facility"
+    estimated_duration: mutable number = 30
+        description: "Estimated appointment duration in minutes"
+
+    # Preparation and requirements
+    prep_instructions: mutable string = ""
+        description: "Pre-appointment preparation instructions"
+    forms_required: mutable string = ""
+        description: "Required forms to complete before appointment"
+    lab_work_needed: mutable boolean = False
+        description: "Whether lab work is needed before appointment"
+
+    # Follow-up and reminders
+    reminder_preferences: mutable string = ""
+        description: "Patient's reminder preferences"
+    followup_needed: mutable boolean = False
+        description: "Whether follow-up appointment is needed"
+    additional_needs: mutable string = ""
+        description: "Additional patient needs or requirements"
+
+start_agent patient_verification:
+    description: "Verifies patient identity and retrieves medical record information"
+
+    actions:
+        Verify_Patient_Identity:
+            description: "Verifies patient identity using MRN, DOB, and personal information"
+            label: "Verify Patient Identity"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                patient_mrn: string
+                    label: "Medical Record Number"
+                    description: "Patient's MRN for identification"
+                    is_required: False
+                patient_name: string
+                    label: "Patient Name"
+                    description: "Patient's full legal name"
+                    is_required: True
+                date_of_birth: string
+                    label: "Date of Birth"
+                    description: "Patient's date of birth (MM/DD/YYYY)"
+                    is_required: True
+                phone_number: string
+                    label: "Phone Number"
+                    description: "Patient's contact phone number"
+                    is_required: True
+            outputs:
+                patient_found: boolean
+                    label: "Patient Found"
+                    is_displayable: True
+                patient_id: string
+                    label: "Patient ID"
+                    is_displayable: False
+                medical_record_active: boolean
+                    label: "Medical Record Active"
+                    is_displayable: False
+                hipaa_verified: boolean
+                    label: "HIPAA Verified"
+                    is_displayable: False
+            target: "flow://VerifyPatientIdentity"
+
+        Check_Insurance_Coverage:
+            description: "Verifies patient insurance coverage and benefits"
+            label: "Check Insurance Coverage"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                patient_id: string
+                    label: "Patient ID"
+                    description: "Patient identifier"
+                    is_required: True
+                insurance_id: string
+                    label: "Insurance ID"
+                    description: "Insurance member ID"
+                    is_required: True
+                service_type: string
+                    label: "Service Type"
+                    description: "Type of medical service"
+                    is_required: True
+            outputs:
+                coverage_verified: boolean
+                    label: "Coverage Verified"
+                    is_displayable: True
+                copay_amount: number
+                    label: "Copay Amount"
+                    is_displayable: True
+                prior_auth_required: boolean
+                    label: "Prior Auth Required"
+                    is_displayable: True
+                deductible_remaining: number
+                    label: "Deductible Remaining"
+                    is_displayable: True
+            target: "flow://CheckInsuranceCoverage"
+
+    before_reasoning:
+        if @variables.patient_verified == False:
+            set @variables.urgency_level = "routine"
+            set @variables.patient_verified = False
+            set @variables.copay_amount = 0
+
+    reasoning:
+        instructions: ->
+            |   Welcome! I'm here to help you schedule your medical appointment.
+
+                To get started, I need to verify your identity for HIPAA compliance and to access your medical records.
+
+                **Required Information:**
+                1. Your full legal name
+                2. Date of birth (MM/DD/YYYY)
+                3. Medical Record Number (if you have it)
+                4. Phone number on file
+
+                **Alternative Verification:**
+                If you don't have your MRN, I can look you up using your name, date of birth, and phone number.
+
+                Please provide your information so I can securely access your records and help with scheduling.
+        actions:
+            verify_patient: @actions.Verify_Patient_Identity
+                with patient_mrn=@variables.patient_mrn
+                with patient_name=@variables.patient_name
+                with date_of_birth=@variables.patient_dob
+                with phone_number=@variables.patient_phone
+                set @variables.patient_verified = @outputs.patient_found
+                set @variables.patient_id = @outputs.patient_id
+
+            verify_insurance: @actions.Check_Insurance_Coverage
+                with patient_id=@variables.patient_id
+                with insurance_id=@variables.insurance_id
+                with service_type=@variables.appointment_type
+                set @variables.insurance_verified = @outputs.coverage_verified
+                set @variables.copay_amount = @outputs.copay_amount
+                set @variables.prior_auth_required = @outputs.prior_auth_required
+
+            capture_patient_info: @utils.setVariables
+                with patient_name=...
+                with patient_dob=...
+                with patient_mrn=...
+                with patient_phone=...
+
+            select_appointment: @utils.transition to @topic.appointment_type_selection
+
+    after_reasoning:
+        if @variables.patient_name != "" and @variables.patient_dob != "":
+            run @actions.Verify_Patient_Identity
+                with patient_mrn=@variables.patient_mrn
+                with patient_name=@variables.patient_name
+                with date_of_birth=@variables.patient_dob
+                with phone_number=@variables.patient_phone
+                set @variables.patient_verified = @outputs.patient_found
+                set @variables.patient_id = @outputs.patient_id
+
+            run @actions.Check_Insurance_Coverage
+                with patient_id=@variables.patient_id
+                with insurance_id=@variables.insurance_id
+                with service_type=@variables.appointment_type
+                set @variables.insurance_verified = @outputs.coverage_verified
+                set @variables.copay_amount = @outputs.copay_amount
+                set @variables.prior_auth_required = @outputs.prior_auth_required
+
+        if @variables.patient_verified:
+            transition to @topic.appointment_type_selection
+
+topic appointment_type_selection:
+    description: "Determines the type of appointment and medical requirements"
+
+    actions:
+        Assess_Medical_Urgency:
+            description: "Evaluates medical urgency and determines appointment priority"
+            label: "Assess Medical Urgency"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                chief_complaint: string
+                    label: "Chief Complaint"
+                    description: "Patient's primary medical concern"
+                    is_required: True
+                appointment_type: string
+                    label: "Appointment Type"
+                    description: "Type of medical appointment"
+                    is_required: True
+                patient_history: string
+                    label: "Patient History"
+                    description: "Relevant medical history"
+                    is_required: False
+            outputs:
+                urgency_level: string
+                    label: "Urgency Level"
+                    is_displayable: True
+                recommended_timeframe: string
+                    label: "Recommended Timeframe"
+                    is_displayable: True
+                department_recommendation: string
+                    label: "Department Recommendation"
+                    is_displayable: True
+                prep_requirements: string
+                    label: "Prep Requirements"
+                    is_displayable: True
+            target: "flow://AssessMedicalUrgency"
+
+        Check_Prior_Authorization:
+            description: "Checks if prior authorization is required for specialist visits"
+            label: "Check Prior Authorization"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                appointment_type: string
+                    label: "Appointment Type"
+                    description: "Type of medical service"
+                    is_required: True
+                insurance_id: string
+                    label: "Insurance ID"
+                    description: "Patient's insurance identifier"
+                    is_required: True
+                provider_npi: string
+                    label: "Provider NPI"
+                    description: "National Provider Identifier"
+                    is_required: True
+            outputs:
+                auth_required: boolean
+                    label: "Authorization Required"
+                    is_displayable: True
+                auth_status: string
+                    label: "Authorization Status"
+                    is_displayable: True
+                estimated_approval_time: string
+                    label: "Estimated Approval Time"
+                    is_displayable: True
+            target: "flow://CheckPriorAuthorization"
+
+    before_reasoning:
+        if @variables.appointment_type == "":
+            set @variables.urgency_level = "routine"
+            set @variables.prior_auth_required = False
+
+    reasoning:
+        instructions: ->
+            |   Great! I've verified your identity and insurance information.
+
+                **Your Insurance:** {! @variables.insurance_provider }
+                **Coverage Status:** Active
+
+                **What type of appointment do you need?**
+
+                Please tell me:
+                1. What type of appointment you're looking for
+                2. Is there a specific provider you'd like to see?
+                3. What's the reason for your visit? (This helps me determine urgency and preparation requirements)
+
+                **Common Appointment Types:**
+                - Annual Physical/Wellness Visit
+                - Follow-up Visit
+                - New Patient Consultation
+                - Specialist Referral
+                - Urgent Care
+                - Preventive Screening
+        actions:
+            assess_urgency: @actions.Assess_Medical_Urgency
+                with chief_complaint=@variables.chief_complaint
+                with appointment_type=@variables.appointment_type
+                with patient_history=""
+                set @variables.urgency_level = @outputs.urgency_level
+                set @variables.department = @outputs.department_recommendation
+
+            check_auth: @actions.Check_Prior_Authorization
+                with appointment_type=@variables.appointment_type
+                with insurance_id=@variables.insurance_id
+                with provider_npi="NPI123456"
+                set @variables.prior_auth_required = @outputs.auth_required
+                set @variables.prior_auth_status = @outputs.auth_status
+
+            capture_appointment_details: @utils.setVariables
+                with appointment_type=...
+                with provider_requested=...
+                with department=...
+                with chief_complaint=...
+
+            check_availability: @utils.transition to @topic.provider_availability
+
+    after_reasoning:
+        if @variables.appointment_type != "" and @variables.chief_complaint != "":
+            run @actions.Assess_Medical_Urgency
+                with chief_complaint=@variables.chief_complaint
+                with appointment_type=@variables.appointment_type
+                with patient_history=""
+                set @variables.urgency_level = @outputs.urgency_level
+                set @variables.department = @outputs.department_recommendation
+
+            run @actions.Check_Prior_Authorization
+                with appointment_type=@variables.appointment_type
+                with insurance_id=@variables.insurance_id
+                with provider_npi="NPI123456"
+                set @variables.prior_auth_required = @outputs.auth_required
+                set @variables.prior_auth_status = @outputs.auth_status
+
+        if @variables.urgency_level == "urgent":
+            set @variables.estimated_duration = 15
+        if @variables.urgency_level == "routine":
+            set @variables.estimated_duration = 30
+        if @variables.urgency_level == "stat":
+            set @variables.estimated_duration = 45
+
+        if @variables.appointment_type != "":
+            transition to @topic.provider_availability
+
+
+topic provider_availability:
+    description: "Finds available appointment slots based on preferences and provider availability"
+
+    actions:
+        Search_Provider_Availability:
+            description: "Searches for available appointment slots with requested providers"
+            label: "Search Provider Availability"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                provider_requested: string
+                    label: "Requested Provider"
+                    description: "Specific provider requested by patient"
+                    is_required: False
+                department: string
+                    label: "Department"
+                    description: "Medical department"
+                    is_required: True
+                appointment_type: string
+                    label: "Appointment Type"
+                    description: "Type of appointment"
+                    is_required: True
+                preferred_date: string
+                    label: "Preferred Date"
+                    description: "Patient's preferred date"
+                    is_required: False
+                urgency_level: string
+                    label: "Urgency Level"
+                    description: "Medical urgency level"
+                    is_required: True
+            outputs:
+                available_providers: string
+                    label: "Available Providers"
+                    is_displayable: True
+                available_slots: string
+                    label: "Available Slots"
+                    is_displayable: True
+                earliest_available: string
+                    label: "Earliest Available"
+                    is_displayable: True
+                wait_time_estimate: string
+                    label: "Wait Time Estimate"
+                    is_displayable: True
+            target: "flow://SearchProviderAvailability"
+
+        Calculate_Appointment_Duration:
+            description: "Calculates appointment duration based on type and complexity"
+            label: "Calculate Duration"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                appointment_type: string
+                    label: "Appointment Type"
+                    description: "Type of medical appointment"
+                    is_required: True
+                urgency_level: string
+                    label: "Urgency Level"
+                    description: "Medical urgency classification"
+                    is_required: True
+                chief_complaint: string
+                    label: "Chief Complaint"
+                    description: "Patient's medical concern"
+                    is_required: True
+            outputs:
+                estimated_duration: number
+                    label: "Estimated Duration"
+                    is_displayable: True
+                buffer_time: number
+                    label: "Buffer Time"
+                    is_displayable: False
+                room_requirements: string
+                    label: "Room Requirements"
+                    is_displayable: False
+            target: "flow://CalculateAppointmentDuration"
+
+    before_reasoning:
+        if @variables.urgency_level == "urgent":
+            set @variables.estimated_duration = 15
+        if @variables.urgency_level == "routine":
+            set @variables.estimated_duration = 30
+
+    reasoning:
+        instructions: ->
+            |   Let me check availability for your {! @variables.appointment_type } appointment.
+
+                **Your Preferences:**
+                - Requested Provider: {! @variables.provider_requested }
+                - Preferred Date: {! @variables.preferred_date }
+                - Urgency Level: {! @variables.urgency_level }
+
+                **Scheduling Parameters:**
+                Do you have any specific scheduling preferences?
+                1. Preferred days of the week?
+                2. Morning, afternoon, or evening preference?
+                3. How flexible are you with dates?
+                4. Any dates to avoid?
+        actions:
+            search_availability: @actions.Search_Provider_Availability
+                with provider_requested=@variables.provider_requested
+                with department=@variables.department
+                with appointment_type=@variables.appointment_type
+                with preferred_date=@variables.preferred_date
+                with urgency_level=@variables.urgency_level
+                set @variables.available_slots = @outputs.available_slots
+                set @variables.provider_name = @outputs.available_providers
+
+            calc_duration: @actions.Calculate_Appointment_Duration
+                with appointment_type=@variables.appointment_type
+                with urgency_level=@variables.urgency_level
+                with chief_complaint=@variables.chief_complaint
+                set @variables.estimated_duration = @outputs.estimated_duration
+
+            capture_preferences: @utils.setVariables
+                with preferred_date=...
+                with preferred_time=...
+                with flexible_scheduling=...
+
+            show_slots: @utils.transition to @topic.appointment_selection
+
+    after_reasoning:
+        if @variables.department != "" and @variables.appointment_type != "":
+            run @actions.Search_Provider_Availability
+                with provider_requested=@variables.provider_requested
+                with department=@variables.department
+                with appointment_type=@variables.appointment_type
+                with preferred_date=@variables.preferred_date
+                with urgency_level=@variables.urgency_level
+                set @variables.available_slots = @outputs.available_slots
+                set @variables.provider_name = @outputs.available_providers
+
+            run @actions.Calculate_Appointment_Duration
+                with appointment_type=@variables.appointment_type
+                with urgency_level=@variables.urgency_level
+                with chief_complaint=@variables.chief_complaint
+                set @variables.estimated_duration = @outputs.estimated_duration
+
+        if @variables.available_slots != "":
+            set @variables.appointment_date = @variables.preferred_date
+            set @variables.appointment_time = @variables.preferred_time
+            transition to @topic.appointment_selection
+
+topic appointment_selection:
+    description: "Presents available appointment options and facilitates selection"
+
+    actions:
+        Book_Appointment_Slot:
+            description: "Books the selected appointment slot and creates confirmation"
+            label: "Book Appointment"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                patient_id: string
+                    label: "Patient ID"
+                    description: "Patient identifier"
+                    is_required: True
+                provider_id: string
+                    label: "Provider ID"
+                    description: "Selected provider identifier"
+                    is_required: True
+                appointment_date: string
+                    label: "Appointment Date"
+                    description: "Selected appointment date"
+                    is_required: True
+                appointment_time: string
+                    label: "Appointment Time"
+                    description: "Selected appointment time"
+                    is_required: True
+                appointment_type: string
+                    label: "Appointment Type"
+                    description: "Type of appointment"
+                    is_required: True
+                duration: number
+                    label: "Duration"
+                    description: "Appointment duration in minutes"
+                    is_required: True
+            outputs:
+                appointment_id: string
+                    label: "Appointment ID"
+                    is_displayable: True
+                confirmation_number: string
+                    label: "Confirmation Number"
+                    is_displayable: True
+                booking_successful: boolean
+                    label: "Booking Successful"
+                    is_displayable: False
+                location_details: string
+                    label: "Location Details"
+                    is_displayable: True
+            target: "flow://BookAppointmentSlot"
+
+        Generate_Prep_Instructions:
+            description: "Generates pre-appointment preparation instructions"
+            label: "Generate Instructions"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                appointment_type: string
+                    label: "Appointment Type"
+                    description: "Type of medical appointment"
+                    is_required: True
+                provider_specialty: string
+                    label: "Provider Specialty"
+                    description: "Medical specialty"
+                    is_required: True
+                chief_complaint: string
+                    label: "Chief Complaint"
+                    description: "Patient's medical concern"
+                    is_required: True
+            outputs:
+                prep_instructions: string
+                    label: "Prep Instructions"
+                    is_displayable: True
+                forms_required: string
+                    label: "Required Forms"
+                    is_displayable: True
+                lab_work_needed: boolean
+                    label: "Lab Work Needed"
+                    is_displayable: True
+                special_requirements: string
+                    label: "Special Requirements"
+                    is_displayable: True
+            target: "flow://GeneratePrepInstructions"
+
+    before_reasoning:
+        if @variables.appointment_date != "" and @variables.appointment_time != "":
+            set @variables.appointment_id = "APT-" + @variables.appointment_type + "-001"
+            set @variables.location = "Main Healthcare Center"
+
+    reasoning:
+        instructions: ->
+            |   Here are the available appointment options for your {! @variables.appointment_type }:
+
+                **Available Appointments:**
+                - Date: {! @variables.appointment_date }
+                - Time: {! @variables.appointment_time }
+                - Provider: {! @variables.provider_name }
+                - Location: {! @variables.location }
+                - Duration: {! @variables.estimated_duration } minutes
+
+                Please select your preferred appointment from the available options.
+
+                Which appointment would you like to schedule?
+        actions:
+            book_slot: @actions.Book_Appointment_Slot
+                with patient_id=@variables.patient_id
+                with provider_id="PROV-001"
+                with appointment_date=@variables.appointment_date
+                with appointment_time=@variables.appointment_time
+                with appointment_type=@variables.appointment_type
+                with duration=@variables.estimated_duration
+                set @variables.appointment_id = @outputs.appointment_id
+                set @variables.appointment_confirmed = @outputs.booking_successful
+                set @variables.location = @outputs.location_details
+
+            create_instructions: @actions.Generate_Prep_Instructions
+                with appointment_type=@variables.appointment_type
+                with provider_specialty=@variables.department
+                with chief_complaint=@variables.chief_complaint
+                set @variables.prep_instructions = @outputs.prep_instructions
+                set @variables.forms_required = @outputs.forms_required
+                set @variables.lab_work_needed = @outputs.lab_work_needed
+
+            select_appointment: @utils.setVariables
+                with selected_slot=...
+
+            confirm_appointment: @utils.transition to @topic.appointment_confirmation
+
+    after_reasoning:
+        if @variables.appointment_date != "" and @variables.appointment_time != "":
+            run @actions.Book_Appointment_Slot
+                with patient_id=@variables.patient_id
+                with provider_id="PROV-001"
+                with appointment_date=@variables.appointment_date
+                with appointment_time=@variables.appointment_time
+                with appointment_type=@variables.appointment_type
+                with duration=@variables.estimated_duration
+                set @variables.appointment_id = @outputs.appointment_id
+                set @variables.appointment_confirmed = @outputs.booking_successful
+                set @variables.location = @outputs.location_details
+
+            run @actions.Generate_Prep_Instructions
+                with appointment_type=@variables.appointment_type
+                with provider_specialty=@variables.department
+                with chief_complaint=@variables.chief_complaint
+                set @variables.prep_instructions = @outputs.prep_instructions
+                set @variables.forms_required = @outputs.forms_required
+                set @variables.lab_work_needed = @outputs.lab_work_needed
+
+        if @variables.appointment_confirmed:
+            transition to @topic.appointment_confirmation
+
+topic appointment_confirmation:
+    description: "Confirms appointment details and completes booking"
+
+    actions:
+        Send_Appointment_Confirmation:
+            description: "Sends appointment confirmation to patient via preferred method"
+            label: "Send Confirmation"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                patient_id: string
+                    label: "Patient ID"
+                    description: "Patient identifier"
+                    is_required: True
+                appointment_id: string
+                    label: "Appointment ID"
+                    description: "Appointment identifier"
+                    is_required: True
+                patient_email: string
+                    label: "Patient Email"
+                    description: "Patient's email address"
+                    is_required: True
+                reminder_preferences: string
+                    label: "Reminder Preferences"
+                    description: "Patient's preferred reminder method"
+                    is_required: True
+            outputs:
+                confirmation_sent: boolean
+                    label: "Confirmation Sent"
+                    is_displayable: True
+                delivery_method: string
+                    label: "Delivery Method"
+                    is_displayable: True
+                calendar_invite_sent: boolean
+                    label: "Calendar Invite Sent"
+                    is_displayable: True
+                confirmation_number: string
+                    label: "Confirmation Number"
+                    is_displayable: True
+            target: "flow://SendAppointmentConfirmation"
+
+        Setup_Appointment_Reminders:
+            description: "Sets up automatic appointment reminders based on patient preferences"
+            label: "Setup Reminders"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                appointment_id: string
+                    label: "Appointment ID"
+                    description: "Appointment to set reminders for"
+                    is_required: True
+                patient_contact: string
+                    label: "Patient Contact"
+                    description: "Patient contact information"
+                    is_required: True
+                reminder_type: string
+                    label: "Reminder Type"
+                    description: "Type of reminder (email, sms, call)"
+                    is_required: True
+                appointment_date: string
+                    label: "Appointment Date"
+                    description: "Date of appointment"
+                    is_required: True
+            outputs:
+                reminders_scheduled: boolean
+                    label: "Reminders Scheduled"
+                    is_displayable: True
+                reminder_timeline: string
+                    label: "Reminder Timeline"
+                    is_displayable: True
+                backup_contact_method: string
+                    label: "Backup Contact Method"
+                    is_displayable: False
+            target: "flow://SetupAppointmentReminders"
+
+    before_reasoning:
+        if @variables.appointment_confirmed == True:
+            set @variables.forms_required = "Medical History Form, Insurance Verification"
+            set @variables.prep_instructions = "Arrive 15 minutes early, Bring insurance card"
+
+    reasoning:
+        instructions: ->
+            |   Perfect! Let me confirm your appointment details:
+
+                **Appointment Summary:**
+                - **Type:** {! @variables.appointment_type }
+                - **Date:** {! @variables.appointment_date }
+                - **Time:** {! @variables.appointment_time }
+                - **Provider:** {! @variables.provider_name }
+                - **Location:** {! @variables.location }
+                - **Duration:** {! @variables.estimated_duration } minutes
+
+                **Financial Information:**
+                - **Copay:** ${! @variables.copay_amount }
+                - **Insurance:** {! @variables.insurance_provider }
+
+                **Reminder Preferences:**
+                How would you like to receive appointment reminders?
+                - Email reminder
+                - Text message reminder
+                - Phone call reminder
+                - No reminders
+
+                Please confirm that all details are correct, and I'll finalize your appointment.
+        actions:
+            send_confirmation: @actions.Send_Appointment_Confirmation
+                with patient_id=@variables.patient_id
+                with appointment_id=@variables.appointment_id
+                with patient_email=@variables.patient_email
+                with reminder_preferences=@variables.reminder_preferences
+
+            setup_reminders: @actions.Setup_Appointment_Reminders
+                with appointment_id=@variables.appointment_id
+                with patient_contact=@variables.patient_email
+                with reminder_type=@variables.reminder_preferences
+                with appointment_date=@variables.appointment_date
+
+            set_reminders: @utils.setVariables
+                with reminder_preferences=...
+
+            provide_instructions: @utils.transition to @topic.pre_visit_instructions
+
+    after_reasoning:
+        if @variables.appointment_confirmed == True and @variables.patient_email != "":
+            run @actions.Send_Appointment_Confirmation
+                with patient_id=@variables.patient_id
+                with appointment_id=@variables.appointment_id
+                with patient_email=@variables.patient_email
+                with reminder_preferences=@variables.reminder_preferences
+
+            run @actions.Setup_Appointment_Reminders
+                with appointment_id=@variables.appointment_id
+                with patient_contact=@variables.patient_email
+                with reminder_type=@variables.reminder_preferences
+                with appointment_date=@variables.appointment_date
+
+        if @variables.appointment_confirmed:
+            transition to @topic.pre_visit_instructions
+
+topic pre_visit_instructions:
+    description: "Provides pre-visit instructions and preparation requirements"
+
+    reasoning:
+        instructions: ->
+            |   **Appointment Successfully Scheduled!**
+
+                **Confirmation Details:**
+                - **Appointment ID:** {! @variables.appointment_id }
+                - **Date & Time:** {! @variables.appointment_date } at {! @variables.appointment_time }
+                - **Provider:** {! @variables.provider_name }
+                - **Location:** {! @variables.location }
+
+                **Pre-Visit Preparation:**
+                {! @variables.prep_instructions }
+
+                **Forms to Complete:**
+                {! @variables.forms_required }
+                *Please complete these forms before your appointment to save time during check-in.*
+
+                **Important Reminders:**
+                - Arrive 15 minutes early for check-in
+                - Bring a valid ID and insurance card
+                - Bring current medication list
+                - Copay: ${! @variables.copay_amount } (due at time of service)
+
+                **Cancellation Policy:**
+                - Please provide at least 24 hours notice for cancellations
+                - Late cancellations may result in fees
+
+                **Contact Information:**
+                - To reschedule: Call (555) 123-4567
+                - For questions: Use patient portal or call office
+                - For urgent matters: Contact provider directly
+
+                Is there anything else I can help you with regarding your appointment?
+        actions:
+            final_questions: @utils.setVariables
+                description: "Capture additional patient needs"
+                with additional_needs=...
+                with transportation_needs=...
+
+            help_another: @utils.transition to @topic.patient_verification
+                description: "Help another patient"

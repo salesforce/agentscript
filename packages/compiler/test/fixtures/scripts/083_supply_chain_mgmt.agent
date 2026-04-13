@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional supply chain management agent assistant.
+        Help users manage their shipment requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: order_planning -> supplier_coordination -> transit_tracking -> receiving.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Supply Chain Management Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "supply_chain_mgmt_agent_v83"
+    default_agent_user: "supply_chain_mgmt@example.com"
+    agent_description: "Assists users with shipment management through the supply chain management agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    shipment_record_id: mutable string
+        description: "Record ID of the shipment"
+    shipment_status: mutable string = ""
+        description: "Current status of the shipment"
+    shipment_tier: mutable string = "standard"
+        description: "Tier classification for the shipment"
+    shipment_category: mutable string = ""
+        description: "Category of the shipment"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    order_planning_complete: mutable boolean = False
+        description: "Whether the order_planning stage is complete"
+    order_planning_result: mutable string = ""
+        description: "Result from the order_planning stage"
+    supplier_coordination_complete: mutable boolean = False
+        description: "Whether the supplier_coordination stage is complete"
+    supplier_coordination_result: mutable string = ""
+        description: "Result from the supplier_coordination stage"
+    transit_tracking_complete: mutable boolean = False
+        description: "Whether the transit_tracking stage is complete"
+    transit_tracking_result: mutable string = ""
+        description: "Result from the transit_tracking stage"
+    receiving_complete: mutable boolean = False
+        description: "Whether the receiving stage is complete"
+    receiving_result: mutable string = ""
+        description: "Result from the receiving stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate shipment management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a supply chain management agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current shipment status: {! @variables.shipment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_order_planning} for order planning requests.
+              Use {!@actions.go_to_supplier_coordination} for supplier coordination requests.
+              Use {!@actions.go_to_transit_tracking} for transit tracking requests.
+              Use {!@actions.go_to_receiving} for receiving requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_order_planning: @utils.transition to @topic.order_planning
+                description: "Transition to order planning topic."
+            go_to_supplier_coordination: @utils.transition to @topic.supplier_coordination
+                description: "Transition to supplier coordination topic."
+                available when @variables.is_verified == True
+            go_to_transit_tracking: @utils.transition to @topic.transit_tracking
+                description: "Transition to transit tracking topic."
+                available when @variables.is_verified == True
+            go_to_receiving: @utils.transition to @topic.receiving
+                description: "Transition to receiving topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic order_planning:
+    description: "Handles the order planning stage of the shipment process"
+
+    actions:
+        process_order_planning_data:
+            description: "Process order planning stage data for the shipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_OrderPlanning"
+
+        validate_order_planning_info:
+            description: "Validate order planning information for the shipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_OrderPlanning_Info"
+
+        fetch_order_planning_details:
+            description: "Fetch order planning details for the shipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_OrderPlanning_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_order_planning_info
+                with record_ref=@variables.shipment_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.shipment_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the order planning stage for the shipment.
+              Current shipment status: {! @variables.shipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Order Planning result: {! @variables.order_planning_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.shipment_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_order_planning} to begin processing.
+        actions:
+            run_order_planning: @actions.process_order_planning_data
+                with record_ref=@variables.shipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.shipment_category
+                set @variables.order_planning_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.order_planning_complete = @outputs.is_passed
+            fetch_order_planning_info: @actions.fetch_order_planning_details
+                with record_ref=@variables.shipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.shipment_tier = @outputs.tier_value
+            go_to_supplier_coordination: @utils.transition to @topic.supplier_coordination
+                description: "Move to supplier coordination stage."
+                available when @variables.order_planning_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.shipment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.shipment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.shipment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.order_planning_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic supplier_coordination:
+    description: "Handles the supplier coordination stage of the shipment process"
+
+    actions:
+        process_supplier_coordination_data:
+            description: "Process supplier coordination stage data for the shipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_SupplierCoordination"
+
+        validate_supplier_coordination_info:
+            description: "Validate supplier coordination information for the shipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SupplierCoordination_Info"
+
+        fetch_supplier_coordination_details:
+            description: "Fetch supplier coordination details for the shipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SupplierCoordination_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.order_planning_complete == False:
+            transition to @topic.order_planning
+
+    reasoning:
+        instructions: ->
+            | Handle the supplier coordination stage for the shipment.
+              Current shipment status: {! @variables.shipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Supplier Coordination result: {! @variables.supplier_coordination_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.shipment_tier }
+              Review the supplier coordination results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_supplier_coordination: @actions.process_supplier_coordination_data
+                with record_ref=@variables.shipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.shipment_category
+                set @variables.supplier_coordination_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.supplier_coordination_complete = @outputs.is_passed
+            fetch_supplier_coordination_info: @actions.fetch_supplier_coordination_details
+                with record_ref=@variables.shipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.shipment_tier = @outputs.tier_value
+                available when @variables.shipment_record_id is not None
+            go_to_transit_tracking: @utils.transition to @topic.transit_tracking
+                description: "Move to transit tracking stage."
+                available when @variables.supplier_coordination_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.supplier_coordination_complete == True:
+            set @variables.shipment_status = "supplier_coordination_done"
+        if @variables.supplier_coordination_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.transit_tracking
+        if @variables.attempt_count >= 3 and @variables.supplier_coordination_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic transit_tracking:
+    description: "Handles the transit tracking stage of the shipment process"
+
+    actions:
+        process_transit_tracking_data:
+            description: "Process transit tracking stage data for the shipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_TransitTracking_Data"
+
+        validate_transit_tracking_info:
+            description: "Validate transit tracking information for the shipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_TransitTracking_Info"
+
+        fetch_transit_tracking_details:
+            description: "Fetch transit tracking details for the shipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_TransitTracking_Details"
+
+    before_reasoning:
+        if @variables.transit_tracking_complete == False:
+            run @actions.fetch_transit_tracking_details
+                with record_ref=@variables.shipment_record_id
+                with include_history=True
+                set @variables.transit_tracking_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.shipment_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.shipment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.shipment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the transit tracking stage for the shipment.
+              Current shipment status: {! @variables.shipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Transit Tracking result: {! @variables.transit_tracking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.shipment_tier }
+              Review the transit tracking results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_transit_tracking: @actions.process_transit_tracking_data
+                with record_ref=@variables.shipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.shipment_category
+                set @variables.transit_tracking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.transit_tracking_complete = @outputs.is_passed
+            fetch_transit_tracking_info: @actions.fetch_transit_tracking_details
+                with record_ref=@variables.shipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.shipment_tier = @outputs.tier_value
+                available when @variables.shipment_record_id is not None
+            go_to_receiving: @utils.transition to @topic.receiving
+                description: "Move to receiving stage."
+                available when @variables.transit_tracking_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.shipment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.shipment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.shipment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.transit_tracking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic receiving:
+    description: "Handles the receiving stage of the shipment process"
+
+    actions:
+        process_receiving_data:
+            description: "Process receiving stage data for the shipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Receiving"
+
+        validate_receiving_info:
+            description: "Validate receiving information for the shipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Receiving_Info"
+
+        fetch_receiving_details:
+            description: "Fetch receiving details for the shipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Receiving_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.transit_tracking_complete == False:
+            transition to @topic.transit_tracking
+        if @variables.eligibility_score >= 80:
+            set @variables.shipment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.shipment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the receiving stage for the shipment.
+              Current shipment status: {! @variables.shipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Receiving result: {! @variables.receiving_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.shipment_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_receiving: @actions.process_receiving_data
+                with record_ref=@variables.shipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.shipment_category
+                set @variables.receiving_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.receiving_complete = @outputs.is_passed
+            fetch_receiving_info: @actions.fetch_receiving_details
+                with record_ref=@variables.shipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.shipment_tier = @outputs.tier_value
+                available when @variables.shipment_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.receiving_complete == True:
+            set @variables.shipment_status = "receiving_done"
+        if @variables.attempt_count >= 3 and @variables.receiving_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for shipment issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the shipment issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the shipment interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the shipment request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Shipment status: {! @variables.shipment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.shipment_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.shipment_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.shipment_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.shipment_status = "escalated"
+        set @variables.escalation_requested = False
+

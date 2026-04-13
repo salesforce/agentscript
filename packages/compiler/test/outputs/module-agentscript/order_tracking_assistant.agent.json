@@ -1,0 +1,1296 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Order_Tracking_Assistant_v1",
+    "label": "Order Tracking Assistant V 1",
+    "description": "Assists customers with order tracking, delivery updates, shipping issues, returns processing, and provides comprehensive order management support.",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "defaultagentuser@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I'm here to help you track your orders, check delivery status, and assist with any shipping or return questions. Please provide your order number or email address to get started.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I'm having trouble accessing the order system right now. Please try again in a moment or contact customer service directly.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_email",
+        "label": "Customer Email",
+        "description": "Customer's email address",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "customer_verified",
+        "label": "Customer Verified",
+        "description": "Whether customer identity has been verified",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer's name from lookup",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "customer_id",
+        "label": "Customer Id",
+        "description": "Internal customer ID",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "order_number",
+        "label": "Order Number",
+        "description": "Order number provided by customer",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "order_found",
+        "label": "Order Found",
+        "description": "Whether order was successfully found",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "order_status",
+        "label": "Order Status",
+        "description": "Current order status",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "order_total",
+        "label": "Order Total",
+        "description": "Order total amount",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "tracking_number",
+        "label": "Tracking Number",
+        "description": "Shipping tracking number",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "delivery_date",
+        "label": "Delivery Date",
+        "description": "Expected delivery date",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "shipping_address",
+        "label": "Shipping Address",
+        "description": "Shipping address",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "issue_type",
+        "label": "Issue Type",
+        "description": "Type of shipping issue reported",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "return_eligible",
+        "label": "Return Eligible",
+        "description": "Whether order is eligible for return",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "case_number",
+        "label": "Case Number",
+        "description": "Support case number for issues",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      }
+    ],
+    "initial_node": "order_locator",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Locates and validates customer order information by order number or email address",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Customer_Info",
+            "bound_inputs": {
+              "email": "state.customer_email"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "customer_verified": "result.customer_found"
+              },
+              {
+                "customer_name": "result.customer_name"
+              },
+              {
+                "customer_id": "result.customer_id"
+              }
+            ],
+            "name": "lookup_customer",
+            "description": "Lookup Customer"
+          },
+          {
+            "type": "action",
+            "target": "Find_Order_By_Number",
+            "bound_inputs": {
+              "order_number": "state.order_number",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "order_found": "result.order_found"
+              }
+            ],
+            "name": "find_order",
+            "description": "Find Order"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "order_number": "state.order_number"
+              },
+              {
+                "customer_email": "state.customer_email"
+              }
+            ],
+            "name": "capture_order_info",
+            "description": "Capture order search information from customer",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_details\""
+              }
+            ],
+            "name": "show_order_details",
+            "description": "Show detailed order information"
+          }
+        ],
+        "developer_name": "order_locator",
+        "label": "Order Locator",
+        "action_definitions": [
+          {
+            "developer_name": "Get_Customer_Info",
+            "label": "Get Customer Info",
+            "description": "Retrieves customer information using email address",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GetCustomerInfo",
+            "input_type": [
+              {
+                "developer_name": "email",
+                "label": "Email Address",
+                "description": "Customer's email address",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "customer_found",
+                "label": "Customer Found",
+                "description": "Customer Found",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "customer_name",
+                "label": "Customer Name",
+                "description": "Customer Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "verified",
+                "label": "Customer Verified",
+                "description": "Verified",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Find_Order_By_Number",
+            "label": "Find Order",
+            "description": "Locates order using order number",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "FindOrderByNumber",
+            "input_type": [
+              {
+                "developer_name": "order_number",
+                "label": "Order Number",
+                "description": "Customer's order number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier for validation",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "order_found",
+                "label": "Order Found",
+                "description": "Order Found",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "order_data",
+                "label": "Order Data",
+                "description": "Order Data",
+                "data_type": "LightningTypes",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false,
+                "complex_data_type_name": "lightning__objectType"
+              },
+              {
+                "developer_name": "valid_customer",
+                "label": "Valid Customer",
+                "description": "Valid Customer",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an order tracking and fulfillment assistant for an e-commerce platform. Your role is to help customers track their orders, resolve shipping issues, process returns, and provide real-time updates on order status and delivery information.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome! I'm here to help you with your order.\n\nTo locate your order, I can search by:\n1. Order number (fastest option)\n2. Email address used for the order\n\nWhich would you prefer to use? Please provide either your order number or the email address you used when placing the order."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.order_number == \"\" and state.customer_email == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "order_found": "False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "customer_verified": "False"
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_email != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Get_Customer_Info",
+            "bound_inputs": {
+              "email": "state.customer_email"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "customer_verified": "result.customer_found"
+              },
+              {
+                "customer_name": "result.customer_name"
+              },
+              {
+                "customer_id": "result.customer_id"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.order_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Find_Order_By_Number",
+            "bound_inputs": {
+              "order_number": "state.order_number",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "order_found": "result.order_found"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.order_found or state.customer_verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_details\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "order_details",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_details\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "order_details",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_details\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Shows detailed order information including status, tracking, and delivery updates",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Order_Details",
+            "bound_inputs": {
+              "order_number": "state.order_number",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "order_status": "result.order_status"
+              },
+              {
+                "tracking_number": "result.tracking_number"
+              },
+              {
+                "delivery_date": "result.delivery_date"
+              },
+              {
+                "order_total": "result.order_total"
+              },
+              {
+                "shipping_address": "result.shipping_address"
+              },
+              {
+                "return_eligible": "result.return_eligible"
+              }
+            ],
+            "name": "load_order_details",
+            "description": "Load Order Details"
+          },
+          {
+            "type": "action",
+            "target": "Get_Tracking_Updates",
+            "bound_inputs": {
+              "tracking_number": "state.tracking_number"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "delivery_date": "result.updated_delivery_date"
+              }
+            ],
+            "name": "get_live_tracking",
+            "description": "Get Live Tracking"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "issue_type": "state.issue_type"
+              }
+            ],
+            "name": "capture_next_action",
+            "description": "Capture customer's next requested action",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"issue_resolver\""
+              }
+            ],
+            "name": "handle_issue",
+            "description": "Handle shipping issues or returns"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_locator\""
+              }
+            ],
+            "name": "search_another",
+            "description": "Search for another order"
+          }
+        ],
+        "developer_name": "order_details",
+        "label": "Order Details",
+        "action_definitions": [
+          {
+            "developer_name": "Get_Order_Details",
+            "label": "Get Order Details",
+            "description": "Retrieves comprehensive order information",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GetOrderDetails",
+            "input_type": [
+              {
+                "developer_name": "order_number",
+                "label": "Order Number",
+                "description": "Order identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "order_status",
+                "label": "Order Status",
+                "description": "Order Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "tracking_number",
+                "label": "Tracking Number",
+                "description": "Tracking Number",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "delivery_date",
+                "label": "Delivery Date",
+                "description": "Delivery Date",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "order_total",
+                "label": "Order Total",
+                "description": "Order Total",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "shipping_address",
+                "label": "Shipping Address",
+                "description": "Shipping Address",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "return_eligible",
+                "label": "Return Eligible",
+                "description": "Return Eligible",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Get_Tracking_Updates",
+            "label": "Get Tracking Updates",
+            "description": "Gets real-time tracking updates from shipping carrier",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GetTrackingUpdates",
+            "input_type": [
+              {
+                "developer_name": "tracking_number",
+                "label": "Tracking Number",
+                "description": "Shipping tracking number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "current_status",
+                "label": "Current Status",
+                "description": "Current Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "location",
+                "label": "Current Location",
+                "description": "Location",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "updated_delivery_date",
+                "label": "Updated Delivery Date",
+                "description": "Updated Delivery Date",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "delivery_attempts",
+                "label": "Delivery Attempts",
+                "description": "Delivery Attempts",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an order tracking and fulfillment assistant for an e-commerce platform. Your role is to help customers track their orders, resolve shipping issues, process returns, and provide real-time updates on order status and delivery information.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nGreat! I found your order. Here are the current details:\n\n**Order Information:**\n- Customer: {{state.customer_name}}\n- Order Number: {{state.order_number}}\n- Order Status: {{state.order_status}}\n- Order Total: ${{state.order_total}}\n\n**Shipping Details:**\n- Tracking Number: {{state.tracking_number}}\n- Expected Delivery: {{state.delivery_date}}\n- Shipping Address: {{state.shipping_address}}\n\nWould you like me to:\n1. Get real-time tracking updates\n2. Help with a return or exchange\n3. Report a shipping issue\n4. Look up another order"
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.order_found and state.order_status == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Get_Order_Details",
+            "bound_inputs": {
+              "order_number": "state.order_number",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "order_status": "result.order_status"
+              },
+              {
+                "tracking_number": "result.tracking_number"
+              },
+              {
+                "delivery_date": "result.delivery_date"
+              },
+              {
+                "order_total": "result.order_total"
+              },
+              {
+                "shipping_address": "result.shipping_address"
+              },
+              {
+                "return_eligible": "result.return_eligible"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.tracking_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Get_Tracking_Updates",
+            "bound_inputs": {
+              "tracking_number": "state.tracking_number"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "delivery_date": "result.updated_delivery_date"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.issue_type != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"issue_resolver\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "issue_resolver",
+            "enabled": "state.AgentScriptInternal_next_topic==\"issue_resolver\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "issue_resolver",
+            "enabled": "state.AgentScriptInternal_next_topic==\"issue_resolver\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "order_locator",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_locator\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles shipping issues, returns, and customer concerns",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Process_Return_Request",
+            "bound_inputs": {
+              "order_number": "state.order_number",
+              "return_reason": "state.issue_type",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "return_eligible": "result.return_authorized"
+              }
+            ],
+            "name": "initiate_return",
+            "description": "Initiate Return"
+          },
+          {
+            "type": "action",
+            "target": "Report_Shipping_Issue",
+            "bound_inputs": {
+              "tracking_number": "state.tracking_number",
+              "issue_description": "state.issue_type",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_number": "result.case_number"
+              }
+            ],
+            "name": "report_issue",
+            "description": "Report Issue"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "issue_type": "state.issue_type"
+              }
+            ],
+            "name": "capture_resolution_action",
+            "description": "Capture resolution action details",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_details\""
+              }
+            ],
+            "name": "back_to_order",
+            "description": "Return to order details"
+          }
+        ],
+        "developer_name": "issue_resolver",
+        "label": "Issue Resolver",
+        "action_definitions": [
+          {
+            "developer_name": "Process_Return_Request",
+            "label": "Process Return",
+            "description": "Initiates return process for eligible orders",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ProcessReturnRequest",
+            "input_type": [
+              {
+                "developer_name": "order_number",
+                "label": "Order Number",
+                "description": "Order to process return for",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "return_reason",
+                "label": "Return Reason",
+                "description": "Reason for return",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "return_authorized",
+                "label": "Return Authorized",
+                "description": "Return Authorized",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "return_label_url",
+                "label": "Return Label URL",
+                "description": "Return Label Url",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "refund_amount",
+                "label": "Refund Amount",
+                "description": "Refund Amount",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "return_deadline",
+                "label": "Return Deadline",
+                "description": "Return Deadline",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Report_Shipping_Issue",
+            "label": "Report Issue",
+            "description": "Reports shipping problem to carrier and customer service",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ReportShippingIssue",
+            "input_type": [
+              {
+                "developer_name": "tracking_number",
+                "label": "Tracking Number",
+                "description": "Affected shipment tracking number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "issue_description",
+                "label": "Issue Description",
+                "description": "Description of the shipping problem",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "case_number",
+                "label": "Case Number",
+                "description": "Case Number",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "resolution_timeframe",
+                "label": "Resolution Timeframe",
+                "description": "Resolution Timeframe",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "escalated",
+                "label": "Escalated to Carrier",
+                "description": "Escalated",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an order tracking and fulfillment assistant for an e-commerce platform. Your role is to help customers track their orders, resolve shipping issues, process returns, and provide real-time updates on order status and delivery information.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nI understand you're having an issue with your order. Let me help you resolve this.\n\n**Issue Type:** {{state.issue_type}}\n**Order:** {{state.order_number}}\n**Return Eligible:** {{state.return_eligible}}\n\nBased on your issue, I can help you with:\n- Processing a return or exchange (if eligible)\n- Reporting shipping delays or damage\n- Contacting the carrier for delivery updates\n- Escalating to our customer service team\n\nWhat specific assistance do you need?"
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.issue_type == \"return\" and state.return_eligible == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "return_eligible": "True"
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.issue_type == \"return\" and state.return_eligible"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Process_Return_Request",
+            "bound_inputs": {
+              "order_number": "state.order_number",
+              "return_reason": "state.issue_type",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.issue_type == \"shipping_delay\" or state.issue_type == \"damaged\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Report_Shipping_Issue",
+            "bound_inputs": {
+              "tracking_number": "state.tracking_number",
+              "issue_description": "state.issue_type",
+              "customer_id": "state.customer_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "order_details",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_details\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm here to help you track your orders, check delivery status, and assist with any shipping or return questions. Please provide your order number or email address to get started.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm having trouble accessing the order system right now. Please try again in a moment or contact customer service directly.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

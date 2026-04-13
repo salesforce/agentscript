@@ -1,0 +1,78 @@
+# Connected agent as tool invocation — parity fixture.
+# Exercises: RelatedAgentNode emission, tool target resolution,
+# with clause binding, LLM-filled ellipsis, and mixed actions + transitions.
+
+config:
+  agent_name: "ConnectedAgentToolTest"
+
+variables:
+  Customer_Id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "Customer identifier"
+  Order_Id: mutable string
+
+start_agent Main:
+  description: "Main coordinator"
+
+  actions:
+    Lookup_Order:
+      description: "Look up an order"
+      target: "flow://Lookup_Order"
+      inputs:
+        order_id: string
+      outputs:
+        status: string
+
+  reasoning:
+    instructions: ->
+      | Route requests to the appropriate agent.
+    actions:
+      lookup: @actions.Lookup_Order
+        with order_id = @variables.Order_Id
+
+      call_support: @connected_subagent.Support_Agent
+        description: "Delegate to support"
+        # TODO: Un-comment when we support bound and LLM inputs from connected agents.
+        # with customer_id = @variables.Customer_Id
+
+      call_search: @connected_subagent.Search_Agent
+        description: "Search with LLM query"
+        # TODO: Un-comment when we support bound and LLM inputs from connected agents.
+        # with customer_id = @variables.Customer_Id
+        # with search_query = ...
+
+      call_feedback: @connected_subagent.Feedback_Agent
+        description: "Collect feedback"
+
+      go_billing: @utils.transition to @topic.Billing
+        description: "Route to billing"
+
+topic Billing:
+  description: "Billing topic"
+  reasoning:
+    instructions: ->
+      | Handle billing inquiries.
+
+connected_subagent Support_Agent:
+  target: "agentforce://Support_Agent"
+  label: "Support Agent"
+  description: "Handles customer support"
+  loading_text: "Connecting you to support..."
+  inputs:
+    customer_id: string
+
+connected_subagent Search_Agent:
+  target: "agentforce://Search_Agent"
+  label: "Search Agent"
+  description: "Searches order history"
+  inputs:
+    customer_id: string = @variables.Customer_Id
+    search_query: string
+
+connected_subagent Feedback_Agent:
+  target: "agentforce://Feedback_Agent"
+  label: "Feedback Agent"
+  description: "Collects customer feedback"
+  inputs:
+    customer_id: string = @variables.Customer_Id
+    session_tag: string = @variables.Customer_Id

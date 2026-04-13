@@ -1,0 +1,279 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: EdgeActionBeforeReasoning
+  label: Edge Action Before Reasoning
+  description: Tests before_reasoning block with run @actions, conditionals, and set
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: admin@example.com
+  context_variables:
+    - developer_name: customer_id
+      label: Customer Id
+      description: Customer ID from context
+      data_type: string
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: customer_name
+      label: Customer Name
+      description: Customer name
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: account_status
+      label: Account Status
+      description: Account status
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: is_verified
+      label: Is Verified
+      description: Verification status
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: balance
+      label: Balance
+      description: Account balance
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: has_open_cases
+      label: Has Open Cases
+      description: Whether customer has open cases
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: open_case_count
+      label: Open Case Count
+      description: Number of open cases
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: welcome_message
+      label: Welcome Message
+      description: Customized welcome message
+      data_type: string
+      is_list: false
+      visibility: Internal
+  initial_node: main
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Customer data has been pre-loaded. Help the customer based on their
+                status.
+
+                If they have open cases, reference those first.'
+      instructions: You are a pre-processing agent that runs actions before reasoning.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Pre-process customer data before reasoning
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: get_customer
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs: []
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - customer_name: result.name
+            - account_status: result.status
+            - is_verified: result.verified
+            - balance: result.balance
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.is_verified == True
+        - type: action
+          target: get_open_cases
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - open_case_count: result.count
+            - has_open_cases: result.has_cases
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.account_status == "suspended"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - welcome_message: '"Your account is currently suspended. Let me help
+                you resolve this."'
+        - type: action
+          target: log_visit
+          bound_inputs:
+            customer_id: variables.customer_id
+            channel: '"messaging"'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (not (state.AgentScriptInternal_condition))
+          state_updates: []
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '''__human__'''
+          name: escalate_to_human
+          description: Escalate to human agent
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: get_customer
+          label: Get Customer
+          description: Get customer details
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Get_Customer
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: name
+              label: Name
+              description: Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: status
+              label: Status
+              description: Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: verified
+              label: Verified
+              description: Verified
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: balance
+              label: Balance
+              description: Balance
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: get_open_cases
+          label: Get Open Cases
+          description: Get open case count
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Get_Open_Cases
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: count
+              label: Count
+              description: Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: has_cases
+              label: Has Cases
+              description: Has Cases
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: log_visit
+          label: Log Visit
+          description: Log customer visit
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Log_Visit
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: channel
+              label: Channel
+              description: Channel
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: logged
+              label: Logged
+              description: Logged
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

@@ -1,0 +1,47 @@
+system:
+    instructions: "You are a basic routing agent that directs users to the right topic."
+    messages:
+        welcome: "Hello! How can I help you today?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "Basic_Router_Agent"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "A basic router agent with hyperclassifier"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Routes the user to the appropriate topic based on their request"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Determine which topic best matches the user's request.
+              Route them to the appropriate handler.
+        actions:
+            go_to_sales: @utils.transition to @topic.sales_inquiry
+                description: "Route to sales questions"
+            go_to_support: @utils.transition to @topic.technical_support
+                description: "Route to technical support"
+
+topic sales_inquiry:
+    label: "Sales Inquiry"
+    description: "Handles sales-related questions and product information"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their sales inquiry.
+              Provide product information and pricing details.
+              If the question is too complex, offer to connect them with a sales representative.
+
+topic technical_support:
+    label: "Technical Support"
+    description: "Handles technical support questions and troubleshooting"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their technical issue.
+              Walk them through troubleshooting steps.
+              If the issue cannot be resolved, offer to escalate.

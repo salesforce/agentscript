@@ -1,0 +1,236 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "HelloWorld_Agent",
+    "label": "Hello World Agent",
+    "description": "An agent that routes the user to appropriate topic",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "User1"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I'm a simple agent here to help you reach the correct handler.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "Sorry, I encountered an error.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "topic_selector",
+    "nodes": [
+      {
+        "model_configuration": {
+          "model_ref": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "looks up users orders",
+        "instructions": "You are a friendly assistant who routes the users appropriately.",
+        "tools": [],
+        "developer_name": "topic_selector",
+        "label": "Order Lookup",
+        "action_definitions": []
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "creates a new account for the user",
+        "tools": [
+          {
+            "type": "action",
+            "target": "create_account",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "phone",
+              "email"
+            ],
+            "state_updates": [],
+            "name": "create_account",
+            "description": "Create Account"
+          }
+        ],
+        "developer_name": "create_account",
+        "label": "Create Account",
+        "action_definitions": [
+          {
+            "developer_name": "create_account",
+            "label": "Create Account",
+            "description": "creates a new user account",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "create_account",
+            "input_type": [
+              {
+                "developer_name": "phone",
+                "label": "Phone",
+                "description": "Phone",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "email",
+                "label": "Email",
+                "description": "Email",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "account_id",
+                "label": "Account Id",
+                "description": "Account Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a friendly assistant who routes the users appropriately.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCreate an account by invoking create_account action."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "deletes an existing account for the user",
+        "tools": [
+          {
+            "type": "action",
+            "target": "delete_account",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "account_id"
+            ],
+            "state_updates": [],
+            "name": "delete_account",
+            "description": "Delete Account"
+          }
+        ],
+        "developer_name": "delete_account",
+        "label": "Delete Account",
+        "action_definitions": [
+          {
+            "developer_name": "delete_account",
+            "label": "Delete Account",
+            "description": "deletes an existing user account",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "delete_account",
+            "input_type": [
+              {
+                "developer_name": "account_id",
+                "label": "Account Id",
+                "description": "Account Id",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "account_id",
+                "label": "Account Id",
+                "description": "Account Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a friendly assistant who routes the users appropriately.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nDelete an existing account by invoking delete_account action."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm a simple agent here to help you reach the correct handler.\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, I encountered an error.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

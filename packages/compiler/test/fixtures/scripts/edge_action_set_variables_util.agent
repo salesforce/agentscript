@@ -1,0 +1,79 @@
+system:
+    instructions: "You are an agent that collects and sets user information."
+
+config:
+    developer_name: "EdgeActionSetVariablesUtil"
+    default_agent_user: "admin@example.com"
+    description: "Tests multiple @utils.setVariables patterns"
+
+variables:
+    user_name: mutable string
+        description: "User name"
+    user_email: mutable string
+        description: "User email"
+    user_city: mutable string
+        description: "User city"
+    user_country: mutable string
+        description: "User country"
+    preferred_language: mutable string = "en_US"
+        description: "Preferred language"
+    issue_type: mutable string
+        description: "Type of issue"
+    issue_description: mutable string
+        description: "Description of the issue"
+    urgency: mutable string = "normal"
+        description: "Issue urgency"
+    feedback_rating: mutable number = 0
+        description: "Feedback rating"
+    feedback_comment: mutable string
+        description: "Feedback comment"
+
+start_agent main:
+    description: "Collect user info using setVariables utility"
+
+    reasoning:
+        instructions: ->
+            | Welcome the user and collect their information step by step.
+              Use the set variables tools to capture user details, issue info, and feedback.
+
+        actions:
+            set_user_info: @utils.setVariables
+                description: "Set the user's personal information including name, email, and location."
+                with user_name=...
+                with user_email=...
+                with user_city=...
+                with user_country=...
+
+            set_preferences: @utils.setVariables
+                description: "Set the user's language and communication preferences."
+                with preferred_language=...
+
+            set_issue_details: @utils.setVariables
+                description: "Capture the details of the user's issue or request."
+                with issue_type=...
+                with issue_description=...
+                with urgency=...
+
+            set_feedback: @utils.setVariables
+                description: "Record the user's feedback after resolution."
+                with feedback_rating=...
+                with feedback_comment=...
+
+            go_to_resolution: @utils.transition to @topic.resolution
+                description: "Move to issue resolution after collecting details."
+                available when @variables.issue_type != None
+
+topic resolution:
+    description: "Resolve the user's issue"
+
+    reasoning:
+        instructions: ->
+            | Resolve the issue based on the collected information.
+
+        actions:
+            update_urgency: @utils.setVariables
+                description: "Update the issue urgency if needed."
+                with urgency=...
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

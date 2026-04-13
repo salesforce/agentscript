@@ -1,0 +1,177 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Directive_Hyperclassifier
+  label: Directive Hyperclassifier
+  description: Directive plus model on start_agent and a secondary topic
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hi! I'm here to assist you.
+      message_type: Welcome
+    - message: Something went wrong.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hi! I''m here to assist you.", "messageType":
+      "Welcome"}, {"message": "Something went wrong.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - model_configuration:
+        model_ref: sfdc_ai__DefaultEinsteinHyperClassifier
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Route the user to the appropriate topic based on their message.'
+      instructions: 'You are an agent with hyperclassifier directive and models on
+        multiple topics.
+
+
+        {{state.AgentScriptInternal_agent_instructions}}'
+      type: router
+      description: Hyperclassifier-powered topic selector
+      tools:
+        - name: go_premium
+          target: premium_support
+          description: Route to premium support with advanced model
+        - name: go_standard
+          target: standard_support
+          description: Route to standard support
+        - name: go_off_topic
+          target: off_topic
+          description: Handle off-topic requests
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Provide premium-level support with detailed, comprehensive responses.
+
+                Take extra care to fully resolve the customer''s issue.'
+      instructions: You are an agent with hyperclassifier directive and models on
+        multiple topics.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Premium support with advanced model for complex issues
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"standard_support"'
+          name: escalate_to_human
+          description: Escalate to standard support
+      after_all_tool_calls:
+        - type: handoff
+          target: standard_support
+          enabled: state.AgentScriptInternal_next_topic=="standard_support"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: premium_support
+      label: Premium Support
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Provide helpful support for common issues.
+
+                If the issue is complex, offer to escalate to premium support.'
+      instructions: You are an agent with hyperclassifier directive and models on
+        multiple topics.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Standard support for common issues
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"premium_support"'
+          name: escalate_to_human
+          description: Escalate to premium support
+      after_all_tool_calls:
+        - type: handoff
+          target: premium_support
+          enabled: state.AgentScriptInternal_next_topic=="premium_support"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: standard_support
+      label: Standard Support
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Politely redirect the user to relevant topics.'
+      instructions: You are an agent with hyperclassifier directive and models on
+        multiple topics.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Redirects off-topic conversations
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: off_topic
+      label: Off Topic
+      action_definitions: []
+  surfaces: []

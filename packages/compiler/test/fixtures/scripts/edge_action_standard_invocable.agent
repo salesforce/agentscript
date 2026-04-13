@@ -1,0 +1,75 @@
+system:
+    instructions: "You are a helpful assistant for managing records."
+    messages:
+        welcome: "Hello! I can help you manage records."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Standard_Invocable_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with standardInvocableAction:// targets"
+
+start_agent main:
+    description: "Agent with standardInvocableAction:// targets"
+
+    actions:
+        Get_Record:
+            description: "Get a record using standard invocable"
+            target: "standardInvocableAction://GetRecord"
+            inputs:
+                record_id: string
+                    label: "Record ID"
+                    is_required: True
+                object_type: string
+                    label: "Object Type"
+                    is_required: True
+            outputs:
+                record_data: object
+                    label: "Record Data"
+
+        Create_Record:
+            description: "Create a record using standard invocable"
+            target: "standardInvocableAction://CreateRecord"
+            inputs:
+                object_type: string
+                    label: "Object Type"
+                    is_required: True
+                field_values: object
+                    label: "Field Values"
+                    is_required: True
+            outputs:
+                record_id: string
+                    label: "New Record ID"
+                success: boolean
+                    label: "Creation Success"
+
+        Update_Record:
+            description: "Update a record using standard invocable"
+            target: "standardInvocableAction://UpdateRecord"
+            inputs:
+                record_id: string
+                    label: "Record ID"
+                    is_required: True
+                field_values: object
+                    label: "Field Values"
+                    is_required: True
+            outputs:
+                success: boolean
+                    label: "Update Success"
+
+    reasoning:
+        instructions: ->
+            | Help the user manage records using standard invocable actions.
+
+        actions:
+            Get_Action: @actions.Get_Record
+                with record_id=...
+                with object_type=...
+
+            Create_Action: @actions.Create_Record
+                with object_type=...
+                with field_values=...
+
+            Update_Action: @actions.Update_Record
+                with record_id=...
+                with field_values=...

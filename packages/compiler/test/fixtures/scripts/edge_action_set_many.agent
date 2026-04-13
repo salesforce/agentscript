@@ -1,0 +1,89 @@
+system:
+    instructions: "You are a data retrieval agent."
+
+config:
+    developer_name: "EdgeActionSetMany"
+    default_agent_user: "admin@example.com"
+    description: "Tests setting 3+ output variables from one action"
+
+variables:
+    customer_id: linked string
+        description: "Customer ID"
+    first_name: mutable string
+        description: "Customer first name"
+    last_name: mutable string
+        description: "Customer last name"
+    email: mutable string
+        description: "Customer email"
+    phone: mutable string
+        description: "Customer phone"
+    tier: mutable string
+        description: "Customer tier"
+    balance: mutable number = 0
+        description: "Account balance"
+    order_id: mutable string
+        description: "Order ID"
+    order_status: mutable string
+        description: "Order status"
+    order_total: mutable number = 0
+        description: "Order total"
+    ship_date: mutable string
+        description: "Shipping date"
+    tracking: mutable string
+        description: "Tracking number"
+
+start_agent main:
+    description: "Retrieve and set multiple output variables from actions"
+
+    actions:
+        get_customer_profile:
+            description: "Get full customer profile"
+            inputs:
+                customer_id: string
+                    is_required: True
+            outputs:
+                first_name: string
+                last_name: string
+                email: string
+                phone: string
+                tier: string
+                balance: number
+            target: "flow://Get_Customer_Profile"
+
+        get_order_details:
+            description: "Get order details"
+            inputs:
+                order_id: string
+                    is_required: True
+            outputs:
+                status: string
+                total: number
+                ship_date: string
+                tracking_number: string
+            target: "flow://Get_Order_Details"
+
+    before_reasoning:
+        run @actions.get_customer_profile
+            with customer_id=@variables.customer_id
+            set @variables.first_name = @outputs.first_name
+            set @variables.last_name = @outputs.last_name
+            set @variables.email = @outputs.email
+            set @variables.phone = @outputs.phone
+            set @variables.tier = @outputs.tier
+            set @variables.balance = @outputs.balance
+
+    reasoning:
+        instructions: ->
+            | You have the customer profile loaded. Help them with order inquiries.
+              Use {!@actions.get_order} to look up order details.
+
+        actions:
+            get_order: @actions.get_order_details
+                with order_id=...
+                set @variables.order_status = @outputs.status
+                set @variables.order_total = @outputs.total
+                set @variables.ship_date = @outputs.ship_date
+                set @variables.tracking = @outputs.tracking_number
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

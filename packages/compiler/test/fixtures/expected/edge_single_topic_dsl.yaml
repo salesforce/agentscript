@@ -1,0 +1,165 @@
+# NOTE: Differs from Python compiler — TS uses explicit label for input descriptions
+# when no description is set. Python uses normalizeDeveloperName(name) instead,
+# which discards the author's explicit label.
+schema_version: "2.0"
+global_configuration:
+  developer_name: Single_Topic_Agent
+  label: Single Topic Agent
+  description: Agent with only one topic and no additional topics
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: user@test.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you manage your orders.
+      message_type: Welcome
+    - message: An error occurred while processing your request.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: order_id
+      label: Order Id
+      description: The order identifier
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: status
+      label: Status
+      description: Current order status
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+  initial_node: main
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Agent with only one topic and no additional topics
+      tools:
+        - type: action
+          target: Get_Order
+          bound_inputs:
+            order_id: state.order_id
+          llm_inputs: []
+          state_updates:
+            - status: result.status
+          name: Get_Order_Action
+          description: Get Order Action
+        - type: action
+          target: Update_Order
+          bound_inputs:
+            order_id: state.order_id
+            new_status: '"shipped"'
+          llm_inputs: []
+          state_updates: []
+          name: Update_Order_Action
+          description: Update Order Action
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: Get_Order
+          label: Get Order
+          description: Retrieve order details
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Get_Order_Flow
+          input_type:
+            - developer_name: order_id
+              label: Order ID
+              description: Order ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: status
+              label: Order Status
+              description: Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: details
+              label: Order Details
+              description: Details
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Update_Order
+          label: Update Order
+          description: Update order information
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: OrderController.updateOrder
+          input_type:
+            - developer_name: order_id
+              label: Order ID
+              description: Order ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: new_status
+              label: New Status
+              description: New Status
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: success
+              label: Update Success
+              description: Success
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a helpful order management agent.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                You are a single-topic order management agent.
+                Help the user check and update their orders.
+                Use Get_Order to look up order details.
+                Use Update_Order to change order status.
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you manage your orders.",
+      "messageType": "Welcome"}, {"message": "An error occurred while processing
+      your request.", "messageType": "Error"}]'

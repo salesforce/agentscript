@@ -1,0 +1,90 @@
+system:
+    instructions: "You are a pre-processing agent that runs actions before reasoning."
+
+config:
+    developer_name: "EdgeActionBeforeReasoning"
+    default_agent_user: "admin@example.com"
+    description: "Tests before_reasoning block with run @actions, conditionals, and set"
+
+variables:
+    customer_id: linked string
+        description: "Customer ID from context"
+    customer_name: mutable string
+        description: "Customer name"
+    account_status: mutable string
+        description: "Account status"
+    is_verified: mutable boolean = False
+        description: "Verification status"
+    balance: mutable number = 0
+        description: "Account balance"
+    has_open_cases: mutable boolean = False
+        description: "Whether customer has open cases"
+    open_case_count: mutable number = 0
+        description: "Number of open cases"
+    welcome_message: mutable string
+        description: "Customized welcome message"
+
+start_agent main:
+    description: "Pre-process customer data before reasoning"
+
+    actions:
+        get_customer:
+            description: "Get customer details"
+            inputs:
+                customer_id: string
+                    is_required: True
+            outputs:
+                name: string
+                status: string
+                verified: boolean
+                balance: number
+            target: "flow://Get_Customer"
+
+        get_open_cases:
+            description: "Get open case count"
+            inputs:
+                customer_id: string
+                    is_required: True
+            outputs:
+                count: number
+                has_cases: boolean
+            target: "flow://Get_Open_Cases"
+
+        log_visit:
+            description: "Log customer visit"
+            inputs:
+                customer_id: string
+                    is_required: True
+                channel: string
+                    is_required: False
+            outputs:
+                logged: boolean
+            target: "flow://Log_Visit"
+
+    before_reasoning:
+        run @actions.get_customer
+            with customer_id=@variables.customer_id
+            set @variables.customer_name = @outputs.name
+            set @variables.account_status = @outputs.status
+            set @variables.is_verified = @outputs.verified
+            set @variables.balance = @outputs.balance
+        if @variables.is_verified == True:
+            run @actions.get_open_cases
+                with customer_id=@variables.customer_id
+                set @variables.open_case_count = @outputs.count
+                set @variables.has_open_cases = @outputs.has_cases
+        if @variables.account_status == "suspended":
+            set @variables.welcome_message = "Your account is currently suspended. Let me help you resolve this."
+        else:
+            run @actions.log_visit
+                with customer_id=@variables.customer_id
+                with channel="messaging"
+
+    reasoning:
+        instructions: ->
+            | Customer data has been pre-loaded. Help the customer based on their status.
+              If they have open cases, reference those first.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

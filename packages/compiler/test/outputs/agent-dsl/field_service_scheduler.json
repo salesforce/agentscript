@@ -1,0 +1,1714 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Field_Service_Scheduler_v1",
+    "label": "Field Service Scheduler V 1",
+    "description": "Assists with field service scheduling and technician dispatch",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "default_agent_user": "defaultagentuser@example.com",
+    "context_variables": []
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Welcome to Field Service Scheduling! I can help you schedule service appointments and assign technicians.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I'm having trouble accessing the field service system. Please try again or contact the service dispatch center.",
+        "message_type": "Error"
+      }
+    ],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to Field Service Scheduling! I can help you schedule service appointments and assign technicians.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm having trouble accessing the field service system. Please try again or contact the service dispatch center.\", \"messageType\": \"Error\"}]"
+    },
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "service_request_id",
+        "label": "Service Request Id",
+        "description": "Service request identifier",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer name",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_address",
+        "label": "Customer Address",
+        "description": "Service location address",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_phone",
+        "label": "Customer Phone",
+        "description": "Customer contact number",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_email",
+        "label": "Customer Email",
+        "description": "Customer email address",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_verified",
+        "label": "Customer Verified",
+        "description": "Whether customer identity is verified",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "service_type",
+        "label": "Service Type",
+        "description": "Type of service required",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "service_category",
+        "label": "Service Category",
+        "description": "Service category (installation, repair, maintenance)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "equipment_type",
+        "label": "Equipment Type",
+        "description": "Type of equipment being serviced",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "problem_description",
+        "label": "Problem Description",
+        "description": "Description of the problem or service needed",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "service_priority",
+        "label": "Service Priority",
+        "description": "Service priority level (low, normal, high, emergency)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "'normal'",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "estimated_duration",
+        "label": "Estimated Duration",
+        "description": "Estimated service duration in minutes",
+        "data_type": "number",
+        "is_list": false,
+        "default": 120,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "parts_required",
+        "label": "Parts Required",
+        "description": "Parts that may be required for service",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "preferred_date",
+        "label": "Preferred Date",
+        "description": "Customer's preferred service date",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "preferred_time_window",
+        "label": "Preferred Time Window",
+        "description": "Customer's preferred time window",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "flexible_scheduling",
+        "label": "Flexible Scheduling",
+        "description": "Whether customer has flexible scheduling",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": true,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "appointment_date",
+        "label": "Appointment Date",
+        "description": "Scheduled appointment date",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "appointment_time",
+        "label": "Appointment Time",
+        "description": "Scheduled appointment time",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "appointment_confirmed",
+        "label": "Appointment Confirmed",
+        "description": "Whether appointment is confirmed",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "technician_assigned",
+        "label": "Technician Assigned",
+        "description": "Assigned technician name",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "technician_id",
+        "label": "Technician Id",
+        "description": "Assigned technician ID",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "technician_skill_match",
+        "label": "Technician Skill Match",
+        "description": "Technician skill match score (0-100)",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "travel_distance",
+        "label": "Travel Distance",
+        "description": "Travel distance to customer location",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "estimated_arrival",
+        "label": "Estimated Arrival",
+        "description": "Estimated technician arrival time",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "dispatch_successful",
+        "label": "Dispatch Successful",
+        "description": "Whether technician dispatch was successful",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "route_optimized",
+        "label": "Route Optimized",
+        "description": "Whether route has been optimized",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "service_window_met",
+        "label": "Service Window Met",
+        "description": "Whether service can be completed in preferred window",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "service_intake",
+    "nodes": [
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome to Field Service Scheduling!\n\nI'll help you schedule a service appointment and assign the right technician.\n\nPlease provide:\n- Customer name\n- Type of service needed\n- Preferred date and time\n- Service priority (if urgent)\n\nThis helps me find the best available technician for your needs."
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a field service scheduling assistant. Your role is to help schedule service appointments and dispatch technicians.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Captures comprehensive service request information and validates customer details",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_request_id == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "service_priority": "\"normal\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "technician_assigned": "\"\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Validate_Customer_Information",
+            "bound_inputs": {
+              "customer_name": "state.customer_name",
+              "customer_address": "state.customer_address",
+              "customer_phone": "state.customer_phone"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "customer_verified": "result.customer_verified"
+              }
+            ],
+            "name": "validate_customer",
+            "description": "Validate Customer"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Service_Requirements",
+            "bound_inputs": {
+              "service_type": "state.service_type",
+              "equipment_type": "state.equipment_type",
+              "problem_description": "state.problem_description"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "service_category": "result.service_category"
+              },
+              {
+                "estimated_duration": "result.estimated_duration"
+              },
+              {
+                "parts_required": "result.parts_likely_needed"
+              }
+            ],
+            "name": "assess_service",
+            "description": "Assess Service"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "customer_name": "state.customer_name"
+              },
+              {
+                "service_type": "state.service_type"
+              },
+              {
+                "preferred_date": "state.preferred_date"
+              },
+              {
+                "service_priority": "state.service_priority"
+              }
+            ],
+            "name": "capture_service_info",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"technician_dispatch\""
+              }
+            ],
+            "name": "dispatch_tech",
+            "description": "Assigns optimal technician and dispatches with route optimization"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "technician_dispatch",
+            "enabled": "state.AgentScriptInternal_next_topic==\"technician_dispatch\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_name != \"\" and state.customer_address != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Validate_Customer_Information",
+            "bound_inputs": {
+              "customer_name": "state.customer_name",
+              "customer_address": "state.customer_address",
+              "customer_phone": "state.customer_phone"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "customer_verified": "result.customer_verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_type != \"\" and state.problem_description != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Assess_Service_Requirements",
+            "bound_inputs": {
+              "service_type": "state.service_type",
+              "equipment_type": "state.equipment_type",
+              "problem_description": "state.problem_description"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "service_category": "result.service_category"
+              },
+              {
+                "estimated_duration": "result.estimated_duration"
+              },
+              {
+                "parts_required": "result.parts_likely_needed"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_verified and state.service_category != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "service_request_id": "\"SR-\" + state.customer_name + \"-001\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"technician_dispatch\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "technician_dispatch",
+            "enabled": "state.AgentScriptInternal_next_topic==\"technician_dispatch\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "service_intake",
+        "label": "Service Intake",
+        "action_definitions": [
+          {
+            "developer_name": "Validate_Customer_Information",
+            "label": "Validate Customer",
+            "description": "Validates customer information and service location",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ValidateCustomerInformation",
+            "input_type": [
+              {
+                "developer_name": "customer_name",
+                "label": "Customer Name",
+                "description": "Customer's full name",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_address",
+                "label": "Service Address",
+                "description": "Address where service is needed",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_phone",
+                "label": "Phone Number",
+                "description": "Customer contact number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "customer_verified",
+                "label": "Customer Verified",
+                "description": "Customer Verified",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "address_valid",
+                "label": "Address Valid",
+                "description": "Address Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "service_area_covered",
+                "label": "Service Area Covered",
+                "description": "Service Area Covered",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "customer_history",
+                "label": "Customer History",
+                "description": "Customer History",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Assess_Service_Requirements",
+            "label": "Assess Requirements",
+            "description": "Assesses service requirements and determines complexity",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "AssessServiceRequirements",
+            "input_type": [
+              {
+                "developer_name": "service_type",
+                "label": "Service Type",
+                "description": "Type of service requested",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "equipment_type",
+                "label": "Equipment Type",
+                "description": "Type of equipment",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "problem_description",
+                "label": "Problem Description",
+                "description": "Description of the issue",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "service_category",
+                "label": "Service Category",
+                "description": "Service Category",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "complexity_level",
+                "label": "Complexity Level",
+                "description": "Complexity Level",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "estimated_duration",
+                "label": "Estimated Duration",
+                "description": "Estimated Duration",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "required_skills",
+                "label": "Required Skills",
+                "description": "Required Skills",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "parts_likely_needed",
+                "label": "Parts Likely Needed",
+                "description": "Parts Likely Needed",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Service Request Details:**\n- Request ID: {{state.service_request_id}}\n- Customer: {{state.customer_name}}\n- Service Type: {{state.service_type}}\n- Priority: {{state.service_priority}}\n- Assigned Technician: {{state.technician_assigned}}\n- Appointment Date: {{state.appointment_date}}\n\nTechnician has been assigned based on service type and availability.\n\nThe technician will contact the customer to confirm appointment details."
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a field service scheduling assistant. Your role is to help schedule service appointments and dispatch technicians.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Assigns optimal technician and dispatches with route optimization",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_type == \"emergency\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "service_priority": "\"urgent\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "technician_assigned": "\"Emergency Technician\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_type == \"maintenance\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "technician_assigned": "\"Maintenance Specialist\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_type == \"installation\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "technician_assigned": "\"Installation Expert\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Find_Available_Technicians",
+            "bound_inputs": {
+              "service_type": "state.service_type",
+              "required_skills": "state.service_category",
+              "service_location": "state.customer_address",
+              "preferred_time": "state.preferred_time_window",
+              "service_priority": "state.service_priority"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "technician_assigned": "result.best_match_technician"
+              },
+              {
+                "technician_skill_match": "result.skill_match_score"
+              }
+            ],
+            "name": "find_techs",
+            "description": "Find Techs"
+          },
+          {
+            "type": "action",
+            "target": "Optimize_Service_Route",
+            "bound_inputs": {
+              "technician_id": "state.technician_id",
+              "service_location": "state.customer_address",
+              "current_schedule": "\"Current appointments\"",
+              "service_duration": "state.estimated_duration"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "appointment_time": "result.recommended_time_slot"
+              },
+              {
+                "travel_distance": "result.travel_distance_km"
+              },
+              {
+                "route_optimized": "True"
+              }
+            ],
+            "name": "optimize_route",
+            "description": "Optimize Route"
+          },
+          {
+            "type": "action",
+            "target": "Dispatch_Technician",
+            "bound_inputs": {
+              "technician_id": "state.technician_id",
+              "service_request_id": "state.service_request_id",
+              "customer_details": "state.customer_address",
+              "service_instructions": "state.problem_description"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "dispatch_successful": "result.dispatch_successful"
+              },
+              {
+                "estimated_arrival": "result.estimated_arrival"
+              }
+            ],
+            "name": "dispatch_tech",
+            "description": "Dispatch Tech"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "technician_assigned": "state.technician_assigned"
+              }
+            ],
+            "name": "confirm_dispatch",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"service_confirmation\""
+              }
+            ],
+            "name": "confirm_service",
+            "description": "Confirms service appointment and provides comprehensive details"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "service_confirmation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"service_confirmation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_type != \"\" and state.customer_address != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Find_Available_Technicians",
+            "bound_inputs": {
+              "service_type": "state.service_type",
+              "required_skills": "state.service_category",
+              "service_location": "state.customer_address",
+              "preferred_time": "state.preferred_time_window",
+              "service_priority": "state.service_priority"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "technician_assigned": "result.best_match_technician"
+              },
+              {
+                "technician_skill_match": "result.skill_match_score"
+              },
+              {
+                "technician_id": "\"TECH-001\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.technician_assigned != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Optimize_Service_Route",
+            "bound_inputs": {
+              "technician_id": "state.technician_id",
+              "service_location": "state.customer_address",
+              "current_schedule": "\"Current appointments\"",
+              "service_duration": "state.estimated_duration"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "appointment_time": "result.recommended_time_slot"
+              },
+              {
+                "travel_distance": "result.travel_distance_km"
+              },
+              {
+                "route_optimized": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Dispatch_Technician",
+            "bound_inputs": {
+              "technician_id": "state.technician_id",
+              "service_request_id": "state.service_request_id",
+              "customer_details": "state.customer_address",
+              "service_instructions": "state.problem_description"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "dispatch_successful": "result.dispatch_successful"
+              },
+              {
+                "estimated_arrival": "result.estimated_arrival"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.dispatch_successful"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"service_confirmation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "service_confirmation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"service_confirmation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "technician_dispatch",
+        "label": "Technician Dispatch",
+        "action_definitions": [
+          {
+            "developer_name": "Find_Available_Technicians",
+            "label": "Find Technicians",
+            "description": "Finds available technicians with required skills and proximity",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "FindAvailableTechnicians",
+            "input_type": [
+              {
+                "developer_name": "service_type",
+                "label": "Service Type",
+                "description": "Type of service required",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "required_skills",
+                "label": "Required Skills",
+                "description": "Skills needed for the service",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_location",
+                "label": "Service Location",
+                "description": "Customer address",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "preferred_time",
+                "label": "Preferred Time",
+                "description": "Customer's preferred time window",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_priority",
+                "label": "Service Priority",
+                "description": "Priority level of the service",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "available_technicians",
+                "label": "Available Technicians",
+                "description": "Available Technicians",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "best_match_technician",
+                "label": "Best Match Technician",
+                "description": "Best Match Technician",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "skill_match_score",
+                "label": "Skill Match Score",
+                "description": "Skill Match Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "estimated_travel_time",
+                "label": "Estimated Travel Time",
+                "description": "Estimated Travel Time",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Optimize_Service_Route",
+            "label": "Optimize Route",
+            "description": "Optimizes technician route and scheduling",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "OptimizeServiceRoute",
+            "input_type": [
+              {
+                "developer_name": "technician_id",
+                "label": "Technician ID",
+                "description": "Selected technician identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_location",
+                "label": "Service Location",
+                "description": "Customer service address",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "current_schedule",
+                "label": "Current Schedule",
+                "description": "Technician's current schedule",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_duration",
+                "label": "Service Duration",
+                "description": "Estimated service time in minutes",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "optimized_schedule",
+                "label": "Optimized Schedule",
+                "description": "Optimized Schedule",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "recommended_time_slot",
+                "label": "Recommended Time Slot",
+                "description": "Recommended Time Slot",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "route_efficiency",
+                "label": "Route Efficiency",
+                "description": "Route Efficiency",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "travel_distance_km",
+                "label": "Travel Distance",
+                "description": "Travel Distance Km",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Dispatch_Technician",
+            "label": "Dispatch Technician",
+            "description": "Dispatches technician with service details and route information",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "DispatchTechnician",
+            "input_type": [
+              {
+                "developer_name": "technician_id",
+                "label": "Technician ID",
+                "description": "Technician to dispatch",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_request_id",
+                "label": "Service Request ID",
+                "description": "Service request identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_details",
+                "label": "Customer Details",
+                "description": "Customer contact and location information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_instructions",
+                "label": "Service Instructions",
+                "description": "Detailed service instructions",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "dispatch_successful",
+                "label": "Dispatch Successful",
+                "description": "Dispatch Successful",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "technician_notified",
+                "label": "Technician Notified",
+                "description": "Technician Notified",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "estimated_arrival",
+                "label": "Estimated Arrival",
+                "description": "Estimated Arrival",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "tracking_number",
+                "label": "Tracking Number",
+                "description": "Tracking Number",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Service Appointment Confirmed:**\n- Request ID: {{state.service_request_id}}\n- Customer: {{state.customer_name}}\n- Technician: {{state.technician_assigned}}\n- Service Date: {{state.appointment_date}}\n- Priority: {{state.service_priority}}\n\nYour service appointment has been successfully scheduled.\n\nThe technician will arrive at the scheduled time with all necessary tools and equipment.\n\nWould you like to schedule another service appointment?"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a field service scheduling assistant. Your role is to help schedule service appointments and dispatch technicians.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Confirms service appointment and provides comprehensive details",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.service_priority == \"urgent\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "appointment_date": "\"Today\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Send_Appointment_Confirmation",
+            "bound_inputs": {
+              "customer_email": "state.customer_email",
+              "customer_phone": "state.customer_phone",
+              "appointment_details": "state.appointment_date + \" \" + state.appointment_time",
+              "technician_contact": "state.technician_assigned"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "appointment_confirmed": "result.confirmation_sent"
+              }
+            ],
+            "name": "send_confirmation",
+            "description": "Send Confirmation"
+          },
+          {
+            "type": "action",
+            "target": "Setup_Service_Reminders",
+            "bound_inputs": {
+              "appointment_date": "state.appointment_date",
+              "customer_contact": "state.customer_phone",
+              "service_type": "state.service_type"
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "name": "setup_reminders",
+            "description": "Setup Reminders"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "service_request_id": "state.service_request_id"
+              },
+              {
+                "appointment_confirmed": "state.appointment_confirmed"
+              }
+            ],
+            "name": "finalize_appointment",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"service_intake\""
+              }
+            ],
+            "name": "schedule_another",
+            "description": "Captures comprehensive service request information and validates customer details"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "service_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"service_intake\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.customer_email != \"\" and state.dispatch_successful"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Send_Appointment_Confirmation",
+            "bound_inputs": {
+              "customer_email": "state.customer_email",
+              "customer_phone": "state.customer_phone",
+              "appointment_details": "state.appointment_date + \" \" + state.appointment_time",
+              "technician_contact": "state.technician_assigned"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "appointment_confirmed": "result.confirmation_sent"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Setup_Service_Reminders",
+            "bound_inputs": {
+              "appointment_date": "state.appointment_date",
+              "customer_contact": "state.customer_phone",
+              "service_type": "state.service_type"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.appointment_confirmed"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "service_window_met": "True"
+              }
+            ]
+          }
+        ],
+        "developer_name": "service_confirmation",
+        "label": "Service Confirmation",
+        "action_definitions": [
+          {
+            "developer_name": "Send_Appointment_Confirmation",
+            "label": "Send Confirmation",
+            "description": "Sends appointment confirmation to customer and technician",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "SendAppointmentConfirmation",
+            "input_type": [
+              {
+                "developer_name": "customer_email",
+                "label": "Customer Email",
+                "description": "Customer's email address",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_phone",
+                "label": "Customer Phone",
+                "description": "Customer's phone number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "appointment_details",
+                "label": "Appointment Details",
+                "description": "Complete appointment information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "technician_contact",
+                "label": "Technician Contact",
+                "description": "Technician contact information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "customer_notified",
+                "label": "Customer Notified",
+                "description": "Customer Notified",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "confirmation_sent",
+                "label": "Confirmation Sent",
+                "description": "Confirmation Sent",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "sms_sent",
+                "label": "SMS Sent",
+                "description": "Sms Sent",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "calendar_invite_sent",
+                "label": "Calendar Invite Sent",
+                "description": "Calendar Invite Sent",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Setup_Service_Reminders",
+            "label": "Setup Reminders",
+            "description": "Sets up automated reminders for the service appointment",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "SetupServiceReminders",
+            "input_type": [
+              {
+                "developer_name": "appointment_date",
+                "label": "Appointment Date",
+                "description": "Scheduled service date",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_contact",
+                "label": "Customer Contact",
+                "description": "Customer contact preferences",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "service_type",
+                "label": "Service Type",
+                "description": "Type of service being provided",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "reminders_scheduled",
+                "label": "Reminders Scheduled",
+                "description": "Reminders Scheduled",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "reminder_timeline",
+                "label": "Reminder Timeline",
+                "description": "Reminder Timeline",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "backup_notification_method",
+                "label": "Backup Notification",
+                "description": "Backup Notification Method",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": []
+  }
+}

@@ -1,0 +1,338 @@
+---
+sidebar_position: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Custom Dialects
+
+A dialect defines the schema (block types and fields) and lint rules for an AgentScript-based language. You can create a custom dialect from scratch or extend an existing one with additional blocks and validation.
+
+## DialectConfig Interface
+
+Every dialect is described by a `DialectConfig`:
+
+```typescript
+interface DialectConfig {
+  readonly name: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly version: string;
+  readonly schemaInfo: SchemaInfo;
+  readonly createRules: () => LintPass[];
+  readonly source?: string;
+}
+```
+
+The `schemaInfo` field describes the document structure, `createRules` returns the lint passes to run, and the remaining fields are metadata used by tooling and editor integrations.
+
+## Defining a Schema
+
+A schema maps block names to their field definitions. Use the block factories and field types from `@agentscript/language`.
+
+### Block Factories
+
+- `Block(name, fields, opts)` -- a block with named fields.
+- `NamedBlock(name, fields, opts)` -- a block that takes a name identifier (e.g., `subagent Order_Management:`).
+- `CollectionBlock(blockFactory)` -- a collection of named blocks of the same type.
+
+### Field Types
+
+- `StringValue` -- string field.
+- `BooleanValue` -- boolean field.
+- `ProcedureValue` -- procedure (multi-line instruction body).
+- `ExpressionValue` -- inline expression.
+
+### Builder Methods
+
+Field types support chaining to add metadata and constraints:
+
+- `.describe(text)` -- add a description shown in hover and completions.
+- `.required()` -- mark the field as required (triggers a lint diagnostic if missing).
+- `.accepts([values])` -- restrict to a set of allowed values.
+- `.example(text)` -- provide an example for documentation.
+- `.pattern(regex)` -- validate against a regular expression.
+
+### Example Schema
+
+```typescript
+import {
+  Block,
+  NamedBlock,
+  CollectionBlock,
+  StringValue,
+  BooleanValue,
+  ProcedureValue,
+  ExpressionValue,
+  VariablesBlock,
+  ActionsBlock,
+} from '@agentscript/language';
+import type { FieldType, SchemaInfo } from '@agentscript/language';
+
+// Define a custom block
+const MyCustomBlock = Block('MyCustomBlock', {
+  description: StringValue.describe('Block description').required(),
+  enabled: BooleanValue.describe('Whether this feature is enabled'),
+}).example(`my_custom:
+    description: "Example block"
+    enabled: True`);
+
+// Define a named block (instances are identified by name)
+const FeatureBlock = NamedBlock('FeatureBlock', {
+  priority: StringValue.describe('Feature priority').accepts([
+    'low',
+    'medium',
+    'high',
+  ]),
+  handler: ProcedureValue.describe('Handler instructions').required(),
+});
+
+// Build the schema
+const MySchema = {
+  my_custom: MyCustomBlock,
+  features: CollectionBlock(FeatureBlock),
+  variables: VariablesBlock,
+} satisfies Record<string, FieldType>;
+```
+
+## SchemaInfo
+
+The `SchemaInfo` object wraps the schema with optional aliases and scope information:
+
+```typescript
+interface SchemaInfo {
+  schema: Record<string, FieldType>;
+  aliases?: Record<string, string>;
+  globalScopes?: Record<string, Set<string>>;
+}
+```
+
+- **`schema`** -- the block definitions.
+- **`aliases`** -- alternative names for blocks (e.g., `{ "vars": "variables" }`).
+- **`globalScopes`** -- declares which blocks contribute symbols to global scope resolution.
+
+```typescript
+const MySchemaInfo: SchemaInfo = {
+  schema: MySchema as Record<string, FieldType>,
+  aliases: {},
+  globalScopes: {},
+};
+```
+
+## Creating the DialectConfig
+
+Combine the schema and lint rules into a `DialectConfig`:
+
+```typescript
+import type { DialectConfig } from '@agentscript/language';
+
+export const myDialect: DialectConfig = {
+  name: 'my-dialect',
+  displayName: 'My Dialect',
+  description: 'Custom dialect with extra blocks',
+  version: '1.0.0',
+  schemaInfo: MySchemaInfo,
+  createRules: () => [...myLintRules()],
+};
+```
+
+The `createRules` function returns a fresh array of `LintPass` instances each time it is called. This ensures no shared mutable state between engine runs.
+
+## Extending an Existing Dialect
+
+Rather than building from scratch, you can extend an existing dialect by importing its schema and rules, then adding your own. This is how the Agentforce dialect extends the base AgentScript dialect -- it imports the AgentScript schema and spreads it into a larger schema that adds blocks like `KnowledgeBlock`, `SecurityBlock`, and `ConnectionBlock`, along with additional lint rules.
+
+The pattern:
+
+```typescript
+import { AgentScriptSchema } from '@agentscript/agentscript-dialect';
+import { defaultRules as baseRules } from '@agentscript/agentscript-dialect';
+import type {
+  DialectConfig,
+  FieldType,
+  SchemaInfo,
+} from '@agentscript/language';
+
+// Add new blocks to the base schema
+const ExtendedSchema = {
+  ...AgentScriptSchema,
+  knowledge: KnowledgeBlock,
+  security: SecurityBlock,
+  connection: ConnectionBlock,
+} satisfies Record<string, FieldType>;
+
+const ExtendedSchemaInfo: SchemaInfo = {
+  schema: ExtendedSchema as Record<string, FieldType>,
+  aliases: {},
+  globalScopes: {},
+};
+
+// Combine base rules with custom rules
+export const extendedDialect: DialectConfig = {
+  name: 'extended-dialect',
+  displayName: 'Extended Dialect',
+  description: 'AgentScript with additional blocks',
+  version: '1.0.0',
+  schemaInfo: ExtendedSchemaInfo,
+  createRules: () => [...baseRules(), ...myCustomRules()],
+};
+```
+
+## Advanced Schema Features
+
+### Collection Modifiers
+
+Mark a collection as accepting exactly one entry with `.singular()`:
+
+```typescript
+const schema = {
+  start_agent: CollectionBlock(SubagentBlock).singular(), // exactly one required
+  subagent: CollectionBlock(SubagentBlock), // zero or more
+};
+```
+
+### Cloning and Extending Blocks
+
+Create independent copies of block factories with `.clone()`, and extend them with additional fields:
+
+```typescript
+const ExtendedSubagent = SubagentBlock.clone().extend({
+  custom_field: StringValue.describe('A custom field'),
+});
+```
+
+Select a subset of fields from an existing block with `.pick()`:
+
+```typescript
+const SubagentSystemBlock = SystemBlock.pick(['instructions']); // only instructions, no messages
+```
+
+### Block Variants
+
+#### Name-Based Variants
+
+Define name-specific field overrides using `.variant()`. When an instance is named with the variant key, it gets the merged schema with the extra fields:
+
+```typescript
+const ActionBlock = NamedBlock('ActionBlock', baseFields).variant(
+  'special_action',
+  {
+    extra_config: StringValue.describe('Config only for special_action'),
+  }
+);
+```
+
+When an instance is named `special_action`, it gets the merged schema with the extra field.
+
+#### Discriminant-Based Variants
+
+When the variant should be determined by a **field value** rather than the instance name, use `.discriminant()` to specify which field acts as the polymorphic discriminator:
+
+```typescript
+const ToolDefinitionBlock = NamedBlock('ToolDefinition', {
+  target: StringValue.describe('Connection target').required(),
+  kind: StringValue.describe('Tool type').required(),
+})
+  .discriminant('kind')
+  .variant('mcp_tool', {
+    tool_name: StringValue.describe('MCP tool name').required(),
+    inputs: VariablesBlock,
+  })
+  .variant('a2a_send_message', {
+    message_type: StringValue.describe('A2A message type'),
+  });
+```
+
+Each entry in a collection can use a different variant based on its `kind` value:
+
+```yaml
+tool_defs:
+  send_slack_message:
+    kind: 'mcp_tool'
+    target: 'connection://slack_mcp_connection'
+    tool_name: 'send-message'
+    inputs:
+      channel: string
+      message: string
+
+  hr_agent:
+    kind: 'a2a_send_message'
+    target: 'connection://hr_agent_connection'
+    message_type: 'request'
+```
+
+Discriminant-based variants work on both `Block` and `NamedBlock`:
+
+```typescript
+const ConnectionBlock = Block('Connection', {
+  kind: StringValue,
+  name: StringValue,
+})
+  .discriminant('kind')
+  .variant('database', { connection_string: StringValue })
+  .variant('api', { url: StringValue, auth_token: StringValue });
+```
+
+The variant schema is merged with the base schema, so all base fields (like `target` and `kind`) are always available. If the discriminant value doesn't match any variant, an `unknown-variant` diagnostic is emitted. If the discriminant field is missing entirely, the base schema is used.
+
+### Block Capabilities
+
+Declare semantic capabilities that enable reference validation:
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```typescript
+const SubagentBlock = NamedBlock('SubagentBlock', fields, {
+  capabilities: ['invocationTarget', 'transitionTarget'],
+  scopeAlias: 'subagent',
+});
+```
+
+- `invocationTarget` — Block can be invoked via `@actions.Name`
+- `transitionTarget` — Block can be targeted via `transition to @subagent.Name`
+- `scopeAlias` — Binds instances to scope context (e.g., `'subagent'` makes instances accessible as `@subagent.Name`)
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```typescript
+const TopicBlock = NamedBlock('TopicBlock', fields, {
+  capabilities: ['invocationTarget', 'transitionTarget'],
+  scopeAlias: 'topic',
+});
+```
+
+- `invocationTarget` — Block can be invoked via `@actions.Name`
+- `transitionTarget` — Block can be targeted via `transition to @topic.Name`
+- `scopeAlias` — Binds instances to scope context (e.g., `'topic'` makes instances accessible as `@topic.Name`)
+
+</TabItem>
+</Tabs>
+
+## Using the Dialect
+
+### With parseAndLint (stateless)
+
+For CLI tools, CI pipelines, or one-shot validation:
+
+```typescript
+import { parseAndLint } from '@agentscript/language';
+
+const { ast, diagnostics, store } = parseAndLint(cstNode, myDialect);
+```
+
+### With LanguageService (stateful)
+
+For editor integrations that need incremental updates:
+
+```typescript
+import { createLanguageService } from '@agentscript/language';
+
+const service = createLanguageService({ dialect: myDialect });
+service.update(cstNode);
+// Access service.ast, service.diagnostics, service.store
+```
+
+See [Language Service](./language-service.md) for details on the editor integration API.

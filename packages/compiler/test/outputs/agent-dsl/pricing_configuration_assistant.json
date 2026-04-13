@@ -1,0 +1,1662 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Pricing_Configuration_Assistant_v1",
+    "label": "Pricing Configuration Assistant V 1",
+    "description": "Assists revenue operations teams with pricing model configuration and discount management",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "default_agent_user": "defaultagentuser@example.com",
+    "context_variables": []
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Welcome to Revenue Cloud Pricing Configuration! I can help you set up pricing models and configure discounts.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I'm experiencing difficulties accessing the Revenue Cloud system. Please try again or contact the Revenue Operations team.",
+        "message_type": "Error"
+      }
+    ],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to Revenue Cloud Pricing Configuration! I can help you set up pricing models and configure discounts.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm experiencing difficulties accessing the Revenue Cloud system. Please try again or contact the Revenue Operations team.\", \"messageType\": \"Error\"}]"
+    },
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "product_id",
+        "label": "Product Id",
+        "description": "Product identifier",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "product_name",
+        "label": "Product Name",
+        "description": "Product name for pricing configuration",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "product_family",
+        "label": "Product Family",
+        "description": "Product family or category",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "product_sku",
+        "label": "Product Sku",
+        "description": "Product SKU",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "pricing_model_type",
+        "label": "Pricing Model Type",
+        "description": "Type of pricing model (subscription, one-time, usage-based)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "base_price",
+        "label": "Base Price",
+        "description": "Base price of the product",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "list_price",
+        "label": "List Price",
+        "description": "Standard list price",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "cost_basis",
+        "label": "Cost Basis",
+        "description": "Cost basis for margin calculations",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "discount_percentage",
+        "label": "Discount Percentage",
+        "description": "Discount percentage to apply",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "discount_type",
+        "label": "Discount Type",
+        "description": "Type of discount (volume, promotional, loyalty)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "discount_reason",
+        "label": "Discount Reason",
+        "description": "Business justification for discount",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "margin_threshold",
+        "label": "Margin Threshold",
+        "description": "Minimum margin threshold percentage",
+        "data_type": "number",
+        "is_list": false,
+        "default": 20,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "competitive_price",
+        "label": "Competitive Price",
+        "description": "Competitive benchmark price",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "volume_tier",
+        "label": "Volume Tier",
+        "description": "Volume pricing tier",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "final_price",
+        "label": "Final Price",
+        "description": "Final calculated price",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "margin_percentage",
+        "label": "Margin Percentage",
+        "description": "Calculated margin percentage",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "revenue_impact",
+        "label": "Revenue Impact",
+        "description": "Revenue impact calculation",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "price_variance",
+        "label": "Price Variance",
+        "description": "Variance from standard pricing",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "approval_required",
+        "label": "Approval Required",
+        "description": "Whether pricing approval is required",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "approval_level",
+        "label": "Approval Level",
+        "description": "Required approval level (manager, director, vp)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "approver_id",
+        "label": "Approver Id",
+        "description": "Assigned approver identifier",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "approval_status",
+        "label": "Approval Status",
+        "description": "Current approval status",
+        "data_type": "string",
+        "is_list": false,
+        "default": "'pending'",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "pricing_effective_date",
+        "label": "Pricing Effective Date",
+        "description": "Effective date for pricing",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "sales_rep_id",
+        "label": "Sales Rep Id",
+        "description": "Sales representative requesting pricing",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_segment",
+        "label": "Customer Segment",
+        "description": "Target customer segment",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "deal_size",
+        "label": "Deal Size",
+        "description": "Total deal size",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "contract_term",
+        "label": "Contract Term",
+        "description": "Contract term in months",
+        "data_type": "number",
+        "is_list": false,
+        "default": 12,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "pricing_valid_until",
+        "label": "Pricing Valid Until",
+        "description": "Pricing validity expiration",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "pricing_setup",
+    "nodes": [
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome to Revenue Cloud Pricing Configuration!\n\nI can help you:\n- Set up product pricing models\n- Configure discount rules\n- Calculate final pricing\n- Manage approval workflows\n\nPlease provide:\n- Product name\n- Base price\n- Discount percentage (if applicable)"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a Revenue Cloud pricing configuration assistant. Your role is to help sales operations teams configure pricing models and manage discount approvals.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Sets up comprehensive pricing configuration with validation and competitive analysis",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.product_name == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "base_price": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approval_required": "False"
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Validate_Product_Configuration",
+            "bound_inputs": {
+              "product_id": "state.product_id",
+              "sales_rep_id": "state.sales_rep_id"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "product_name": "result.product_name"
+              },
+              {
+                "base_price": "result.base_price"
+              },
+              {
+                "list_price": "result.list_price"
+              },
+              {
+                "pricing_model_type": "result.pricing_model"
+              }
+            ],
+            "name": "validate_product",
+            "description": "Validate Product"
+          },
+          {
+            "type": "action",
+            "target": "Analyze_Competitive_Pricing",
+            "bound_inputs": {
+              "product_family": "state.product_family",
+              "customer_segment": "state.customer_segment",
+              "deal_size": "state.deal_size"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "competitive_price": "result.competitive_benchmark"
+              },
+              {
+                "discount_percentage": "result.recommended_discount"
+              }
+            ],
+            "name": "analyze_competition",
+            "description": "Analyze Competition"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "product_name": "state.product_name"
+              },
+              {
+                "base_price": "state.base_price"
+              },
+              {
+                "discount_percentage": "state.discount_percentage"
+              },
+              {
+                "sales_rep_id": "state.sales_rep_id"
+              }
+            ],
+            "name": "capture_pricing_info",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"price_calculation\""
+              }
+            ],
+            "name": "calculate_price",
+            "description": "Calculates comprehensive pricing with margin analysis and discount validation"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "price_calculation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"price_calculation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.product_id != \"\" and state.sales_rep_id != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Validate_Product_Configuration",
+            "bound_inputs": {
+              "product_id": "state.product_id",
+              "sales_rep_id": "state.sales_rep_id"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "product_name": "result.product_name"
+              },
+              {
+                "base_price": "result.base_price"
+              },
+              {
+                "list_price": "result.list_price"
+              },
+              {
+                "pricing_model_type": "result.pricing_model"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.product_family != \"\" and state.customer_segment != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Analyze_Competitive_Pricing",
+            "bound_inputs": {
+              "product_family": "state.product_family",
+              "customer_segment": "state.customer_segment",
+              "deal_size": "state.deal_size"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "competitive_price": "result.competitive_benchmark"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.base_price > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"price_calculation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "price_calculation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"price_calculation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "pricing_setup",
+        "label": "Pricing Setup",
+        "action_definitions": [
+          {
+            "developer_name": "Validate_Product_Configuration",
+            "label": "Validate Product",
+            "description": "Validates product exists and retrieves pricing metadata",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ValidateProductConfiguration",
+            "input_type": [
+              {
+                "developer_name": "product_id",
+                "label": "Product ID",
+                "description": "Product identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "sales_rep_id",
+                "label": "Sales Rep ID",
+                "description": "Sales representative identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "product_found",
+                "label": "Product Found",
+                "description": "Product Found",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "product_name",
+                "label": "Product Name",
+                "description": "Product Name",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "base_price",
+                "label": "Base Price",
+                "description": "Base Price",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "list_price",
+                "label": "List Price",
+                "description": "List Price",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "pricing_model",
+                "label": "Pricing Model",
+                "description": "Pricing Model",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "margin_guidelines",
+                "label": "Margin Guidelines",
+                "description": "Margin Guidelines",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Analyze_Competitive_Pricing",
+            "label": "Analyze Competition",
+            "description": "Analyzes competitive pricing and market positioning",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "AnalyzeCompetitivePricing",
+            "input_type": [
+              {
+                "developer_name": "product_family",
+                "label": "Product Family",
+                "description": "Product category for analysis",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_segment",
+                "label": "Customer Segment",
+                "description": "Target customer segment",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "deal_size",
+                "label": "Deal Size",
+                "description": "Total opportunity value",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "competitive_benchmark",
+                "label": "Competitive Benchmark",
+                "description": "Competitive Benchmark",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "market_position",
+                "label": "Market Position",
+                "description": "Market Position",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "recommended_discount",
+                "label": "Recommended Discount",
+                "description": "Recommended Discount",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "competitive_threats",
+                "label": "Competitive Threats",
+                "description": "Competitive Threats",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Pricing Configuration Summary:**\n- Product: {{state.product_name}}\n- Base Price: ${{state.base_price}}\n- Discount: {{state.discount_percentage}}%\n- Final Price: ${{state.final_price}}\n- Approval Required: {{state.approval_required}}\n\nPrice calculation completed successfully.\n\nWhat would you like to do next?"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a Revenue Cloud pricing configuration assistant. Your role is to help sales operations teams configure pricing models and manage discount approvals.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Calculates comprehensive pricing with margin analysis and discount validation",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.discount_percentage > 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approval_required": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.base_price > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "final_price": "state.base_price - state.discount_percentage"
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Calculate_Pricing_Metrics",
+            "bound_inputs": {
+              "base_price": "state.base_price",
+              "discount_percentage": "state.discount_percentage",
+              "cost_basis": "state.cost_basis",
+              "volume_multiplier": "1"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "final_price": "result.final_price"
+              },
+              {
+                "margin_percentage": "result.margin_percentage"
+              },
+              {
+                "revenue_impact": "result.revenue_impact"
+              }
+            ],
+            "name": "calculate_metrics",
+            "description": "Calculate Metrics"
+          },
+          {
+            "type": "action",
+            "target": "Validate_Discount_Rules",
+            "bound_inputs": {
+              "discount_percentage": "state.discount_percentage",
+              "discount_type": "state.discount_type",
+              "customer_segment": "state.customer_segment",
+              "deal_size": "state.deal_size",
+              "margin_percentage": "state.margin_percentage"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "approval_required": "result.approval_required"
+              },
+              {
+                "approval_level": "result.approval_level"
+              }
+            ],
+            "name": "validate_discount",
+            "description": "Validate Discount"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "final_price": "state.final_price"
+              },
+              {
+                "margin_percentage": "state.margin_percentage"
+              },
+              {
+                "approval_required": "state.approval_required"
+              }
+            ],
+            "name": "finalize_pricing",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"approval_workflow\""
+              }
+            ],
+            "name": "handle_approval",
+            "description": "Manages comprehensive pricing approval workflow with automated routing"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "approval_workflow",
+            "enabled": "state.AgentScriptInternal_next_topic==\"approval_workflow\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.base_price > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Pricing_Metrics",
+            "bound_inputs": {
+              "base_price": "state.base_price",
+              "discount_percentage": "state.discount_percentage",
+              "cost_basis": "state.cost_basis",
+              "volume_multiplier": "1"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "final_price": "result.final_price"
+              },
+              {
+                "margin_percentage": "result.margin_percentage"
+              },
+              {
+                "revenue_impact": "result.revenue_impact"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Validate_Discount_Rules",
+            "bound_inputs": {
+              "discount_percentage": "state.discount_percentage",
+              "discount_type": "state.discount_type",
+              "customer_segment": "state.customer_segment",
+              "deal_size": "state.deal_size",
+              "margin_percentage": "state.margin_percentage"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approval_required": "result.approval_required"
+              },
+              {
+                "approval_level": "result.approval_level"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.approval_required"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"approval_workflow\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "approval_workflow",
+            "enabled": "state.AgentScriptInternal_next_topic==\"approval_workflow\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.final_price > 0 and state.approval_required == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approval_status": "\"auto_approved\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "price_calculation",
+        "label": "Price Calculation",
+        "action_definitions": [
+          {
+            "developer_name": "Calculate_Pricing_Metrics",
+            "label": "Calculate Metrics",
+            "description": "Calculates comprehensive pricing metrics and margin analysis",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CalculatePricingMetrics",
+            "input_type": [
+              {
+                "developer_name": "base_price",
+                "label": "Base Price",
+                "description": "Product base price",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "discount_percentage",
+                "label": "Discount Percentage",
+                "description": "Proposed discount percentage",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "cost_basis",
+                "label": "Cost Basis",
+                "description": "Product cost basis",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "volume_multiplier",
+                "label": "Volume Multiplier",
+                "description": "Volume-based pricing multiplier",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "final_price",
+                "label": "Final Price",
+                "description": "Final Price",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "margin_percentage",
+                "label": "Margin Percentage",
+                "description": "Margin Percentage",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "margin_dollars",
+                "label": "Margin Dollars",
+                "description": "Margin Dollars",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "price_variance",
+                "label": "Price Variance",
+                "description": "Price Variance",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "revenue_impact",
+                "label": "Revenue Impact",
+                "description": "Revenue Impact",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Validate_Discount_Rules",
+            "label": "Validate Discount",
+            "description": "Validates discount against business rules and thresholds",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ValidateDiscountRules",
+            "input_type": [
+              {
+                "developer_name": "discount_percentage",
+                "label": "Discount Percentage",
+                "description": "Proposed discount",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "discount_type",
+                "label": "Discount Type",
+                "description": "Type of discount being applied",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_segment",
+                "label": "Customer Segment",
+                "description": "Target customer segment",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "deal_size",
+                "label": "Deal Size",
+                "description": "Total opportunity value",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "margin_percentage",
+                "label": "Calculated Margin",
+                "description": "Calculated margin percentage",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "discount_valid",
+                "label": "Discount Valid",
+                "description": "Discount Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "approval_required",
+                "label": "Approval Required",
+                "description": "Approval Required",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "approval_level",
+                "label": "Approval Level",
+                "description": "Approval Level",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "business_justification",
+                "label": "Business Justification",
+                "description": "Business Justification",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "max_allowed_discount",
+                "label": "Max Allowed Discount",
+                "description": "Max Allowed Discount",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Approval Required for Pricing Configuration:**\n- Product: {{state.product_name}}\n- Discount: {{state.discount_percentage}}%\n- Final Price: ${{state.final_price}}\n\nHigh discount percentage requires management approval.\n\nThe pricing configuration has been submitted for approval.\nYou will be notified once the approval process is complete.\n\nWould you like to configure pricing for another product?"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a Revenue Cloud pricing configuration assistant. Your role is to help sales operations teams configure pricing models and manage discount approvals.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Manages comprehensive pricing approval workflow with automated routing",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.approval_level == \"manager\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approver_id": "\"MGR-001\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.approval_level == \"director\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approver_id": "\"DIR-001\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.approval_level == \"vp\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approver_id": "\"VP-001\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Submit_Pricing_Approval",
+            "bound_inputs": {
+              "pricing_request": "state.product_name + \" pricing\"",
+              "approval_level": "state.approval_level",
+              "sales_rep_id": "state.sales_rep_id",
+              "business_justification": "state.discount_reason"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "approver_id": "result.approver_assigned"
+              },
+              {
+                "approval_status": "\"pending\""
+              }
+            ],
+            "name": "submit_approval",
+            "description": "Submit Approval"
+          },
+          {
+            "type": "action",
+            "target": "Generate_Pricing_Quote",
+            "bound_inputs": {
+              "final_price": "state.final_price",
+              "product_details": "state.product_name",
+              "customer_info": "state.customer_segment",
+              "pricing_terms": "\"Standard terms apply\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "pricing_valid_until": "result.quote_valid_until"
+              }
+            ],
+            "name": "create_quote",
+            "description": "Create Quote"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "approval_required": "state.approval_required"
+              },
+              {
+                "approver_id": "state.approver_id"
+              },
+              {
+                "approval_status": "state.approval_status"
+              }
+            ],
+            "name": "process_approval",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"pricing_setup\""
+              }
+            ],
+            "name": "configure_another",
+            "description": "Sets up comprehensive pricing configuration with validation and competitive analysis"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "pricing_setup",
+            "enabled": "state.AgentScriptInternal_next_topic==\"pricing_setup\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.approval_required and state.approval_level != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Submit_Pricing_Approval",
+            "bound_inputs": {
+              "pricing_request": "state.product_name + \" pricing configuration\"",
+              "approval_level": "state.approval_level",
+              "sales_rep_id": "state.sales_rep_id",
+              "business_justification": "state.discount_reason"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "approver_id": "result.approver_assigned"
+              },
+              {
+                "approval_status": "\"pending\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.final_price > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Generate_Pricing_Quote",
+            "bound_inputs": {
+              "final_price": "state.final_price",
+              "product_details": "state.product_name",
+              "customer_info": "state.customer_segment",
+              "pricing_terms": "\"Standard terms and conditions apply\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "pricing_valid_until": "result.quote_valid_until"
+              }
+            ]
+          }
+        ],
+        "developer_name": "approval_workflow",
+        "label": "Approval Workflow",
+        "action_definitions": [
+          {
+            "developer_name": "Submit_Pricing_Approval",
+            "label": "Submit for Approval",
+            "description": "Submits pricing configuration for approval workflow",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "SubmitPricingApproval",
+            "input_type": [
+              {
+                "developer_name": "pricing_request",
+                "label": "Pricing Request",
+                "description": "Complete pricing request details",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "approval_level",
+                "label": "Approval Level",
+                "description": "Required approval level",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "sales_rep_id",
+                "label": "Sales Rep ID",
+                "description": "Requesting sales representative",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "business_justification",
+                "label": "Business Justification",
+                "description": "Justification for pricing request",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "approval_submitted",
+                "label": "Approval Submitted",
+                "description": "Approval Submitted",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "approver_assigned",
+                "label": "Approver Assigned",
+                "description": "Approver Assigned",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "approval_timeline",
+                "label": "Approval Timeline",
+                "description": "Approval Timeline",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "approval_id",
+                "label": "Approval ID",
+                "description": "Approval Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Generate_Pricing_Quote",
+            "label": "Generate Quote",
+            "description": "Generates formal pricing quote with approved pricing",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GeneratePricingQuote",
+            "input_type": [
+              {
+                "developer_name": "final_price",
+                "label": "Final Price",
+                "description": "Approved final price",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "product_details",
+                "label": "Product Details",
+                "description": "Complete product information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_info",
+                "label": "Customer Info",
+                "description": "Customer information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "pricing_terms",
+                "label": "Pricing Terms",
+                "description": "Terms and conditions",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "quote_generated",
+                "label": "Quote Generated",
+                "description": "Quote Generated",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "quote_id",
+                "label": "Quote ID",
+                "description": "Quote Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "quote_valid_until",
+                "label": "Quote Valid Until",
+                "description": "Quote Valid Until",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "delivery_method",
+                "label": "Delivery Method",
+                "description": "Delivery Method",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": []
+  }
+}

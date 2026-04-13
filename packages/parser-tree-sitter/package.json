@@ -1,0 +1,77 @@
+{
+  "name": "@agentscript/parser-tree-sitter",
+  "version": "2.3.2",
+  "description": "Tree-sitter parser for AgentScript language",
+  "type": "module",
+  "repository": "https://github.com/tree-sitter/tree-sitter-agentscript",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "AgentScript Team",
+    "email": "agentscript@salesforce.com"
+  },
+  "main": "bindings/node/index.js",
+  "types": "bindings/node/index.d.ts",
+  "exports": {
+    ".": "./bindings/node/index.js",
+    "./wasm": "./tree-sitter-agentscript.wasm",
+    "./tree-sitter-agentscript.wasm": "./tree-sitter-agentscript.wasm",
+    "./queries": "./queries/index.js",
+    "./queries/highlights.scm": "./queries/highlights.scm",
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "incremental",
+    "parsing",
+    "tree-sitter",
+    "agentscript"
+  ],
+  "files": [
+    "grammar.js",
+    "tree-sitter.json",
+    "binding.gyp",
+    "prebuilds/**",
+    "bindings/node/*",
+    "queries/*",
+    "src/**",
+    "*.wasm"
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.5.0",
+    "node-gyp-build": "^4.8.4"
+  },
+  "devDependencies": {
+    "node-gyp": "^11.5.0",
+    "prebuildify": "^6.0.1",
+    "web-tree-sitter": "^0.25.10"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.25.0"
+  },
+  "peerDependenciesMeta": {
+    "tree-sitter": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "build": "pnpm run generate && pnpm run build:node",
+    "build:full": "pnpm run generate && pnpm run build:node && pnpm run build:wasm",
+    "build:node": "node-gyp rebuild",
+    "build:wasm": "tree-sitter build --wasm",
+    "build:python": "pip install -e . || echo 'Python build requires pip in PATH'",
+    "build:all": "pnpm run build && pnpm run build:python",
+    "prebuild": "pnpm run generate && prebuildify --napi --strip",
+    "prebuild:linux-x64": "./scripts/build-prebuilds-linux-x64.sh",
+    "preinstall": "node scripts/preinstall.cjs",
+    "install": "node-gyp-build",
+    "postinstall": "pnpm rebuild tree-sitter 2>/dev/null || true",
+    "prestart": "pnpm run build:wasm",
+    "start": "tree-sitter playground",
+    "test": "rm -rf coverage && mkdir -p coverage && NODE_V8_COVERAGE=coverage/node node --test bindings/node/*_test.js && CC=gcc tree-sitter test",
+    "test:wasm": "node test_wasm.mjs",
+    "test:corpus:update": "tree-sitter test --update",
+    "test:all": "pnpm test && pnpm run test:wasm",
+    "parse": "tree-sitter parse",
+    "clean": "rm -rf build prebuilds *.wasm"
+  }
+}

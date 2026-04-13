@@ -1,0 +1,1304 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Opportunity_Management_Bot_v1
+  label: Opportunity Management Bot V 1
+  description: Manages sales opportunities with deterministic pipeline progression
+    and activity tracking
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I'm your sales opportunity assistant. I can help you update
+        deal stages, log activities, and provide insights on your active opportunities.
+        What would you like to work on today?
+      message_type: Welcome
+    - message: I'm having trouble accessing the CRM system. Please try again or contact
+        your sales manager.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I''m your sales opportunity assistant.
+      I can help you update deal stages, log activities, and provide insights on your
+      active opportunities. What would you like to work on today?", "messageType":
+      "Welcome"}, {"message": "I''m having trouble accessing the CRM system. Please
+      try again or contact your sales manager.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: opportunity_id
+      label: Opportunity Id
+      description: Unique opportunity identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: opportunity_name
+      label: Opportunity Name
+      description: Name of the sales opportunity
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: account_name
+      label: Account Name
+      description: Account name for the opportunity
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: account_id
+      label: Account Id
+      description: Account identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: deal_value
+      label: Deal Value
+      description: Value of the deal in currency
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: deal_currency
+      label: Deal Currency
+      description: Deal currency
+      data_type: string
+      is_list: false
+      default: '''USD'''
+      visibility: Internal
+    - developer_name: probability
+      label: Probability
+      description: Win probability percentage
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: close_date
+      label: Close Date
+      description: Expected close date
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: created_date
+      label: Created Date
+      description: Opportunity creation date
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: sales_rep_id
+      label: Sales Rep Id
+      description: Sales representative identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: sales_rep_name
+      label: Sales Rep Name
+      description: Sales representative name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: sales_manager
+      label: Sales Manager
+      description: Sales manager name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: team_id
+      label: Team Id
+      description: Sales team identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: current_stage
+      label: Current Stage
+      description: Current deal stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: previous_stage
+      label: Previous Stage
+      description: Previous deal stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_stage
+      label: Next Stage
+      description: Next logical stage in pipeline
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: stage_progression_score
+      label: Stage Progression Score
+      description: Score for stage progression readiness (0-100)
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: days_in_stage
+      label: Days In Stage
+      description: Number of days in current stage
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: stage_velocity
+      label: Stage Velocity
+      description: Average days per stage
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: last_activity
+      label: Last Activity
+      description: Last recorded activity
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: last_activity_date
+      label: Last Activity Date
+      description: Date of last activity
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_activity
+      label: Next Activity
+      description: Recommended next activity
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: activity_count
+      label: Activity Count
+      description: Total number of activities
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: engagement_score
+      label: Engagement Score
+      description: Customer engagement score (0-100)
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: deal_health
+      label: Deal Health
+      description: Overall deal health status
+      data_type: string
+      is_list: false
+      default: '''healthy'''
+      visibility: Internal
+    - developer_name: risk_factors
+      label: Risk Factors
+      description: Identified risk factors
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: competitive_situation
+      label: Competitive Situation
+      description: Competitive landscape
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: decision_makers_identified
+      label: Decision Makers Identified
+      description: Whether decision makers are identified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: budget_confirmed
+      label: Budget Confirmed
+      description: Whether budget is confirmed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: timeline_confirmed
+      label: Timeline Confirmed
+      description: Whether timeline is confirmed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: product_line
+      label: Product Line
+      description: Primary product line
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: solution_type
+      label: Solution Type
+      description: Type of solution being proposed
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: competitors
+      label: Competitors
+      description: Known competitors in this deal
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: forecast_category
+      label: Forecast Category
+      description: Forecast category (commit, best_case, pipeline)
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: weighted_value
+      label: Weighted Value
+      description: Probability-weighted deal value
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: quarters_to_close
+      label: Quarters To Close
+      description: Estimated quarters until close
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+  initial_node: opportunity_loader
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                I''m here to help you manage your sales opportunities and move deals
+                through the pipeline.
+
+
+                Which opportunity would you like to work on today? Please provide:
+
+                - Opportunity name or account name
+
+                - Current deal stage if you know it
+
+
+                I can help you:
+
+                - Update deal stages and progression
+
+                - Log activities and next steps
+
+                - Assess deal health and provide recommendations'
+      instructions: You are a sales opportunity management assistant. Your role is
+        to help sales representatives manage opportunities, update deal stages, track
+        activities, and provide insights to move deals forward through the sales pipeline.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Loads and identifies the opportunity with comprehensive CRM integration
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.opportunity_name == ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: '0'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"healthy"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Validate_Sales_Rep_Access
+          bound_inputs:
+            sales_rep_id: state.sales_rep_id
+            opportunity_id: state.opportunity_id
+          llm_inputs: []
+          state_updates:
+            - sales_rep_name: result.sales_rep_name
+            - sales_manager: result.manager_name
+          name: validate_access
+          description: Validate Access
+        - type: action
+          target: Load_Opportunity_Details
+          bound_inputs:
+            opportunity_id: state.opportunity_id
+            opportunity_name: state.opportunity_name
+            account_name: state.account_name
+            sales_rep_id: state.sales_rep_id
+          llm_inputs: []
+          state_updates:
+            - current_stage: result.current_stage
+            - deal_value: result.deal_value
+            - probability: result.probability
+            - close_date: result.close_date
+          name: load_opportunity
+          description: Load Opportunity
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - opportunity_name: state.opportunity_name
+            - account_name: state.account_name
+            - current_stage: state.current_stage
+            - sales_rep_id: state.sales_rep_id
+          name: capture_opportunity_info
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"pipeline_management"'
+          name: manage_pipeline
+          description: Manages deal progression through sales pipeline with advanced
+            analytics
+      after_all_tool_calls:
+        - type: handoff
+          target: pipeline_management
+          enabled: state.AgentScriptInternal_next_topic=="pipeline_management"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.sales_rep_id != ""
+        - type: action
+          target: Validate_Sales_Rep_Access
+          bound_inputs:
+            sales_rep_id: state.sales_rep_id
+            opportunity_id: state.opportunity_id
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - sales_rep_name: result.sales_rep_name
+            - sales_manager: result.manager_name
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.opportunity_name != "" or state.opportunity_id
+                != ""
+        - type: action
+          target: Load_Opportunity_Details
+          bound_inputs:
+            opportunity_id: state.opportunity_id
+            opportunity_name: state.opportunity_name
+            account_name: state.account_name
+            sales_rep_id: state.sales_rep_id
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - current_stage: result.current_stage
+            - deal_value: result.deal_value
+            - probability: result.probability
+            - close_date: result.close_date
+            - weighted_value: state.deal_value - state.probability
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"pipeline_management"'
+        - type: handoff
+          target: pipeline_management
+          enabled: state.AgentScriptInternal_next_topic=="pipeline_management"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: opportunity_loader
+      label: Opportunity Loader
+      action_definitions:
+        - developer_name: Load_Opportunity_Details
+          label: Load Opportunity
+          description: Loads comprehensive opportunity details from CRM system
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: LoadOpportunityDetails
+          input_type:
+            - developer_name: opportunity_id
+              label: Opportunity ID
+              description: Unique opportunity identifier
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: opportunity_name
+              label: Opportunity Name
+              description: Name of the opportunity
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: account_name
+              label: Account Name
+              description: Account name to search
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: sales_rep_id
+              label: Sales Rep ID
+              description: Sales representative identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: opportunity_found
+              label: Opportunity Found
+              description: Opportunity Found
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: opportunity_data
+              label: Opportunity Data
+              description: Opportunity Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: current_stage
+              label: Current Stage
+              description: Current Stage
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: deal_value
+              label: Deal Value
+              description: Deal Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: probability
+              label: Win Probability
+              description: Probability
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: close_date
+              label: Expected Close Date
+              description: Close Date
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Validate_Sales_Rep_Access
+          label: Validate Access
+          description: Validates sales representative access to the opportunity
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: ValidateSalesRepAccess
+          input_type:
+            - developer_name: sales_rep_id
+              label: Sales Rep ID
+              description: Sales representative identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: opportunity_id
+              label: Opportunity ID
+              description: Opportunity to access
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: access_granted
+              label: Access Granted
+              description: Access Granted
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: sales_rep_name
+              label: Sales Rep Name
+              description: Sales Rep Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: team_access_level
+              label: Access Level
+              description: Team Access Level
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: manager_name
+              label: Manager Name
+              description: Manager Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Opportunity Management Dashboard**
+
+
+                **Deal:** {{state.opportunity_name}}
+
+                **Account:** {{state.account_name}}
+
+                **Current Stage:** {{state.current_stage}}
+
+                **Next Stage:** {{state.next_stage}}
+
+                **Progression Score:** {{state.stage_progression_score}}/100
+
+                **Deal Health:** {{state.deal_health}}
+
+
+                Based on your current stage, here are the recommended next steps to
+                move this deal forward.
+
+
+                What would you like to do:
+
+                1. Update deal stage
+
+                2. Log new activity
+
+                3. Get stage-specific recommendations
+
+                4. Assess deal health'
+      instructions: You are a sales opportunity management assistant. Your role is
+        to help sales representatives manage opportunities, update deal stages, track
+        activities, and provide insights to move deals forward through the sales pipeline.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Manages deal progression through sales pipeline with advanced analytics
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "prospecting"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_stage: '"qualification"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: '25'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "qualification"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_stage: '"proposal"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: '50'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "proposal"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_stage: '"negotiation"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: '75'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "negotiation"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_stage: '"closed_won"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: '90'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Calculate_Deal_Score
+          bound_inputs:
+            opportunity_data: state.opportunity_name
+            activity_count: state.activity_count
+            days_in_stage: state.days_in_stage
+            engagement_indicators: '"High engagement"'
+          llm_inputs: []
+          state_updates:
+            - stage_progression_score: result.progression_readiness
+            - engagement_score: result.health_score
+            - risk_factors: result.risk_factors
+          name: calculate_score
+          description: Calculate Score
+        - type: action
+          target: Generate_Forecast_Update
+          bound_inputs:
+            deal_value: state.deal_value
+            probability: state.probability
+            close_date: state.close_date
+            stage: state.current_stage
+          llm_inputs: []
+          state_updates:
+            - forecast_category: result.forecast_category
+            - weighted_value: result.weighted_value
+          name: update_forecast
+          description: Update Forecast
+        - type: action
+          target: Update_Opportunity_Stage
+          bound_inputs:
+            opportunity_id: state.opportunity_id
+            current_stage: state.current_stage
+            new_stage: state.next_stage
+            stage_change_reason: '"Pipeline progression"'
+            sales_rep_id: state.sales_rep_id
+          llm_inputs: []
+          state_updates:
+            - current_stage: state.next_stage
+            - probability: result.new_probability
+          name: update_stage
+          description: Update Stage
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - deal_value: state.deal_value
+            - last_activity: state.last_activity
+            - stage_progression_score: state.stage_progression_score
+          name: capture_pipeline_action
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"activity_tracking"'
+          name: track_activities
+          description: Tracks sales activities and recommends next steps
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"deal_assessment"'
+          name: assess_deal
+          description: Assesses deal health and provides strategic recommendations
+      after_all_tool_calls:
+        - type: handoff
+          target: activity_tracking
+          enabled: state.AgentScriptInternal_next_topic=="activity_tracking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: deal_assessment
+          enabled: state.AgentScriptInternal_next_topic=="deal_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.opportunity_id != ""
+        - type: action
+          target: Calculate_Deal_Score
+          bound_inputs:
+            opportunity_data: state.opportunity_name
+            activity_count: state.activity_count
+            days_in_stage: state.days_in_stage
+            engagement_indicators: '"Customer engaged"'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: result.progression_readiness
+            - risk_factors: result.risk_factors
+        - type: action
+          target: Generate_Forecast_Update
+          bound_inputs:
+            deal_value: state.deal_value
+            probability: state.probability
+            close_date: state.close_date
+            stage: state.current_stage
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - forecast_category: result.forecast_category
+            - weighted_value: result.weighted_value
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.stage_progression_score >= 75
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"excellent"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.stage_progression_score >= 50 and
+                state.stage_progression_score < 75
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"good"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.stage_progression_score < 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"needs_attention"'
+      developer_name: pipeline_management
+      label: Pipeline Management
+      action_definitions:
+        - developer_name: Update_Opportunity_Stage
+          label: Update Stage
+          description: Updates opportunity stage with validation and audit trail
+          require_user_confirmation: true
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: UpdateOpportunityStage
+          input_type:
+            - developer_name: opportunity_id
+              label: Opportunity ID
+              description: Opportunity identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: current_stage
+              label: Current Stage
+              description: Current pipeline stage
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: new_stage
+              label: New Stage
+              description: New pipeline stage
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: stage_change_reason
+              label: Change Reason
+              description: Reason for stage change
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: sales_rep_id
+              label: Sales Rep ID
+              description: Representative making the change
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: stage_updated
+              label: Stage Updated
+              description: Stage Updated
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: new_probability
+              label: New Probability
+              description: New Probability
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: stage_requirements_met
+              label: Requirements Met
+              description: Stage Requirements Met
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: next_stage_actions
+              label: Next Stage Actions
+              description: Next Stage Actions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Calculate_Deal_Score
+          label: Calculate Deal Score
+          description: Calculates comprehensive deal health and progression score
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: CalculateDealScore
+          input_type:
+            - developer_name: opportunity_data
+              label: Opportunity Data
+              description: Current opportunity information
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: activity_count
+              label: Activity Count
+              description: Number of recent activities
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: days_in_stage
+              label: Days in Stage
+              description: Days in current stage
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: engagement_indicators
+              label: Engagement Indicators
+              description: Customer engagement signals
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: health_score
+              label: Health Score
+              description: Health Score
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: progression_readiness
+              label: Progression Readiness
+              description: Progression Readiness
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: risk_factors
+              label: Risk Factors
+              description: Risk Factors
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: recommended_actions
+              label: Recommended Actions
+              description: Recommended Actions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Generate_Forecast_Update
+          label: Generate Forecast
+          description: Generates forecast category and weighted pipeline value
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: GenerateForecastUpdate
+          input_type:
+            - developer_name: deal_value
+              label: Deal Value
+              description: Total deal value
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: probability
+              label: Win Probability
+              description: Probability percentage
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: close_date
+              label: Close Date
+              description: Expected close date
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: stage
+              label: Current Stage
+              description: Current pipeline stage
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: forecast_category
+              label: Forecast Category
+              description: Forecast Category
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: weighted_value
+              label: Weighted Value
+              description: Weighted Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: commit_confidence
+              label: Commit Confidence
+              description: Commit Confidence
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: quarter_projection
+              label: Quarter Projection
+              description: Quarter Projection
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Activity Tracking for {{state.opportunity_name}}**
+
+
+                **Last Activity:** {{state.last_activity}}
+
+                **Recommended Next Activity:** {{state.next_activity}}
+
+
+                Stage-specific recommendations:
+
+                - Prospecting: Focus on discovery and needs assessment
+
+                - Qualification: Demonstrate value and build business case
+
+                - Proposal: Address objections and refine solution
+
+                - Negotiation: Close on terms and finalize agreement
+
+
+                What activity would you like to log or schedule next?'
+      instructions: You are now in activity tracking mode. Focus on logging meaningful
+        sales activities and providing specific, actionable next steps based on the
+        current deal stage and customer engagement level.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Tracks sales activities and recommends next steps
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "prospecting"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_activity: '"Schedule discovery call"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "qualification"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_activity: '"Send proposal or demo"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "proposal"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_activity: '"Follow up on proposal feedback"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.current_stage == "negotiation"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - next_activity: '"Finalize contract terms"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - last_activity: state.last_activity
+            - next_activity: state.next_activity
+          name: log_activity
+          description: Log sales activity
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"deal_assessment"'
+          name: assess_deal
+          description: Assess overall deal health
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"opportunity_loader"'
+          name: work_another_deal
+          description: Work on another opportunity
+      after_all_tool_calls:
+        - type: handoff
+          target: deal_assessment
+          enabled: state.AgentScriptInternal_next_topic=="deal_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: opportunity_loader
+          enabled: state.AgentScriptInternal_next_topic=="opportunity_loader"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.last_activity != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - stage_progression_score: state.stage_progression_score + 10
+      developer_name: activity_tracking
+      label: Activity Tracking
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Deal Health Assessment for {{state.opportunity_name}}**
+
+
+                **Overall Health:** {{state.deal_health}}
+
+                **Progression Score:** {{state.stage_progression_score}}/100
+
+                **Current Stage:** {{state.current_stage}}
+
+
+                **Strategic Recommendations:**
+
+                Based on deal health status, focus on appropriate next steps to move
+                the opportunity forward.
+
+
+                **Next Steps:** {{state.next_activity}}
+
+
+                Would you like to work on another opportunity or get more specific
+                recommendations?'
+      instructions: You are a sales opportunity management assistant. Your role is
+        to help sales representatives manage opportunities, update deal stages, track
+        activities, and provide insights to move deals forward through the sales pipeline.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Assesses deal health and provides strategic recommendations
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.stage_progression_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"excellent"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.stage_progression_score >= 60
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"good"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.stage_progression_score < 60
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - deal_health: '"at_risk"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"opportunity_loader"'
+          name: manage_another
+          description: Manage another opportunity
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"pipeline_management"'
+          name: update_pipeline
+          description: Update pipeline for this deal
+      after_all_tool_calls:
+        - type: handoff
+          target: opportunity_loader
+          enabled: state.AgentScriptInternal_next_topic=="opportunity_loader"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: pipeline_management
+          enabled: state.AgentScriptInternal_next_topic=="pipeline_management"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: deal_assessment
+      label: Deal Assessment
+      action_definitions: []
+  surfaces: []

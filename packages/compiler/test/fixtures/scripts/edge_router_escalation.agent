@@ -1,0 +1,89 @@
+system:
+    instructions: "You are a routing agent with escalation and off-topic handling."
+    messages:
+        welcome: "Welcome! I can help with orders, account questions, or connect you with a human agent."
+        error: "An error occurred. Please try again."
+
+config:
+    developer_name: "Router_Escalation"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Router with escalation topic and off_topic topic"
+
+language:
+    default_locale: "en_US"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "Messaging end user identifier"
+    RoutableId: linked string
+        source: @MessagingSession.Id
+        description: "Messaging session identifier"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Routes users with escalation and off-topic support"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Route the user to the appropriate topic.
+              If the user wants a human agent, route to escalation.
+        actions:
+            go_orders: @utils.transition to @topic.order_help
+                description: "Route to order help"
+            go_account: @utils.transition to @topic.account_help
+                description: "Route to account help"
+            go_escalation: @utils.transition to @topic.escalation
+                available when @variables.EndUserId != None
+                description: "Escalate to human agent"
+            go_off_topic: @utils.transition to @topic.off_topic
+                description: "Handle off-topic requests"
+
+topic order_help:
+    label: "Order Help"
+    description: "Assists with order-related questions"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their order question.
+              Ask for order number and details about their issue.
+        actions:
+            escalate_to_human: @utils.transition to @topic.escalation
+                description: "Escalate if unable to resolve"
+
+topic account_help:
+    label: "Account Help"
+    description: "Assists with account-related questions"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their account question.
+              If the issue is sensitive, recommend escalation.
+        actions:
+            escalate_to_human: @utils.transition to @topic.escalation
+                description: "Escalate for sensitive account issues"
+
+topic escalation:
+    label: "Escalation"
+    description: "Handles transfer to a live human agent"
+
+    reasoning:
+        instructions: ->
+            | If the user explicitly asks to transfer to a live agent, escalate the conversation.
+              If escalation fails, acknowledge the issue and ask whether they'd like to log a support case.
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Transfer to a human agent"
+
+topic off_topic:
+    label: "Off Topic"
+    description: "Redirects off-topic conversations politely"
+
+    reasoning:
+        instructions: ->
+            | The user's request is off-topic. Politely redirect them.
+              NEVER answer general knowledge questions.
+              Only respond to greetings and questions about your capabilities.

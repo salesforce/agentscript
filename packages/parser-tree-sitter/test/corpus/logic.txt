@@ -1,0 +1,261 @@
+================
+Simple Set Statement
+================
+topic test:
+    before_reasoning:
+        set @variable.status = "pending"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (mapping
+            (set_statement
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              value: (expression
+                (atom
+                  (string
+                    (string_content)))))))))))
+================
+Set Statement with Number
+================
+topic test:
+    after_reasoning:
+        set @variable.count = 0
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (mapping
+            (set_statement
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              value: (expression
+                (atom
+                  (number))))))))))
+================
+If Statement in Before Reasoning
+================
+topic test:
+    before_reasoning:
+        if @variable.status == "":
+            set @variable.status = "pending"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (mapping
+            (if_statement
+              condition: (expression
+                (comparison_expression
+                  (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  (expression
+                    (atom
+                      (string)))))
+              consequence: (procedure
+                (set_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  value: (expression
+                    (atom
+                      (string
+                        (string_content)))))))))))))
+================
+Multiple Set Statements in If
+================
+topic test:
+    before_reasoning:
+        if @variable.policy_number == "":
+            set @variable.claim_status = "pending"
+            set @variable.claim_amount = 0
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (mapping
+            (if_statement
+              condition: (expression
+                (comparison_expression
+                  (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  (expression
+                    (atom
+                      (string)))))
+              consequence: (procedure
+                (set_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  value: (expression
+                    (atom
+                      (string
+                        (string_content)))))
+                (set_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  value: (expression
+                    (atom
+                      (number))))))))))))
+================
+Run Statement in Block
+================
+topic test:
+    after_reasoning:
+        run @action.save_data
+            with param1 = @variable.value1
+            set @variable.result = @result.output
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (mapping
+            (run_statement
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              block_value: (procedure
+                (with_statement
+                  param: (id)
+                  value: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))
+                (set_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  value: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+================
+Transition Statement in Arrow Block
+================
+topic test:
+    instructions: ->
+        if @variables.tier == "VIP":
+            transition to @topic.escalate
+        |   Continue normal flow
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (if_statement
+              condition: (expression
+                (comparison_expression
+                  (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  (expression
+                    (atom
+                      (string
+                        (string_content))))))
+              consequence: (procedure
+                (transition_statement
+                  with_to_statement_list: (with_to_statement_list
+                    (to_statement
+                      target: (expression
+                        (member_expression
+                          (expression
+                            (atom
+                              (at_id
+                                (id))))
+                          (id))))))))
+            (template
+              (template_content))))))))

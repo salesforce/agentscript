@@ -1,0 +1,2053 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Claim_Processing_Assistant_v1",
+    "label": "Claim Processing Assistant V 1",
+    "description": "Assists customers with insurance claim filing and documentation collection",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "defaultagentuser@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I'm here to help you with your insurance claim. I can assist with filing new claims and checking claim status.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I'm experiencing technical difficulties accessing the claims system. Please try again or contact our claims department.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "policy_number",
+        "label": "Policy Number",
+        "description": "Customer's insurance policy number",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "customer_id",
+        "label": "Customer Id",
+        "description": "Customer identifier",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer's full name",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "customer_verified",
+        "label": "Customer Verified",
+        "description": "Whether customer identity is verified",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "policy_active",
+        "label": "Policy Active",
+        "description": "Whether policy is active and in good standing",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "policy_type",
+        "label": "Policy Type",
+        "description": "Type of insurance policy",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "coverage_limits",
+        "label": "Coverage Limits",
+        "description": "Policy coverage limits",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "deductible_amount",
+        "label": "Deductible Amount",
+        "description": "Policy deductible amount",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "premium_current",
+        "label": "Premium Current",
+        "description": "Whether premiums are current",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "claim_id",
+        "label": "Claim Id",
+        "description": "Generated claim identifier",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "claim_type",
+        "label": "Claim Type",
+        "description": "Type of claim being filed",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "incident_date",
+        "label": "Incident Date",
+        "description": "Date of the incident",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "incident_location",
+        "label": "Incident Location",
+        "description": "Location where incident occurred",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "incident_description",
+        "label": "Incident Description",
+        "description": "Detailed description of the incident",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "police_report_number",
+        "label": "Police Report Number",
+        "description": "Police report number if applicable",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "witnesses",
+        "label": "Witnesses",
+        "description": "Witness information",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "claim_amount",
+        "label": "Claim Amount",
+        "description": "Estimated claim amount",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "assessed_amount",
+        "label": "Assessed Amount",
+        "description": "Professionally assessed amount",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "claim_status",
+        "label": "Claim Status",
+        "description": "Current status of the claim",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'pending'"
+      },
+      {
+        "developer_name": "adjuster_assigned",
+        "label": "Adjuster Assigned",
+        "description": "Assigned claims adjuster",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "investigation_required",
+        "label": "Investigation Required",
+        "description": "Whether investigation is required",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "fraud_risk_score",
+        "label": "Fraud Risk Score",
+        "description": "Fraud risk assessment score (0-100)",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "required_documents",
+        "label": "Required Documents",
+        "description": "List of required documentation",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "documents_received",
+        "label": "Documents Received",
+        "description": "Documents already submitted",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "documentation_complete",
+        "label": "Documentation Complete",
+        "description": "Whether all documentation is complete",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "photos_required",
+        "label": "Photos Required",
+        "description": "Whether photos are required",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "expert_evaluation_needed",
+        "label": "Expert Evaluation Needed",
+        "description": "Whether expert evaluation is needed",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "settlement_amount",
+        "label": "Settlement Amount",
+        "description": "Final settlement amount",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "payment_method",
+        "label": "Payment Method",
+        "description": "Method of payment",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "settlement_date",
+        "label": "Settlement Date",
+        "description": "Date of settlement",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "case_closed",
+        "label": "Case Closed",
+        "description": "Whether case is closed",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      }
+    ],
+    "initial_node": "claim_intake",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Collects comprehensive claim information with policy verification and fraud screening",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Verify_Policy_Status",
+            "bound_inputs": {
+              "policy_number": "state.policy_number",
+              "customer_name": "state.customer_name",
+              "incident_date": "state.incident_date"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "policy_active": "result.policy_active"
+              },
+              {
+                "coverage_limits": "result.coverage_limits"
+              },
+              {
+                "deductible_amount": "result.deductible"
+              },
+              {
+                "premium_current": "result.premium_status == \"current\""
+              }
+            ],
+            "name": "verify_policy",
+            "description": "Verify Policy"
+          },
+          {
+            "type": "action",
+            "target": "Create_Claim_Record",
+            "bound_inputs": {
+              "policy_number": "state.policy_number",
+              "customer_id": "state.customer_id",
+              "claim_type": "state.claim_type",
+              "incident_description": "state.incident_description",
+              "estimated_amount": "state.claim_amount"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "claim_id": "result.claim_id"
+              },
+              {
+                "claim_status": "result.initial_status"
+              }
+            ],
+            "name": "create_claim",
+            "description": "Create Claim"
+          },
+          {
+            "type": "action",
+            "target": "Conduct_Fraud_Screening",
+            "bound_inputs": {
+              "claim_details": "state.incident_description",
+              "customer_history": "\"No prior claims\"",
+              "incident_characteristics": "state.claim_type"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "fraud_risk_score": "result.fraud_risk_score"
+              },
+              {
+                "investigation_required": "result.investigation_recommended"
+              }
+            ],
+            "name": "fraud_screen",
+            "description": "Fraud Screen"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "policy_number": "state.policy_number"
+              },
+              {
+                "claim_type": "state.claim_type"
+              },
+              {
+                "incident_date": "state.incident_date"
+              },
+              {
+                "claim_id": "state.claim_id"
+              }
+            ],
+            "name": "capture_claim_info",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"claim_processing\""
+              }
+            ],
+            "name": "process_claim",
+            "description": "Processes claim with damage assessment and adjuster assignment"
+          }
+        ],
+        "developer_name": "claim_intake",
+        "label": "Claim Intake",
+        "action_definitions": [
+          {
+            "developer_name": "Verify_Policy_Status",
+            "label": "Verify Policy",
+            "description": "Verifies customer policy status and coverage details",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "VerifyPolicyStatus",
+            "input_type": [
+              {
+                "developer_name": "policy_number",
+                "label": "Policy Number",
+                "description": "Insurance policy number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_name",
+                "label": "Customer Name",
+                "description": "Name on the policy",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "incident_date",
+                "label": "Incident Date",
+                "description": "Date of loss/incident",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "policy_valid",
+                "label": "Policy Valid",
+                "description": "Policy Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "policy_active",
+                "label": "Policy Active",
+                "description": "Policy Active",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "coverage_type",
+                "label": "Coverage Type",
+                "description": "Coverage Type",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "coverage_limits",
+                "label": "Coverage Limits",
+                "description": "Coverage Limits",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "deductible",
+                "label": "Deductible",
+                "description": "Deductible",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "premium_status",
+                "label": "Premium Status",
+                "description": "Premium Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Create_Claim_Record",
+            "label": "Create Claim",
+            "description": "Creates new claim record in the system",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CreateClaimRecord",
+            "input_type": [
+              {
+                "developer_name": "policy_number",
+                "label": "Policy Number",
+                "description": "Verified policy number",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "claim_type",
+                "label": "Claim Type",
+                "description": "Type of claim",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "incident_description",
+                "label": "Incident Description",
+                "description": "Description of what happened",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "estimated_amount",
+                "label": "Estimated Amount",
+                "description": "Estimated loss amount",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "claim_id",
+                "label": "Claim ID",
+                "description": "Claim Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "claim_created",
+                "label": "Claim Created",
+                "description": "Claim Created",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "reference_number",
+                "label": "Reference Number",
+                "description": "Reference Number",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "initial_status",
+                "label": "Initial Status",
+                "description": "Initial Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Conduct_Fraud_Screening",
+            "label": "Fraud Screening",
+            "description": "Conducts initial fraud risk assessment",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ConductFraudScreening",
+            "input_type": [
+              {
+                "developer_name": "claim_details",
+                "label": "Claim Details",
+                "description": "Comprehensive claim information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_history",
+                "label": "Customer History",
+                "description": "Customer's claim history",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "incident_characteristics",
+                "label": "Incident Characteristics",
+                "description": "Incident details and circumstances",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "fraud_risk_score",
+                "label": "Fraud Risk Score",
+                "description": "Fraud Risk Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "risk_level",
+                "label": "Risk Level",
+                "description": "Risk Level",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "investigation_recommended",
+                "label": "Investigation Recommended",
+                "description": "Investigation Recommended",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "red_flags",
+                "label": "Red Flags",
+                "description": "Red Flags",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claim processing assistant. Your role is to help customers file claims, gather required documentation, and assess claim validity.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nI'll help you file your insurance claim today.\n\nTo get started, please provide:\n- Your policy number\n- Type of claim (auto, home, health, etc.)\n- Date of the incident\n- Brief description of what happened\n\nThis information helps me process your claim efficiently."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.policy_number == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "claim_status": "\"pending\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "claim_amount": "0"
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.policy_number != \"\" and state.customer_name != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Verify_Policy_Status",
+            "bound_inputs": {
+              "policy_number": "state.policy_number",
+              "customer_name": "state.customer_name",
+              "incident_date": "state.incident_date"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "policy_active": "result.policy_active"
+              },
+              {
+                "coverage_limits": "result.coverage_limits"
+              },
+              {
+                "deductible_amount": "result.deductible"
+              },
+              {
+                "premium_current": "result.premium_status == \"current\""
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.policy_active and state.claim_type != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Create_Claim_Record",
+            "bound_inputs": {
+              "policy_number": "state.policy_number",
+              "customer_id": "state.customer_id",
+              "claim_type": "state.claim_type",
+              "incident_description": "state.incident_description",
+              "estimated_amount": "state.claim_amount"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "claim_id": "result.claim_id"
+              },
+              {
+                "claim_status": "result.initial_status"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "Conduct_Fraud_Screening",
+            "bound_inputs": {
+              "claim_details": "state.incident_description",
+              "customer_history": "\"Standard customer\"",
+              "incident_characteristics": "state.claim_type"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "fraud_risk_score": "result.fraud_risk_score"
+              },
+              {
+                "investigation_required": "result.investigation_recommended"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_id != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"claim_processing\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "claim_processing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"claim_processing\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "claim_processing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"claim_processing\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Processes claim with damage assessment and adjuster assignment",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Assign_Claims_Adjuster",
+            "bound_inputs": {
+              "claim_type": "state.claim_type",
+              "claim_amount": "state.claim_amount",
+              "complexity_level": "\"standard\"",
+              "geographic_area": "state.incident_location"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "adjuster_assigned": "result.adjuster_assigned"
+              }
+            ],
+            "name": "assign_adjuster",
+            "description": "Assign Adjuster"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Documentation_Requirements",
+            "bound_inputs": {
+              "claim_type": "state.claim_type",
+              "incident_severity": "\"moderate\"",
+              "estimated_amount": "state.claim_amount"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "required_documents": "result.required_documents"
+              },
+              {
+                "photos_required": "result.photos_needed"
+              },
+              {
+                "expert_evaluation_needed": "result.expert_evaluation"
+              }
+            ],
+            "name": "assess_docs",
+            "description": "Assess Docs"
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Initial_Settlement",
+            "bound_inputs": {
+              "assessed_damage": "state.claim_amount",
+              "policy_coverage": "state.coverage_limits",
+              "deductible": "state.deductible_amount",
+              "depreciation_factor": "0"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "settlement_amount": "result.settlement_amount"
+              }
+            ],
+            "name": "calc_settlement",
+            "description": "Calc Settlement"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "claim_status": "state.claim_status"
+              },
+              {
+                "adjuster_assigned": "state.adjuster_assigned"
+              }
+            ],
+            "name": "update_claim_status",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"claim_resolution\""
+              }
+            ],
+            "name": "resolve_claim",
+            "description": "Provides comprehensive claim resolution with payment processing"
+          }
+        ],
+        "developer_name": "claim_processing",
+        "label": "Claim Processing",
+        "action_definitions": [
+          {
+            "developer_name": "Assign_Claims_Adjuster",
+            "label": "Assign Adjuster",
+            "description": "Assigns appropriate claims adjuster based on claim type and complexity",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "AssignClaimsAdjuster",
+            "input_type": [
+              {
+                "developer_name": "claim_type",
+                "label": "Claim Type",
+                "description": "Type of insurance claim",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "claim_amount",
+                "label": "Claim Amount",
+                "description": "Estimated claim value",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "complexity_level",
+                "label": "Complexity Level",
+                "description": "Claim complexity assessment",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "geographic_area",
+                "label": "Geographic Area",
+                "description": "Location of the claim",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "adjuster_assigned",
+                "label": "Adjuster Assigned",
+                "description": "Adjuster Assigned",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "adjuster_specialization",
+                "label": "Adjuster Specialization",
+                "description": "Adjuster Specialization",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "assignment_successful",
+                "label": "Assignment Successful",
+                "description": "Assignment Successful",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "estimated_inspection_date",
+                "label": "Estimated Inspection Date",
+                "description": "Estimated Inspection Date",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Assess_Documentation_Requirements",
+            "label": "Assess Documentation",
+            "description": "Determines required documentation based on claim type",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "AssessDocumentationRequirements",
+            "input_type": [
+              {
+                "developer_name": "claim_type",
+                "label": "Claim Type",
+                "description": "Type of claim being processed",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "incident_severity",
+                "label": "Incident Severity",
+                "description": "Severity of the incident",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "estimated_amount",
+                "label": "Estimated Amount",
+                "description": "Estimated claim amount",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "required_documents",
+                "label": "Required Documents",
+                "description": "Required Documents",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "photos_needed",
+                "label": "Photos Needed",
+                "description": "Photos Needed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "expert_evaluation",
+                "label": "Expert Evaluation Required",
+                "description": "Expert Evaluation",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "documentation_deadline",
+                "label": "Documentation Deadline",
+                "description": "Documentation Deadline",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Calculate_Initial_Settlement",
+            "label": "Calculate Settlement",
+            "description": "Calculates initial settlement estimate based on coverage and assessment",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CalculateInitialSettlement",
+            "input_type": [
+              {
+                "developer_name": "assessed_damage",
+                "label": "Assessed Damage",
+                "description": "Professional damage assessment",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "policy_coverage",
+                "label": "Policy Coverage",
+                "description": "Policy coverage limits",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "deductible",
+                "label": "Deductible",
+                "description": "Policy deductible amount",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "depreciation_factor",
+                "label": "Depreciation Factor",
+                "description": "Applicable depreciation",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "settlement_amount",
+                "label": "Settlement Amount",
+                "description": "Settlement Amount",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "coverage_applicable",
+                "label": "Coverage Applicable",
+                "description": "Coverage Applicable",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "settlement_breakdown",
+                "label": "Settlement Breakdown",
+                "description": "Settlement Breakdown",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "payment_timeline",
+                "label": "Payment Timeline",
+                "description": "Payment Timeline",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claim processing assistant. Your role is to help customers file claims, gather required documentation, and assess claim validity.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Claim Information Summary:**\n- Policy Number: {{state.policy_number}}\n- Claim Type: {{state.claim_type}}\n- Incident Date: {{state.incident_date}}\n- Estimated Amount: ${{state.claim_amount}}\n- Status: {{state.claim_status}}\n\nBased on your claim details, I'm processing your request.\n\nNext steps depend on your claim amount and type."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_amount > 500"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "claim_status": "\"under_review\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_amount <= 500"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "claim_status": "\"approved\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_id != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Assign_Claims_Adjuster",
+            "bound_inputs": {
+              "claim_type": "state.claim_type",
+              "claim_amount": "state.claim_amount",
+              "complexity_level": "\"standard\"",
+              "geographic_area": "state.incident_location"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "adjuster_assigned": "result.adjuster_assigned"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Documentation_Requirements",
+            "bound_inputs": {
+              "claim_type": "state.claim_type",
+              "incident_severity": "\"moderate\"",
+              "estimated_amount": "state.claim_amount"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "required_documents": "result.required_documents"
+              },
+              {
+                "photos_required": "result.photos_needed"
+              },
+              {
+                "expert_evaluation_needed": "result.expert_evaluation"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.adjuster_assigned != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Initial_Settlement",
+            "bound_inputs": {
+              "assessed_damage": "state.claim_amount",
+              "policy_coverage": "state.coverage_limits",
+              "deductible": "state.deductible_amount",
+              "depreciation_factor": "0"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "settlement_amount": "result.settlement_amount"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.fraud_risk_score > 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "claim_status": "\"under_investigation\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "investigation_required": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.fraud_risk_score <= 70 and state.claim_amount <= state.coverage_limits"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "claim_status": "\"approved\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_status != \"pending\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"claim_resolution\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "claim_resolution",
+            "enabled": "state.AgentScriptInternal_next_topic==\"claim_resolution\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "claim_resolution",
+            "enabled": "state.AgentScriptInternal_next_topic==\"claim_resolution\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Provides comprehensive claim resolution with payment processing",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Process_Settlement_Payment",
+            "bound_inputs": {
+              "claim_id": "state.claim_id",
+              "settlement_amount": "state.settlement_amount",
+              "customer_id": "state.customer_id",
+              "payment_method": "\"direct_deposit\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "settlement_date": "result.payment_date"
+              }
+            ],
+            "name": "process_payment",
+            "description": "Process Payment"
+          },
+          {
+            "type": "action",
+            "target": "Generate_Claim_Summary",
+            "bound_inputs": {
+              "claim_id": "state.claim_id",
+              "claim_details": "state.incident_description",
+              "resolution_type": "state.claim_status"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_closed": "result.summary_generated"
+              }
+            ],
+            "name": "generate_summary",
+            "description": "Generate Summary"
+          },
+          {
+            "type": "action",
+            "target": "Update_Customer_Record",
+            "bound_inputs": {
+              "customer_id": "state.customer_id",
+              "claim_outcome": "state.claim_status",
+              "settlement_amount": "state.settlement_amount",
+              "experience_rating": "\"positive\""
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "name": "update_record",
+            "description": "Update Record"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "claim_status": "state.claim_status"
+              },
+              {
+                "settlement_amount": "state.settlement_amount"
+              },
+              {
+                "case_closed": "state.case_closed"
+              }
+            ],
+            "name": "finalize_claim",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"claim_intake\""
+              }
+            ],
+            "name": "new_claim",
+            "description": "Collects comprehensive claim information with policy verification and fraud screening"
+          }
+        ],
+        "developer_name": "claim_resolution",
+        "label": "Claim Resolution",
+        "action_definitions": [
+          {
+            "developer_name": "Process_Settlement_Payment",
+            "label": "Process Payment",
+            "description": "Processes approved settlement payment to customer",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "ProcessSettlementPayment",
+            "input_type": [
+              {
+                "developer_name": "claim_id",
+                "label": "Claim ID",
+                "description": "Claim identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "settlement_amount",
+                "label": "Settlement Amount",
+                "description": "Approved settlement amount",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "payment_method",
+                "label": "Payment Method",
+                "description": "Preferred payment method",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "payment_processed",
+                "label": "Payment Processed",
+                "description": "Payment Processed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "payment_reference",
+                "label": "Payment Reference",
+                "description": "Payment Reference",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "payment_date",
+                "label": "Payment Date",
+                "description": "Payment Date",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "delivery_method",
+                "label": "Delivery Method",
+                "description": "Delivery Method",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Generate_Claim_Summary",
+            "label": "Generate Summary",
+            "description": "Generates comprehensive claim summary and documentation",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GenerateClaimSummary",
+            "input_type": [
+              {
+                "developer_name": "claim_id",
+                "label": "Claim ID",
+                "description": "Claim identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "claim_details",
+                "label": "Claim Details",
+                "description": "Complete claim information",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "resolution_type",
+                "label": "Resolution Type",
+                "description": "Type of resolution (approved, denied, settled)",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "summary_generated",
+                "label": "Summary Generated",
+                "description": "Summary Generated",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "summary_document_id",
+                "label": "Summary Document ID",
+                "description": "Summary Document Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "customer_notification_sent",
+                "label": "Customer Notification Sent",
+                "description": "Customer Notification Sent",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "case_closed_date",
+                "label": "Case Closed Date",
+                "description": "Case Closed Date",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Update_Customer_Record",
+            "label": "Update Customer Record",
+            "description": "Updates customer record with claim history and experience",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "UpdateCustomerRecord",
+            "input_type": [
+              {
+                "developer_name": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "claim_outcome",
+                "label": "Claim Outcome",
+                "description": "Final claim outcome",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "settlement_amount",
+                "label": "Settlement Amount",
+                "description": "Final settlement amount",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "experience_rating",
+                "label": "Experience Rating",
+                "description": "Customer experience rating",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "record_updated",
+                "label": "Record Updated",
+                "description": "Record Updated",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "risk_profile_adjusted",
+                "label": "Risk Profile Adjusted",
+                "description": "Risk Profile Adjusted",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "premium_impact",
+                "label": "Premium Impact",
+                "description": "Premium Impact",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claim processing assistant. Your role is to help customers file claims, gather required documentation, and assess claim validity.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Claim Resolution Update:**\n- Claim Status: {{state.claim_status}}\n- Final Amount: ${{state.claim_amount}}\n\nYour claim has been processed. You will receive further communication about the resolution within 5-7 business days.\n\nIs there anything else I can help you with regarding this claim or other insurance matters?"
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_status == \"approved\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "assessed_amount": "state.settlement_amount"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_status == \"under_investigation\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "assessed_amount": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_status == \"denied\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "settlement_amount": "0"
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_status == \"approved\" and state.settlement_amount > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Process_Settlement_Payment",
+            "bound_inputs": {
+              "claim_id": "state.claim_id",
+              "settlement_amount": "state.settlement_amount",
+              "customer_id": "state.customer_id",
+              "payment_method": "\"direct_deposit\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "settlement_date": "result.payment_date"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "Generate_Claim_Summary",
+            "bound_inputs": {
+              "claim_id": "state.claim_id",
+              "claim_details": "state.incident_description",
+              "resolution_type": "state.claim_status"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_closed": "result.summary_generated"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "Update_Customer_Record",
+            "bound_inputs": {
+              "customer_id": "state.customer_id",
+              "claim_outcome": "state.claim_status",
+              "settlement_amount": "state.settlement_amount",
+              "experience_rating": "\"positive\""
+            },
+            "llm_inputs": [],
+            "state_updates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.claim_status == \"denied\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Generate_Claim_Summary",
+            "bound_inputs": {
+              "claim_id": "state.claim_id",
+              "claim_details": "state.incident_description",
+              "resolution_type": "state.claim_status"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_closed": "result.summary_generated"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "claim_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"claim_intake\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm here to help you with your insurance claim. I can assist with filing new claims and checking claim status.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm experiencing technical difficulties accessing the claims system. Please try again or contact our claims department.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

@@ -1,0 +1,150 @@
+system:
+    instructions: "You are an insurance claims assistant. Help customers file claims, upload documents, and track claim status."
+    messages:
+        welcome: "Hello! I can help you file a new claim or check the status of an existing one."
+        error: "Sorry, the claims system encountered an error."
+
+config:
+    developer_name: "Insurance_Claims_Agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "claims@insurance.com"
+    description: "Handles insurance claim filing, document management, and status tracking."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    policy_number: mutable string = ""
+        description: "Insurance policy number"
+    claim_id: mutable string = ""
+        description: "Claim identifier"
+    claim_type: mutable string = ""
+        description: "Type of claim: auto, home, health, life"
+    claim_status: mutable string = ""
+        description: "Current claim status"
+    documents_uploaded: mutable boolean = False
+        description: "Whether required documents are uploaded"
+    adjuster_assigned: mutable boolean = False
+        description: "Whether an adjuster has been assigned"
+    claim_amount: mutable number = 0
+        description: "Claimed amount"
+
+start_agent claim_intake:
+    description: "Initiates the claims process and gathers initial information"
+
+    actions:
+        file_claim:
+            description: "Files a new insurance claim"
+            inputs:
+                policy_number: string
+                    is_required: True
+                claim_type: string
+                    is_required: True
+                details: string
+                    is_required: True
+                claim_amount: number
+            outputs:
+                claim_id: string
+                status: string
+            target: "flow://FileClaim"
+
+    reasoning:
+        instructions: ->
+            | Help the customer file a new claim or check existing claim status.
+              Gather policy number, claim type, and incident details.
+
+        actions:
+            file: @actions.file_claim
+                with policy_number=@variables.policy_number
+                with claim_type=@variables.claim_type
+                with details=...
+                with claim_amount=@variables.claim_amount
+                set @variables.claim_id = @outputs.claim_id
+                set @variables.claim_status = @outputs.status
+
+            go_documents: @utils.transition to @topic.document_upload
+                description: "Upload supporting documents"
+            go_status: @utils.transition to @topic.status_tracking
+                description: "Check claim status"
+
+topic document_upload:
+    description: "Handles document upload and verification for claims"
+
+    actions:
+        verify_documents:
+            description: "Verifies uploaded claim documents"
+            inputs:
+                claim_id: string
+                    is_required: True
+            outputs:
+                all_uploaded: boolean
+                missing_documents: string
+            target: "flow://VerifyClaimDocuments"
+
+    reasoning:
+        instructions: ->
+            | Guide the customer through uploading required documents for their claim.
+
+        actions:
+            verify: @actions.verify_documents
+                with claim_id=@variables.claim_id
+                set @variables.documents_uploaded = @outputs.all_uploaded
+
+            go_adjuster: @utils.transition to @topic.adjuster_assignment
+                description: "Assign an adjuster"
+                available when @variables.documents_uploaded == True
+
+topic adjuster_assignment:
+    description: "Assigns a claims adjuster to the case"
+
+    actions:
+        assign_adjuster:
+            description: "Assigns a claims adjuster based on claim type and location"
+            inputs:
+                claim_id: string
+                    is_required: True
+                claim_type: string
+                    is_required: True
+            outputs:
+                adjuster_name: string
+                estimated_review: string
+            target: "apex://AssignAdjuster"
+
+    reasoning:
+        instructions: ->
+            | Assign an adjuster to review the claim and inform the customer.
+
+        actions:
+            assign: @actions.assign_adjuster
+                with claim_id=@variables.claim_id
+                with claim_type=@variables.claim_type
+                set @variables.adjuster_assigned = @outputs.adjuster_name is not None
+
+            go_tracking: @utils.transition to @topic.status_tracking
+                description: "Track claim progress"
+
+topic status_tracking:
+    description: "Provides claim status updates and tracking"
+
+    actions:
+        get_status:
+            description: "Gets the current status of a claim"
+            inputs:
+                claim_id: string
+                    is_required: True
+            outputs:
+                status: string
+                last_update: string
+                next_steps: string
+            target: "flow://GetClaimStatus"
+
+    reasoning:
+        instructions: ->
+            | Provide the customer with their claim status and next steps.
+              Claim: {!@variables.claim_id}
+              Status: {!@variables.claim_status}
+
+        actions:
+            status: @actions.get_status
+                with claim_id=@variables.claim_id
+                set @variables.claim_status = @outputs.status

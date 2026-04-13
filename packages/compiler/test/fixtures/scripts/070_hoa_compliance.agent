@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional HOA compliance agent assistant.
+        Help users manage their hoa_request requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: request_review -> regulation_check -> violation_notice -> resolution_tracking.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Hoa Compliance Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "hoa_compliance_agent_v70"
+    default_agent_user: "hoa_compliance@example.com"
+    agent_description: "Assists users with hoa_request management through the HOA compliance agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    hoa_request_record_id: mutable string
+        description: "Record ID of the hoa_request"
+    hoa_request_status: mutable string = ""
+        description: "Current status of the hoa_request"
+    hoa_request_tier: mutable string = "standard"
+        description: "Tier classification for the hoa_request"
+    hoa_request_category: mutable string = ""
+        description: "Category of the hoa_request"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    request_review_complete: mutable boolean = False
+        description: "Whether the request_review stage is complete"
+    request_review_result: mutable string = ""
+        description: "Result from the request_review stage"
+    regulation_check_complete: mutable boolean = False
+        description: "Whether the regulation_check stage is complete"
+    regulation_check_result: mutable string = ""
+        description: "Result from the regulation_check stage"
+    violation_notice_complete: mutable boolean = False
+        description: "Whether the violation_notice stage is complete"
+    violation_notice_result: mutable string = ""
+        description: "Result from the violation_notice stage"
+    resolution_tracking_complete: mutable boolean = False
+        description: "Whether the resolution_tracking stage is complete"
+    resolution_tracking_result: mutable string = ""
+        description: "Result from the resolution_tracking stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate hoa_request management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a HOA compliance agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current hoa_request status: {! @variables.hoa_request_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_request_review} for request review requests.
+              Use {!@actions.go_to_regulation_check} for regulation check requests.
+              Use {!@actions.go_to_violation_notice} for violation notice requests.
+              Use {!@actions.go_to_resolution_tracking} for resolution tracking requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_request_review: @utils.transition to @topic.request_review
+                description: "Transition to request review topic."
+            go_to_regulation_check: @utils.transition to @topic.regulation_check
+                description: "Transition to regulation check topic."
+                available when @variables.is_verified == True
+            go_to_violation_notice: @utils.transition to @topic.violation_notice
+                description: "Transition to violation notice topic."
+                available when @variables.is_verified == True
+            go_to_resolution_tracking: @utils.transition to @topic.resolution_tracking
+                description: "Transition to resolution tracking topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic request_review:
+    description: "Handles the request review stage of the hoa_request process"
+
+    actions:
+        process_request_review_data:
+            description: "Process request review stage data for the hoa_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_RequestReview_Data"
+
+        validate_request_review_info:
+            description: "Validate request review information for the hoa_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RequestReview_Info"
+
+        fetch_request_review_details:
+            description: "Fetch request review details for the hoa_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RequestReview_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_request_review_info
+                with record_ref=@variables.hoa_request_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.hoa_request_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the request review stage for the hoa_request.
+              Current hoa_request status: {! @variables.hoa_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Request Review result: {! @variables.request_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.hoa_request_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_request_review} to begin processing.
+        actions:
+            run_request_review: @actions.process_request_review_data
+                with record_ref=@variables.hoa_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.hoa_request_category
+                set @variables.request_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.request_review_complete = @outputs.is_passed
+            fetch_request_review_info: @actions.fetch_request_review_details
+                with record_ref=@variables.hoa_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.hoa_request_tier = @outputs.tier_value
+            go_to_regulation_check: @utils.transition to @topic.regulation_check
+                description: "Move to regulation check stage."
+                available when @variables.request_review_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.hoa_request_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.hoa_request_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.hoa_request_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.request_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic regulation_check:
+    description: "Handles the regulation check stage of the hoa_request process"
+
+    actions:
+        process_regulation_check_data:
+            description: "Process regulation check stage data for the hoa_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_RegulationCheck"
+
+        validate_regulation_check_info:
+            description: "Validate regulation check information for the hoa_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RegulationCheck_Info"
+
+        fetch_regulation_check_details:
+            description: "Fetch regulation check details for the hoa_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RegulationCheck_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.request_review_complete == False:
+            transition to @topic.request_review
+
+    reasoning:
+        instructions: ->
+            | Handle the regulation check stage for the hoa_request.
+              Current hoa_request status: {! @variables.hoa_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Regulation Check result: {! @variables.regulation_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.hoa_request_tier }
+              Review the regulation check results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_regulation_check: @actions.process_regulation_check_data
+                with record_ref=@variables.hoa_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.hoa_request_category
+                set @variables.regulation_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.regulation_check_complete = @outputs.is_passed
+            fetch_regulation_check_info: @actions.fetch_regulation_check_details
+                with record_ref=@variables.hoa_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.hoa_request_tier = @outputs.tier_value
+                available when @variables.hoa_request_record_id is not None
+            go_to_violation_notice: @utils.transition to @topic.violation_notice
+                description: "Move to violation notice stage."
+                available when @variables.regulation_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.regulation_check_complete == True:
+            set @variables.hoa_request_status = "regulation_check_done"
+        if @variables.regulation_check_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.violation_notice
+        if @variables.attempt_count >= 3 and @variables.regulation_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic violation_notice:
+    description: "Handles the violation notice stage of the hoa_request process"
+
+    actions:
+        process_violation_notice_data:
+            description: "Process violation notice stage data for the hoa_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_ViolationNotice"
+
+        validate_violation_notice_info:
+            description: "Validate violation notice information for the hoa_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ViolationNotice_Info"
+
+        fetch_violation_notice_details:
+            description: "Fetch violation notice details for the hoa_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ViolationNotice_Details"
+
+    before_reasoning:
+        if @variables.violation_notice_complete == False:
+            run @actions.fetch_violation_notice_details
+                with record_ref=@variables.hoa_request_record_id
+                with include_history=True
+                set @variables.violation_notice_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.hoa_request_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.hoa_request_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.hoa_request_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the violation notice stage for the hoa_request.
+              Current hoa_request status: {! @variables.hoa_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Violation Notice result: {! @variables.violation_notice_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.hoa_request_tier }
+              Review the violation notice results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_violation_notice: @actions.process_violation_notice_data
+                with record_ref=@variables.hoa_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.hoa_request_category
+                set @variables.violation_notice_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.violation_notice_complete = @outputs.is_passed
+            fetch_violation_notice_info: @actions.fetch_violation_notice_details
+                with record_ref=@variables.hoa_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.hoa_request_tier = @outputs.tier_value
+                available when @variables.hoa_request_record_id is not None
+            go_to_resolution_tracking: @utils.transition to @topic.resolution_tracking
+                description: "Move to resolution tracking stage."
+                available when @variables.violation_notice_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.hoa_request_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.hoa_request_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.hoa_request_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.violation_notice_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic resolution_tracking:
+    description: "Handles the resolution tracking stage of the hoa_request process"
+
+    actions:
+        process_resolution_tracking_data:
+            description: "Process resolution tracking stage data for the hoa_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ResolutionTracking_Data"
+
+        validate_resolution_tracking_info:
+            description: "Validate resolution tracking information for the hoa_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ResolutionTracking_Info"
+
+        fetch_resolution_tracking_details:
+            description: "Fetch resolution tracking details for the hoa_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ResolutionTracking_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.violation_notice_complete == False:
+            transition to @topic.violation_notice
+        if @variables.eligibility_score >= 80:
+            set @variables.hoa_request_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.hoa_request_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the resolution tracking stage for the hoa_request.
+              Current hoa_request status: {! @variables.hoa_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Resolution Tracking result: {! @variables.resolution_tracking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.hoa_request_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_resolution_tracking: @actions.process_resolution_tracking_data
+                with record_ref=@variables.hoa_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.hoa_request_category
+                set @variables.resolution_tracking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.resolution_tracking_complete = @outputs.is_passed
+            fetch_resolution_tracking_info: @actions.fetch_resolution_tracking_details
+                with record_ref=@variables.hoa_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.hoa_request_tier = @outputs.tier_value
+                available when @variables.hoa_request_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.resolution_tracking_complete == True:
+            set @variables.hoa_request_status = "resolution_tracking_done"
+        if @variables.attempt_count >= 3 and @variables.resolution_tracking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for hoa_request issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the hoa_request issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the hoa_request interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the hoa_request request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Hoa Request status: {! @variables.hoa_request_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.hoa_request_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.hoa_request_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.hoa_request_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.hoa_request_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,598 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "MultiLine_Description_Test_Agent",
+    "label": "Multi Line Description Test Agent",
+    "description": "Test agent for verifying multi-line description syntax across all supported contexts",
+    "enable_enhanced_event_logs": true,
+    "agent_type": "EinsteinServiceAgent",
+    "default_agent_user": "admin@test.com",
+    "context_variables": []
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Welcome! This agent tests multi-line description syntax.",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "An error occurred. Please try again.",
+        "message_type": "Error"
+      }
+    ],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome! This agent tests multi-line description syntax.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred. Please try again.\", \"messageType\": \"Error\"}]"
+    },
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "simple_var",
+        "label": "Simple Var",
+        "description": "Simple single-line description for a variable",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "complex_var",
+        "label": "Complex Var",
+        "description": "This variable demonstrates the multi-line description syntax.\nIt can span multiple lines without needing escape characters.\nThis is useful for providing detailed context about the variable's purpose.",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "user_context",
+        "label": "User Context",
+        "description": "Stores the current user's context information including:\n- User preferences and settings\n- Session state and history\n- Any custom attributes collected during the conversation",
+        "data_type": "object",
+        "is_list": false,
+        "default": {},
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "order_status",
+        "label": "Order Status",
+        "description": "Tracks the current order status throughout the conversation.\nValid values include: pending, processing, shipped, delivered, cancelled.\nThis value is updated by various actions in the order_inquiries topic.",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "topic_selector",
+    "nodes": [
+      {
+        "instructions": "You are a topic router. Analyze user input and determine the best topic.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Main entry point for the agent that determines the appropriate topic\nbased on user input. This topic selector analyzes the user's message\nand routes them to the correct specialized topic for handling.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"main_topic\""
+              }
+            ],
+            "name": "go_to_main",
+            "description": "Navigate to the main topic when the user has\na general inquiry that doesn't fit specialized topics."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_inquiries\""
+              }
+            ],
+            "name": "go_to_orders",
+            "description": "Navigate to order inquiries when the user mentions:\n- Order status or tracking\n- Shipping questions\n- Order modifications or cancellations"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "main_topic",
+            "enabled": "state.AgentScriptInternal_next_topic==\"main_topic\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "order_inquiries",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_inquiries\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "topic_selector",
+        "label": "Topic Selector",
+        "action_definitions": []
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle general inquiries using the available actions.\nUse action.complex_action for detailed processing."
+              }
+            ]
+          }
+        ],
+        "instructions": "Agent demonstrating multi-line description support",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Main topic handling general inquiries and demonstrating action description formats",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "complex_action",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "query"
+            ],
+            "state_updates": [],
+            "name": "complex_action",
+            "description": "Complex Action"
+          },
+          {
+            "type": "action",
+            "target": "fully_documented_action",
+            "bound_inputs": {
+              "context_type": "\"general\"",
+              "include_history": "True"
+            },
+            "llm_inputs": [
+              "search_query"
+            ],
+            "state_updates": [],
+            "name": "fully_documented_action",
+            "description": "Fully Documented Action"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_inquiries\""
+              }
+            ],
+            "name": "transition_to_orders",
+            "description": "Transition to order inquiries when the user's question\nrelates to their orders, shipping, or purchase history."
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "order_inquiries",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_inquiries\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "main_topic",
+        "label": "Main Topic",
+        "action_definitions": [
+          {
+            "developer_name": "simple_action",
+            "label": "Simple Action",
+            "description": "A simple action with a single-line description",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "SimpleAction",
+            "input_type": [],
+            "output_type": []
+          },
+          {
+            "developer_name": "complex_action",
+            "label": "Complex Action",
+            "description": "This action demonstrates the multi-line description format.\nIt can include detailed explanations of what the action does,\nwhen it should be used, and any important considerations.",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "ComplexAction",
+            "input_type": [
+              {
+                "developer_name": "query",
+                "label": "Query",
+                "description": "Query",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "result",
+                "label": "Result",
+                "description": "Result",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "fully_documented_action",
+            "label": "Fully Documented Action",
+            "description": "A comprehensively documented action that showcases\nall the multi-line description capabilities.\nThis includes the action description itself plus\ndetailed input and output parameter descriptions.",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "FullyDocumentedAction",
+            "input_type": [
+              {
+                "developer_name": "search_query",
+                "label": "Search Query",
+                "description": "The search query to process.\nShould be a natural language question or keyword phrase.\nMaximum length is 500 characters.",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "context_type",
+                "label": "Context Type",
+                "description": "Specifies the context for the search.\nValid values: \"general\", \"orders\", \"products\", \"support\".\nDefaults to \"general\" if not specified.",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "include_history",
+                "label": "Include History",
+                "description": "When true, includes conversation history in the search context.\nThis helps provide more relevant results based on prior interactions.",
+                "data_type": "Boolean",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "search_results",
+                "label": "Search Results",
+                "description": "Contains the search results as a structured object.\nIncludes fields: items (array), total_count (number),\nand relevance_scores (array of numbers between 0 and 1).",
+                "data_type": "LightningTypes",
+                "complex_data_type_name": "lightning__objectType",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "success_flag",
+                "label": "Success Flag",
+                "description": "Indicates whether the search completed successfully.\nCheck this before processing search_results.",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssist customers with order-related questions.\nAlways verify the order ID before taking any actions.\nUse action.get_order_details to retrieve order information.\nOnly offer cancellation if the order can still be modified."
+              }
+            ]
+          }
+        ],
+        "instructions": "Agent demonstrating multi-line description support",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles all order-related inquiries including:\n- Order status and tracking information\n- Shipping updates and delivery estimates\n- Order modifications and cancellations\n- Price adjustments and refund requests\n- Missing or damaged items",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "get_order_details",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "order_id"
+            ],
+            "state_updates": [],
+            "name": "get_order_details",
+            "description": "Get Order Details"
+          },
+          {
+            "type": "action",
+            "target": "cancel_order",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "order_id",
+              "cancellation_reason"
+            ],
+            "state_updates": [],
+            "name": "cancel_order",
+            "description": "Cancel Order"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"end_interaction\""
+              }
+            ],
+            "name": "mark_resolved",
+            "description": "Complete the interaction when the customer's\norder inquiry has been fully resolved."
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "end_interaction",
+            "enabled": "state.AgentScriptInternal_next_topic==\"end_interaction\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "order_inquiries",
+        "label": "Order Inquiries",
+        "action_definitions": [
+          {
+            "developer_name": "get_order_details",
+            "label": "Get Order Details",
+            "description": "Retrieves comprehensive order details based on the order ID.\nReturns order status, items, shipping info, and pricing.\nRequires a valid order ID to be provided.",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "GetOrderDetails",
+            "input_type": [
+              {
+                "developer_name": "order_id",
+                "label": "Order Id",
+                "description": "The unique order identifier.\nMust be a positive integer.\nCan be found in the order confirmation email.",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "order_data",
+                "label": "Order Data",
+                "description": "Complete order information including:\n- Order status (pending, shipped, delivered, etc.)\n- List of items with quantities and prices\n- Shipping address and tracking information\n- Payment details and total amount",
+                "data_type": "LightningTypes",
+                "complex_data_type_name": "lightning__objectType",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "can_modify",
+                "label": "Can Modify",
+                "description": "Indicates if the order can still be modified.\nOrders can only be modified within 60 minutes of placement.",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "cancel_order",
+            "label": "Cancel Order",
+            "description": "Attempts to cancel an order if it's still eligible.\nOrders can only be cancelled within 60 minutes of placement\nand before they enter the processing stage.",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "CancelOrder",
+            "input_type": [
+              {
+                "developer_name": "order_id",
+                "label": "Order Id",
+                "description": "The order ID to cancel",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "cancellation_reason",
+                "label": "Cancellation Reason",
+                "description": "The reason for cancellation.\nThis helps improve our service and is optional.",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "cancellation_success",
+                "label": "Cancellation Success",
+                "description": "True if the order was successfully cancelled.\nFalse if the order could not be cancelled.",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "refund_amount",
+                "label": "Refund Amount",
+                "description": "The amount that will be refunded to the customer.\nRefunds are typically processed within 5-7 business days.",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nThank the customer for their interaction and collect feedback."
+              }
+            ]
+          }
+        ],
+        "instructions": "Agent demonstrating multi-line description support",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Final topic for wrapping up the conversation.\nCollects feedback and thanks the customer.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "collect_feedback",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "rating",
+              "comments"
+            ],
+            "state_updates": [],
+            "name": "collect_feedback",
+            "description": "Collect Feedback"
+          }
+        ],
+        "developer_name": "end_interaction",
+        "label": "End Interaction",
+        "action_definitions": [
+          {
+            "developer_name": "collect_feedback",
+            "label": "Collect Feedback",
+            "description": "Collects customer feedback about their experience.\nThe feedback is stored for quality improvement purposes.",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CollectFeedback",
+            "input_type": [
+              {
+                "developer_name": "rating",
+                "label": "Rating",
+                "description": "Customer satisfaction rating from 1-5.\n1 = Very Dissatisfied, 5 = Very Satisfied.",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "comments",
+                "label": "Comments",
+                "description": "Optional additional comments from the customer.\nCan include suggestions or detailed feedback.",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "feedback_saved",
+                "label": "Feedback Saved",
+                "description": "Feedback Saved",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": []
+  }
+}

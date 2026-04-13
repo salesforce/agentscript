@@ -1,0 +1,270 @@
+---
+sidebar_position: 1
+title: Syntax
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Syntax
+
+AgentScript is an indentation-based language for defining AI agents. It uses a structure similar to YAML and Python, where indentation determines hierarchy and nesting. AgentScript files use the `.agent` file extension.
+
+## Dialect Annotations
+
+A file can specify its dialect and version using a comment annotation in the first few lines:
+
+```agentscript
+# @dialect: agentforce=2.2
+```
+
+The format is `# @dialect: NAME` or `# @dialect: NAME=VERSION` where:
+
+- `NAME` is the dialect identifier (e.g., `agentscript`, `agentforce`), case-insensitive
+- `VERSION` is an optional version constraint using `MAJOR` or `MAJOR.MINOR` format
+
+When a minor version is specified (e.g., `2.2`), it acts as a minimum — the file requires at least that minor version within the given major version. The annotation is parsed from the first 10 lines of the file.
+
+## Key-Value Pairs
+
+The fundamental unit of AgentScript is the key-value pair, written as `key: value` on a single line:
+
+```agentscript
+description: "Handle order lookups"
+is_required: True
+customer_email: mutable string = ""
+```
+
+Keys are typically identifiers, but they can also be quoted strings for keys that contain special characters:
+
+```agentscript
+"Input:Question": string
+    description: "The user's question"
+```
+
+When a value requires more structure, it is expressed as an indented block beneath the key.
+
+## Comments
+
+Single-line comments start with `#`. They can appear on their own line or inline after a value:
+
+```agentscript
+# This is a full-line comment
+customer_email: mutable string = ""  # This is an inline comment
+```
+
+## Templates
+
+Multi-line text is written using the `|` (pipe) prefix. Consecutive `|` lines are joined together into a single block of text. Templates support `{!expression}` interpolation to insert dynamic values:
+
+```agentscript
+instructions: ->
+    | Hello {!@variables.customer_name}, your order
+      {!@variables.order_id} is currently {!@variables.status}.
+    | Please let us know if you need further assistance.
+```
+
+Indented continuation lines (without a `|`) are treated as part of the same template line.
+
+## Procedures
+
+The `->` arrow introduces a procedural block containing multiple statements. Procedures are used in `instructions`, `before_reasoning`, and `after_reasoning`:
+
+```agentscript
+instructions: ->
+    if @variables.loyalty_tier != "Premium":
+        | Basic members are not eligible for returns.
+    else:
+        | Process the return with {!@actions.create_return}.
+```
+
+## Sequences
+
+Ordered lists use `-` as a prefix for each item:
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+actions:
+    - @actions.Lookup_Order
+    - @actions.Update_Order
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+actions:
+    - @actions.Lookup_Order
+    - @actions.Update_Order
+```
+
+</TabItem>
+</Tabs>
+
+## References
+
+AgentScript uses `@scope.field` references to refer to variables, actions, subagents (formerly topics), outputs, and utilities:
+
+| Reference           | Description                               |
+| ------------------- | ----------------------------------------- |
+| `@variables.name`   | A declared variable                       |
+| `@actions.Name`     | An action defined in the current subagent |
+| `@subagent.Name`    | A subagent block                          |
+| `@outputs.field`    | An output field from an action            |
+| `@utils.transition` | A built-in utility function               |
+
+## Variable Declarations
+
+Variables are declared in the `variables` block with a modifier, type, and optional default value:
+
+```agentscript
+variables:
+    customer_email: mutable string = ""
+        description: "Customer's email address"
+    verified: mutable boolean = False
+    escalation_score: mutable number = 0
+    customer_id: linked string
+```
+
+### Modifiers
+
+- **`mutable`** -- Read-write variable that can be updated during execution.
+- **`linked`** -- Read-only variable supplied from an external source.
+
+### Types
+
+- `string` -- Text values
+- `number` -- Numeric values
+- `boolean` -- `True` or `False`
+- `object` -- Structured data
+- `list[string]`, `list[number]`, `list[object]` -- Typed lists
+
+## Keywords and Literals
+
+- `True`, `False` -- Boolean literals
+- `None` -- Null/empty value
+- `...` -- Ellipsis, meaning the LLM fills this value from the conversation context
+- `2025-09-04`, `2025-09-04T12:01Z` -- Datetime literals in ISO 8601 format. Supported formats include date only (`YYYY-MM-DD`), date with time (`YYYY-MM-DDThh:mm`), and date with seconds and timezone (`YYYY-MM-DDThh:mm:ssZ`).
+- `empty` -- Explicitly marks a block as having no content (e.g., `connection slack: empty`)
+
+## Line Continuation
+
+Use `\` at the end of a line to continue a statement on the next line:
+
+```agentscript
+description: "This is a long description that \
+    spans multiple lines"
+```
+
+## Full Example
+
+<Tabs>
+<TabItem value="current" label="Current" default>
+
+```agentscript
+system:
+    instructions: |
+        You are a customer service assistant.
+    messages:
+        welcome: "Hello! How can I help you today?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "My_Agent"
+
+variables:
+    customer_email: mutable string = ""
+        description: "Customer email"
+    verified: mutable boolean = False
+
+start_agent welcome:
+    description: "Welcome and verify identity"
+
+    reasoning:
+        instructions: ->
+            | Please verify your identity.
+              Provide your email address.
+        actions:
+            verify: @actions.Verify_Customer
+                with email=@variables.customer_email
+                set @variables.verified = @outputs.customer_found
+
+subagent Order_Management:
+    description: "Handle order lookups"
+
+    actions:
+        Lookup_Order:
+            description: "Retrieve order details"
+            inputs:
+                order_number: string
+                    is_required: True
+            outputs:
+                status: string
+            target: "flow://Lookup_Order"
+
+    reasoning:
+        instructions: ->
+            | Ask for the Order Number and call {!@actions.lookup_order}.
+        actions:
+            lookup_order: @actions.Lookup_Order
+                with order_number=...
+                set @variables.status = @outputs.status
+```
+
+</TabItem>
+<TabItem value="legacy" label="Legacy (deprecated)">
+
+```agentscript
+system:
+    instructions: |
+        You are a customer service assistant.
+    messages:
+        welcome: "Hello! How can I help you today?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "My_Agent"
+
+variables:
+    customer_email: mutable string = ""
+        description: "Customer email"
+    verified: mutable boolean = False
+
+start_agent welcome:
+    description: "Welcome and verify identity"
+
+    reasoning:
+        instructions: ->
+            | Please verify your identity.
+              Provide your email address.
+        actions:
+            verify: @actions.Verify_Customer
+                with email=@variables.customer_email
+                set @variables.verified = @outputs.customer_found
+
+topic Order_Management:
+    description: "Handle order lookups"
+
+    actions:
+        Lookup_Order:
+            description: "Retrieve order details"
+            inputs:
+                order_number: string
+                    is_required: True
+            outputs:
+                status: string
+            target: "flow://Lookup_Order"
+
+    reasoning:
+        instructions: ->
+            | Ask for the Order Number and call {!@actions.lookup_order}.
+        actions:
+            lookup_order: @actions.Lookup_Order
+                with order_number=...
+                set @variables.status = @outputs.status
+```
+
+</TabItem>
+</Tabs>

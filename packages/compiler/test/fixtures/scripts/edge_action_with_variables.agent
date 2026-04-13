@@ -1,0 +1,95 @@
+system:
+    instructions: "You are a personalized service agent."
+
+config:
+    developer_name: "EdgeActionWithVariables"
+    default_agent_user: "admin@example.com"
+    description: "Tests with clauses using @variables references"
+
+variables:
+    customer_name: mutable string
+        description: "The customer name"
+    customer_email: mutable string
+        description: "The customer email"
+    customer_id: linked string
+        description: "The customer ID from context"
+    preferred_language: mutable string = "en_US"
+        description: "Customer preferred language"
+    case_number: mutable string
+        description: "Active case number"
+    priority: mutable string = "medium"
+        description: "Case priority"
+    response: mutable string
+        description: "Action response"
+
+start_agent main:
+    description: "Personalized service using variable references"
+
+    actions:
+        lookup_customer:
+            description: "Look up customer by ID"
+            inputs:
+                customer_ref: string
+                    is_required: True
+            outputs:
+                name: string
+                email: string
+            target: "flow://Lookup_Customer"
+
+        create_case:
+            description: "Create a support case"
+            inputs:
+                customer_name: string
+                    is_required: True
+                customer_email: string
+                    is_required: True
+                customer_id: string
+                    is_required: True
+                priority: string
+                    is_required: False
+                locale: string
+                    is_required: False
+            outputs:
+                case_number: string
+            target: "flow://Create_Case"
+
+        send_email:
+            description: "Send email to customer"
+            inputs:
+                to_address: string
+                    is_required: True
+                subject: string
+                    is_required: True
+                body: string
+                    is_required: True
+            outputs:
+                sent: boolean
+            target: "flow://Send_Email"
+
+    before_reasoning:
+        run @actions.lookup_customer
+            with customer_ref=@variables.customer_id
+            set @variables.customer_name = @outputs.name
+            set @variables.customer_email = @outputs.email
+
+    reasoning:
+        instructions: ->
+            | Help the customer with their request using their personal information.
+              Create cases and send emails as needed.
+
+        actions:
+            create_case: @actions.create_case
+                with customer_name=@variables.customer_name
+                with customer_email=@variables.customer_email
+                with customer_id=@variables.customer_id
+                with priority=@variables.priority
+                with locale=@variables.preferred_language
+                set @variables.case_number = @outputs.case_number
+
+            send_email: @actions.send_email
+                with to_address=@variables.customer_email
+                with subject=...
+                with body=...
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

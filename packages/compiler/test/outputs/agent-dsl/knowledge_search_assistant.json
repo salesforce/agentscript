@@ -1,0 +1,1831 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Knowledge_Search_Assistant_v1",
+    "label": "Knowledge Search Assistant V 1",
+    "description": "Searches knowledge base and provides relevant information with escalation capabilities",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "default_agent_user": "defaultagentuser@example.com",
+    "context_variables": []
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I can help you find information from our knowledge base. What would you like to know about?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I'm having trouble accessing our knowledge base right now. Please try again or contact support.",
+        "message_type": "Error"
+      }
+    ],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help you find information from our knowledge base. What would you like to know about?\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm having trouble accessing our knowledge base right now. Please try again or contact support.\", \"messageType\": \"Error\"}]"
+    },
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition",
+        "label": "Runtime Condition",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "search_query",
+        "label": "Search Query",
+        "description": "User's search query",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "refined_query",
+        "label": "Refined Query",
+        "description": "Refined search query for better results",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "search_intent",
+        "label": "Search Intent",
+        "description": "Classified intent of the search (product, support, billing, etc.)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "query_complexity",
+        "label": "Query Complexity",
+        "description": "Complexity level of the query (simple, moderate, complex)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "'simple'",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "search_category",
+        "label": "Search Category",
+        "description": "Category of the search topic",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "search_results",
+        "label": "Search Results",
+        "description": "Results from knowledge base search",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "articles_found",
+        "label": "Articles Found",
+        "description": "Number of articles found",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "most_relevant_article",
+        "label": "Most Relevant Article",
+        "description": "Most relevant article title",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "article_content",
+        "label": "Article Content",
+        "description": "Content of the most relevant article",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "related_topics",
+        "label": "Related Topics",
+        "description": "Related topics for further search",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "confidence_score",
+        "label": "Confidence Score",
+        "description": "Confidence in search results (0-100)",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "relevance_score",
+        "label": "Relevance Score",
+        "description": "Relevance score of results (0-100)",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "answer_completeness",
+        "label": "Answer Completeness",
+        "description": "Completeness of the answer (complete, partial, insufficient)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "'partial'",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "source_reliability",
+        "label": "Source Reliability",
+        "description": "Reliability score of sources (0-100)",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "user_satisfied",
+        "label": "User Satisfied",
+        "description": "Whether user is satisfied with results",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "follow_up_needed",
+        "label": "Follow Up Needed",
+        "description": "Whether follow-up questions are needed",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "search_refinement_count",
+        "label": "Search Refinement Count",
+        "description": "Number of search refinements performed",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "user_feedback",
+        "label": "User Feedback",
+        "description": "User feedback on search results",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "escalation_needed",
+        "label": "Escalation Needed",
+        "description": "Whether to escalate to human agent",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "escalation_reason",
+        "label": "Escalation Reason",
+        "description": "Reason for escalation",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "escalation_priority",
+        "label": "Escalation Priority",
+        "description": "Priority level for escalation (low, normal, high, urgent)",
+        "data_type": "string",
+        "is_list": false,
+        "default": "'normal'",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "agent_availability",
+        "label": "Agent Availability",
+        "description": "Whether human agents are available",
+        "data_type": "boolean",
+        "is_list": false,
+        "default": true,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "estimated_wait_time",
+        "label": "Estimated Wait Time",
+        "description": "Estimated wait time for human agent",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "previous_searches",
+        "label": "Previous Searches",
+        "description": "Previous search queries in this session",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "session_search_count",
+        "label": "Session Search Count",
+        "description": "Number of searches in current session",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "successful_resolutions",
+        "label": "Successful Resolutions",
+        "description": "Number of successfully resolved queries",
+        "data_type": "number",
+        "is_list": false,
+        "default": 0,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "knowledge_search",
+    "nodes": [
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHello! I'm your knowledge search assistant. I can help you find information from our comprehensive knowledge base.\n\nI can assist with:\n- Product information and specifications\n- Technical support and troubleshooting\n- Account and billing questions\n- Policy and procedure information\n- General company information\n\nWhat would you like to know about today? Please describe your question or the information you're looking for."
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a knowledge search assistant that helps users find information from our knowledge base. Use search capabilities to provide accurate, relevant answers and escalate to human agents when needed.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Processes comprehensive knowledge base search with intelligent query analysis and result optimization",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.search_query == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "confidence_score": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "session_search_count": "0"
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Analyze_Search_Intent",
+            "bound_inputs": {
+              "search_query": "state.search_query",
+              "user_context": "\"Customer inquiry\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "search_intent": "result.search_intent"
+              },
+              {
+                "search_category": "result.query_category"
+              },
+              {
+                "query_complexity": "result.complexity_level"
+              },
+              {
+                "refined_query": "result.refined_query"
+              }
+            ],
+            "name": "analyze_intent",
+            "description": "Analyze Intent"
+          },
+          {
+            "type": "action",
+            "target": "Search_Knowledge_Base",
+            "bound_inputs": {
+              "refined_query": "state.refined_query",
+              "search_category": "state.search_category",
+              "result_limit": "10"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "articles_found": "result.articles_found"
+              },
+              {
+                "search_results": "result.search_results"
+              },
+              {
+                "most_relevant_article": "result.most_relevant_article"
+              },
+              {
+                "related_topics": "result.related_topics"
+              }
+            ],
+            "name": "search_kb",
+            "description": "Search Kb"
+          },
+          {
+            "type": "action",
+            "target": "Evaluate_Search_Quality",
+            "bound_inputs": {
+              "search_results": "state.search_results",
+              "original_query": "state.search_query",
+              "articles_count": "state.articles_found"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "confidence_score": "result.confidence_score"
+              },
+              {
+                "relevance_score": "result.relevance_score"
+              },
+              {
+                "answer_completeness": "result.answer_completeness"
+              },
+              {
+                "escalation_needed": "result.escalation_recommended"
+              }
+            ],
+            "name": "evaluate_quality",
+            "description": "Evaluate Quality"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "search_query": "state.search_query"
+              },
+              {
+                "session_search_count": "state.session_search_count"
+              },
+              {
+                "confidence_score": "state.confidence_score"
+              }
+            ],
+            "name": "capture_search_session",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"search_results\""
+              }
+            ],
+            "name": "show_results",
+            "description": "Displays comprehensive search results with interactive options and feedback collection"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "search_results",
+            "enabled": "state.AgentScriptInternal_next_topic==\"search_results\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.search_query != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Analyze_Search_Intent",
+            "bound_inputs": {
+              "search_query": "state.search_query",
+              "user_context": "\"Customer inquiry\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "search_intent": "result.search_intent"
+              },
+              {
+                "search_category": "result.query_category"
+              },
+              {
+                "query_complexity": "result.complexity_level"
+              },
+              {
+                "refined_query": "result.refined_query"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Search_Knowledge_Base",
+            "bound_inputs": {
+              "refined_query": "state.refined_query",
+              "search_category": "state.search_category",
+              "result_limit": "10"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "articles_found": "result.articles_found"
+              },
+              {
+                "search_results": "result.search_results"
+              },
+              {
+                "most_relevant_article": "result.most_relevant_article"
+              },
+              {
+                "related_topics": "result.related_topics"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Evaluate_Search_Quality",
+            "bound_inputs": {
+              "search_results": "state.search_results",
+              "original_query": "state.search_query",
+              "articles_count": "state.articles_found"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "confidence_score": "result.confidence_score"
+              },
+              {
+                "relevance_score": "result.relevance_score"
+              },
+              {
+                "answer_completeness": "result.answer_completeness"
+              },
+              {
+                "escalation_needed": "result.escalation_recommended"
+              },
+              {
+                "session_search_count": "state.session_search_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"search_results\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "search_results",
+            "enabled": "state.AgentScriptInternal_next_topic==\"search_results\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "developer_name": "knowledge_search",
+        "label": "Knowledge Search",
+        "action_definitions": [
+          {
+            "developer_name": "Analyze_Search_Intent",
+            "label": "Analyze Intent",
+            "description": "Analyzes user query to determine search intent and category",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "AnalyzeSearchIntent",
+            "input_type": [
+              {
+                "developer_name": "search_query",
+                "label": "Search Query",
+                "description": "User's search question or keywords",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "user_context",
+                "label": "User Context",
+                "description": "Additional context about the user's situation",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "search_intent",
+                "label": "Search Intent",
+                "description": "Search Intent",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "query_category",
+                "label": "Query Category",
+                "description": "Query Category",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "complexity_level",
+                "label": "Complexity Level",
+                "description": "Complexity Level",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "refined_query",
+                "label": "Refined Query",
+                "description": "Refined Query",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "suggested_keywords",
+                "label": "Suggested Keywords",
+                "description": "Suggested Keywords",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "Search_Knowledge_Base",
+            "label": "Search Knowledge Base",
+            "description": "Searches knowledge base with optimized query and returns ranked results",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "SearchKnowledgeBase",
+            "input_type": [
+              {
+                "developer_name": "refined_query",
+                "label": "Refined Query",
+                "description": "Optimized search query",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "search_category",
+                "label": "Search Category",
+                "description": "Category to focus search",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "result_limit",
+                "label": "Result Limit",
+                "description": "Maximum number of results",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "articles_found",
+                "label": "Articles Found",
+                "description": "Articles Found",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "search_results",
+                "label": "Search Results",
+                "description": "Search Results",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "most_relevant_article",
+                "label": "Most Relevant Article",
+                "description": "Most Relevant Article",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "relevance_scores",
+                "label": "Relevance Scores",
+                "description": "Relevance Scores",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "related_topics",
+                "label": "Related Topics",
+                "description": "Related Topics",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Evaluate_Search_Quality",
+            "label": "Evaluate Quality",
+            "description": "Evaluates search result quality and determines confidence scores",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "EvaluateSearchQuality",
+            "input_type": [
+              {
+                "developer_name": "search_results",
+                "label": "Search Results",
+                "description": "Results from knowledge base search",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "original_query",
+                "label": "Original Query",
+                "description": "User's original question",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "articles_count",
+                "label": "Articles Count",
+                "description": "Number of articles found",
+                "data_type": "Double",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "confidence_score",
+                "label": "Confidence Score",
+                "description": "Confidence Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "relevance_score",
+                "label": "Relevance Score",
+                "description": "Relevance Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "answer_completeness",
+                "label": "Answer Completeness",
+                "description": "Answer Completeness",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "escalation_recommended",
+                "label": "Escalation Recommended",
+                "description": "Escalation Recommended",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Search Results for: \"{{state.search_query}}\"**\n\n**Intent:** {{state.search_intent}}\n**Category:** {{state.search_category}}\n**Articles Found:** {{state.articles_found}}\n**Confidence:** {{state.confidence_score}}/100\n**Relevance:** {{state.relevance_score}}/100\n\n**Most Relevant Information:**\n{{state.most_relevant_article}}\n\n**Answer Completeness:** {{state.answer_completeness}}\n\n**Related Topics You Might Find Helpful:**\n{{state.related_topics}}\n\nDoes this answer your question satisfactorily? Would you like me to:\n1. Refine the search with additional details\n2. Search for related topics\n3. Connect you with a human agent for specialized help"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a knowledge search assistant that helps users find information from our knowledge base. Use search capabilities to provide accurate, relevant answers and escalate to human agents when needed.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Displays comprehensive search results with interactive options and feedback collection",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.confidence_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_needed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.articles_found == 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_needed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_reason": "\"No relevant articles found\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Generate_Answer_Summary",
+            "bound_inputs": {
+              "search_results": "state.search_results",
+              "user_question": "state.search_query",
+              "result_format": "\"comprehensive\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "article_content": "result.answer_summary"
+              }
+            ],
+            "name": "generate_summary",
+            "description": "Generate Summary"
+          },
+          {
+            "type": "action",
+            "target": "Collect_User_Feedback",
+            "bound_inputs": {
+              "presented_results": "state.search_results",
+              "user_satisfaction": "state.user_feedback",
+              "improvement_areas": "\"search refinement\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "user_satisfied": "result.feedback_recorded"
+              },
+              {
+                "follow_up_needed": "result.needs_follow_up"
+              }
+            ],
+            "name": "collect_feedback",
+            "description": "Collect Feedback"
+          },
+          {
+            "type": "action",
+            "target": "Refine_Search_Results",
+            "bound_inputs": {
+              "original_results": "state.search_results",
+              "user_feedback": "state.user_feedback",
+              "refinement_direction": "\"expand search scope\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "search_results": "result.refined_results"
+              },
+              {
+                "confidence_score": "result.improved_confidence"
+              }
+            ],
+            "name": "refine_results",
+            "description": "Refine Results"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "confidence_score": "state.confidence_score"
+              },
+              {
+                "user_satisfied": "state.user_satisfied"
+              },
+              {
+                "session_search_count": "state.session_search_count"
+              }
+            ],
+            "name": "track_search_quality",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation\""
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Provides comprehensive escalation to human agents with context preservation and queue management"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"knowledge_search\""
+              }
+            ],
+            "name": "new_search",
+            "description": "Processes comprehensive knowledge base search with intelligent query analysis and result optimization"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "escalation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "knowledge_search",
+            "enabled": "state.AgentScriptInternal_next_topic==\"knowledge_search\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.search_results != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Generate_Answer_Summary",
+            "bound_inputs": {
+              "search_results": "state.search_results",
+              "user_question": "state.search_query",
+              "result_format": "\"comprehensive\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "article_content": "result.answer_summary"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.confidence_score < 80 and state.search_refinement_count < 3"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Refine_Search_Results",
+            "bound_inputs": {
+              "original_results": "state.search_results",
+              "user_feedback": "\"need more specific information\"",
+              "refinement_direction": "\"expand search scope\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "search_results": "result.refined_results"
+              },
+              {
+                "confidence_score": "result.improved_confidence"
+              },
+              {
+                "search_refinement_count": "state.search_refinement_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.confidence_score < 70 or state.articles_found == 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_needed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_priority": "\"normal\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.user_feedback != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Collect_User_Feedback",
+            "bound_inputs": {
+              "presented_results": "state.search_results",
+              "user_satisfaction": "state.user_feedback",
+              "improvement_areas": "\"search quality\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "user_satisfied": "result.feedback_recorded"
+              },
+              {
+                "follow_up_needed": "result.needs_follow_up"
+              }
+            ]
+          }
+        ],
+        "developer_name": "search_results",
+        "label": "Search Results",
+        "action_definitions": [
+          {
+            "developer_name": "Refine_Search_Results",
+            "label": "Refine Results",
+            "description": "Refines search results based on user feedback and additional context",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "RefineSearchResults",
+            "input_type": [
+              {
+                "developer_name": "original_results",
+                "label": "Original Results",
+                "description": "Initial search results",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "user_feedback",
+                "label": "User Feedback",
+                "description": "User's feedback on results",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "refinement_direction",
+                "label": "Refinement Direction",
+                "description": "How to refine the search",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "refined_results",
+                "label": "Refined Results",
+                "description": "Refined Results",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "improved_confidence",
+                "label": "Improved Confidence",
+                "description": "Improved Confidence",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "additional_articles",
+                "label": "Additional Articles",
+                "description": "Additional Articles",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "search_suggestions",
+                "label": "Search Suggestions",
+                "description": "Search Suggestions",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Generate_Answer_Summary",
+            "label": "Generate Summary",
+            "description": "Generates comprehensive answer summary from search results",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GenerateAnswerSummary",
+            "input_type": [
+              {
+                "developer_name": "search_results",
+                "label": "Search Results",
+                "description": "Raw search results from knowledge base",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "user_question",
+                "label": "User Question",
+                "description": "Original user question",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "result_format",
+                "label": "Result Format",
+                "description": "Desired format for the answer",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "answer_summary",
+                "label": "Answer Summary",
+                "description": "Answer Summary",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "key_points",
+                "label": "Key Points",
+                "description": "Key Points",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "source_citations",
+                "label": "Source Citations",
+                "description": "Source Citations",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "follow_up_questions",
+                "label": "Follow-up Questions",
+                "description": "Follow Up Questions",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Collect_User_Feedback",
+            "label": "Collect Feedback",
+            "description": "Collects structured feedback on search result quality and usefulness",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CollectUserFeedback",
+            "input_type": [
+              {
+                "developer_name": "presented_results",
+                "label": "Presented Results",
+                "description": "Results shown to user",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "user_satisfaction",
+                "label": "User Satisfaction",
+                "description": "User's satisfaction level",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "improvement_areas",
+                "label": "Improvement Areas",
+                "description": "Areas for improvement",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "feedback_recorded",
+                "label": "Feedback Recorded",
+                "description": "Feedback Recorded",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "satisfaction_score",
+                "label": "Satisfaction Score",
+                "description": "Satisfaction Score",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "needs_follow_up",
+                "label": "Needs Follow-up",
+                "description": "Needs Follow Up",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "improvement_suggestions",
+                "label": "Improvement Suggestions",
+                "description": "Improvement Suggestions",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Escalating to Human Agent**\n\nI understand that our knowledge base search didn't fully address your question about \"{{state.search_query}}\".\n\n**Search Summary:**\n- Query: {{state.search_query}}\n- Articles Found: {{state.articles_found}}\n- Confidence Score: {{state.confidence_score}}/100\n- Search Attempts: {{state.search_refinement_count}}\n\n**Why I'm escalating:**\n{{state.escalation_reason}}\n\nLet me connect you with a human agent who can provide specialized assistance."
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a knowledge search assistant that helps users find information from our knowledge base. Use search capabilities to provide accurate, relevant answers and escalate to human agents when needed.",
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Provides comprehensive escalation to human agents with context preservation and queue management",
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_priority == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_priority": "\"normal\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.confidence_score < 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "escalation_priority": "\"high\""
+              }
+            ]
+          }
+        ],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Check_Agent_Availability",
+            "bound_inputs": {
+              "escalation_priority": "state.escalation_priority",
+              "query_category": "state.search_category",
+              "time_of_day": "\"current\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "agent_availability": "result.agents_available"
+              },
+              {
+                "estimated_wait_time": "result.estimated_wait_time"
+              }
+            ],
+            "name": "check_availability",
+            "description": "Check Availability"
+          },
+          {
+            "type": "action",
+            "target": "Create_Escalation_Ticket",
+            "bound_inputs": {
+              "original_query": "state.search_query",
+              "search_attempts": "\"Searched \" + state.session_search_count + \" times\"",
+              "escalation_reason": "state.escalation_reason",
+              "user_context": "state.search_intent"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "escalation_needed": "result.escalation_successful"
+              }
+            ],
+            "name": "create_ticket",
+            "description": "Create Ticket"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "escalation_priority": "state.escalation_priority"
+              },
+              {
+                "estimated_wait_time": "state.estimated_wait_time"
+              },
+              {
+                "session_search_count": "state.session_search_count"
+              }
+            ],
+            "name": "finalize_escalation",
+            "input_parameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"knowledge_search\""
+              }
+            ],
+            "name": "help_another",
+            "description": "Processes comprehensive knowledge base search with intelligent query analysis and result optimization"
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "knowledge_search",
+            "enabled": "state.AgentScriptInternal_next_topic==\"knowledge_search\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition": "state.escalation_needed"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Check_Agent_Availability",
+            "bound_inputs": {
+              "escalation_priority": "state.escalation_priority",
+              "query_category": "state.search_category",
+              "time_of_day": "\"current\""
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "agent_availability": "result.agents_available"
+              },
+              {
+                "estimated_wait_time": "result.estimated_wait_time"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Create_Escalation_Ticket",
+            "bound_inputs": {
+              "original_query": "state.search_query",
+              "search_attempts": "\"Performed \" + state.session_search_count + \" searches with \" + state.search_refinement_count + \" refinements\"",
+              "escalation_reason": "state.escalation_reason",
+              "user_context": "state.search_intent + \" query in \" + state.search_category"
+            },
+            "llm_inputs": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition)",
+            "state_updates": [
+              {
+                "successful_resolutions": "state.successful_resolutions + 1"
+              }
+            ]
+          }
+        ],
+        "developer_name": "escalation",
+        "label": "Escalation",
+        "action_definitions": [
+          {
+            "developer_name": "Check_Agent_Availability",
+            "label": "Check Availability",
+            "description": "Checks availability of human agents and provides wait time estimates",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CheckAgentAvailability",
+            "input_type": [
+              {
+                "developer_name": "escalation_priority",
+                "label": "Escalation Priority",
+                "description": "Priority level of the escalation",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "query_category",
+                "label": "Query Category",
+                "description": "Category of the user's query",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "time_of_day",
+                "label": "Time of Day",
+                "description": "Current time for availability check",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "agents_available",
+                "label": "Agents Available",
+                "description": "Agents Available",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "estimated_wait_time",
+                "label": "Estimated Wait Time",
+                "description": "Estimated Wait Time",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "next_available_agent",
+                "label": "Next Available Agent",
+                "description": "Next Available Agent",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "queue_position",
+                "label": "Queue Position",
+                "description": "Queue Position",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          },
+          {
+            "developer_name": "Create_Escalation_Ticket",
+            "label": "Create Escalation",
+            "description": "Creates detailed escalation ticket with search context and user information",
+            "require_user_confirmation": true,
+            "include_in_progress_indicator": true,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "CreateEscalationTicket",
+            "input_type": [
+              {
+                "developer_name": "original_query",
+                "label": "Original Query",
+                "description": "User's original search query",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "search_attempts",
+                "label": "Search Attempts",
+                "description": "Summary of search attempts made",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "escalation_reason",
+                "label": "Escalation Reason",
+                "description": "Reason for escalating to human agent",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "user_context",
+                "label": "User Context",
+                "description": "Additional user context and preferences",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "ticket_created",
+                "label": "Ticket Created",
+                "description": "Ticket Created",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "ticket_id",
+                "label": "Ticket ID",
+                "description": "Ticket Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "assigned_agent",
+                "label": "Assigned Agent",
+                "description": "Assigned Agent",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              },
+              {
+                "developer_name": "escalation_successful",
+                "label": "Escalation Successful",
+                "description": "Escalation Successful",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": []
+  }
+}

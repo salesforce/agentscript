@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional benefit application agent assistant.
+        Help users manage their benefit_app requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: intake -> means_testing -> determination -> notification.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Benefit Application Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "benefit_application_agent_v93"
+    default_agent_user: "benefit_application@example.com"
+    agent_description: "Assists users with benefit_app management through the benefit application agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    benefit_app_record_id: mutable string
+        description: "Record ID of the benefit_app"
+    benefit_app_status: mutable string = ""
+        description: "Current status of the benefit_app"
+    benefit_app_tier: mutable string = "standard"
+        description: "Tier classification for the benefit_app"
+    benefit_app_category: mutable string = ""
+        description: "Category of the benefit_app"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    intake_complete: mutable boolean = False
+        description: "Whether the intake stage is complete"
+    intake_result: mutable string = ""
+        description: "Result from the intake stage"
+    means_testing_complete: mutable boolean = False
+        description: "Whether the means_testing stage is complete"
+    means_testing_result: mutable string = ""
+        description: "Result from the means_testing stage"
+    determination_complete: mutable boolean = False
+        description: "Whether the determination stage is complete"
+    determination_result: mutable string = ""
+        description: "Result from the determination stage"
+    notification_complete: mutable boolean = False
+        description: "Whether the notification stage is complete"
+    notification_result: mutable string = ""
+        description: "Result from the notification stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate benefit_app management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a benefit application agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current benefit_app status: {! @variables.benefit_app_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_intake} for intake requests.
+              Use {!@actions.go_to_means_testing} for means testing requests.
+              Use {!@actions.go_to_determination} for determination requests.
+              Use {!@actions.go_to_notification} for notification requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_intake: @utils.transition to @topic.intake
+                description: "Transition to intake topic."
+            go_to_means_testing: @utils.transition to @topic.means_testing
+                description: "Transition to means testing topic."
+                available when @variables.is_verified == True
+            go_to_determination: @utils.transition to @topic.determination
+                description: "Transition to determination topic."
+                available when @variables.is_verified == True
+            go_to_notification: @utils.transition to @topic.notification
+                description: "Transition to notification topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic intake:
+    description: "Handles the intake stage of the benefit_app process"
+
+    actions:
+        process_intake_data:
+            description: "Process intake stage data for the benefit_app"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Intake"
+
+        validate_intake_info:
+            description: "Validate intake information for the benefit_app"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Intake_Info"
+
+        fetch_intake_details:
+            description: "Fetch intake details for the benefit_app"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Intake_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_intake_info
+                with record_ref=@variables.benefit_app_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.benefit_app_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the intake stage for the benefit_app.
+              Current benefit_app status: {! @variables.benefit_app_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Intake result: {! @variables.intake_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.benefit_app_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_intake} to begin processing.
+        actions:
+            run_intake: @actions.process_intake_data
+                with record_ref=@variables.benefit_app_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.benefit_app_category
+                set @variables.intake_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.intake_complete = @outputs.is_passed
+            fetch_intake_info: @actions.fetch_intake_details
+                with record_ref=@variables.benefit_app_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.benefit_app_tier = @outputs.tier_value
+            go_to_means_testing: @utils.transition to @topic.means_testing
+                description: "Move to means testing stage."
+                available when @variables.intake_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.benefit_app_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.benefit_app_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.benefit_app_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.intake_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic means_testing:
+    description: "Handles the means testing stage of the benefit_app process"
+
+    actions:
+        process_means_testing_data:
+            description: "Process means testing stage data for the benefit_app"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_MeansTesting_Data"
+
+        validate_means_testing_info:
+            description: "Validate means testing information for the benefit_app"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_MeansTesting_Info"
+
+        fetch_means_testing_details:
+            description: "Fetch means testing details for the benefit_app"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_MeansTesting_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.intake_complete == False:
+            transition to @topic.intake
+
+    reasoning:
+        instructions: ->
+            | Handle the means testing stage for the benefit_app.
+              Current benefit_app status: {! @variables.benefit_app_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Means Testing result: {! @variables.means_testing_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.benefit_app_tier }
+              Review the means testing results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_means_testing: @actions.process_means_testing_data
+                with record_ref=@variables.benefit_app_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.benefit_app_category
+                set @variables.means_testing_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.means_testing_complete = @outputs.is_passed
+            fetch_means_testing_info: @actions.fetch_means_testing_details
+                with record_ref=@variables.benefit_app_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.benefit_app_tier = @outputs.tier_value
+                available when @variables.benefit_app_record_id is not None
+            go_to_determination: @utils.transition to @topic.determination
+                description: "Move to determination stage."
+                available when @variables.means_testing_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.means_testing_complete == True:
+            set @variables.benefit_app_status = "means_testing_done"
+        if @variables.means_testing_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.determination
+        if @variables.attempt_count >= 3 and @variables.means_testing_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic determination:
+    description: "Handles the determination stage of the benefit_app process"
+
+    actions:
+        process_determination_data:
+            description: "Process determination stage data for the benefit_app"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Determination"
+
+        validate_determination_info:
+            description: "Validate determination information for the benefit_app"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Determination_Info"
+
+        fetch_determination_details:
+            description: "Fetch determination details for the benefit_app"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Determination_Details"
+
+    before_reasoning:
+        if @variables.determination_complete == False:
+            run @actions.fetch_determination_details
+                with record_ref=@variables.benefit_app_record_id
+                with include_history=True
+                set @variables.determination_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.benefit_app_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.benefit_app_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.benefit_app_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the determination stage for the benefit_app.
+              Current benefit_app status: {! @variables.benefit_app_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Determination result: {! @variables.determination_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.benefit_app_tier }
+              Review the determination results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_determination: @actions.process_determination_data
+                with record_ref=@variables.benefit_app_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.benefit_app_category
+                set @variables.determination_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.determination_complete = @outputs.is_passed
+            fetch_determination_info: @actions.fetch_determination_details
+                with record_ref=@variables.benefit_app_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.benefit_app_tier = @outputs.tier_value
+                available when @variables.benefit_app_record_id is not None
+            go_to_notification: @utils.transition to @topic.notification
+                description: "Move to notification stage."
+                available when @variables.determination_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.benefit_app_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.benefit_app_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.benefit_app_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.determination_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic notification:
+    description: "Handles the notification stage of the benefit_app process"
+
+    actions:
+        process_notification_data:
+            description: "Process notification stage data for the benefit_app"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Notification"
+
+        validate_notification_info:
+            description: "Validate notification information for the benefit_app"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Notification_Info"
+
+        fetch_notification_details:
+            description: "Fetch notification details for the benefit_app"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Notification_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.determination_complete == False:
+            transition to @topic.determination
+        if @variables.eligibility_score >= 80:
+            set @variables.benefit_app_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.benefit_app_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the notification stage for the benefit_app.
+              Current benefit_app status: {! @variables.benefit_app_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Notification result: {! @variables.notification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.benefit_app_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_notification: @actions.process_notification_data
+                with record_ref=@variables.benefit_app_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.benefit_app_category
+                set @variables.notification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.notification_complete = @outputs.is_passed
+            fetch_notification_info: @actions.fetch_notification_details
+                with record_ref=@variables.benefit_app_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.benefit_app_tier = @outputs.tier_value
+                available when @variables.benefit_app_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.notification_complete == True:
+            set @variables.benefit_app_status = "notification_done"
+        if @variables.attempt_count >= 3 and @variables.notification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for benefit_app issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the benefit_app issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the benefit_app interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the benefit_app request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Benefit App status: {! @variables.benefit_app_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.benefit_app_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.benefit_app_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.benefit_app_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.benefit_app_status = "escalated"
+        set @variables.escalation_requested = False
+
