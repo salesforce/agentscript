@@ -21,7 +21,7 @@ Run that command after changing any colors here.
 
 #### Defined in
 
-[monaco/src/theme.ts:21](https://github.com/salesforce/agentscript/blob/90ab1dbff7b10e8f9df7f9171b49e51a6d04a0d4/packages/monaco/src/theme.ts#L21)
+[monaco/src/theme.ts:21](https://github.com/salesforce/agentscript/blob/2a9b4427238262399df3e6ef885d5749b8cf7732/packages/monaco/src/theme.ts#L21)
 
 ***
 
@@ -31,7 +31,7 @@ Run that command after changing any colors here.
 
 #### Defined in
 
-[monaco/src/theme.ts:20](https://github.com/salesforce/agentscript/blob/90ab1dbff7b10e8f9df7f9171b49e51a6d04a0d4/packages/monaco/src/theme.ts#L20)
+[monaco/src/theme.ts:20](https://github.com/salesforce/agentscript/blob/2a9b4427238262399df3e6ef885d5749b8cf7732/packages/monaco/src/theme.ts#L20)
 
 ***
 
@@ -41,4 +41,4 @@ Run that command after changing any colors here.
 
 #### Defined in
 
-[monaco/src/theme.ts:22](https://github.com/salesforce/agentscript/blob/90ab1dbff7b10e8f9df7f9171b49e51a6d04a0d4/packages/monaco/src/theme.ts#L22)
+[monaco/src/theme.ts:22](https://github.com/salesforce/agentscript/blob/2a9b4427238262399df3e6ef885d5749b8cf7732/packages/monaco/src/theme.ts#L22)

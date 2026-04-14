@@ -18,4 +18,4 @@ Build Monaco theme rules from color definitions.
 
 ## Defined in
 
-[monaco/src/theme.ts:85](https://github.com/salesforce/agentscript/blob/90ab1dbff7b10e8f9df7f9171b49e51a6d04a0d4/packages/monaco/src/theme.ts#L85)
+[monaco/src/theme.ts:85](https://github.com/salesforce/agentscript/blob/2a9b4427238262399df3e6ef885d5749b8cf7732/packages/monaco/src/theme.ts#L85)
