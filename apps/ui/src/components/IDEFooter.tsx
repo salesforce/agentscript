@@ -6,7 +6,6 @@
  */
 
 import { useState, useCallback } from 'react';
-import { VscError, VscWarning } from 'react-icons/vsc';
 import { CheckIcon } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { useAppStore } from '~/store';
@@ -102,55 +101,82 @@ export function IDEFooter() {
 
   return (
     <>
-      <footer className="flex h-6 items-stretch justify-between bg-[#007acc] pl-3 pr-6 text-xs text-white">
-        {/* Left section - Diagnostics */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex h-full items-center gap-2 rounded-none px-1 py-0 text-white hover:bg-white/20 hover:text-white"
+      <footer
+        className="flex h-6 items-stretch justify-between border-t pl-4 pr-5 text-[11px]"
+        style={{
+          background: 'var(--ide-surface-elevated)',
+          borderColor: 'var(--ide-border-subtle)',
+          color: 'var(--ide-text-muted)',
+        }}
+      >
+        {/* Left section - Diagnostics as colored dots + neutral counts */}
+        <button
           onClick={() => {
             setBottomPanelTab('problems');
             toggleBottomPanel();
           }}
+          className="flex h-full items-center gap-2.5 px-1.5 pb-1 transition-colors duration-150 cursor-pointer"
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'var(--ide-surface-hover)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+          style={{ color: 'var(--ide-text-muted)' }}
         >
-          <VscError className="h-3.5 w-3.5" />
-          <NumberFlow
-            value={errorCount}
-            className="text-xs font-medium"
-            animated
-          />
-          <VscWarning className="h-3.5 w-3.5" />
-          <NumberFlow
-            value={warningCount}
-            className="text-xs font-medium"
-            animated
-          />
-        </Button>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: 'var(--ide-danger)' }}
+            />
+            <NumberFlow
+              value={errorCount}
+              className="font-medium tabular-nums"
+              animated
+            />
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: 'var(--ide-warning)' }}
+            />
+            <NumberFlow
+              value={warningCount}
+              className="font-medium tabular-nums"
+              animated
+            />
+          </span>
+        </button>
 
         {/* Right section - Dialect + Cursor position */}
-        <div className="flex items-center gap-3 text-white">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex h-full items-center gap-1 rounded-none px-1.5 py-0 text-white hover:bg-white/20 hover:text-white"
+        <div
+          className="flex items-center gap-4 pb-0.5"
+          style={{ color: 'var(--ide-text-muted)' }}
+        >
+          <button
+            className="flex h-full items-center gap-1 px-1.5 transition-colors duration-150 cursor-pointer"
             onClick={() => setSelectorOpen(true)}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'var(--ide-surface-hover)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <span className="text-xs">
+            <span>
               {currentDialect
-                ? `${currentDialect.displayName} (${currentDialect.version})`
+                ? `${currentDialect.displayName} v${currentDialect.version}`
                 : 'Select Dialect'}
             </span>
-          </Button>
+          </button>
 
           {/* Cursor position */}
           {isScriptView && editorSelection && (
-            <>
-              <span>
-                Ln {editorSelection.endLineNumber}, Col{' '}
-                {editorSelection.endColumn}
-              </span>
-              {selectedCount > 0 && <span>({selectedCount} selected)</span>}
-            </>
+            <span className="tabular-nums">
+              Ln {editorSelection.endLineNumber}, Col{' '}
+              {editorSelection.endColumn}
+              {selectedCount > 0 && ` · ${selectedCount} sel`}
+            </span>
           )}
         </div>
       </footer>

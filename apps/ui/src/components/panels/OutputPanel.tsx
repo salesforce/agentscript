@@ -6,25 +6,10 @@
  */
 
 import { type Diagnostic, DiagnosticSeverity } from '~/store/diagnostics';
-import {
-  VscError,
-  VscWarning,
-  VscInfo,
-  VscClose,
-  VscWand,
-  VscCopy,
-} from 'react-icons/vsc';
-import { Badge } from '~/components/ui/badge';
+import { X, Wand2, Copy, Sparkles } from 'lucide-react';
 import { useMonacoEditor } from '~/contexts/MonacoEditorContext';
 import { useAppStore } from '~/store';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '~/components/ui/empty';
-import { cn, copyToClipboard } from '~/lib/utils';
+import { copyToClipboard } from '~/lib/utils';
 import { useCallback, useState } from 'react';
 import { featureFlags } from '~/lib/feature-flags';
 import type { CodeAction } from 'vscode-languageserver-protocol';
@@ -44,11 +29,12 @@ export const OutputPanel = () => {
   const bottomPanelTab = useAppStore(state => state.layout.bottomPanelTab);
   const setBottomPanelTab = useAppStore(state => state.setBottomPanelTab);
 
-  // Count errors and warnings for badge
-  const problemCount = diagnostics.filter(
-    diag =>
-      diag.severity === DiagnosticSeverity.Error ||
-      diag.severity === DiagnosticSeverity.Warning
+  // Count errors and warnings separately
+  const errorCount = diagnostics.filter(
+    d => d.severity === DiagnosticSeverity.Error
+  ).length;
+  const warningCount = diagnostics.filter(
+    d => d.severity === DiagnosticSeverity.Warning
   ).length;
 
   const { editor, lspClient } = useMonacoEditor();
@@ -156,139 +142,256 @@ export const OutputPanel = () => {
     }
   }, [editor, lspClient, diagnostics]);
 
-  // Panel content - shared between expanded and normal views
-  const panelContent = (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-[#fafafd] dark:bg-[#191a1b] gap-y-1">
-      <div className="flex shrink-0 items-center justify-between pl-3 pr-1 pt-1 text-[11px] uppercase tracking-wide text-gray-400 dark:text-[#909090]">
-        <div className="flex gap-3">
-          <button
-            onClick={() => setBottomPanelTab('problems')}
-            className={cn(
-              'flex cursor-pointer items-center gap-1.5 border-b py-1 font-medium uppercase tracking-wide transition-colors',
-              bottomPanelTab === 'problems'
-                ? 'border-gray-400 text-gray-500 dark:border-[#3a94bd] dark:text-[#bdbdbd]'
-                : 'border-transparent text-gray-400 hover:text-gray-500 dark:text-[#909090] dark:hover:text-[#bdbdbd]'
-            )}
-          >
-            Problems
-            {problemCount > 0 && (
-              <Badge
-                className="h-4 min-w-4 rounded-full border-0! bg-[#027acc] px-1! py-0! gap-0! font-mono text-[10px]! leading-none! tabular-nums text-white hover:bg-[#027acc] dark:bg-[#3a94bd] dark:hover:bg-[#3a94bd]"
-                variant="secondary"
-              >
-                <span className="-mb-0.5">{problemCount}</span>
-              </Badge>
-            )}
-          </button>
+  const sortedDiagnostics = [...diagnostics].sort((a, b) => {
+    const sevDiff = (a.severity ?? 0) - (b.severity ?? 0);
+    if (sevDiff !== 0) return sevDiff;
+    const aLine =
+      (a as unknown as { range?: { start?: { line: number } } }).range?.start
+        ?.line ?? 0;
+    const bLine =
+      (b as unknown as { range?: { start?: { line: number } } }).range?.start
+        ?.line ?? 0;
+    return aLine - bLine;
+  });
+
+  return (
+    <div
+      className="flex h-full w-full flex-col overflow-hidden rounded-xl border"
+      style={{
+        background: 'var(--ide-surface-elevated)',
+        borderColor: 'var(--ide-border-subtle)',
+      }}
+    >
+      {/* Header — title + counts on the left, actions on the right */}
+      <div
+        className="flex shrink-0 items-center justify-between px-4 py-2"
+        style={{ color: 'var(--ide-text-primary)' }}
+      >
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-sm font-semibold tracking-tight">
+            {bottomPanelTab === 'suggestions' ? 'Suggestions' : 'Issues'}
+          </h2>
+          {bottomPanelTab === 'problems' && (
+            <div
+              className="flex items-center gap-2.5 text-xs"
+              style={{ color: 'var(--ide-text-muted)' }}
+            >
+              <CountChip
+                color="var(--ide-danger)"
+                count={errorCount}
+                label="errors"
+              />
+              <CountChip
+                color="var(--ide-warning)"
+                count={warningCount}
+                label="warnings"
+              />
+            </div>
+          )}
           {featureFlags.suggestionsTab && (
             <button
-              onClick={() => setBottomPanelTab('suggestions')}
-              className={cn(
-                'cursor-pointer border-b py-1 font-medium uppercase tracking-wide transition-colors',
-                bottomPanelTab === 'suggestions'
-                  ? 'border-gray-400 text-gray-500 dark:border-[#3a94bd] dark:text-[#bdbdbd]'
-                  : 'border-transparent text-gray-400 hover:text-gray-500 dark:text-[#909090] dark:hover:text-[#bdbdbd]'
-              )}
+              onClick={() =>
+                setBottomPanelTab(
+                  bottomPanelTab === 'problems' ? 'suggestions' : 'problems'
+                )
+              }
+              className="text-xs underline-offset-2 hover:underline"
+              style={{ color: 'var(--ide-text-subtle)' }}
             >
-              Suggestions
+              {bottomPanelTab === 'problems'
+                ? 'View suggestions'
+                : 'View issues'}
             </button>
           )}
         </div>
-        <div className="flex items-center gap-0.5">
+
+        <div className="flex items-center gap-1">
           {bottomPanelTab === 'problems' && hasFixableDiagnostics && (
-            <button
-              type="button"
+            <PanelActionButton
               onClick={() => void handleFixAll()}
               disabled={isFixing}
-              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-[#2a2a2a] disabled:opacity-50"
-              title="Fix All"
-              aria-label="Fix All"
+              title="Fix all auto-fixable issues"
             >
-              <VscWand className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-            </button>
+              <Wand2 className="h-3.5 w-3.5" />
+              <span>Fix all</span>
+            </PanelActionButton>
           )}
           {bottomPanelTab === 'problems' && diagnostics.length > 0 && (
-            <button
-              type="button"
+            <IconButton
               onClick={handleCopyDiagnostics}
-              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-[#2a2a2a]"
-              title="Copy Diagnostics as JSON"
-              aria-label="Copy Diagnostics as JSON"
+              title="Copy diagnostics as JSON"
             >
-              <VscCopy className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-            </button>
+              <Copy className="h-3.5 w-3.5" />
+            </IconButton>
           )}
-          <button
-            type="button"
+          <IconButton
             onClick={() => setShowBottomPanel(false)}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-[#2a2a2a]"
-            title="Close Panel"
-            aria-label="Close Panel"
+            title="Close panel"
           >
-            <VscClose className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-          </button>
+            <X className="h-4 w-4" />
+          </IconButton>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto pl-1 pr-1 pb-2 pt-1">
-        {/* Problems Tab */}
+      {/* Body */}
+      <div className="flex-1 overflow-auto px-2 pb-3">
         {bottomPanelTab === 'problems' && (
           <>
-            {/* No problems message */}
-            {diagnostics.length === 0 && (
-              <p className="text-xs text-gray-500 dark:text-[#cccccc]">
-                No problems have been detected in the agent.
-              </p>
-            )}
-
-            {/* Problems list - ungrouped */}
-            {diagnostics.length > 0 && (
-              <div className="space-y-1">
-                {[...diagnostics]
-                  .sort((a, b) => {
-                    const sevDiff = (a.severity ?? 0) - (b.severity ?? 0);
-                    if (sevDiff !== 0) return sevDiff;
-                    const aLine =
-                      (a as unknown as { range?: { start?: { line: number } } })
-                        .range?.start?.line ?? 0;
-                    const bLine =
-                      (b as unknown as { range?: { start?: { line: number } } })
-                        .range?.start?.line ?? 0;
-                    return aLine - bLine;
-                  })
-                  .map((diag, idx) => (
-                    <DiagnosticItem key={idx} diagnostic={diag} />
-                  ))}
+            {diagnostics.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-gray-400 dark:text-[#848484]">
+                No issues detected in this agent.
               </div>
+            ) : (
+              <ul className="flex flex-col gap-px">
+                {sortedDiagnostics.map((diag, idx) => (
+                  <DiagnosticItem key={idx} diagnostic={diag} />
+                ))}
+              </ul>
             )}
           </>
         )}
 
-        {/* Suggestions Tab */}
         {featureFlags.suggestionsTab && bottomPanelTab === 'suggestions' && (
-          <div className="flex h-full items-center justify-center py-8">
-            <Empty orientation="horizontal" size="tight">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <VscWand />
-                </EmptyMedia>
-                <div className="flex flex-col">
-                  <EmptyTitle>AI Suggestions Coming Soon</EmptyTitle>
-                  <EmptyDescription>
-                    Smart suggestions will help you improve your agent code and
-                    catch potential issues.
-                  </EmptyDescription>
-                </div>
-              </EmptyHeader>
-            </Empty>
-          </div>
+          <EmptyState
+            icon={<Sparkles className="h-5 w-5" />}
+            title="AI suggestions coming soon"
+            description="Smart suggestions will surface improvements and likely bugs as you work."
+          />
         )}
       </div>
     </div>
   );
-
-  return panelContent;
 };
+
+/** Small severity-dot count, e.g. "● 2" for errors. */
+function CountChip({
+  color,
+  count,
+  label,
+}: {
+  color: string;
+  count: number;
+  label: string;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 tabular-nums"
+      style={{ color: count > 0 ? 'var(--ide-text-primary)' : undefined }}
+      aria-label={`${count} ${label}`}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ background: count > 0 ? color : 'var(--ide-border-strong)' }}
+      />
+      {count}
+    </span>
+  );
+}
+
+function PanelActionButton({
+  children,
+  onClick,
+  disabled,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors duration-150 disabled:opacity-50"
+      style={{
+        background: 'var(--ide-surface)',
+        borderColor: 'var(--ide-border-subtle)',
+        color: 'var(--ide-text-primary)',
+      }}
+      onMouseEnter={e => {
+        if (!disabled)
+          e.currentTarget.style.background = 'var(--ide-surface-hover)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'var(--ide-surface)';
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function IconButton({
+  children,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors duration-150"
+      style={{ color: 'var(--ide-text-muted)' }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = 'var(--ide-surface-hover)';
+        e.currentTarget.style.color = 'var(--ide-text-primary)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = 'var(--ide-text-muted)';
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center">
+      <span
+        className="flex h-9 w-9 items-center justify-center rounded-full"
+        style={{
+          background: 'var(--ide-surface-sunken)',
+          color: 'var(--ide-text-muted)',
+        }}
+      >
+        {icon}
+      </span>
+      <div className="flex flex-col gap-0.5">
+        <p
+          className="text-sm font-medium"
+          style={{ color: 'var(--ide-text-primary)' }}
+        >
+          {title}
+        </p>
+        <p
+          className="text-xs max-w-xs"
+          style={{ color: 'var(--ide-text-muted)' }}
+        >
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Individual diagnostic item
@@ -318,22 +421,16 @@ function DiagnosticItem({ diagnostic }: { diagnostic: Diagnostic }) {
 
   const sourceLabel = source;
 
-  // Determine icon and color based on severity
-  const getSeverityIcon = () => {
+  const severityColor = (() => {
     switch (severity) {
       case DiagnosticSeverity.Error:
-        return <VscError className="h-4 w-4 text-red-600 dark:text-red-400" />;
+        return 'var(--ide-danger)';
       case DiagnosticSeverity.Warning:
-        return (
-          <VscWarning className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-        );
-      case DiagnosticSeverity.Information:
-      case DiagnosticSeverity.Hint:
-        return <VscInfo className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+        return 'var(--ide-warning)';
       default:
-        return <VscInfo className="h-4 w-4 text-gray-600 dark:text-gray-400" />;
+        return 'var(--ide-text-subtle)';
     }
-  };
+  })();
 
   const handleClick = () => {
     if (!editor) return;
@@ -365,22 +462,44 @@ function DiagnosticItem({ diagnostic }: { diagnostic: Diagnostic }) {
       : undefined;
 
   return (
-    <div
-      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-[#252627]"
-      onClick={handleClick}
-    >
-      <div className="shrink-0">{getSeverityIcon()}</div>
-      <span className="truncate text-gray-900 dark:text-[#cccccc]">
-        {message}
-      </span>
-      {formattedSource && (
-        <span className="shrink-0 text-gray-400 dark:text-[#707171]">
-          {formattedSource}
+    <li>
+      <button
+        type="button"
+        onClick={handleClick}
+        className="group flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-100"
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'var(--ide-surface-hover)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{ background: severityColor }}
+          aria-hidden
+        />
+        <span className="truncate" style={{ color: 'var(--ide-text-primary)' }}>
+          {message}
         </span>
-      )}
-      <span className="ml-auto shrink-0 text-gray-400 dark:text-[#707171]">
-        [Ln {line}, Col {col}]
-      </span>
-    </div>
+        {formattedSource && (
+          <span
+            className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]"
+            style={{
+              background: 'var(--ide-surface-sunken)',
+              color: 'var(--ide-text-subtle)',
+            }}
+          >
+            {formattedSource}
+          </span>
+        )}
+        <span
+          className="ml-auto shrink-0 tabular-nums"
+          style={{ color: 'var(--ide-text-subtle)' }}
+        >
+          {line}:{col}
+        </span>
+      </button>
+    </li>
   );
 }

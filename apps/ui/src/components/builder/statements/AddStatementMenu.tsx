@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
-import { VscAdd } from 'react-icons/vsc';
+import { Plus } from 'lucide-react';
 
 export type StatementKind =
   | 'template'
@@ -67,7 +67,7 @@ export function AddStatementMenu({ onAdd, className }: AddStatementMenuProps) {
             size="sm"
             className="h-6 gap-1 text-xs text-muted-foreground"
           >
-            <VscAdd className="h-3 w-3" />
+            <Plus className="h-3 w-3" />
             Add Statement
           </Button>
         </DropdownMenuTrigger>

@@ -7,7 +7,7 @@
 
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
-import { VscTrash } from 'react-icons/vsc';
+import { Trash2 } from 'lucide-react';
 import { PiDotsSixVerticalBold } from 'react-icons/pi';
 import type { Diagnostic, Range, Comment } from '@agentscript/types';
 import { DiagnosticBadge, DiagnosticMessages } from '../DiagnosticBadge';
@@ -150,7 +150,7 @@ export function StatementCard({
           className="h-5 w-5 text-muted-foreground opacity-0 group-hover/stmt:opacity-100 hover:text-red-500"
           onClick={onDelete}
         >
-          <VscTrash className="h-3 w-3" />
+          <Trash2 className="h-3 w-3" />
         </Button>
       </div>
 

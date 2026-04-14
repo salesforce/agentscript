@@ -5,9 +5,8 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import { ChevronRight, Folder } from 'lucide-react';
+import { ChevronRight, Folder, FileCode2 } from 'lucide-react';
 import * as React from 'react';
-import { VscSymbolFile } from 'react-icons/vsc';
 import { getBlockTypeConfig } from '~/lib/block-type-config';
 import { cn } from '~/lib/utils';
 import {
@@ -51,7 +50,7 @@ export function TreeView({
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <VscSymbolFile />
+              <FileCode2 />
             </EmptyMedia>
             <EmptyTitle>No Blocks Available</EmptyTitle>
             <EmptyDescription>
@@ -141,10 +140,23 @@ function TreeNodeItem({
       <div
         ref={nodeRef}
         className={cn(
-          'flex cursor-pointer items-center gap-1 px-2 py-1 text-xs transition-colors hover:bg-gray-200 dark:hover:bg-[#2a2d2e]',
-          selected &&
-            'rounded-l-sm bg-blue-100 hover:bg-blue-200 dark:bg-[#252627] dark:hover:bg-[#252627]'
+          'flex cursor-pointer items-center gap-1 px-2 py-1 text-xs transition-colors',
+          selected && 'rounded-l-sm'
         )}
+        style={{
+          background: selected ? 'var(--ide-accent-soft)' : undefined,
+          color: 'var(--ide-text-primary)',
+        }}
+        onMouseEnter={e => {
+          if (!selected) {
+            e.currentTarget.style.background = 'var(--ide-surface-hover)';
+          }
+        }}
+        onMouseLeave={e => {
+          if (!selected) {
+            e.currentTarget.style.background = '';
+          }
+        }}
         onClick={() => {
           onNodeSelect(blockType, node.id);
           if (hasChildren) {
@@ -158,13 +170,20 @@ function TreeNodeItem({
               e.stopPropagation();
               setIsExpanded(!isExpanded);
             }}
-            className="shrink-0 rounded p-0.5 hover:bg-gray-300 dark:hover:bg-[#3e3e42]"
+            className="shrink-0 rounded p-0.5 transition-colors"
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'var(--ide-surface-sunken)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '';
+            }}
           >
             <ChevronRight
               className={cn(
-                'h-3 w-3 text-gray-500 transition-transform dark:text-gray-400',
+                'h-3 w-3 transition-transform',
                 isExpanded && 'rotate-90'
               )}
+              style={{ color: 'var(--ide-text-muted)' }}
             />
           </button>
         )}
@@ -183,17 +202,16 @@ function TreeNodeItem({
 
         <div className="flex flex-1 items-center gap-1 overflow-hidden">
           <span
-            className={cn(
-              'shrink-0',
-              selected
-                ? 'font-medium text-blue-900 dark:text-white'
-                : 'text-gray-700 dark:text-[#cccccc]'
-            )}
+            className={cn('shrink-0', selected && 'font-medium')}
+            style={{ color: 'var(--ide-text-primary)' }}
           >
             {node.data.label}
           </span>
           {node.data.secondaryLabel && (
-            <span className="truncate font-mono text-gray-400 dark:text-[#727272]">
+            <span
+              className="truncate font-mono"
+              style={{ color: 'var(--ide-text-subtle)' }}
+            >
               {node.data.secondaryLabel}
             </span>
           )}

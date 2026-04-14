@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
-import { VscChevronDown, VscChevronRight, VscTrash } from 'react-icons/vsc';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { PiDotsSixVerticalBold } from 'react-icons/pi';
 import type { FieldType } from '@agentscript/language';
 import type { Diagnostic, Range, Comment } from '@agentscript/types';
@@ -134,9 +134,9 @@ export function NamedBlockCard({
           onClick={() => setCollapsed(prev => !prev)}
         >
           {collapsed ? (
-            <VscChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           ) : (
-            <VscChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           )}
           <span className="text-xs font-medium text-muted-foreground">
             {formatFieldName(blockType)}
@@ -181,7 +181,7 @@ export function NamedBlockCard({
             onClick={() => onDelete(name)}
             title={`Remove ${name}`}
           >
-            <VscTrash className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>

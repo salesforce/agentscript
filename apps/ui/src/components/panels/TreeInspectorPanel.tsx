@@ -20,7 +20,7 @@ import { detectDialectId } from '~/lib/detect-dialect';
 import { cn, copyToClipboard } from '~/lib/utils';
 import { useAppStore } from '~/store';
 import { useMonacoEditor } from '~/contexts/MonacoEditorContext';
-import { VscClose, VscCopy } from 'react-icons/vsc';
+import { X, Copy } from 'lucide-react';
 import { emitDocument } from '@agentscript/language';
 import { findGeneratedPosition, buildCursorMap } from '@agentscript/compiler';
 import type { SourceMapping, CursorMap } from '@agentscript/compiler';
@@ -476,9 +476,22 @@ export function TreeInspectorPanel() {
   }, [cstTreeData]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-white dark:border-[#2b2b2b] dark:bg-[#191a1b]">
+    <div
+      className="flex h-full flex-col overflow-hidden rounded-l-xl border border-r-0 shadow-sm"
+      style={{
+        background: 'var(--ide-surface-elevated)',
+        borderColor: 'var(--ide-border-subtle)',
+        color: 'var(--ide-text-primary)',
+      }}
+    >
       {/* Header with CST/AST toggle */}
-      <div className="flex h-9 flex-none items-center justify-between border-b border-[#f1f1f2] bg-[#fafafd] px-3 dark:border-[#2b2b2b] dark:bg-[#191a1b]">
+      <div
+        className="flex h-9 flex-none items-center justify-between border-b px-3"
+        style={{
+          borderColor: 'var(--ide-border-subtle)',
+          background: 'var(--ide-surface-elevated)',
+        }}
+      >
         <div className="flex items-center gap-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-[#606060] dark:font-normal dark:text-[#bebebe]">
             Debug:
@@ -539,7 +552,7 @@ export function TreeInspectorPanel() {
               title="Copy CST as S-expression"
               aria-label="Copy CST as S-expression"
             >
-              <VscCopy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
+              <Copy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
             </button>
           )}
           {treeInspectorMode === 'ast' && ast && (
@@ -550,7 +563,7 @@ export function TreeInspectorPanel() {
               title="Copy AST as JSON"
               aria-label="Copy AST as JSON"
             >
-              <VscCopy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
+              <Copy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
             </button>
           )}
           {treeInspectorMode === 'emit' && (
@@ -576,7 +589,7 @@ export function TreeInspectorPanel() {
               title="Copy emitted source"
               aria-label="Copy emitted source"
             >
-              <VscCopy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
+              <Copy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
             </button>
           )}
           {treeInspectorMode === 'compiled' && compiledData.text && (
@@ -587,7 +600,7 @@ export function TreeInspectorPanel() {
               title="Copy compiled JSON"
               aria-label="Copy compiled JSON"
             >
-              <VscCopy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
+              <Copy className="h-3.5 w-3.5 text-gray-600 dark:text-[#cbcbcb]" />
             </button>
           )}
           <button
@@ -595,7 +608,7 @@ export function TreeInspectorPanel() {
             className="flex h-5 w-5 items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-[#454646]"
             title="Close panel"
           >
-            <VscClose className="h-4 w-4 text-gray-600 dark:text-[#cbcbcb]" />
+            <X className="h-4 w-4 text-gray-600 dark:text-[#cbcbcb]" />
           </button>
         </div>
       </div>

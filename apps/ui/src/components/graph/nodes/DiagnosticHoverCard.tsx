@@ -8,7 +8,7 @@
 import { DiagnosticSeverity } from '@agentscript/types';
 import type { Diagnostic } from '@agentscript/types';
 import { cn } from '~/lib/utils';
-import { VscError, VscWarning, VscInfo } from 'react-icons/vsc';
+import { CircleAlert, TriangleAlert, Info } from 'lucide-react';
 
 interface DiagnosticHoverCardProps {
   diagnostics: Diagnostic[];
@@ -43,19 +43,19 @@ export function DiagnosticHoverCard({ diagnostics }: DiagnosticHoverCardProps) {
       <div className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-1.5 py-0.5 text-xs shadow-sm dark:border-[#404040] dark:bg-[#2d2d2d]">
         {errors.length > 0 && (
           <span className="flex items-center gap-0.5 text-red-500">
-            <VscError className="h-3.5 w-3.5" />
+            <CircleAlert className="h-3.5 w-3.5" />
             {errors.length}
           </span>
         )}
         {warnings.length > 0 && (
           <span className="flex items-center gap-0.5 text-amber-500">
-            <VscWarning className="h-3.5 w-3.5" />
+            <TriangleAlert className="h-3.5 w-3.5" />
             {warnings.length}
           </span>
         )}
         {infos.length > 0 && (
           <span className="flex items-center gap-0.5 text-blue-500">
-            <VscInfo className="h-3.5 w-3.5" />
+            <Info className="h-3.5 w-3.5" />
             {infos.length}
           </span>
         )}
@@ -69,14 +69,14 @@ export function DiagnosticHoverCard({ diagnostics }: DiagnosticHoverCardProps) {
               <li key={i} className="flex items-start gap-1.5">
                 <span className="mt-0.5 shrink-0">
                   {d.severity === DiagnosticSeverity.Error && (
-                    <VscError className="h-3 w-3 text-red-500" />
+                    <CircleAlert className="h-3 w-3 text-red-500" />
                   )}
                   {d.severity === DiagnosticSeverity.Warning && (
-                    <VscWarning className="h-3 w-3 text-amber-500" />
+                    <TriangleAlert className="h-3 w-3 text-amber-500" />
                   )}
                   {(d.severity === DiagnosticSeverity.Information ||
                     d.severity === DiagnosticSeverity.Hint) && (
-                    <VscInfo className="h-3 w-3 text-blue-500" />
+                    <Info className="h-3 w-3 text-blue-500" />
                   )}
                 </span>
                 <span

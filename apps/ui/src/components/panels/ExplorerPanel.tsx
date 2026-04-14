@@ -192,12 +192,17 @@ export function ExplorerPanel({ className }: ExplorerPanelProps) {
   return (
     <div
       className={cn(
-        'flex h-full flex-col overflow-hidden bg-[#fafafd] text-foreground dark:bg-[#191a1b] dark:text-white',
+        'flex h-full flex-col overflow-hidden rounded-r-xl border border-l-0 shadow-sm',
         className
       )}
+      style={{
+        background: 'var(--ide-surface-elevated)',
+        borderColor: 'var(--ide-border-subtle)',
+        color: 'var(--ide-text-primary)',
+      }}
     >
       {/* Header */}
-      <PanelHeader title="EXPLORER" />
+      <PanelHeader title="Explorer" />
 
       {/* Tree View - Shows AST block structure */}
       <div className="flex-1 overflow-auto">

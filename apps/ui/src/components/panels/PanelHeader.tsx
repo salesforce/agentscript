@@ -25,8 +25,14 @@ export function PanelHeader({
   actions,
 }: PanelHeaderProps) {
   return (
-    <div className="flex h-9 items-center justify-between border-b border-[#f1f1f2] bg-[#fafafd] px-3 dark:border-[#2b2b2b] dark:bg-[#191a1b]">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-[#606060] dark:font-normal dark:text-[#bfbfbf]">
+    <div
+      className="flex h-9 items-center justify-between px-3"
+      style={{ color: 'var(--ide-text-primary)' }}
+    >
+      <h2
+        className="text-xs font-semibold tracking-tight"
+        style={{ color: 'var(--ide-text-primary)' }}
+      >
         {title}
       </h2>
       <div className="flex items-center gap-2">

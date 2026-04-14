@@ -10,12 +10,7 @@ import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Textarea } from '~/components/ui/textarea';
-import {
-  VscAdd,
-  VscTrash,
-  VscChevronDown,
-  VscChevronRight,
-} from 'react-icons/vsc';
+import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { PiDotsSixVerticalBold } from 'react-icons/pi';
 import type { Diagnostic, Range } from '@agentscript/types';
 import { NamedMap } from '@agentscript/language';
@@ -248,9 +243,9 @@ function VariableRow({
 
         {canExpand ? (
           expanded ? (
-            <VscChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           ) : (
-            <VscChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         ) : (
           <span className="w-3.5" />
@@ -306,7 +301,7 @@ function VariableRow({
           }}
           title={`Remove ${name}`}
         >
-          <VscTrash className="h-3 w-3" />
+          <Trash2 className="h-3 w-3" />
         </Button>
       </div>
 
@@ -663,7 +658,7 @@ export function TypedMapEditor({
           className="h-7 gap-1 text-xs text-muted-foreground"
           onClick={() => setShowAdd(true)}
         >
-          <VscAdd className="h-3 w-3" />
+          <Plus className="h-3 w-3" />
           Add {itemLabel}
         </Button>
       )}
