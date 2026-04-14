@@ -182,6 +182,12 @@ export {
 export { Dialect } from './core/dialect.js';
 export { emitDocument } from './core/emit.js';
 
+export {
+  ESCAPE_TABLE,
+  interpretEscape,
+  escapeStringValue,
+} from './core/string-escapes.js';
+
 export { FieldBuilder, addBuilderMethods } from './core/field-builder.js';
 export type {
   FieldMetadata,

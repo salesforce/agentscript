@@ -368,6 +368,7 @@ export default grammar({
 
     string_content: $ => /[^"\\]+/,
 
+    // Must match ESCAPE_TABLE in @agentscript/language (packages/language/src/core/string-escapes.ts)
     escape_sequence: $ => /\\["'\\nrt0]/,
   },
 });
