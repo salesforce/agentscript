@@ -38,7 +38,7 @@ system:
   instructions: "You are the onboarding agent"
 ```
 
-### The system section has these parameters.
+The system section has these parameters.
 
 | Parameter | Description | Type | Required |
 | :---- | :---- | :---- | :---- |
@@ -68,7 +68,7 @@ The config section has these parameters.
 
 ### LLM Section {#llm-section}
 
-The `llm` element is where you define the LLMs to use for reasoning and generation.
+The `llm` element is where you define the LLMs to use for reasoning and generation. Each `target` must use the `llm://` URI scheme so the runtime binds to the correct governed connection.
 
 **Example**
 
@@ -87,14 +87,14 @@ llm:
     top_p: 0.3
 ```
 
-#### LLM Configuration: OpenAI {#llm-configuration:-openai}
+#### LLM Configuration: OpenAI
 
 The OpenAI configuration has these properties.
 
 | Parameter | Description | Type | Required |
 | :---- | :---- | :---- | :---- |
-| `target` | References a connection in the agent network. | Connection | Yes |
-| `kind` | The LLM provider. | String, `openai` | Yes |
+| `target` | Governed LLM connection as a URI; must use the `llm://` scheme | URI (`llm://…`) | Yes |
+| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `openai` | Yes |
 | `model` | The name of the model to use | String | Yes |
 | `reasoning_effort` | Constrains effort on reasoning for reasoning models. gpt-5.1 defaults to NONE, previous ones default to MEDIUM | enum\['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH'\] | No |
 | `temperature` | Controls randomness in the output | number | No |
@@ -113,14 +113,14 @@ llm:
     reasoning_effort: "LOW"
 ```
 
-#### LLM Configuration: Gemini {#llm-configuration:-gemini}
+#### LLM Configuration: Gemini
 
 The Gemini configuration has these properties.
 
 | Parameter | Description | Type | Required |
 | :---- | :---- | :---- | :---- |
-| `target` | References a connection in the agent network. | Connection | Yes |
-| `kind` | The LLM provider. | String, `gemini` | Yes |
+| `target` | Governed LLM connection as a URI; must use the `llm://` scheme | URI (`llm://…`) | Yes |
+| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `gemini` | Yes |
 | `model` | The name of the model to use | String | Yes |
 | `thinking_level` | The level of thoughts tokens that the model should generate | Enum\['LOW', 'HIGH'\] | No |
 | `thinking_budget` | Indicates the thinking budget in tokens. 0 is DISABLED. \-1 is AUTOMATIC. The default values and allowed ranges are model dependent | Number | No |
@@ -143,49 +143,53 @@ llm:
 
 ### Action Definitions
 
-You define A2A and MCP actions in Agent Script.
+You define A2A and MCP actions in Agent Script under the top-level `action_definitions` block. Each action `target` uses a URI whose scheme is the underlying protocol (for example `a2a://` or `mcp://`), so the runtime can route the connection correctly.
 
 #### A2A Actions
 
 A2A actions execute the `message/send` A2A method and do not specify inputs or outputs.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `target` | References an A2A actions connection in the agent network. | Connection | Yes |
-| `kind` | Indicates that this executes the message/send A2A method. | "a2a:send\_message" | Yes |
-
 **Example**
 
 ```agentscript
-tool_definitions:
+action_definitions:
   hr_agent:
-    target: "connection://hr_agent_connection"
+    target: "a2a://hr_agent_connection"
     kind: "a2a:send_message"
 ```
+
+A2A actions have these properties.
+
+| Parameter | Description | Type | Required |
+| :---- | :---- | :---- | :---- |
+| `target` | Governed A2A connection as a URI; must use the `a2a://` scheme | URI (`a2a://…`) | Yes |
+| `kind` | Indicates that this executes the message/send A2A method. | "a2a:send\_message" | Yes |
 
 #### MCP Actions
 
 MCP actions invoke Model Context Protocol actions with optional input binding.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `target` | References an MCP server connection in the agent network. | Connection | Yes |
-| `kind` | Constant indicating this will invoke an MCP tool | "mcp:tool" | Yes |
-| `tool_name` | The name of the tool to call | String | Yes |
-| `inputs` | Define bindable arguments. Input arguments provided are not exhaustive. The tool will auto-discover additional arguments and consider them in slot filling mode. | Object | No |
-
 **Example**
 
 ```agentscript
-tool_definitions:
+action_definitions:
   send_slack_message:
-    target: "connection://slack_mcp_connection"
+    target: "mcp://slack_mcp_connection"
     kind: "mcp:tool"
     tool_name: "send-message"
     inputs:
       channel: string = "my-default-channel"
       message: string
 ```
+
+MCP actions have these properties.
+
+| Parameter | Description | Type | Required |
+| :---- | :---- | :---- | :---- |
+| `target` | Governed MCP connection as a URI; must use the `mcp://` scheme | URI (`mcp://…`) | Yes |
+| `kind` | Constant indicating this will invoke an MCP tool | "mcp:tool" | Yes |
+| `tool_name` | The name of the tool to call | String | Yes |
+| `inputs` | Define bindable arguments. Input arguments provided are not exhaustive. The tool will auto-discover additional arguments and consider them in slot filling mode. | Object | No |
 
 ### A2A Trigger 
 
@@ -203,20 +207,22 @@ The A2A trigger reacts to send/message methods and automatically manages the tas
 * [Delete Push Notification Config](https://a2a-protocol.org/latest/specification/#3110-delete-push-notification-config)  
 * [Get Extended Agent Card](https://a2a-protocol.org/latest/specification/#3111-get-extended-agent-card)
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `kind` | Value that indicates this is an A2A trigger. | `"a2a"` | Yes |
-| `target` | Refers to a Broker defined in the agent network through a URI. The URI uses the `brokers` scheme with segments for broker name and interface name. | Broker Ref | Yes |
-| `on_message` | Procedure that executes when the A2A interface receives a new `message/send` request. Must define a transition to the workflow's initial node. | Procedure | Yes |
-
 **Example**
 
 ```agentscript
 trigger employeeOnboardingTrigger:
   kind: "a2a"
   target: "brokers://employee-onboarding/a2a"
-  on_message: -> transition to @orchestration.hrSystemOnboard
+  on_message: -> transition to @orchestrator.hrSystemOnboard
 ```
+
+The A2A trigger has these properties.
+
+| Parameter | Description | Type | Required |
+| :---- | :---- | :---- | :---- |
+| `kind` | Value that indicates this is an A2A trigger. | `"a2a"` | Yes |
+| `target` | Broker interface entry point. Must use the `brokers://` URI form: `brokers://<brokerName>/<interfaceName>` | URI (`brokers://…`) | Yes |
+| `on_message` | Procedure that executes when the A2A interface receives a new `message/send` request. Must define a transition to the workflow's initial node. | Procedure | Yes |
 
 ## Node Types
 
@@ -280,8 +286,8 @@ The subagent node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `exit_to` | A procedure that executes when the node execution finishes. | Procedure | Yes |
-| `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section). | No |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section) | No |
 | `system.instructions` | Overrides the global `system.instructions` at the file root level | String | No |
 | `reasoning.instructions` | Session-specific query or instructions for this particular node, typically containing user provided or user related context | String | Yes |
 | `reasoning.actions` | The available actions | Array\[actions\] | No |
@@ -341,8 +347,8 @@ The orchestrator node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `exit_to` | A procedure that executes when the node execution finishes. | Procedure | Yes |
-| `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section). | No |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section) | No |
 | `system.instructions` | Overrides the global `system.instructions` at the file root level | String | No |
 | `reasoning.instructions` | Session-specific query or instructions for this particular node, typically containing user provided or user related context | String | Yes |
 | `reasoning.actions` | The available actions | Array\[actions\] | No |
@@ -373,7 +379,7 @@ The generator node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `exit_to` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
 | `llm` | A reference to the LLM connection. | LLM Configuration objectSee [LLM Configuration: OpenAI](#llm-configuration:-openai) or [LLM Configuration: Gemini](#llm-configuration:-gemini) | No |
 | `system_instructions` | A foundational instruction set defining the agent's persona, operational boundaries, and behavioral logic to ensure consistent task execution. | String | No |
 | `prompt` | Session-specific query or instructions for this particular node, typically containing user provided or user related context. | String | Yes |
@@ -402,7 +408,7 @@ The executor node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `exit_to` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
 | `do` | Agent Script statements to execute | procedure | Yes |
 
 ### Router Node
@@ -414,13 +420,13 @@ The router node performs dynamic transitions based on deterministic conditions. 
 ```agentscript
 router countryRouter:
   routes:
-    - target: @orchestration.argentinaOnboard
-      when: @orchestration.hrSystemOnboard.output.country  == "ARG"
+    - target: @orchestrator.argentinaOnboard
+      when: @orchestrator.hrSystemOnboard.output.country  == "ARG"
       label: "Argentina"
-    - target: @orchestration.usOnboard
-      when: @orchestration.hrSystemOnboard.output.country  == "USA"
+    - target: @orchestrator.usOnboard
+      when: @orchestrator.hrSystemOnboard.output.country  == "USA"
       label: "USA"
-  else:
+  otherwise:
     target: @echo.invalidCountryResponse
 ```
 
@@ -431,9 +437,9 @@ The router node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `exit_to` | A procedure that executes when the node execution finishes. | Procedure | Yes |
-| `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: target, when, and optional label | Array | Yes |
-| `else` | Defines a default transition in case no condition was matched. Contains: target | Object | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: target, when, and optional label. | Array | Yes |
+| `otherwise` | Defines a default transition when no route condition matches. Contains: target. | Object | Yes with `routes` |
 
 ### Echo Node
 
@@ -462,7 +468,7 @@ echo a2a_response:
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `exit_to` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
 | `kind` | Discriminator for the response type. Must be "a2a:response". | String | Yes |
 | `task` | A Task object as defined in the A2A specification. The `id`, `contextId` and `history` attributes are automatically populated by the trigger | Task object | Yes |
 
@@ -526,7 +532,7 @@ The following references are used.
 | `@request.` | Trigger request data | `@request.payload`, `@request.interface` |
 | `@request.headers.` | HTTP headers (case-insensitive) | `@request.headers['Authorization']` |
 | `@variables.` | Workflow variables | `@variables.companyId` |
-| `@<nodeType>.<nodeId>.` | Node references | `@orchestration.hrOnboard.output` |
+| `@<nodeType>.<nodeId>.` | Node references | `@orchestrator.hrOnboard.output` |
 
 ### Accessing Node Output and Input
 
@@ -535,7 +541,7 @@ Every node has `.output` (the value it produced) and `.input` (the output of whi
 **Example**
 
 ```agentscript
-@orchestration.hrOnboard.output.employeeId    # a specific field from a node's output
+@orchestrator.hrOnboard.output.employeeId    # a specific field from a node's output
 @generate.writeEmailContent.output             # the full string from a generate node
 @generate.generate_email.input                 # whatever the preceding node produced
 ```
@@ -572,7 +578,7 @@ Use `{!expression}` to embed values inside strings.
 **Example**
 
 ```agentscript
-prompt: "The employee's country is {!@orchestration.hrOnboard.output.country}"
+prompt: "The employee's country is {!@orchestrator.hrOnboard.output.country}"
 ```
 
 ### Slot Filling 
