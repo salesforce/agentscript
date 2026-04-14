@@ -35,6 +35,7 @@ import { graphNodeTypes } from '~/components/graph/nodes';
 import { graphEdgeTypes } from '~/components/graph/edges';
 import { ErrorBoundary } from '~/components/shared/ErrorBoundary';
 import { ChevronLeft } from 'lucide-react';
+import { PanelHeader } from '~/components/panels/PanelHeader';
 import { Button } from '~/components/ui/button';
 import { findPathEdges } from '~/lib/graph-path';
 import { GraphDrawer } from '~/components/graph/GraphDrawer';
@@ -228,23 +229,22 @@ function GraphInner() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex h-9 items-center gap-2 border-b border-[#f1f1f2] bg-[#fafafd] px-3 dark:border-[#2b2b2b] dark:bg-[#191a1b]">
-        {isTopicDetail && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-gray-600 hover:bg-gray-300/50 hover:text-gray-900 dark:text-[#cccccc] dark:hover:bg-[#454646] dark:hover:text-white"
-            onClick={handleBackToOverview}
-            title="Back to overview"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        )}
-        <h2 className="text-sm font-semibold text-[#606060] dark:font-normal dark:text-[#bfbfbf]">
-          {isTopicDetail ? `Topic: ${topicId}` : 'Agent Graph'}
-        </h2>
-      </div>
+      <PanelHeader
+        title={isTopicDetail ? `Topic: ${topicId}` : 'Agent Graph'}
+        actions={
+          isTopicDetail ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-gray-600 hover:bg-gray-300/50 hover:text-gray-900 dark:text-[#cccccc] dark:hover:bg-[#454646] dark:hover:text-white"
+              onClick={handleBackToOverview}
+              title="Back to overview"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Graph Canvas */}
       <div className="relative flex-1">

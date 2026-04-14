@@ -39,7 +39,7 @@ import { ProcedureField } from './fields/ProcedureField';
 import { FieldRenderer } from './FieldRenderer';
 import { CommentEditor } from './CommentEditor';
 import { Button } from '~/components/ui/button';
-import { VscAdd, VscError, VscWarning, VscInfo } from 'react-icons/vsc';
+import { Plus, CircleAlert, TriangleAlert, Info } from 'lucide-react';
 import type { StatementKind } from './statements/AddStatementMenu';
 
 // ---------------------------------------------------------------------------
@@ -354,7 +354,7 @@ export function BuilderCanvas({
               className="h-7 gap-1 text-xs text-muted-foreground"
               onClick={() => handleAddCompoundBlock(fieldInfo.name)}
             >
-              <VscAdd className="h-3 w-3" />
+              <Plus className="h-3 w-3" />
               Add
             </Button>
           </div>
@@ -446,14 +446,14 @@ export function BuilderCanvas({
             {blockOnlyDiags.map((d, i) => (
               <li key={i} className="flex items-center gap-1.5">
                 {d.severity === DiagnosticSeverity.Error && (
-                  <VscError className="h-3 w-3 shrink-0 text-red-500" />
+                  <CircleAlert className="h-3 w-3 shrink-0 text-red-500" />
                 )}
                 {d.severity === DiagnosticSeverity.Warning && (
-                  <VscWarning className="h-3 w-3 shrink-0 text-amber-500" />
+                  <TriangleAlert className="h-3 w-3 shrink-0 text-amber-500" />
                 )}
                 {(d.severity === DiagnosticSeverity.Information ||
                   d.severity === DiagnosticSeverity.Hint) && (
-                  <VscInfo className="h-3 w-3 shrink-0 text-blue-500" />
+                  <Info className="h-3 w-3 shrink-0 text-blue-500" />
                 )}
                 <span
                   className={cn(

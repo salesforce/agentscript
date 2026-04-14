@@ -17,7 +17,7 @@ import {
   ComboboxItem,
   ComboboxEmpty,
 } from '~/components/ui/combobox';
-import { VscChevronDown, VscChevronRight, VscClose } from 'react-icons/vsc';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { PiDotsSixVerticalBold } from 'react-icons/pi';
 import { StringLiteral, isNamedMap, NamedMap } from '@agentscript/language';
 import type { Diagnostic, Range } from '@agentscript/types';
@@ -391,7 +391,7 @@ function AvailableWhenRow({
           onClick={onRemove}
           title="Remove available when condition"
         >
-          <VscClose className="h-3 w-3" />
+          <X className="h-3 w-3" />
         </Button>
       </div>
     );
@@ -473,7 +473,7 @@ function AvailableWhenRow({
         onClick={onRemove}
         title="Remove available when condition"
       >
-        <VscClose className="h-3 w-3" />
+        <X className="h-3 w-3" />
       </Button>
     </div>
   );
@@ -533,7 +533,7 @@ function ToClauseRow({
         onClick={onRemove}
         title="Remove transition target"
       >
-        <VscClose className="h-3 w-3" />
+        <X className="h-3 w-3" />
       </Button>
     </div>
   );
@@ -629,7 +629,7 @@ function WithClauseRow({
         onClick={onRemove}
         title="Remove with clause"
       >
-        <VscClose className="h-3 w-3" />
+        <X className="h-3 w-3" />
       </Button>
     </div>
   );
@@ -853,9 +853,9 @@ export function ReasoningActionCard({
           onClick={() => setCollapsed(prev => !prev)}
         >
           {collapsed ? (
-            <VscChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           ) : (
-            <VscChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           )}
           <span className="text-xs font-medium text-muted-foreground">
             Actions

@@ -8,7 +8,7 @@
 import { useState, useCallback } from 'react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
-import { VscChevronDown, VscChevronRight, VscTrash } from 'react-icons/vsc';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { PiDotsSixVerticalBold } from 'react-icons/pi';
 import {
   leadingComments,
@@ -160,9 +160,9 @@ export function BlockCard({
           </span>
         )}
         {collapsed ? (
-          <VscChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <VscChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
         <span className="text-sm font-medium">
           {formatFieldName(blockName)}
@@ -180,7 +180,7 @@ export function BlockCard({
             }}
             title={`Remove ${formatFieldName(blockName)}`}
           >
-            <VscTrash className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>

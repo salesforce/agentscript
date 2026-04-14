@@ -98,7 +98,7 @@ export function AgentsList() {
   };
 
   return (
-    <div className="bg-background flex h-full w-full flex-col">
+    <div className="flex h-full w-full flex-col">
       {/* Header */}
       <div className="border-b px-6 pt-6 pb-5">
         <div className="flex items-start justify-between">

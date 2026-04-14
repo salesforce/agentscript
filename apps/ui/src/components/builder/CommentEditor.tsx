@@ -10,7 +10,7 @@ import type { Comment } from '@agentscript/types';
 import { cn } from '~/lib/utils';
 import { Textarea } from '~/components/ui/textarea';
 import { Button } from '~/components/ui/button';
-import { VscComment } from 'react-icons/vsc';
+import { MessageSquare } from 'lucide-react';
 
 interface CommentEditorProps {
   comments?: Comment[];
@@ -44,7 +44,7 @@ export function CommentEditor({
           setEditing(true);
         }}
       >
-        <VscComment className="h-3 w-3" />
+        <MessageSquare className="h-3 w-3" />
         Add comment
       </Button>
     );

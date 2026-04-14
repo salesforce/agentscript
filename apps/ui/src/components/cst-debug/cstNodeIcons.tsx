@@ -12,36 +12,34 @@
 
 import React from 'react';
 import {
-  VscSymbolClass,
-  VscSymbolField,
-  VscSymbolKey,
-  VscSymbolString,
-  VscSymbolNumeric,
-  VscSymbolBoolean,
-  VscSymbolVariable,
-  VscSymbolOperator,
-  VscSymbolInterface,
-  VscSymbolMethod,
-  VscSymbolProperty,
-  VscSymbolFile,
-  VscSymbolKeyword,
-  VscSymbolConstant,
-  VscSymbolSnippet,
-  VscSymbolRuler,
-  VscSymbolMisc,
-  VscComment,
-  VscArrowRight,
-  VscGitCompare,
-  VscBeaker,
-  VscLink,
-  VscPlay,
-  VscEdit,
-  VscCircleSmallFilled,
-  VscWarning,
-  VscError,
-  VscBracketDot,
-  VscQuote,
-} from 'react-icons/vsc';
+  Box,
+  Hash,
+  KeyRound,
+  Quote,
+  ToggleLeft,
+  Variable,
+  Sigma,
+  PuzzleIcon,
+  FunctionSquare,
+  Tag,
+  FileCode2,
+  Type,
+  Snowflake,
+  Code,
+  Ruler,
+  Shapes,
+  MessageSquare,
+  ArrowRight,
+  GitCompare,
+  Beaker,
+  Link,
+  Play,
+  Pencil,
+  Circle,
+  TriangleAlert,
+  CircleAlert,
+  Brackets,
+} from 'lucide-react';
 
 interface IconConfig {
   icon: React.ReactElement;
@@ -78,7 +76,7 @@ export function getCstNodeIcon(
   // Error state takes precedence
   if (hasError) {
     return {
-      icon: <VscError size={iconSize} />,
+      icon: <CircleAlert size={iconSize} />,
       iconClassName: 'text-red-600 dark:text-red-400',
       iconBg: '#fee',
       category: 'other',
@@ -88,7 +86,7 @@ export function getCstNodeIcon(
   // Missing node state
   if (isMissing) {
     return {
-      icon: <VscWarning size={iconSize} />,
+      icon: <TriangleAlert size={iconSize} />,
       iconClassName: 'text-orange-600 dark:text-orange-400',
       iconBg: '#ffedcc',
       category: 'other',
@@ -98,7 +96,7 @@ export function getCstNodeIcon(
   // Structural nodes
   if (nodeType === 'source_file') {
     return {
-      icon: <VscSymbolFile size={iconSize} />,
+      icon: <FileCode2 size={iconSize} />,
       iconClassName: 'text-blue-600',
       iconBg: '#e3f2fd',
       category: 'structural',
@@ -107,7 +105,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'block') {
     return {
-      icon: <VscSymbolClass size={iconSize} />,
+      icon: <Box size={iconSize} />,
       iconClassName: 'text-purple-600',
       iconBg: '#f3e5f5',
       category: 'structural',
@@ -116,7 +114,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'field') {
     return {
-      icon: <VscSymbolField size={iconSize} />,
+      icon: <Hash size={iconSize} />,
       iconClassName: 'text-blue-500',
       iconBg: '#e3f2fd',
       category: 'structural',
@@ -125,7 +123,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'statement') {
     return {
-      icon: <VscSymbolMethod size={iconSize} />,
+      icon: <FunctionSquare size={iconSize} />,
       iconClassName: 'text-green-600',
       iconBg: '#e8f5e9',
       category: 'structural',
@@ -134,7 +132,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'clause') {
     return {
-      icon: <VscSymbolInterface size={iconSize} />,
+      icon: <PuzzleIcon size={iconSize} />,
       iconClassName: 'text-teal-600',
       iconBg: '#e0f2f1',
       category: 'structural',
@@ -148,7 +146,7 @@ export function getCstNodeIcon(
     nodeType === 'text'
   ) {
     return {
-      icon: <VscSymbolString size={iconSize} />,
+      icon: <Quote size={iconSize} />,
       iconClassName: 'text-orange-600',
       iconBg: '#fff3e0',
       category: 'literal',
@@ -157,7 +155,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'number') {
     return {
-      icon: <VscSymbolNumeric size={iconSize} />,
+      icon: <Hash size={iconSize} />,
       iconClassName: 'text-green-700',
       iconBg: '#f1f8e9',
       category: 'literal',
@@ -166,7 +164,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'boolean' || nodeType === 'True' || nodeType === 'False') {
     return {
-      icon: <VscSymbolBoolean size={iconSize} />,
+      icon: <ToggleLeft size={iconSize} />,
       iconClassName: 'text-blue-700',
       iconBg: '#e1f5fe',
       category: 'literal',
@@ -175,7 +173,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'null' || nodeType === 'None') {
     return {
-      icon: <VscSymbolConstant size={iconSize} />,
+      icon: <Snowflake size={iconSize} />,
       iconClassName: 'text-gray-600',
       iconBg: '#f5f5f5',
       category: 'literal',
@@ -185,7 +183,7 @@ export function getCstNodeIcon(
   // Identifiers and references
   if (nodeType === 'identifier' || nodeType === 'block_type') {
     return {
-      icon: <VscSymbolKey size={iconSize} />,
+      icon: <KeyRound size={iconSize} />,
       iconClassName: 'text-indigo-600',
       iconBg: '#e8eaf6',
       category: 'other',
@@ -194,7 +192,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'variable_ref') {
     return {
-      icon: <VscSymbolVariable size={iconSize} />,
+      icon: <Variable size={iconSize} />,
       iconClassName: 'text-purple-500',
       iconBg: '#f3e5f5',
       category: 'other',
@@ -204,7 +202,7 @@ export function getCstNodeIcon(
   // Expressions
   if (nodeType === 'expression' || nodeType === 'value') {
     return {
-      icon: <VscBracketDot size={iconSize} />,
+      icon: <Brackets size={iconSize} />,
       iconClassName: 'text-amber-600',
       iconBg: '#fff8e1',
       category: 'other',
@@ -216,7 +214,7 @@ export function getCstNodeIcon(
     nodeType === 'logical_expression'
   ) {
     return {
-      icon: <VscGitCompare size={iconSize} />,
+      icon: <GitCompare size={iconSize} />,
       iconClassName: 'text-cyan-600',
       iconBg: '#e0f7fa',
       category: 'other',
@@ -232,7 +230,7 @@ export function getCstNodeIcon(
     nodeType === 'logical_operator'
   ) {
     return {
-      icon: <VscSymbolOperator size={iconSize} />,
+      icon: <Sigma size={iconSize} />,
       iconClassName: 'text-pink-600',
       iconBg: '#fce4ec',
       category: 'operator',
@@ -248,7 +246,7 @@ export function getCstNodeIcon(
     nodeType === 'and'
   ) {
     return {
-      icon: <VscSymbolKeyword size={iconSize} />,
+      icon: <Type size={iconSize} />,
       iconClassName: 'text-pink-700',
       iconBg: '#fce4ec',
       category: 'keyword',
@@ -257,7 +255,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'transition' || nodeType === 'to') {
     return {
-      icon: <VscArrowRight size={iconSize} />,
+      icon: <ArrowRight size={iconSize} />,
       iconClassName: 'text-blue-600',
       iconBg: '#e3f2fd',
       category: 'keyword',
@@ -266,7 +264,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'run' || nodeType === 'set') {
     return {
-      icon: <VscPlay size={iconSize} />,
+      icon: <Play size={iconSize} />,
       iconClassName: 'text-green-600',
       iconBg: '#e8f5e9',
       category: 'keyword',
@@ -276,7 +274,7 @@ export function getCstNodeIcon(
   // Type system
   if (nodeType === 'type' || nodeType === 'simple_type') {
     return {
-      icon: <VscSymbolProperty size={iconSize} />,
+      icon: <Tag size={iconSize} />,
       iconClassName: 'text-teal-700',
       iconBg: '#e0f2f1',
       category: 'other',
@@ -290,7 +288,7 @@ export function getCstNodeIcon(
     nodeType === 'available'
   ) {
     return {
-      icon: <VscEdit size={iconSize} />,
+      icon: <Pencil size={iconSize} />,
       iconClassName: 'text-amber-700',
       iconBg: '#fff8e1',
       category: 'keyword',
@@ -300,7 +298,7 @@ export function getCstNodeIcon(
   // Special features
   if (nodeType === 'linked' || nodeType === 'with') {
     return {
-      icon: <VscLink size={iconSize} />,
+      icon: <Link size={iconSize} />,
       iconClassName: 'text-blue-500',
       iconBg: '#e3f2fd',
       category: 'keyword',
@@ -309,7 +307,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'slot_filled') {
     return {
-      icon: <VscBeaker size={iconSize} />,
+      icon: <Beaker size={iconSize} />,
       iconClassName: 'text-purple-600',
       iconBg: '#f3e5f5',
       category: 'keyword',
@@ -318,7 +316,7 @@ export function getCstNodeIcon(
 
   if (nodeType === 'placeholder') {
     return {
-      icon: <VscSymbolSnippet size={iconSize} />,
+      icon: <Code size={iconSize} />,
       iconClassName: 'text-gray-500',
       iconBg: '#fafafa',
       category: 'other',
@@ -328,7 +326,7 @@ export function getCstNodeIcon(
   // Comments
   if (nodeType === 'comment') {
     return {
-      icon: <VscComment size={iconSize} />,
+      icon: <MessageSquare size={iconSize} />,
       iconClassName: 'text-gray-500',
       iconBg: '#f5f5f5',
       category: 'other',
@@ -338,7 +336,7 @@ export function getCstNodeIcon(
   // Special arrow token
   if (nodeType === 'ARROW') {
     return {
-      icon: <VscArrowRight size={iconSize} />,
+      icon: <ArrowRight size={iconSize} />,
       iconClassName: 'text-gray-400',
       iconBg: '#fafafa',
       category: 'token',
@@ -348,7 +346,7 @@ export function getCstNodeIcon(
   // Quote marks
   if (nodeType === '"') {
     return {
-      icon: <VscQuote size={iconSize} />,
+      icon: <Quote size={iconSize} />,
       iconClassName: 'text-orange-400',
       iconBg: '#fafafa',
       category: 'token',
@@ -358,7 +356,7 @@ export function getCstNodeIcon(
   // Indentation tokens
   if (nodeType === 'INDENT' || nodeType === 'DEDENT') {
     return {
-      icon: <VscSymbolRuler size={iconSize} />,
+      icon: <Ruler size={iconSize} />,
       iconClassName: 'text-gray-300',
       iconBg: '#fafafa',
       category: 'token',
@@ -375,7 +373,7 @@ export function getCstNodeIcon(
     nodeType === '@'
   ) {
     return {
-      icon: <VscCircleSmallFilled size={iconSize} />,
+      icon: <Circle size={iconSize} />,
       iconClassName: 'text-gray-400',
       iconBg: '#fafafa',
       category: 'token',
@@ -385,7 +383,7 @@ export function getCstNodeIcon(
   // Default for unnamed nodes or unknown types
   if (!isNamed) {
     return {
-      icon: <VscCircleSmallFilled size={iconSize} />,
+      icon: <Circle size={iconSize} />,
       iconClassName: 'text-gray-400',
       iconBg: '#fafafa',
       category: 'token',
@@ -394,7 +392,7 @@ export function getCstNodeIcon(
 
   // Default fallback for named nodes
   return {
-    icon: <VscSymbolMisc size={iconSize} />,
+    icon: <Shapes size={iconSize} />,
     iconClassName: 'text-gray-600',
     iconBg: '#f5f5f5',
     category: 'other',

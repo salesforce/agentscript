@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
-import { VscAdd } from 'react-icons/vsc';
+import { Plus } from 'lucide-react';
 import type { FieldType } from '@agentscript/language';
 import type { Diagnostic } from '@agentscript/types';
 import { NamedMap } from '@agentscript/language';
@@ -184,7 +184,7 @@ export function NamedBlockList({
           className="h-7 gap-1 text-xs text-muted-foreground"
           onClick={() => setShowAddInput(true)}
         >
-          <VscAdd className="h-3 w-3" />
+          <Plus className="h-3 w-3" />
           Add {formatFieldName(blockType)}
         </Button>
       )}

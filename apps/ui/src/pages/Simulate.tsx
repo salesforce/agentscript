@@ -5,7 +5,7 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import { VscDebugAltSmall } from 'react-icons/vsc';
+import { Play } from 'lucide-react';
 import {
   Empty,
   EmptyContent,
@@ -21,7 +21,7 @@ export function Simulate() {
       <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <VscDebugAltSmall />
+            <Play />
           </EmptyMedia>
           <EmptyTitle>Simulator</EmptyTitle>
           <EmptyDescription>

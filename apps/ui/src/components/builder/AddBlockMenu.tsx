@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
-import { VscAdd } from 'react-icons/vsc';
+import { Plus } from 'lucide-react';
 import type { FieldType } from '@agentscript/language';
 import {
   getAvailableBlocks,
@@ -47,7 +47,7 @@ export function AddBlockMenu({
             size="sm"
             className="gap-1.5 border-dashed text-muted-foreground hover:text-foreground"
           >
-            <VscAdd className="h-3.5 w-3.5" />
+            <Plus className="h-3.5 w-3.5" />
             Add Block
           </Button>
         </DropdownMenuTrigger>

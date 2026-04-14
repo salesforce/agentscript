@@ -13,7 +13,7 @@ import {
 } from '~/components/ui/dropdown-menu';
 import { Button } from '~/components/ui/button';
 import { cn } from '~/lib/utils';
-import { VscChevronDown } from 'react-icons/vsc';
+import { ChevronDown } from 'lucide-react';
 
 interface EnumFieldProps {
   value: string | number | boolean | undefined;
@@ -51,7 +51,7 @@ export function EnumField({
             )}
           >
             <span className="truncate">{displayValue}</span>
-            <VscChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+            <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-60 overflow-auto">

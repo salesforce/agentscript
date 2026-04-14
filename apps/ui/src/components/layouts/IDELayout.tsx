@@ -8,7 +8,6 @@
 import { Outlet, useParams, useLocation } from 'react-router';
 import { useEffect, useRef } from 'react';
 import { Header } from '../Header';
-import { NavBar } from '../NavBar';
 import { IDEFooter } from '../IDEFooter';
 import {
   ResizablePanel,
@@ -20,6 +19,7 @@ import { useAppStore } from '~/store';
 import { useAgentStore } from '~/store/agentStore';
 import { ExplorerPanel } from '~/components/panels/ExplorerPanel';
 import { OutputPanel } from '~/components/panels/OutputPanel';
+import { TreeInspectorPanel } from '~/components/panels/TreeInspectorPanel';
 import { parseAgentScript } from '~/lib/parser';
 import { MonacoEditorProvider } from '~/contexts/MonacoEditorContext';
 
@@ -29,8 +29,10 @@ import { MonacoEditorProvider } from '~/contexts/MonacoEditorContext';
 function IDELayoutContent() {
   const { agentId } = useParams();
   const showLeftPanel = useAppStore(state => state.layout.showLeftPanel);
+  const showRightPanel = useAppStore(state => state.layout.showRightPanel);
   const showBottomPanel = useAppStore(state => state.layout.showBottomPanel);
   const setShowLeftPanel = useAppStore(state => state.setShowLeftPanel);
+  const setShowRightPanel = useAppStore(state => state.setShowRightPanel);
   const setShowBottomPanel = useAppStore(state => state.setShowBottomPanel);
   const agentscript = useAppStore(state => state.source.agentscript);
   const setAgentScript = useAppStore(state => state.setAgentScript);
@@ -43,6 +45,7 @@ function IDELayoutContent() {
 
   // Refs to imperatively control panel collapse state
   const leftPanelRef = useRef<ImperativePanelHandle>(null);
+  const rightPanelRef = useRef<ImperativePanelHandle>(null);
   const bottomPanelRef = useRef<ImperativePanelHandle>(null);
 
   // Imperatively control panel collapse state based on store
@@ -55,6 +58,16 @@ function IDELayoutContent() {
       }
     }
   }, [showLeftPanel]);
+
+  useEffect(() => {
+    if (rightPanelRef.current) {
+      if (showRightPanel) {
+        rightPanelRef.current.expand();
+      } else {
+        rightPanelRef.current.collapse();
+      }
+    }
+  }, [showRightPanel]);
 
   useEffect(() => {
     if (bottomPanelRef.current) {
@@ -72,6 +85,9 @@ function IDELayoutContent() {
   const isAgentsList = !agentId && !location.pathname.includes('/component');
   const isStandaloneComponent =
     !agentId && location.pathname.includes('/component');
+  const isScriptView = location.pathname.includes('/script');
+  const isComponentView = location.pathname.includes('/component');
+  const canShowRightPanel = isScriptView || isComponentView;
 
   // Load agent content from localStorage when agentId changes
   useEffect(() => {
@@ -128,46 +144,86 @@ function IDELayoutContent() {
 
   const content = (
     <>
-      <div className="flex h-screen flex-col bg-gray-100 dark:bg-[#121314] overflow-hidden">
+      <div
+        className="flex h-screen flex-col overflow-hidden"
+        style={{ background: 'var(--ide-surface-sunken)' }}
+      >
         <Header />
-        <div className="flex flex-1 overflow-hidden">
-          <NavBar />
+        <div className="flex flex-1 overflow-hidden gap-0 py-2">
           {isAgentsList ? (
             // Agents list page - no panels, just render the outlet
             <div className="flex-1">
               <Outlet />
             </div>
           ) : isStandaloneComponent ? (
-            // Standalone component page - no explorer, but keep bottom panel
+            // Standalone component page - no explorer, but keep bottom + right panels
             <ResizablePanelGroup
-              direction="vertical"
+              direction="horizontal"
               className="flex-1"
-              autoSaveId="ide-component-vertical-layout"
+              autoSaveId="ide-component-horizontal-layout"
             >
               <ResizablePanel
                 id="component-main-panel"
                 order={1}
                 defaultSize={80}
-                minSize={40}
               >
-                <Outlet />
+                <ResizablePanelGroup
+                  direction="vertical"
+                  autoSaveId="ide-component-vertical-layout"
+                >
+                  <ResizablePanel
+                    id="component-editor-panel"
+                    order={1}
+                    defaultSize={80}
+                    minSize={40}
+                  >
+                    <div
+                      className="h-full w-full overflow-hidden rounded-xl border"
+                      style={{
+                        background: 'var(--ide-surface-elevated)',
+                        borderColor: 'var(--ide-border-subtle)',
+                      }}
+                    >
+                      <Outlet />
+                    </div>
+                  </ResizablePanel>
+
+                  <ResizableHandle />
+
+                  <ResizablePanel
+                    ref={bottomPanelRef}
+                    id="component-bottom-panel"
+                    order={2}
+                    defaultSize={10}
+                    minSize={8}
+                    collapsible={true}
+                    collapsedSize={0}
+                    onCollapse={() => setShowBottomPanel(false)}
+                    onExpand={() => setShowBottomPanel(true)}
+                  >
+                    <OutputPanel />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               </ResizablePanel>
 
-              <ResizableHandle />
+              {canShowRightPanel && showRightPanel && <ResizableHandle />}
 
-              <ResizablePanel
-                ref={bottomPanelRef}
-                id="component-bottom-panel"
-                order={2}
-                defaultSize={10}
-                minSize={8}
-                collapsible={true}
-                collapsedSize={0}
-                onCollapse={() => setShowBottomPanel(false)}
-                onExpand={() => setShowBottomPanel(true)}
-              >
-                <OutputPanel />
-              </ResizablePanel>
+              {canShowRightPanel && (
+                <ResizablePanel
+                  ref={rightPanelRef}
+                  id="component-right-panel"
+                  order={2}
+                  defaultSize={25}
+                  minSize={15}
+                  maxSize={45}
+                  collapsible={true}
+                  collapsedSize={0}
+                  onCollapse={() => setShowRightPanel(false)}
+                  onExpand={() => setShowRightPanel(true)}
+                >
+                  {showRightPanel && <TreeInspectorPanel />}
+                </ResizablePanel>
+              )}
             </ResizablePanelGroup>
           ) : (
             // Agent editor - with resizable panels
@@ -207,7 +263,15 @@ function IDELayoutContent() {
                     defaultSize={80}
                     minSize={40}
                   >
-                    <Outlet />
+                    <div
+                      className="h-full w-full overflow-hidden rounded-xl border shadow-sm"
+                      style={{
+                        background: 'var(--ide-surface-elevated)',
+                        borderColor: 'var(--ide-border-subtle)',
+                      }}
+                    >
+                      <Outlet />
+                    </div>
                   </ResizablePanel>
 
                   <ResizableHandle />
@@ -228,6 +292,29 @@ function IDELayoutContent() {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </ResizablePanel>
+
+              {canShowRightPanel ? (
+                <ResizableHandle />
+              ) : (
+                <div className="w-2"></div>
+              )}
+
+              {canShowRightPanel && (
+                <ResizablePanel
+                  ref={rightPanelRef}
+                  id="right-panel"
+                  order={3}
+                  defaultSize={25}
+                  minSize={15}
+                  maxSize={45}
+                  collapsible={true}
+                  collapsedSize={0}
+                  onCollapse={() => setShowRightPanel(false)}
+                  onExpand={() => setShowRightPanel(true)}
+                >
+                  {showRightPanel && <TreeInspectorPanel />}
+                </ResizablePanel>
+              )}
             </ResizablePanelGroup>
           )}
         </div>

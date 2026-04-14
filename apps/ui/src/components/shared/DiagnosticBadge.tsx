@@ -8,7 +8,7 @@
 import { DiagnosticSeverity } from '@agentscript/types';
 import type { Diagnostic } from '@agentscript/types';
 import { cn } from '~/lib/utils';
-import { VscError, VscWarning, VscInfo } from 'react-icons/vsc';
+import { CircleAlert, TriangleAlert, Info } from 'lucide-react';
 
 interface DiagnosticBadgeProps {
   diagnostics: Diagnostic[];
@@ -37,19 +37,19 @@ export function DiagnosticBadge({
     <div className={cn('flex items-center gap-1.5 text-xs', className)}>
       {errors.length > 0 && (
         <span className="flex items-center gap-0.5 text-red-500">
-          <VscError className="h-3.5 w-3.5" />
+          <CircleAlert className="h-3.5 w-3.5" />
           {errors.length}
         </span>
       )}
       {warnings.length > 0 && (
         <span className="flex items-center gap-0.5 text-amber-500">
-          <VscWarning className="h-3.5 w-3.5" />
+          <TriangleAlert className="h-3.5 w-3.5" />
           {warnings.length}
         </span>
       )}
       {infos.length > 0 && (
         <span className="flex items-center gap-0.5 text-blue-500">
-          <VscInfo className="h-3.5 w-3.5" />
+          <Info className="h-3.5 w-3.5" />
           {infos.length}
         </span>
       )}
@@ -82,14 +82,14 @@ export function DiagnosticMessages({
           )}
         >
           {d.severity === DiagnosticSeverity.Error && (
-            <VscError className="h-3 w-3 shrink-0" />
+            <CircleAlert className="h-3 w-3 shrink-0" />
           )}
           {d.severity === DiagnosticSeverity.Warning && (
-            <VscWarning className="h-3 w-3 shrink-0" />
+            <TriangleAlert className="h-3 w-3 shrink-0" />
           )}
           {(d.severity === DiagnosticSeverity.Information ||
             d.severity === DiagnosticSeverity.Hint) && (
-            <VscInfo className="h-3 w-3 shrink-0" />
+            <Info className="h-3 w-3 shrink-0" />
           )}
           {d.message}
         </p>
