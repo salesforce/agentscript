@@ -1,0 +1,346 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Edge_Knowledge_Escalation_Combo
+  label: Edge Knowledge Escalation Combo
+  description: Tests agent with both knowledge block and escalation topics
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: test_user
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can search our knowledge base or connect you with a human
+        agent.
+      message_type: Welcome
+    - message: An error occurred.
+      message_type: Error
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    rag_feature_config_id: support_rag_config
+    system_messages: '[{"message": "Hello! I can search our knowledge base or connect
+      you with a human agent.", "messageType": "Welcome"}, {"message": "An error occurred.",
+      "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: query
+      label: Query
+      description: Query
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: answer
+      label: Answer
+      description: Answer
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: confidence
+      label: Confidence
+      description: Confidence
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: needs_human
+      label: Needs Human
+      description: Needs Human
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+  initial_node: main
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                I can search our knowledge base for answers. If I can''t find what
+                you need, I''ll connect you with a human agent.'
+      instructions: You are an intelligent support agent with knowledge base access
+        and escalation capabilities.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Main agent with knowledge search and escalation routing
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.confidence < 30
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - needs_human: 'True'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: search_kb
+          bound_inputs:
+            query: state.query
+          llm_inputs: []
+          state_updates:
+            - answer: result.answer
+            - confidence: result.confidence
+          name: search
+          description: Search
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"results"'
+          name: go_to_results
+          description: Displays knowledge base search results
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '''__human__'''
+          name: escalate_to_human
+          description: Escalate to a human agent when knowledge base cannot help
+      after_all_tool_calls:
+        - type: handoff
+          target: results
+          enabled: state.AgentScriptInternal_next_topic=="results"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.query != ""
+        - type: action
+          target: search_kb
+          bound_inputs:
+            query: state.query
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - answer: result.answer
+            - confidence: result.confidence
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.confidence < 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - needs_human: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation"'
+        - type: handoff
+          target: escalation
+          enabled: state.AgentScriptInternal_next_topic=="escalation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.confidence >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"results"'
+        - type: handoff
+          target: results
+          enabled: state.AgentScriptInternal_next_topic=="results"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: search_kb
+          label: Search Kb
+          description: Searches the knowledge base
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: SearchKB
+          input_type:
+            - developer_name: query
+              label: Query
+              description: Query
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: answer
+              label: Answer
+              description: Answer
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: confidence
+              label: Confidence
+              description: Confidence
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Here''s what I found: {{state.answer}}
+
+                Confidence: {{state.confidence}}
+
+                Would you like to search for something else or speak with a human
+                agent?'
+      instructions: You are an intelligent support agent with knowledge base access
+        and escalation capabilities.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Displays knowledge base search results
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"main"'
+          name: back_to_search
+          description: Main agent with knowledge search and escalation routing
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation"'
+          name: escalate_to_human
+          description: Handles escalation to human agents when knowledge base is insufficient
+      after_all_tool_calls:
+        - type: handoff
+          target: main
+          enabled: state.AgentScriptInternal_next_topic=="main"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation
+          enabled: state.AgentScriptInternal_next_topic=="escalation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: results
+      label: Results
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                I wasn''t able to find a confident answer in our knowledge base.
+
+                Let me connect you with a human agent who can help further.'
+      instructions: You are an intelligent support agent with knowledge base access
+        and escalation capabilities.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles escalation to human agents when knowledge base is insufficient
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.confidence == 0
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - needs_human: 'True'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '''__human__'''
+          name: escalate_to_human
+          description: Transfer to human agent for specialized assistance
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"main"'
+          name: try_again
+          description: Main agent with knowledge search and escalation routing
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: main
+          enabled: state.AgentScriptInternal_next_topic=="main"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: escalation
+      label: Escalation
+      action_definitions: []
+  surfaces: []

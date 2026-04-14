@@ -1,0 +1,449 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: HR_Onboarding_Agent
+  label: HR Onboarding Agent
+  description: Guides new employees through document collection, IT setup, and benefits
+    enrollment.
+  enable_enhanced_event_logs: false
+  agent_type: AgentforceEmployeeAgent
+  default_agent_user: hr_bot@company.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome aboard! I'm here to guide you through the onboarding process.
+      message_type: Welcome
+    - message: Sorry, I encountered an issue with the onboarding system.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome aboard! I''m here to guide you through
+      the onboarding process.", "messageType": "Welcome"}, {"message": "Sorry, I encountered
+      an issue with the onboarding system.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: employee_id
+      label: Employee Id
+      description: New employee ID
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: employee_name
+      label: Employee Name
+      description: Employee full name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: department
+      label: Department
+      description: Assigned department
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: documents_complete
+      label: Documents Complete
+      description: Whether all required documents are submitted
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: it_setup_complete
+      label: It Setup Complete
+      description: Whether IT setup is finished
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: benefits_enrolled
+      label: Benefits Enrolled
+      description: Whether benefits enrollment is done
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: start_date
+      label: Start Date
+      description: Employee start date
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: manager_name
+      label: Manager Name
+      description: Direct manager name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: onboarding_start
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Welcome the new employee and collect their basic information.
+
+                Create an onboarding record and guide them through the process.'
+      instructions: You are an HR onboarding assistant that helps new employees complete
+        their onboarding tasks.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Initiates the onboarding process and gathers employee information
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_onboarding_record
+          bound_inputs:
+            employee_name: state.employee_name
+            employee_id: state.employee_id
+            department: state.department
+            start_date: state.start_date
+          llm_inputs: []
+          state_updates: []
+          name: create_record
+          description: Create Record
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"document_collection"'
+          name: go_documents
+          description: Proceed to document collection
+      after_all_tool_calls:
+        - type: handoff
+          target: document_collection
+          enabled: state.AgentScriptInternal_next_topic=="document_collection"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: onboarding_start
+      label: Onboarding Start
+      action_definitions:
+        - developer_name: create_onboarding_record
+          label: Create Onboarding Record
+          description: Creates an onboarding record for the new employee
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: CreateOnboardingRecord
+          input_type:
+            - developer_name: employee_name
+              label: Employee Name
+              description: Employee Name
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: employee_id
+              label: Employee Id
+              description: Employee Id
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: department
+              label: Department
+              description: Department
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: start_date
+              label: Start Date
+              description: Start Date
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: record_id
+              label: Record Id
+              description: Record Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: checklist
+              label: Checklist
+              description: Checklist
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Guide the employee through document submission.
+
+                Required documents: ID verification, tax forms, emergency contacts,
+                NDA.'
+      instructions: You are an HR onboarding assistant that helps new employees complete
+        their onboarding tasks.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles collection and verification of required onboarding documents
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: verify_documents
+          bound_inputs:
+            employee_id: state.employee_id
+          llm_inputs: []
+          state_updates:
+            - documents_complete: result.all_submitted
+          name: verify
+          description: Verify
+        - type: action
+          target: __state_update_action__
+          enabled: state.documents_complete == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"it_setup"'
+          name: go_it_setup
+          description: Proceed to IT setup
+      after_all_tool_calls:
+        - type: handoff
+          target: it_setup
+          enabled: state.AgentScriptInternal_next_topic=="it_setup"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.documents_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"it_setup"'
+        - type: handoff
+          target: it_setup
+          enabled: state.AgentScriptInternal_next_topic=="it_setup"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: document_collection
+      label: Document Collection
+      action_definitions:
+        - developer_name: verify_documents
+          label: Verify Documents
+          description: Verifies submitted onboarding documents
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: VerifyDocuments
+          input_type:
+            - developer_name: employee_id
+              label: Employee Id
+              description: Employee Id
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: all_submitted
+              label: All Submitted
+              description: All Submitted
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: missing_documents
+              label: Missing Documents
+              description: Missing Documents
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Set up the employee''s IT accounts and order equipment.
+
+                This includes email, VPN access, and laptop provisioning.'
+      instructions: You are an HR onboarding assistant that helps new employees complete
+        their onboarding tasks.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles IT account creation and equipment provisioning
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: provision_it
+          bound_inputs:
+            employee_id: state.employee_id
+            department: state.department
+          llm_inputs: []
+          state_updates:
+            - it_setup_complete: result.email_created
+          name: provision
+          description: Provision
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"benefits_enrollment"'
+          name: go_benefits
+          description: Proceed to benefits enrollment
+      after_all_tool_calls:
+        - type: handoff
+          target: benefits_enrollment
+          enabled: state.AgentScriptInternal_next_topic=="benefits_enrollment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: it_setup
+      label: It Setup
+      action_definitions:
+        - developer_name: provision_it
+          label: Provision It
+          description: Provisions IT accounts and equipment for the new employee
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: ProvisionIT
+          input_type:
+            - developer_name: employee_id
+              label: Employee Id
+              description: Employee Id
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: department
+              label: Department
+              description: Department
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: email_created
+              label: Email Created
+              description: Email Created
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: equipment_ordered
+              label: Equipment Ordered
+              description: Equipment Ordered
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Guide the employee through benefits selection.
+
+                Available plans: health insurance, dental, vision, 401k, life insurance.'
+      instructions: You are an HR onboarding assistant that helps new employees complete
+        their onboarding tasks.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles benefits selection and enrollment
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: enroll_benefits
+          bound_inputs:
+            employee_id: state.employee_id
+          llm_inputs: []
+          state_updates:
+            - benefits_enrolled: result.enrolled
+          name: enroll
+          description: Enroll
+      developer_name: benefits_enrollment
+      label: Benefits Enrollment
+      action_definitions:
+        - developer_name: enroll_benefits
+          label: Enroll Benefits
+          description: Enrolls the employee in selected benefits plans
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: EnrollBenefits
+          input_type:
+            - developer_name: employee_id
+              label: Employee Id
+              description: Employee Id
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: enrolled
+              label: Enrolled
+              description: Enrolled
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: plan_summary
+              label: Plan Summary
+              description: Plan Summary
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

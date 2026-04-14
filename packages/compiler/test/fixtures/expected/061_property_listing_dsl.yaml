@@ -1,0 +1,2040 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: property_listing_agent_v61
+  label: Property Listing Agent V 61
+  description: Assists users with listing management through the property listing
+    agent workflow.
+  enable_enhanced_event_logs: true
+  agent_type: EinsteinServiceAgent
+  default_agent_user: property_listing@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I am your Property Listing Agent Assistant. How can I help you
+        today?
+      message_type: Welcome
+    - message: I apologize, something went wrong on my end. Could you please rephrase
+        your request?
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I am your Property Listing Agent Assistant.
+      How can I help you today?", "messageType": "Welcome"}, {"message": "I apologize,
+      something went wrong on my end. Could you please rephrase your request?", "messageType":
+      "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: listing_record_id
+      label: Listing Record Id
+      description: Record ID of the listing
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: listing_status
+      label: Listing Status
+      description: Current status of the listing
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: listing_tier
+      label: Listing Tier
+      description: Tier classification for the listing
+      data_type: string
+      is_list: false
+      default: '''standard'''
+      visibility: Internal
+    - developer_name: listing_category
+      label: Listing Category
+      description: Category of the listing
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: contact_name
+      label: Contact Name
+      description: Full name of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_email
+      label: Contact Email
+      description: Email address of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_phone
+      label: Contact Phone
+      description: Phone number of the contact
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: is_verified
+      label: Is Verified
+      description: Whether the user identity is verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: eligibility_score
+      label: Eligibility Score
+      description: Calculated eligibility score
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: step_counter
+      label: Step Counter
+      description: Current step in the process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: attempt_count
+      label: Attempt Count
+      description: Number of attempts made
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: total_items_count
+      label: Total Items Count
+      description: Total number of items to process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: intake_complete
+      label: Intake Complete
+      description: Whether the intake stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: intake_result
+      label: Intake Result
+      description: Result from the intake stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: valuation_complete
+      label: Valuation Complete
+      description: Whether the valuation stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: valuation_result
+      label: Valuation Result
+      description: Result from the valuation stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: marketing_complete
+      label: Marketing Complete
+      description: Whether the marketing stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: marketing_result
+      label: Marketing Result
+      description: Result from the marketing stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: showing_coordination_complete
+      label: Showing Coordination Complete
+      description: Whether the showing_coordination stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: showing_coordination_result
+      label: Showing Coordination Result
+      description: Result from the showing_coordination stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: priority_level
+      label: Priority Level
+      description: Priority level of the request
+      data_type: string
+      is_list: false
+      default: '''normal'''
+      visibility: Internal
+    - developer_name: notes_text
+      label: Notes Text
+      description: Notes and comments
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: assigned_agent
+      label: Assigned Agent
+      description: Assigned agent name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: resolution_summary
+      label: Resolution Summary
+      description: Summary of the resolution
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: escalation_requested
+      label: Escalation Requested
+      description: Whether escalation was requested
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: is_business_hours
+      label: Is Business Hours
+      description: Whether it is currently business hours
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: case_ref_number
+      label: Case Ref Number
+      description: Reference number for the support case
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_available_slot
+      label: Next Available Slot
+      description: Next available time slot
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for a property listing agent assistant.
+
+                Analyze the user''s input and determine the most appropriate topic.
+
+                Current listing status: {{state.listing_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Steps completed: {{state.step_counter}}
+
+                Priority: {{state.priority_level}}
+
+                Use action.go_to_intake for intake requests.
+
+                Use action.go_to_valuation for valuation requests.
+
+                Use action.go_to_marketing for marketing requests.
+
+                Use action.go_to_showing_coordination for showing coordination requests.
+
+                Use action.go_to_escalation to escalate if the user is upset or requests
+                a human.'
+      instructions: 'You are a professional property listing agent assistant.
+
+        Help users manage their listing requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> valuation -> marketing -> showing_coordination.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and route to the appropriate listing management
+        topic
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"intake"'
+          name: go_to_intake
+          description: Transition to intake topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"valuation"'
+          name: go_to_valuation
+          description: Transition to valuation topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"marketing"'
+          name: go_to_marketing
+          description: Transition to marketing topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"showing_coordination"'
+          name: go_to_showing_coordination
+          description: Transition to showing coordination topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: go_to_escalation
+          description: Escalate to a human agent for assistance.
+      after_all_tool_calls:
+        - type: handoff
+          target: intake
+          enabled: state.AgentScriptInternal_next_topic=="intake"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: valuation
+          enabled: state.AgentScriptInternal_next_topic=="valuation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: marketing
+          enabled: state.AgentScriptInternal_next_topic=="marketing"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: showing_coordination
+          enabled: state.AgentScriptInternal_next_topic=="showing_coordination"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the intake stage for the listing.
+
+                Current listing status: {{state.listing_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Intake result: {{state.intake_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.listing_tier}}
+
+                If the contact information is missing, ask the user to provide their
+                name and email.
+
+                After collecting information, use action.run_intake to begin processing.'
+      instructions: 'You are a professional property listing agent assistant.
+
+        Help users manage their listing requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> valuation -> marketing -> showing_coordination.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the intake stage of the listing process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.is_verified == False
+        - type: action
+          target: validate_intake_info
+          bound_inputs:
+            record_ref: state.listing_record_id
+            contact_ref: state.contact_email
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_status: result.updated_status
+            - is_verified: result.is_valid
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_intake_data
+          bound_inputs:
+            record_ref: state.listing_record_id
+            step_num: state.step_counter
+            category_val: state.listing_category
+          llm_inputs: []
+          state_updates:
+            - intake_result: result.result_code
+            - eligibility_score: result.score_value
+            - intake_complete: result.is_passed
+          name: run_intake
+          description: Run Intake
+        - type: action
+          target: fetch_intake_details
+          bound_inputs:
+            record_ref: state.listing_record_id
+            include_history: 'False'
+          llm_inputs: []
+          state_updates:
+            - total_items_count: result.item_count
+            - listing_tier: result.tier_value
+          name: fetch_intake_info
+          description: Fetch Intake Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.intake_complete == True and state.eligibility_score >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"valuation"'
+          name: go_to_valuation
+          description: Move to valuation stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+      after_all_tool_calls:
+        - type: handoff
+          target: valuation
+          enabled: state.AgentScriptInternal_next_topic=="valuation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.intake_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: intake
+      label: Intake
+      action_definitions:
+        - developer_name: process_intake_data
+          label: Process Intake Data
+          description: Process intake stage data for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_Intake_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_intake_info
+          label: Validate Intake Info
+          description: Validate intake information for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Intake_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_intake_details
+          label: Fetch Intake Details
+          description: Fetch intake details for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Intake_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the valuation stage for the listing.
+
+                Current listing status: {{state.listing_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Valuation result: {{state.valuation_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.listing_tier}}
+
+                Review the valuation results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional property listing agent assistant.
+
+        Help users manage their listing requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> valuation -> marketing -> showing_coordination.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the valuation stage of the listing process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.intake_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"intake"'
+        - type: handoff
+          target: intake
+          enabled: state.AgentScriptInternal_next_topic=="intake"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_valuation_data
+          bound_inputs:
+            record_ref: state.listing_record_id
+            step_num: state.step_counter
+            category_val: state.listing_category
+          llm_inputs: []
+          state_updates:
+            - valuation_result: result.result_code
+            - eligibility_score: result.score_value
+            - valuation_complete: result.is_passed
+          name: run_valuation
+          description: Run Valuation
+        - type: action
+          target: fetch_valuation_details
+          bound_inputs:
+            record_ref: state.listing_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.listing_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - listing_tier: result.tier_value
+          name: fetch_valuation_info
+          description: Fetch Valuation Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.valuation_complete == True and state.eligibility_score >=
+            50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"marketing"'
+          name: go_to_marketing
+          description: Move to marketing stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: marketing
+          enabled: state.AgentScriptInternal_next_topic=="marketing"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.valuation_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_status: '"valuation_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.valuation_complete == True and
+                state.eligibility_score >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"marketing"'
+        - type: handoff
+          target: marketing
+          enabled: state.AgentScriptInternal_next_topic=="marketing"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.valuation_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: valuation
+      label: Valuation
+      action_definitions:
+        - developer_name: process_valuation_data
+          label: Process Valuation Data
+          description: Process valuation stage data for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: Process_Valuation
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_valuation_info
+          label: Validate Valuation Info
+          description: Validate valuation information for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Valuation_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_valuation_details
+          label: Fetch Valuation Details
+          description: Fetch valuation details for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Valuation_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the marketing stage for the listing.
+
+                Current listing status: {{state.listing_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Marketing result: {{state.marketing_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.listing_tier}}
+
+                Review the marketing results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional property listing agent assistant.
+
+        Help users manage their listing requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> valuation -> marketing -> showing_coordination.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the marketing stage of the listing process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.marketing_complete == False
+        - type: action
+          target: fetch_marketing_details
+          bound_inputs:
+            record_ref: state.listing_record_id
+            include_history: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - marketing_result: result.detail_data
+            - total_items_count: result.item_count
+            - listing_tier: result.tier_value
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_marketing_data
+          bound_inputs:
+            record_ref: state.listing_record_id
+            step_num: state.step_counter
+            category_val: state.listing_category
+          llm_inputs: []
+          state_updates:
+            - marketing_result: result.result_code
+            - eligibility_score: result.score_value
+            - marketing_complete: result.is_passed
+          name: run_marketing
+          description: Run Marketing
+        - type: action
+          target: fetch_marketing_details
+          bound_inputs:
+            record_ref: state.listing_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.listing_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - listing_tier: result.tier_value
+          name: fetch_marketing_info
+          description: Fetch Marketing Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.marketing_complete == True and state.eligibility_score >=
+            50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"showing_coordination"'
+          name: go_to_showing_coordination
+          description: Move to showing coordination stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: showing_coordination
+          enabled: state.AgentScriptInternal_next_topic=="showing_coordination"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.marketing_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: marketing
+      label: Marketing
+      action_definitions:
+        - developer_name: process_marketing_data
+          label: Process Marketing Data
+          description: Process marketing stage data for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_Marketing
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_marketing_info
+          label: Validate Marketing Info
+          description: Validate marketing information for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Marketing_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_marketing_details
+          label: Fetch Marketing Details
+          description: Fetch marketing details for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Marketing_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the showing coordination stage for the listing.
+
+                Current listing status: {{state.listing_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Showing Coordination result: {{state.showing_coordination_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.listing_tier}}
+
+                This is the final stage. Review all results and provide a summary.
+
+                Total items processed: {{state.total_items_count}}
+
+                If all stages passed, confirm completion. Otherwise offer to retry
+                or escalate.'
+      instructions: 'You are a professional property listing agent assistant.
+
+        Help users manage their listing requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> valuation -> marketing -> showing_coordination.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the showing coordination stage of the listing process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.marketing_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"marketing"'
+        - type: handoff
+          target: marketing
+          enabled: state.AgentScriptInternal_next_topic=="marketing"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_showing_coordination_data
+          bound_inputs:
+            record_ref: state.listing_record_id
+            step_num: state.step_counter
+            category_val: state.listing_category
+          llm_inputs: []
+          state_updates:
+            - showing_coordination_result: result.result_code
+            - eligibility_score: result.score_value
+            - showing_coordination_complete: result.is_passed
+          name: run_showing_coordination
+          description: Run Showing Coordination
+        - type: action
+          target: fetch_showing_coordination_details
+          bound_inputs:
+            record_ref: state.listing_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.listing_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - listing_tier: result.tier_value
+          name: fetch_showing_coordination_info
+          description: Fetch Showing Coordination Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.showing_coordination_complete ==
+                True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_status: '"showing_coordination_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.showing_coordination_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: showing_coordination
+      label: Showing Coordination
+      action_definitions:
+        - developer_name: process_showing_coordination_data
+          label: Process Showing Coordination Data
+          description: Process showing coordination stage data for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_ShowingCoordination_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_showing_coordination_info
+          label: Validate Showing Coordination Info
+          description: Validate showing coordination information for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_ShowingCoordination_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_showing_coordination_details
+          label: Fetch Showing Coordination Details
+          description: Fetch showing coordination details for the listing
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_ShowingCoordination_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle escalation for the listing request.
+
+                Business hours active: {{state.is_business_hours}}
+
+                Next available slot: {{state.next_available_slot}}
+
+                Case reference: {{state.case_ref_number}}
+
+                Listing status: {{state.listing_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Priority: {{state.priority_level}}
+
+                If during business hours, offer to connect to a live agent.
+
+                If outside business hours, create a support case and share the case
+                reference.
+
+                Use action.create_case to create a case.
+
+                Use action.get_summary to generate a summary of the interaction.'
+      instructions: 'You are a professional property listing agent assistant.
+
+        Help users manage their listing requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> valuation -> marketing -> showing_coordination.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handle escalation and case creation for listing issues
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: check_hours
+          bound_inputs:
+            query_text: '"check_availability"'
+          llm_inputs: []
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - is_business_hours: result.hours_active
+            - next_available_slot: result.next_available
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_support_case
+          bound_inputs:
+            case_subject: state.listing_status
+            case_detail: state.notes_text
+            record_ref: state.listing_record_id
+            priority_val: state.priority_level
+          llm_inputs: []
+          state_updates:
+            - case_ref_number: result.case_ref
+            - assigned_agent: result.assigned_to
+          name: create_case
+          description: Create Case
+        - type: action
+          target: generate_summary
+          bound_inputs:
+            record_ref: state.listing_record_id
+            notes_val: state.notes_text
+          llm_inputs: []
+          state_updates:
+            - resolution_summary: result.summary_text
+          name: get_summary
+          description: Get Summary
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: return_to_selector
+          description: Return to topic selector after escalation.
+      after_all_tool_calls:
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.case_ref_number != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - listing_status: '"escalated"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - escalation_requested: 'False'
+      developer_name: escalation_handling
+      label: Escalation Handling
+      action_definitions:
+        - developer_name: check_hours
+          label: Check Hours
+          description: Check whether it is currently business hours
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Check_Business_Hours
+          input_type:
+            - developer_name: query_text
+              label: Query Text
+              description: Query Text
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: hours_active
+              label: Hours Active
+              description: Hours Active
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: next_available
+              label: Next Available
+              description: Next Available
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: create_support_case
+          label: Create Support Case
+          description: Create a support case for the listing issue
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Create_Support_Case
+          input_type:
+            - developer_name: case_subject
+              label: Case Subject
+              description: Case Subject
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: case_detail
+              label: Case Detail
+              description: Case Detail
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: priority_val
+              label: Priority Val
+              description: Priority Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: case_ref
+              label: Case Ref
+              description: Case Ref
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: assigned_to
+              label: Assigned To
+              description: Assigned To
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: generate_summary
+          label: Generate Summary
+          description: Generate a summary of the listing interaction
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Generate_Summary
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: notes_val
+              label: Notes Val
+              description: Notes Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: summary_text
+              label: Summary Text
+              description: Summary Text
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

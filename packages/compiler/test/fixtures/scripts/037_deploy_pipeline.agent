@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional deployment pipeline manager assistant.
+        Help users manage their deployment requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: build_validation -> staging -> smoke_test -> release.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Deployment Pipeline Manager Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "deploy_pipeline_agent_v37"
+    default_agent_user: "deploy_pipeline@example.com"
+    agent_description: "Assists users with deployment management through the deployment pipeline manager workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    deployment_record_id: mutable string
+        description: "Record ID of the deployment"
+    deployment_status: mutable string = ""
+        description: "Current status of the deployment"
+    deployment_tier: mutable string = "standard"
+        description: "Tier classification for the deployment"
+    deployment_category: mutable string = ""
+        description: "Category of the deployment"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    build_validation_complete: mutable boolean = False
+        description: "Whether the build_validation stage is complete"
+    build_validation_result: mutable string = ""
+        description: "Result from the build_validation stage"
+    staging_complete: mutable boolean = False
+        description: "Whether the staging stage is complete"
+    staging_result: mutable string = ""
+        description: "Result from the staging stage"
+    smoke_test_complete: mutable boolean = False
+        description: "Whether the smoke_test stage is complete"
+    smoke_test_result: mutable string = ""
+        description: "Result from the smoke_test stage"
+    release_complete: mutable boolean = False
+        description: "Whether the release stage is complete"
+    release_result: mutable string = ""
+        description: "Result from the release stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate deployment management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a deployment pipeline manager assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current deployment status: {! @variables.deployment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_build_validation} for build validation requests.
+              Use {!@actions.go_to_staging} for staging requests.
+              Use {!@actions.go_to_smoke_test} for smoke test requests.
+              Use {!@actions.go_to_release} for release requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_build_validation: @utils.transition to @topic.build_validation
+                description: "Transition to build validation topic."
+            go_to_staging: @utils.transition to @topic.staging
+                description: "Transition to staging topic."
+                available when @variables.is_verified == True
+            go_to_smoke_test: @utils.transition to @topic.smoke_test
+                description: "Transition to smoke test topic."
+                available when @variables.is_verified == True
+            go_to_release: @utils.transition to @topic.release
+                description: "Transition to release topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic build_validation:
+    description: "Handles the build validation stage of the deployment process"
+
+    actions:
+        process_build_validation_data:
+            description: "Process build validation stage data for the deployment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_BuildValidation_Data"
+
+        validate_build_validation_info:
+            description: "Validate build validation information for the deployment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_BuildValidation_Info"
+
+        fetch_build_validation_details:
+            description: "Fetch build validation details for the deployment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_BuildValidation_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_build_validation_info
+                with record_ref=@variables.deployment_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.deployment_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the build validation stage for the deployment.
+              Current deployment status: {! @variables.deployment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Build Validation result: {! @variables.build_validation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.deployment_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_build_validation} to begin processing.
+        actions:
+            run_build_validation: @actions.process_build_validation_data
+                with record_ref=@variables.deployment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.deployment_category
+                set @variables.build_validation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.build_validation_complete = @outputs.is_passed
+            fetch_build_validation_info: @actions.fetch_build_validation_details
+                with record_ref=@variables.deployment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.deployment_tier = @outputs.tier_value
+            go_to_staging: @utils.transition to @topic.staging
+                description: "Move to staging stage."
+                available when @variables.build_validation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.deployment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.deployment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.deployment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.build_validation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic staging:
+    description: "Handles the staging stage of the deployment process"
+
+    actions:
+        process_staging_data:
+            description: "Process staging stage data for the deployment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Staging"
+
+        validate_staging_info:
+            description: "Validate staging information for the deployment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Staging_Info"
+
+        fetch_staging_details:
+            description: "Fetch staging details for the deployment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Staging_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.build_validation_complete == False:
+            transition to @topic.build_validation
+
+    reasoning:
+        instructions: ->
+            | Handle the staging stage for the deployment.
+              Current deployment status: {! @variables.deployment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Staging result: {! @variables.staging_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.deployment_tier }
+              Review the staging results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_staging: @actions.process_staging_data
+                with record_ref=@variables.deployment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.deployment_category
+                set @variables.staging_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.staging_complete = @outputs.is_passed
+            fetch_staging_info: @actions.fetch_staging_details
+                with record_ref=@variables.deployment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.deployment_tier = @outputs.tier_value
+                available when @variables.deployment_record_id is not None
+            go_to_smoke_test: @utils.transition to @topic.smoke_test
+                description: "Move to smoke test stage."
+                available when @variables.staging_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.staging_complete == True:
+            set @variables.deployment_status = "staging_done"
+        if @variables.staging_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.smoke_test
+        if @variables.attempt_count >= 3 and @variables.staging_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic smoke_test:
+    description: "Handles the smoke test stage of the deployment process"
+
+    actions:
+        process_smoke_test_data:
+            description: "Process smoke test stage data for the deployment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_SmokeTest"
+
+        validate_smoke_test_info:
+            description: "Validate smoke test information for the deployment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SmokeTest_Info"
+
+        fetch_smoke_test_details:
+            description: "Fetch smoke test details for the deployment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SmokeTest_Details"
+
+    before_reasoning:
+        if @variables.smoke_test_complete == False:
+            run @actions.fetch_smoke_test_details
+                with record_ref=@variables.deployment_record_id
+                with include_history=True
+                set @variables.smoke_test_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.deployment_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.deployment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.deployment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the smoke test stage for the deployment.
+              Current deployment status: {! @variables.deployment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Smoke Test result: {! @variables.smoke_test_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.deployment_tier }
+              Review the smoke test results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_smoke_test: @actions.process_smoke_test_data
+                with record_ref=@variables.deployment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.deployment_category
+                set @variables.smoke_test_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.smoke_test_complete = @outputs.is_passed
+            fetch_smoke_test_info: @actions.fetch_smoke_test_details
+                with record_ref=@variables.deployment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.deployment_tier = @outputs.tier_value
+                available when @variables.deployment_record_id is not None
+            go_to_release: @utils.transition to @topic.release
+                description: "Move to release stage."
+                available when @variables.smoke_test_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.deployment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.deployment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.deployment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.smoke_test_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic release:
+    description: "Handles the release stage of the deployment process"
+
+    actions:
+        process_release_data:
+            description: "Process release stage data for the deployment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Release_Data"
+
+        validate_release_info:
+            description: "Validate release information for the deployment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Release_Info"
+
+        fetch_release_details:
+            description: "Fetch release details for the deployment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Release_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.smoke_test_complete == False:
+            transition to @topic.smoke_test
+        if @variables.eligibility_score >= 80:
+            set @variables.deployment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.deployment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the release stage for the deployment.
+              Current deployment status: {! @variables.deployment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Release result: {! @variables.release_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.deployment_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_release: @actions.process_release_data
+                with record_ref=@variables.deployment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.deployment_category
+                set @variables.release_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.release_complete = @outputs.is_passed
+            fetch_release_info: @actions.fetch_release_details
+                with record_ref=@variables.deployment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.deployment_tier = @outputs.tier_value
+                available when @variables.deployment_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.release_complete == True:
+            set @variables.deployment_status = "release_done"
+        if @variables.attempt_count >= 3 and @variables.release_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for deployment issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the deployment issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the deployment interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the deployment request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Deployment status: {! @variables.deployment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.deployment_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.deployment_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.deployment_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.deployment_status = "escalated"
+        set @variables.escalation_requested = False
+

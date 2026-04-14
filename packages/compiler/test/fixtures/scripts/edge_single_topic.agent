@@ -1,0 +1,63 @@
+system:
+    instructions: "You are a helpful order management agent."
+    messages:
+        welcome: "Hello! I can help you manage your orders."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Single_Topic_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with only one topic and no additional topics"
+
+variables:
+    order_id: mutable string = ""
+        description: "The order identifier"
+    status: mutable string = ""
+        description: "Current order status"
+
+start_agent main:
+    description: "Agent with only one topic and no additional topics"
+
+    actions:
+        Get_Order:
+            description: "Retrieve order details"
+            target: "flow://Get_Order_Flow"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+            outputs:
+                status: string
+                    label: "Order Status"
+                details: string
+                    label: "Order Details"
+
+        Update_Order:
+            description: "Update order information"
+            target: "apex://OrderController.updateOrder"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+                new_status: string
+                    label: "New Status"
+                    is_required: True
+            outputs:
+                success: boolean
+                    label: "Update Success"
+
+    reasoning:
+        instructions: ->
+            | You are a single-topic order management agent.
+              Help the user check and update their orders.
+              Use Get_Order to look up order details.
+              Use Update_Order to change order status.
+
+        actions:
+            Get_Order_Action: @actions.Get_Order
+                with order_id=@variables.order_id
+                set @variables.status = @outputs.status
+
+            Update_Order_Action: @actions.Update_Order
+                with order_id=@variables.order_id
+                with new_status="shipped"

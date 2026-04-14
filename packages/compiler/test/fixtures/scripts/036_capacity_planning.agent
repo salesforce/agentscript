@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional capacity planning agent assistant.
+        Help users manage their capacity requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: demand_forecast -> resource_analysis -> optimization -> provisioning.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Capacity Planning Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "capacity_planning_agent_v36"
+    default_agent_user: "capacity_planning@example.com"
+    agent_description: "Assists users with capacity management through the capacity planning agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    capacity_record_id: mutable string
+        description: "Record ID of the capacity"
+    capacity_status: mutable string = ""
+        description: "Current status of the capacity"
+    capacity_tier: mutable string = "standard"
+        description: "Tier classification for the capacity"
+    capacity_category: mutable string = ""
+        description: "Category of the capacity"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    demand_forecast_complete: mutable boolean = False
+        description: "Whether the demand_forecast stage is complete"
+    demand_forecast_result: mutable string = ""
+        description: "Result from the demand_forecast stage"
+    resource_analysis_complete: mutable boolean = False
+        description: "Whether the resource_analysis stage is complete"
+    resource_analysis_result: mutable string = ""
+        description: "Result from the resource_analysis stage"
+    optimization_complete: mutable boolean = False
+        description: "Whether the optimization stage is complete"
+    optimization_result: mutable string = ""
+        description: "Result from the optimization stage"
+    provisioning_complete: mutable boolean = False
+        description: "Whether the provisioning stage is complete"
+    provisioning_result: mutable string = ""
+        description: "Result from the provisioning stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate capacity management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a capacity planning agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current capacity status: {! @variables.capacity_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_demand_forecast} for demand forecast requests.
+              Use {!@actions.go_to_resource_analysis} for resource analysis requests.
+              Use {!@actions.go_to_optimization} for optimization requests.
+              Use {!@actions.go_to_provisioning} for provisioning requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_demand_forecast: @utils.transition to @topic.demand_forecast
+                description: "Transition to demand forecast topic."
+            go_to_resource_analysis: @utils.transition to @topic.resource_analysis
+                description: "Transition to resource analysis topic."
+                available when @variables.is_verified == True
+            go_to_optimization: @utils.transition to @topic.optimization
+                description: "Transition to optimization topic."
+                available when @variables.is_verified == True
+            go_to_provisioning: @utils.transition to @topic.provisioning
+                description: "Transition to provisioning topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic demand_forecast:
+    description: "Handles the demand forecast stage of the capacity process"
+
+    actions:
+        process_demand_forecast_data:
+            description: "Process demand forecast stage data for the capacity"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_DemandForecast"
+
+        validate_demand_forecast_info:
+            description: "Validate demand forecast information for the capacity"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DemandForecast_Info"
+
+        fetch_demand_forecast_details:
+            description: "Fetch demand forecast details for the capacity"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DemandForecast_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_demand_forecast_info
+                with record_ref=@variables.capacity_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.capacity_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the demand forecast stage for the capacity.
+              Current capacity status: {! @variables.capacity_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Demand Forecast result: {! @variables.demand_forecast_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.capacity_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_demand_forecast} to begin processing.
+        actions:
+            run_demand_forecast: @actions.process_demand_forecast_data
+                with record_ref=@variables.capacity_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.capacity_category
+                set @variables.demand_forecast_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.demand_forecast_complete = @outputs.is_passed
+            fetch_demand_forecast_info: @actions.fetch_demand_forecast_details
+                with record_ref=@variables.capacity_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.capacity_tier = @outputs.tier_value
+            go_to_resource_analysis: @utils.transition to @topic.resource_analysis
+                description: "Move to resource analysis stage."
+                available when @variables.demand_forecast_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.capacity_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.capacity_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.capacity_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.demand_forecast_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic resource_analysis:
+    description: "Handles the resource analysis stage of the capacity process"
+
+    actions:
+        process_resource_analysis_data:
+            description: "Process resource analysis stage data for the capacity"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ResourceAnalysis_Data"
+
+        validate_resource_analysis_info:
+            description: "Validate resource analysis information for the capacity"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ResourceAnalysis_Info"
+
+        fetch_resource_analysis_details:
+            description: "Fetch resource analysis details for the capacity"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ResourceAnalysis_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.demand_forecast_complete == False:
+            transition to @topic.demand_forecast
+
+    reasoning:
+        instructions: ->
+            | Handle the resource analysis stage for the capacity.
+              Current capacity status: {! @variables.capacity_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Resource Analysis result: {! @variables.resource_analysis_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.capacity_tier }
+              Review the resource analysis results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_resource_analysis: @actions.process_resource_analysis_data
+                with record_ref=@variables.capacity_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.capacity_category
+                set @variables.resource_analysis_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.resource_analysis_complete = @outputs.is_passed
+            fetch_resource_analysis_info: @actions.fetch_resource_analysis_details
+                with record_ref=@variables.capacity_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.capacity_tier = @outputs.tier_value
+                available when @variables.capacity_record_id is not None
+            go_to_optimization: @utils.transition to @topic.optimization
+                description: "Move to optimization stage."
+                available when @variables.resource_analysis_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.resource_analysis_complete == True:
+            set @variables.capacity_status = "resource_analysis_done"
+        if @variables.resource_analysis_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.optimization
+        if @variables.attempt_count >= 3 and @variables.resource_analysis_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic optimization:
+    description: "Handles the optimization stage of the capacity process"
+
+    actions:
+        process_optimization_data:
+            description: "Process optimization stage data for the capacity"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Optimization"
+
+        validate_optimization_info:
+            description: "Validate optimization information for the capacity"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Optimization_Info"
+
+        fetch_optimization_details:
+            description: "Fetch optimization details for the capacity"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Optimization_Details"
+
+    before_reasoning:
+        if @variables.optimization_complete == False:
+            run @actions.fetch_optimization_details
+                with record_ref=@variables.capacity_record_id
+                with include_history=True
+                set @variables.optimization_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.capacity_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.capacity_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.capacity_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the optimization stage for the capacity.
+              Current capacity status: {! @variables.capacity_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Optimization result: {! @variables.optimization_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.capacity_tier }
+              Review the optimization results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_optimization: @actions.process_optimization_data
+                with record_ref=@variables.capacity_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.capacity_category
+                set @variables.optimization_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.optimization_complete = @outputs.is_passed
+            fetch_optimization_info: @actions.fetch_optimization_details
+                with record_ref=@variables.capacity_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.capacity_tier = @outputs.tier_value
+                available when @variables.capacity_record_id is not None
+            go_to_provisioning: @utils.transition to @topic.provisioning
+                description: "Move to provisioning stage."
+                available when @variables.optimization_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.capacity_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.capacity_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.capacity_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.optimization_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic provisioning:
+    description: "Handles the provisioning stage of the capacity process"
+
+    actions:
+        process_provisioning_data:
+            description: "Process provisioning stage data for the capacity"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Provisioning"
+
+        validate_provisioning_info:
+            description: "Validate provisioning information for the capacity"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Provisioning_Info"
+
+        fetch_provisioning_details:
+            description: "Fetch provisioning details for the capacity"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Provisioning_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.optimization_complete == False:
+            transition to @topic.optimization
+        if @variables.eligibility_score >= 80:
+            set @variables.capacity_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.capacity_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the provisioning stage for the capacity.
+              Current capacity status: {! @variables.capacity_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Provisioning result: {! @variables.provisioning_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.capacity_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_provisioning: @actions.process_provisioning_data
+                with record_ref=@variables.capacity_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.capacity_category
+                set @variables.provisioning_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.provisioning_complete = @outputs.is_passed
+            fetch_provisioning_info: @actions.fetch_provisioning_details
+                with record_ref=@variables.capacity_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.capacity_tier = @outputs.tier_value
+                available when @variables.capacity_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.provisioning_complete == True:
+            set @variables.capacity_status = "provisioning_done"
+        if @variables.attempt_count >= 3 and @variables.provisioning_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for capacity issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the capacity issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the capacity interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the capacity request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Capacity status: {! @variables.capacity_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.capacity_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.capacity_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.capacity_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.capacity_status = "escalated"
+        set @variables.escalation_requested = False
+

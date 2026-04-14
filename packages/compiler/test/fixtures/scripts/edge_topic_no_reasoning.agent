@@ -1,0 +1,64 @@
+system:
+    instructions: "You are a helpful catalog assistant."
+    messages:
+        welcome: "Hello! I can help you browse the catalog."
+        error: "An error occurred while searching."
+
+config:
+    developer_name: "Topic_No_Custom_Reasoning_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent where a topic has reasoning but no custom instructions"
+
+start_agent main:
+    description: "Agent where a topic has reasoning but no custom instructions"
+
+    actions:
+        Lookup_Item:
+            description: "Look up an item"
+            target: "flow://Lookup_Item_Flow"
+            inputs:
+                item_id: string
+                    label: "Item ID"
+                    is_required: True
+            outputs:
+                item_name: string
+                    label: "Item Name"
+                item_price: number
+                    label: "Item Price"
+
+    reasoning:
+        instructions: ->
+            | You are a helpful assistant. Route to the catalog topic for browsing.
+
+        actions:
+            go_to_catalog: @utils.transition to @topic.catalog
+
+topic catalog:
+    description: "Browse the product catalog"
+
+    actions:
+        Search_Catalog:
+            description: "Search the product catalog"
+            target: "flow://Search_Catalog_Flow"
+            inputs:
+                query: string
+                    label: "Search Query"
+                    is_required: True
+            outputs:
+                results: string
+                    label: "Search Results"
+
+        Get_Categories:
+            description: "Get available categories"
+            target: "flow://Get_Categories_Flow"
+            outputs:
+                categories: string
+                    label: "Categories"
+
+    reasoning:
+        actions:
+            Search_Action: @actions.Search_Catalog
+                with query=...
+
+            Categories_Action: @actions.Get_Categories
+

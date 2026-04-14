@@ -1,0 +1,592 @@
+system:
+    instructions: "You are a knowledge search assistant that helps users find information from our knowledge base. Use search capabilities to provide accurate, relevant answers and escalate to human agents when needed."
+    messages:
+        welcome: "Hello! I can help you find information from our knowledge base. What would you like to know about?"
+        error: "I'm having trouble accessing our knowledge base right now. Please try again or contact support."
+
+config:
+    developer_name: "Knowledge_Search_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Searches knowledge base and provides relevant information with escalation capabilities"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Search and query management
+    search_query: mutable string = ""
+        description: "User's search query"
+    refined_query: mutable string = ""
+        description: "Refined search query for better results"
+    search_intent: mutable string = ""
+        description: "Classified intent of the search (product, support, billing, etc.)"
+    query_complexity: mutable string = "simple"
+        description: "Complexity level of the query (simple, moderate, complex)"
+    search_category: mutable string = ""
+        description: "Category of the search topic"
+
+    # Knowledge base search results
+    search_results: mutable string = ""
+        description: "Results from knowledge base search"
+    articles_found: mutable number = 0
+        description: "Number of articles found"
+    most_relevant_article: mutable string = ""
+        description: "Most relevant article title"
+    article_content: mutable string = ""
+        description: "Content of the most relevant article"
+    related_topics: mutable string = ""
+        description: "Related topics for further search"
+
+    # Confidence and quality metrics
+    confidence_score: mutable number = 0
+        description: "Confidence in search results (0-100)"
+    relevance_score: mutable number = 0
+        description: "Relevance score of results (0-100)"
+    answer_completeness: mutable string = "partial"
+        description: "Completeness of the answer (complete, partial, insufficient)"
+    source_reliability: mutable number = 0
+        description: "Reliability score of sources (0-100)"
+
+    # User interaction and feedback
+    user_satisfied: mutable boolean = False
+        description: "Whether user is satisfied with results"
+    follow_up_needed: mutable boolean = False
+        description: "Whether follow-up questions are needed"
+    search_refinement_count: mutable number = 0
+        description: "Number of search refinements performed"
+    user_feedback: mutable string = ""
+        description: "User feedback on search results"
+
+    # Escalation management
+    escalation_needed: mutable boolean = False
+        description: "Whether to escalate to human agent"
+    escalation_reason: mutable string = ""
+        description: "Reason for escalation"
+    escalation_priority: mutable string = "normal"
+        description: "Priority level for escalation (low, normal, high, urgent)"
+    agent_availability: mutable boolean = True
+        description: "Whether human agents are available"
+    estimated_wait_time: mutable number = 0
+        description: "Estimated wait time for human agent"
+
+    # Search history and analytics
+    previous_searches: mutable string = ""
+        description: "Previous search queries in this session"
+    session_search_count: mutable number = 0
+        description: "Number of searches in current session"
+    successful_resolutions: mutable number = 0
+        description: "Number of successfully resolved queries"
+
+start_agent knowledge_search:
+    description: "Processes comprehensive knowledge base search with intelligent query analysis and result optimization"
+
+    actions:
+        Analyze_Search_Intent:
+            description: "Analyzes user query to determine search intent and category"
+            label: "Analyze Intent"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                search_query: string
+                    label: "Search Query"
+                    description: "User's search question or keywords"
+                    is_required: True
+                user_context: string
+                    label: "User Context"
+                    description: "Additional context about the user's situation"
+                    is_required: False
+            outputs:
+                search_intent: string
+                    label: "Search Intent"
+                    is_displayable: True
+                query_category: string
+                    label: "Query Category"
+                    is_displayable: True
+                complexity_level: string
+                    label: "Complexity Level"
+                    is_displayable: False
+                refined_query: string
+                    label: "Refined Query"
+                    is_displayable: False
+                suggested_keywords: string
+                    label: "Suggested Keywords"
+                    is_displayable: False
+            target: "flow://AnalyzeSearchIntent"
+
+        Search_Knowledge_Base:
+            description: "Searches knowledge base with optimized query and returns ranked results"
+            label: "Search Knowledge Base"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                refined_query: string
+                    label: "Refined Query"
+                    description: "Optimized search query"
+                    is_required: True
+                search_category: string
+                    label: "Search Category"
+                    description: "Category to focus search"
+                    is_required: True
+                result_limit: number
+                    label: "Result Limit"
+                    description: "Maximum number of results"
+                    is_required: False
+            outputs:
+                articles_found: number
+                    label: "Articles Found"
+                    is_displayable: True
+                search_results: string
+                    label: "Search Results"
+                    is_displayable: True
+                most_relevant_article: string
+                    label: "Most Relevant Article"
+                    is_displayable: True
+                relevance_scores: string
+                    label: "Relevance Scores"
+                    is_displayable: False
+                related_topics: string
+                    label: "Related Topics"
+                    is_displayable: True
+            target: "flow://SearchKnowledgeBase"
+
+        Evaluate_Search_Quality:
+            description: "Evaluates search result quality and determines confidence scores"
+            label: "Evaluate Quality"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                search_results: string
+                    label: "Search Results"
+                    description: "Results from knowledge base search"
+                    is_required: True
+                original_query: string
+                    label: "Original Query"
+                    description: "User's original question"
+                    is_required: True
+                articles_count: number
+                    label: "Articles Count"
+                    description: "Number of articles found"
+                    is_required: True
+            outputs:
+                confidence_score: number
+                    label: "Confidence Score"
+                    is_displayable: True
+                relevance_score: number
+                    label: "Relevance Score"
+                    is_displayable: True
+                answer_completeness: string
+                    label: "Answer Completeness"
+                    is_displayable: True
+                escalation_recommended: boolean
+                    label: "Escalation Recommended"
+                    is_displayable: False
+            target: "flow://EvaluateSearchQuality"
+
+    before_reasoning:
+        if @variables.search_query == "":
+            set @variables.confidence_score = 0
+            set @variables.session_search_count = 0
+
+    reasoning:
+        instructions: ->
+            |   Hello! I'm your knowledge search assistant. I can help you find information from our comprehensive knowledge base.
+
+                I can assist with:
+                - Product information and specifications
+                - Technical support and troubleshooting
+                - Account and billing questions
+                - Policy and procedure information
+                - General company information
+
+                What would you like to know about today? Please describe your question or the information you're looking for.
+        actions:
+            analyze_intent: @actions.Analyze_Search_Intent
+                with search_query=@variables.search_query
+                with user_context="Customer inquiry"
+                set @variables.search_intent = @outputs.search_intent
+                set @variables.search_category = @outputs.query_category
+                set @variables.query_complexity = @outputs.complexity_level
+                set @variables.refined_query = @outputs.refined_query
+
+            search_kb: @actions.Search_Knowledge_Base
+                with refined_query=@variables.refined_query
+                with search_category=@variables.search_category
+                with result_limit=10
+                set @variables.articles_found = @outputs.articles_found
+                set @variables.search_results = @outputs.search_results
+                set @variables.most_relevant_article = @outputs.most_relevant_article
+                set @variables.related_topics = @outputs.related_topics
+
+            evaluate_quality: @actions.Evaluate_Search_Quality
+                with search_results=@variables.search_results
+                with original_query=@variables.search_query
+                with articles_count=@variables.articles_found
+                set @variables.confidence_score = @outputs.confidence_score
+                set @variables.relevance_score = @outputs.relevance_score
+                set @variables.answer_completeness = @outputs.answer_completeness
+                set @variables.escalation_needed = @outputs.escalation_recommended
+
+            capture_search_session: @utils.setVariables
+                with search_query=@variables.search_query
+                with session_search_count=@variables.session_search_count
+                with confidence_score=@variables.confidence_score
+
+            show_results: @utils.transition to @topic.search_results
+
+    after_reasoning:
+        if @variables.search_query != "":
+            run @actions.Analyze_Search_Intent
+                with search_query=@variables.search_query
+                with user_context="Customer inquiry"
+                set @variables.search_intent = @outputs.search_intent
+                set @variables.search_category = @outputs.query_category
+                set @variables.query_complexity = @outputs.complexity_level
+                set @variables.refined_query = @outputs.refined_query
+
+            run @actions.Search_Knowledge_Base
+                with refined_query=@variables.refined_query
+                with search_category=@variables.search_category
+                with result_limit=10
+                set @variables.articles_found = @outputs.articles_found
+                set @variables.search_results = @outputs.search_results
+                set @variables.most_relevant_article = @outputs.most_relevant_article
+                set @variables.related_topics = @outputs.related_topics
+
+            run @actions.Evaluate_Search_Quality
+                with search_results=@variables.search_results
+                with original_query=@variables.search_query
+                with articles_count=@variables.articles_found
+                set @variables.confidence_score = @outputs.confidence_score
+                set @variables.relevance_score = @outputs.relevance_score
+                set @variables.answer_completeness = @outputs.answer_completeness
+                set @variables.escalation_needed = @outputs.escalation_recommended
+
+                set @variables.session_search_count = @variables.session_search_count + 1
+            transition to @topic.search_results
+
+topic search_results:
+    description: "Displays comprehensive search results with interactive options and feedback collection"
+
+    actions:
+        Refine_Search_Results:
+            description: "Refines search results based on user feedback and additional context"
+            label: "Refine Results"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                original_results: string
+                    label: "Original Results"
+                    description: "Initial search results"
+                    is_required: True
+                user_feedback: string
+                    label: "User Feedback"
+                    description: "User's feedback on results"
+                    is_required: True
+                refinement_direction: string
+                    label: "Refinement Direction"
+                    description: "How to refine the search"
+                    is_required: True
+            outputs:
+                refined_results: string
+                    label: "Refined Results"
+                    is_displayable: True
+                improved_confidence: number
+                    label: "Improved Confidence"
+                    is_displayable: True
+                additional_articles: string
+                    label: "Additional Articles"
+                    is_displayable: True
+                search_suggestions: string
+                    label: "Search Suggestions"
+                    is_displayable: True
+            target: "flow://RefineSearchResults"
+
+        Generate_Answer_Summary:
+            description: "Generates comprehensive answer summary from search results"
+            label: "Generate Summary"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                search_results: string
+                    label: "Search Results"
+                    description: "Raw search results from knowledge base"
+                    is_required: True
+                user_question: string
+                    label: "User Question"
+                    description: "Original user question"
+                    is_required: True
+                result_format: string
+                    label: "Result Format"
+                    description: "Desired format for the answer"
+                    is_required: False
+            outputs:
+                answer_summary: string
+                    label: "Answer Summary"
+                    is_displayable: True
+                key_points: string
+                    label: "Key Points"
+                    is_displayable: True
+                source_citations: string
+                    label: "Source Citations"
+                    is_displayable: True
+                follow_up_questions: string
+                    label: "Follow-up Questions"
+                    is_displayable: True
+            target: "flow://GenerateAnswerSummary"
+
+        Collect_User_Feedback:
+            description: "Collects structured feedback on search result quality and usefulness"
+            label: "Collect Feedback"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                presented_results: string
+                    label: "Presented Results"
+                    description: "Results shown to user"
+                    is_required: True
+                user_satisfaction: string
+                    label: "User Satisfaction"
+                    description: "User's satisfaction level"
+                    is_required: True
+                improvement_areas: string
+                    label: "Improvement Areas"
+                    description: "Areas for improvement"
+                    is_required: False
+            outputs:
+                feedback_recorded: boolean
+                    label: "Feedback Recorded"
+                    is_displayable: True
+                satisfaction_score: number
+                    label: "Satisfaction Score"
+                    is_displayable: False
+                needs_follow_up: boolean
+                    label: "Needs Follow-up"
+                    is_displayable: True
+                improvement_suggestions: string
+                    label: "Improvement Suggestions"
+                    is_displayable: False
+            target: "flow://CollectUserFeedback"
+
+    before_reasoning:
+        if @variables.confidence_score < 70:
+            set @variables.escalation_needed = True
+        if @variables.articles_found == 0:
+            set @variables.escalation_needed = True
+            set @variables.escalation_reason = "No relevant articles found"
+
+    reasoning:
+        instructions: ->
+            |   **Search Results for: "{! @variables.search_query }"**
+
+                **Intent:** {! @variables.search_intent }
+                **Category:** {! @variables.search_category }
+                **Articles Found:** {! @variables.articles_found }
+                **Confidence:** {! @variables.confidence_score }/100
+                **Relevance:** {! @variables.relevance_score }/100
+
+                **Most Relevant Information:**
+                {! @variables.most_relevant_article }
+
+                **Answer Completeness:** {! @variables.answer_completeness }
+
+                **Related Topics You Might Find Helpful:**
+                {! @variables.related_topics }
+
+                Does this answer your question satisfactorily? Would you like me to:
+                1. Refine the search with additional details
+                2. Search for related topics
+                3. Connect you with a human agent for specialized help
+        actions:
+            generate_summary: @actions.Generate_Answer_Summary
+                with search_results=@variables.search_results
+                with user_question=@variables.search_query
+                with result_format="comprehensive"
+                set @variables.article_content = @outputs.answer_summary
+
+            collect_feedback: @actions.Collect_User_Feedback
+                with presented_results=@variables.search_results
+                with user_satisfaction=@variables.user_feedback
+                with improvement_areas="search refinement"
+                set @variables.user_satisfied = @outputs.feedback_recorded
+                set @variables.follow_up_needed = @outputs.needs_follow_up
+
+            refine_results: @actions.Refine_Search_Results
+                with original_results=@variables.search_results
+                with user_feedback=@variables.user_feedback
+                with refinement_direction="expand search scope"
+                set @variables.search_results = @outputs.refined_results
+                set @variables.confidence_score = @outputs.improved_confidence
+
+            track_search_quality: @utils.setVariables
+                with confidence_score=@variables.confidence_score
+                with user_satisfied=@variables.user_satisfied
+                with session_search_count=@variables.session_search_count
+
+            escalate_to_human: @utils.transition to @topic.escalation
+
+            new_search: @utils.transition to @topic.knowledge_search
+
+    after_reasoning:
+        if @variables.search_results != "":
+            run @actions.Generate_Answer_Summary
+                with search_results=@variables.search_results
+                with user_question=@variables.search_query
+                with result_format="comprehensive"
+                set @variables.article_content = @outputs.answer_summary
+
+        if @variables.confidence_score < 80 and @variables.search_refinement_count < 3:
+            run @actions.Refine_Search_Results
+                with original_results=@variables.search_results
+                with user_feedback="need more specific information"
+                with refinement_direction="expand search scope"
+                set @variables.search_results = @outputs.refined_results
+                set @variables.confidence_score = @outputs.improved_confidence
+                set @variables.search_refinement_count = @variables.search_refinement_count + 1
+
+        if @variables.confidence_score < 70 or @variables.articles_found == 0:
+            set @variables.escalation_needed = True
+            set @variables.escalation_priority = "normal"
+            transition to @topic.escalation
+
+        if @variables.user_feedback != "":
+            run @actions.Collect_User_Feedback
+                with presented_results=@variables.search_results
+                with user_satisfaction=@variables.user_feedback
+                with improvement_areas="search quality"
+                set @variables.user_satisfied = @outputs.feedback_recorded
+                set @variables.follow_up_needed = @outputs.needs_follow_up
+
+topic escalation:
+    description: "Provides comprehensive escalation to human agents with context preservation and queue management"
+
+    actions:
+        Check_Agent_Availability:
+            description: "Checks availability of human agents and provides wait time estimates"
+            label: "Check Availability"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                escalation_priority: string
+                    label: "Escalation Priority"
+                    description: "Priority level of the escalation"
+                    is_required: True
+                query_category: string
+                    label: "Query Category"
+                    description: "Category of the user's query"
+                    is_required: True
+                time_of_day: string
+                    label: "Time of Day"
+                    description: "Current time for availability check"
+                    is_required: False
+            outputs:
+                agents_available: boolean
+                    label: "Agents Available"
+                    is_displayable: True
+                estimated_wait_time: number
+                    label: "Estimated Wait Time"
+                    is_displayable: True
+                next_available_agent: string
+                    label: "Next Available Agent"
+                    is_displayable: False
+                queue_position: number
+                    label: "Queue Position"
+                    is_displayable: True
+            target: "flow://CheckAgentAvailability"
+
+        Create_Escalation_Ticket:
+            description: "Creates detailed escalation ticket with search context and user information"
+            label: "Create Escalation"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                original_query: string
+                    label: "Original Query"
+                    description: "User's original search query"
+                    is_required: True
+                search_attempts: string
+                    label: "Search Attempts"
+                    description: "Summary of search attempts made"
+                    is_required: True
+                escalation_reason: string
+                    label: "Escalation Reason"
+                    description: "Reason for escalating to human agent"
+                    is_required: True
+                user_context: string
+                    label: "User Context"
+                    description: "Additional user context and preferences"
+                    is_required: False
+            outputs:
+                ticket_created: boolean
+                    label: "Ticket Created"
+                    is_displayable: True
+                ticket_id: string
+                    label: "Ticket ID"
+                    is_displayable: True
+                assigned_agent: string
+                    label: "Assigned Agent"
+                    is_displayable: True
+                escalation_successful: boolean
+                    label: "Escalation Successful"
+                    is_displayable: True
+            target: "flow://CreateEscalationTicket"
+
+    before_reasoning:
+        if @variables.escalation_priority == "":
+            set @variables.escalation_priority = "normal"
+        if @variables.confidence_score < 50:
+            set @variables.escalation_priority = "high"
+
+    reasoning:
+        instructions: ->
+            |   **Escalating to Human Agent**
+
+                I understand that our knowledge base search didn't fully address your question about "{! @variables.search_query }".
+
+                **Search Summary:**
+                - Query: {! @variables.search_query }
+                - Articles Found: {! @variables.articles_found }
+                - Confidence Score: {! @variables.confidence_score }/100
+                - Search Attempts: {! @variables.search_refinement_count }
+
+                **Why I'm escalating:**
+                {! @variables.escalation_reason }
+
+                Let me connect you with a human agent who can provide specialized assistance.
+        actions:
+            check_availability: @actions.Check_Agent_Availability
+                with escalation_priority=@variables.escalation_priority
+                with query_category=@variables.search_category
+                with time_of_day="current"
+                set @variables.agent_availability = @outputs.agents_available
+                set @variables.estimated_wait_time = @outputs.estimated_wait_time
+
+            create_ticket: @actions.Create_Escalation_Ticket
+                with original_query=@variables.search_query
+                with search_attempts="Searched " + @variables.session_search_count + " times"
+                with escalation_reason=@variables.escalation_reason
+                with user_context=@variables.search_intent
+                set @variables.escalation_needed = @outputs.escalation_successful
+
+            finalize_escalation: @utils.setVariables
+                with escalation_priority=@variables.escalation_priority
+                with estimated_wait_time=@variables.estimated_wait_time
+                with session_search_count=@variables.session_search_count
+
+            help_another: @utils.transition to @topic.knowledge_search
+
+    after_reasoning:
+        if @variables.escalation_needed:
+            run @actions.Check_Agent_Availability
+                with escalation_priority=@variables.escalation_priority
+                with query_category=@variables.search_category
+                with time_of_day="current"
+                set @variables.agent_availability = @outputs.agents_available
+                set @variables.estimated_wait_time = @outputs.estimated_wait_time
+
+            run @actions.Create_Escalation_Ticket
+                with original_query=@variables.search_query
+                with search_attempts="Performed " + @variables.session_search_count + " searches with " + @variables.search_refinement_count + " refinements"
+                with escalation_reason=@variables.escalation_reason
+                with user_context=@variables.search_intent + " query in " + @variables.search_category
+                set @variables.successful_resolutions = @variables.successful_resolutions + 1

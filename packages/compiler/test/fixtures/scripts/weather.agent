@@ -1,0 +1,472 @@
+# WeatherPro Assistant - Professional Weather Information Service
+# Provides comprehensive weather data, forecasts, and alerts for locations worldwide
+
+config:
+    agent_name: "WeatherPro_Assistant"
+    default_agent_user: "support@weatherpro.com"
+
+
+language:
+    default_locale: "en_US"
+
+system:
+    messages:
+        welcome: "Hello! I'm your WeatherPro Assistant. I can provide current weather conditions, forecasts, and severe weather alerts for any location. How can I help you today?"
+        error: "I apologize, but I'm experiencing technical difficulties retrieving weather data. Please try again in a moment."
+    instructions: |
+        You are a professional weather information assistant providing accurate, timely
+        weather data and forecasts. Always prioritize user safety by highlighting severe
+        weather conditions and providing appropriate guidance.
+
+variables:
+    # Location variables
+    user_city: mutable string = ""
+        description: "User's requested city for weather information"
+    user_country: mutable string = ""
+        description: "User's requested country for weather information"
+    location_coordinates: mutable object = {}
+        description: "Latitude and longitude coordinates for the location"
+
+    # Test variables with default values
+    general_forecast: mutable object = {"var1": "", "var2": False}
+        description: "General forecast information with sample data"
+    alert_regions: mutable list[string] = ["North", "South", "East", "West"]
+        description: "List of regions to monitor for weather alerts"
+
+    # Current weather data
+    temperature: mutable number = 0
+        description: "Current temperature in Celsius"
+    temperature_fahrenheit: mutable number = 32
+        description: "Current temperature in Fahrenheit"
+    conditions: mutable string = ""
+        description: "Current weather conditions description"
+    humidity: mutable number = 0
+        description: "Current humidity percentage"
+    wind_speed: mutable number = 0
+        description: "Current wind speed in km/h"
+    wind_direction: mutable string = ""
+        description: "Wind direction (N, NE, E, SE, S, SW, W, NW)"
+    pressure: mutable number = 0
+        description: "Atmospheric pressure in hPa"
+    visibility_km: mutable number = 0
+        description: "Visibility in kilometers"
+    uv_index: mutable number = 0
+        description: "UV index value"
+
+    # Forecast data
+    forecast_data: mutable list[object] = []
+        description: "Multi-day weather forecast data"
+    hourly_forecast: mutable list[object] = []
+        description: "24-hour hourly forecast data"
+
+    # Alert and warning data
+    severe_weather_alert: mutable boolean = False
+        description: "Whether there are active severe weather alerts"
+    alert_type: mutable string = ""
+        description: "Type of weather alert (storm, flood, heat, cold, etc.)"
+    alert_severity: mutable string = ""
+        description: "Alert severity level (minor, moderate, severe, extreme)"
+    alert_description: mutable string = ""
+        description: "Detailed description of the weather alert"
+    alert_expires: mutable string = ""
+        description: "When the weather alert expires"
+
+    # User preferences
+    preferred_units: mutable string = "metric"
+        description: "User's preferred temperature units (metric/imperial)"
+    notification_preferences: mutable object = {}
+        description: "User's weather notification preferences"
+
+
+start_agent weather_service_router:
+    description: "Welcome users and route them to the appropriate weather service based on their needs"
+
+    system:
+        instructions: "You are a professional weather service assistant. Analyze user requests and route them to the appropriate weather service. Always prioritize safety by directing users with severe weather concerns to emergency alerts first."
+
+    reasoning:
+        instructions: ->
+            |   Analyze user input to determine weather service intent and route appropriately:
+                - For current weather requests, call {!@actions.current_weather}
+                - For forecast or future weather requests, call {!@actions.weather_forecast}
+                - For alerts, emergencies, or safety concerns, call {!@actions.emergency_alerts}
+                - For settings, preferences, or unit changes, call {!@actions.user_settings}
+
+                Welcome users professionally and gather location information if not provided.
+        actions:
+            current_weather: @utils.transition to @topic.current_weather_service
+                description: "Route to current weather service when users ask for current conditions, temperature, or immediate weather status."
+            weather_forecast: @utils.transition to @topic.forecast_service
+                description: "Route to forecast service when users ask for future weather predictions, multi-day forecasts, or planning information."
+            emergency_alerts: @utils.transition to @topic.severe_weather_alerts
+                description: "Route to severe weather alerts when users mention storms, warnings, emergencies, or safety concerns."
+            user_settings: @utils.transition to @topic.weather_preferences
+                description: "Route to preferences when users want to set temperature units, location defaults, or notification settings."
+
+
+topic current_weather_service:
+    description: "Provides comprehensive current weather conditions for any location worldwide"
+
+    system:
+        instructions: "You are a professional weather data specialist providing accurate current weather conditions. Always include safety information when severe weather is present."
+
+    actions:
+        Get_Current_Weather_Data:
+            description: "Retrieves comprehensive current weather data for a specified location"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            progress_indicator_message: "Fetching current weather data..."
+            inputs:
+                city: string
+                    description: "City name for weather lookup"
+                    is_required: True
+                    is_user_input: True
+                country: string
+                    description: "Country name or code for weather lookup"
+                    is_required: True
+                    is_user_input: True
+                coordinates: object
+                    description: "Latitude and longitude coordinates (optional, for precise location)"
+                    is_required: False
+                    is_user_input: False
+            outputs:
+                temperature_celsius: number
+                    description: "Current temperature in Celsius"
+                temperature_fahrenheit: number
+                    description: "Current temperature in Fahrenheit"
+                conditions: string
+                    description: "Current weather conditions description"
+                    is_displayable: True
+                humidity: number
+                    description: "Current humidity percentage"
+                wind_speed: number
+                    description: "Wind speed in km/h"
+                wind_direction: string
+                    description: "Wind direction"
+                pressure: number
+                    description: "Atmospheric pressure in hPa"
+                visibility_km: number
+                    description: "Visibility in kilometers"
+                uv_index: number
+                    description: "UV index value"
+                weather_alerts: list[object]
+                    description: "Any active weather alerts or warnings"
+                    is_displayable: True
+            target: "flow://300WX000001WeatherCurrentAPI"
+
+        Geocode_Location:
+            description: "Converts city/country names to precise coordinates for weather lookup"
+            inputs:
+                location_query: string
+                    description: "Location search query (city, country)"
+                    is_required: True
+                    is_user_input: True
+            outputs:
+                coordinates: object
+                    description: "Latitude and longitude coordinates"
+                location_name: string
+                    description: "Standardized location name"
+                timezone: string
+                    description: "Local timezone for the location"
+            target: "apex://01pWX000001GeoLocationAPI"
+
+    before_reasoning:
+        # Auto-fetch weather data if location is already known
+        if @variables.user_city != "" and @variables.user_country != "":
+            run @actions.Get_Current_Weather_Data
+                with city=@variables.user_city
+                with country=@variables.user_country
+                set @variables.temperature = @outputs.temperature_celsius
+                set @variables.temperature_fahrenheit = @outputs.temperature_fahrenheit
+                set @variables.conditions = @outputs.conditions
+                set @variables.humidity = @outputs.humidity
+                set @variables.wind_speed = @outputs.wind_speed
+                set @variables.wind_direction = @outputs.wind_direction
+                set @variables.pressure = @outputs.pressure
+                set @variables.visibility_km = @outputs.visibility_km
+                set @variables.uv_index = @outputs.uv_index
+
+    reasoning:
+        instructions: ->
+            |   Provide current weather conditions for the user's location.
+
+                If {!@variables.user_city} and {!@variables.user_country} are available, call {!@actions.Get_Current_Weather_Data} to fetch comprehensive data.
+                If location needs geocoding or clarification, call {!@actions.Geocode_Location} first.
+                When user provides new location details, call {!@actions.set_location} to store the information.
+
+                If user asks for forecasts, call {!@actions.get_forecast} to transition to forecast service.
+                If severe weather is detected, the after_reasoning logic will handle transition to alerts.
+
+                Present comprehensive weather data including temperature, conditions, humidity, wind, pressure, visibility, and UV index.
+        actions:
+            Get_Current_Weather_Data: @actions.Get_Current_Weather_Data
+                with city=@variables.user_city
+                with country=@variables.user_country
+                set @variables.temperature = @outputs.temperature_celsius
+                set @variables.temperature_fahrenheit = @outputs.temperature_fahrenheit
+                set @variables.conditions = @outputs.conditions
+                set @variables.humidity = @outputs.humidity
+                set @variables.wind_speed = @outputs.wind_speed
+                set @variables.wind_direction = @outputs.wind_direction
+                set @variables.pressure = @outputs.pressure
+                set @variables.visibility_km = @outputs.visibility_km
+                set @variables.uv_index = @outputs.uv_index
+
+            Geocode_Location: @actions.Geocode_Location
+                with location_query=...
+                set @variables.location_coordinates = @outputs.coordinates
+
+            set_location: @utils.setVariables
+                description: "Set the user's preferred location for weather information."
+                with user_city=...
+                with user_country=...
+
+            get_forecast: @utils.transition to @topic.forecast_service
+                description: "Get detailed weather forecast for the current location."
+            check_alerts: @utils.transition to @topic.severe_weather_alerts
+                description: "Check for severe weather alerts in the area."
+
+    after_reasoning:
+        # Auto-transition to alerts if severe weather detected
+        if @variables.severe_weather_alert:
+            transition to @topic.severe_weather_alerts
+
+topic severe_weather_alerts:
+    description: "Provides critical severe weather alerts, warnings, and safety guidance"
+
+    system:
+        instructions: "You are an emergency weather alert specialist. Prioritize user safety by providing clear, actionable severe weather information and safety guidance. Always emphasize the urgency and importance of following official emergency guidance."
+
+    actions:
+        Get_Weather_Alerts_Data:
+            description: "Retrieves active weather alerts, warnings, and watches for a specified location"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            progress_indicator_message: "Checking for weather alerts..."
+            inputs:
+                city: string
+                    description: "City name for alert lookup"
+                    is_required: True
+                    is_user_input: False
+                country: string
+                    description: "Country name for alert lookup"
+                    is_required: True
+                    is_user_input: False
+                alert_severity_filter: string
+                    description: "Filter by severity level (minor, moderate, severe, extreme)"
+                    is_required: False
+                    is_user_input: False
+            outputs:
+                active_alerts: list[object]
+                    description: "List of all active weather alerts"
+                    is_displayable: True
+                highest_severity: string
+                    description: "Highest severity level among active alerts"
+                alert_count: number
+                    description: "Total number of active alerts"
+                emergency_contacts: object
+                    description: "Local emergency contact information"
+                    is_displayable: True
+            target: "flow://300WX000002WeatherAlertsAPI"
+
+        Get_Safety_Guidelines:
+            description: "Retrieves safety guidelines and recommendations for specific weather hazards"
+            inputs:
+                hazard_type: string
+                    description: "Type of weather hazard (storm, flood, tornado, hurricane, blizzard, etc.)"
+                    is_required: True
+                    is_user_input: False
+                severity_level: string
+                    description: "Severity level of the hazard"
+                    is_required: True
+                    is_user_input: False
+            outputs:
+                safety_guidelines: string
+                    description: "Detailed safety guidelines and recommendations"
+                    is_displayable: True
+                evacuation_info: string
+                    description: "Evacuation procedures if applicable"
+                    is_displayable: True
+                emergency_supplies: list[string]
+                    description: "Recommended emergency supplies"
+                    is_displayable: True
+            target: "apex://01pWX000003SafetyGuidelinesAPI"
+
+    before_reasoning:
+        # Auto-check for alerts when location is known
+        if @variables.user_city != "" and @variables.user_country != "":
+            run @actions.Get_Weather_Alerts_Data
+                with city=@variables.user_city
+                with country=@variables.user_country
+                set @variables.severe_weather_alert = @outputs.alert_count > 0
+                set @variables.alert_severity = @outputs.highest_severity
+                set @variables.alert_type = @outputs.active_alerts[0].type
+
+    reasoning:
+        instructions: ->
+            |   Monitor and respond to weather alerts with safety as the top priority.
+
+                If {!@variables.user_city} and {!@variables.user_country} are available, call {!@actions.Get_Weather_Alerts_Data} to retrieve active alerts.
+                The before_reasoning logic will populate alert variables if alerts are found.
+
+                When {!@variables.severe_weather_alert} is true, call {!@actions.Get_Safety_Guidelines} for specific hazard guidance.
+                If user wants to manage notifications, {!@actions.update_alert_preferences} can update preferences.
+
+                Always prioritize safety messaging when {!@variables.severe_weather_alert} is true.
+                If user needs current conditions, {!@actions.check_current_conditions} can transition to current weather service.
+                For extended weather tracking, {!@actions.extended_forecast} can transition to forecast service.
+
+                Emphasize following official emergency guidance for any severe weather events.
+        actions:
+            Get_Weather_Alerts_Data: @actions.Get_Weather_Alerts_Data
+                with city=@variables.user_city
+                with country=@variables.user_country
+                set @variables.severe_weather_alert = @outputs.alert_count > 0
+                set @variables.alert_severity = @outputs.highest_severity
+                set @variables.alert_type = @outputs.active_alerts[0].type
+
+            Get_Safety_Guidelines: @actions.Get_Safety_Guidelines
+                with hazard_type=@variables.alert_type
+                with severity_level=@variables.alert_severity
+
+            update_alert_preferences: @utils.setVariables
+                description: "Update user's weather alert notification preferences."
+                with notification_preferences=...
+
+            check_current_conditions: @utils.transition to @topic.current_weather_service
+                description: "Check current weather conditions after reviewing alerts."
+            extended_forecast: @utils.transition to @topic.forecast_service
+                description: "Get extended forecast to track severe weather progression."
+
+topic forecast_service:
+    description: "Provides detailed weather forecasts including hourly and multi-day predictions"
+
+    system:
+        instructions: "You are a professional weather forecasting specialist providing accurate, detailed weather predictions. Include confidence levels and highlight any significant weather changes."
+
+    actions:
+        Get_Weather_Forecast:
+            description: "Retrieves detailed weather forecast data for specified location and timeframe"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            progress_indicator_message: "Generating weather forecast..."
+            inputs:
+                city: string
+                    description: "City name for forecast"
+                    is_required: True
+                    is_user_input: False
+                country: string
+                    description: "Country name for forecast"
+                    is_required: True
+                    is_user_input: False
+                forecast_days: number
+                    description: "Number of days to forecast (1-14)"
+                    is_required: False
+                    is_user_input: True
+                include_hourly: boolean
+                    description: "Include hourly breakdown for first 24-48 hours"
+                    is_required: False
+                    is_user_input: False
+            outputs:
+                daily_forecast: list[object]
+                    description: "Multi-day weather forecast"
+                    is_displayable: True
+                hourly_forecast: list[object]
+                    description: "Hourly weather forecast"
+                    is_displayable: True
+                forecast_confidence: string
+                    description: "Confidence level of the forecast"
+                weather_trends: string
+                    description: "Notable weather trends and patterns"
+                    is_displayable: True
+            target: "flow://300WX000003WeatherForecastAPI"
+
+    reasoning:
+        instructions: ->
+            |   Deliver comprehensive weather forecasts tailored to user needs.
+
+                Call {!@actions.Get_Weather_Forecast} with {!@variables.user_city} and {!@variables.user_country} if available.
+                Include forecast_days parameter (1-14 days) and set include_hourly flag based on user needs.
+                Store results in {!@variables.forecast_data} and {!@variables.hourly_forecast}.
+
+                Present multi-day forecasts showing daily conditions, high/low temperatures, precipitation chances, and wind information.
+                Always include forecast confidence level and highlight notable weather trends.
+
+                If user also wants current conditions, {!@actions.current_conditions} can transition to current weather service.
+                If severe weather is detected in forecast data, {!@actions.alert_monitoring} can transition to alerts.
+
+                Gather missing preferences when needed: number of days, hourly details, or location clarification.
+        actions:
+            Get_Weather_Forecast: @actions.Get_Weather_Forecast
+                with city=@variables.user_city
+                with country=@variables.user_country
+                with forecast_days=...
+                with include_hourly=...
+                set @variables.forecast_data = @outputs.daily_forecast
+                set @variables.hourly_forecast = @outputs.hourly_forecast
+
+            current_conditions: @utils.transition to @topic.current_weather_service
+                description: "Check current weather conditions alongside the forecast."
+            alert_monitoring: @utils.transition to @topic.severe_weather_alerts
+                description: "Monitor for any severe weather in the forecast period."
+
+topic weather_preferences:
+    description: "Manages user preferences for weather information display and notifications"
+
+    system:
+        instructions: "You are a user experience specialist helping users customize their weather information preferences. Make the setup process simple and intuitive."
+
+    actions:
+        Update_User_Preferences:
+            description: "Updates user's weather display and notification preferences"
+            inputs:
+                temperature_units: string
+                    description: "Preferred temperature units (celsius/fahrenheit)"
+                    is_required: False
+                    is_user_input: True
+                default_location: object
+                    description: "User's default location for weather information"
+                    is_required: False
+                    is_user_input: True
+                notification_settings: object
+                    description: "Weather alert notification preferences"
+                    is_required: False
+                    is_user_input: True
+                display_preferences: object
+                    description: "Weather information display preferences"
+                    is_required: False
+                    is_user_input: True
+            outputs:
+                preferences_updated: boolean
+                    description: "Confirmation that preferences were updated"
+                current_settings: object
+                    description: "Current user preference settings"
+                    is_displayable: True
+            target: "apex://01pWX000004UserPreferencesAPI"
+
+    reasoning:
+        instructions: ->
+            |   Help users customize their weather experience through preference management.
+
+                Call {!@actions.Update_User_Preferences} to handle temperature_units, default_location, notification_settings, and display_preferences.
+
+                Update relevant state variables based on user choices:
+                - Set {!@variables.preferred_units} from temperature_units selection
+                - Update {!@variables.notification_preferences} from notification_settings
+                - Store location in {!@variables.user_city} and {!@variables.user_country} if changed
+
+                After updating preferences, {!@actions.get_weather} can transition to apply the new settings immediately.
+                To return to the main weather services, {!@actions.main_menu} can transition back to the router.
+
+                Current preference state: units={!@variables.preferred_units}, location set={!@variables.user_city} and {!@variables.user_country}.
+                Gather missing preferences: temperature units (celsius/fahrenheit), default location, alert notifications, display format.
+        actions:
+            Update_User_Preferences: @actions.Update_User_Preferences
+                with temperature_units=..., default_location=..., notification_settings=..., display_preferences=...
+                set @variables.preferred_units = @outputs.current_settings.temperature_units
+                set @variables.notification_preferences = @outputs.current_settings.notifications
+
+            get_weather: @utils.transition to @topic.current_weather_service
+                description: "Get weather information with updated preferences."
+            main_menu: @utils.transition to @topic.weather_service_router
+                description: "Return to main weather service menu."

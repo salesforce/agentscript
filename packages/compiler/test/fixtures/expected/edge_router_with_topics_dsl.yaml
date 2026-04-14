@@ -1,0 +1,228 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Multi_Topic_Router
+  label: Multi Topic Router
+  description: Router with 4 topics, transitions, and actions
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome to TechCorp Support! I can help with billing, technical issues,
+        account management, or general inquiries.
+      message_type: Welcome
+    - message: I'm experiencing difficulties. Please try again.
+      message_type: Error
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome to TechCorp Support! I can help with billing,
+      technical issues, account management, or general inquiries.", "messageType":
+      "Welcome"}, {"message": "I''m experiencing difficulties. Please try again.",
+      "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: customer_id
+      label: Customer Id
+      description: Customer identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: issue_category
+      label: Issue Category
+      description: Categorized issue type
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - model_configuration:
+        model_ref: sfdc_ai__DefaultEinsteinHyperClassifier
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Analyze the user''s message and route to the best matching topic.
+
+                If unsure, ask a clarifying question.'
+      instructions: 'You are a multi-topic routing agent for a software company.
+
+
+        {{state.AgentScriptInternal_agent_instructions}}'
+      type: router
+      description: Classifies user intent and routes to the correct topic
+      tools:
+        - name: go_billing
+          target: billing
+          description: Route to billing questions
+        - name: go_technical
+          target: technical
+          description: Route to technical issues
+        - name: go_account
+          target: account_management
+          description: Route to account management
+        - name: go_general
+          target: general_inquiry
+          description: Route to general inquiries
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer with their billing question.
+
+                Ask clarifying questions about their invoice or payment issue.'
+      instructions: You are a multi-topic routing agent for a software company.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles billing questions, invoice disputes, and payment issues
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"account_management"'
+          name: go_account
+          description: Switch to account management
+      after_all_tool_calls:
+        - type: handoff
+          target: account_management
+          enabled: state.AgentScriptInternal_next_topic=="account_management"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: billing
+      label: Billing
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Troubleshoot the customer''s technical issue.
+
+                Ask for error messages, screenshots, and steps to reproduce.'
+      instructions: You are a multi-topic routing agent for a software company.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles technical issues and troubleshooting
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: technical
+      label: Technical Support
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer manage their account.
+
+                Guide them through account changes step by step.'
+      instructions: You are a multi-topic routing agent for a software company.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles account updates, profile changes, and preferences
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: account_management
+      label: Account Management
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Answer the customer''s general questions about our products and services.
+
+                If the question requires specific account access, transition to the
+                appropriate topic.'
+      instructions: You are a multi-topic routing agent for a software company.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles general questions about products and services
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"billing"'
+          name: go_billing
+          description: Route to billing if needed
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"technical"'
+          name: go_technical
+          description: Route to technical if needed
+      after_all_tool_calls:
+        - type: handoff
+          target: billing
+          enabled: state.AgentScriptInternal_next_topic=="billing"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: technical
+          enabled: state.AgentScriptInternal_next_topic=="technical"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: general_inquiry
+      label: General Inquiry
+      action_definitions: []
+  surfaces: []

@@ -1,0 +1,2048 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: claims_adjudication_agent_v52
+  label: Claims Adjudication Agent V 52
+  description: Assists users with ins_claim management through the claims adjudication
+    agent workflow.
+  enable_enhanced_event_logs: true
+  agent_type: EinsteinServiceAgent
+  default_agent_user: claims_adjudication@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I am your Claims Adjudication Agent Assistant. How can I help
+        you today?
+      message_type: Welcome
+    - message: I apologize, something went wrong on my end. Could you please rephrase
+        your request?
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I am your Claims Adjudication Agent Assistant.
+      How can I help you today?", "messageType": "Welcome"}, {"message": "I apologize,
+      something went wrong on my end. Could you please rephrase your request?", "messageType":
+      "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: ins_claim_record_id
+      label: Ins Claim Record Id
+      description: Record ID of the ins_claim
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: ins_claim_status
+      label: Ins Claim Status
+      description: Current status of the ins_claim
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: ins_claim_tier
+      label: Ins Claim Tier
+      description: Tier classification for the ins_claim
+      data_type: string
+      is_list: false
+      default: '''standard'''
+      visibility: Internal
+    - developer_name: ins_claim_category
+      label: Ins Claim Category
+      description: Category of the ins_claim
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: contact_name
+      label: Contact Name
+      description: Full name of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_email
+      label: Contact Email
+      description: Email address of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_phone
+      label: Contact Phone
+      description: Phone number of the contact
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: is_verified
+      label: Is Verified
+      description: Whether the user identity is verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: eligibility_score
+      label: Eligibility Score
+      description: Calculated eligibility score
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: step_counter
+      label: Step Counter
+      description: Current step in the process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: attempt_count
+      label: Attempt Count
+      description: Number of attempts made
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: total_items_count
+      label: Total Items Count
+      description: Total number of items to process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: intake_complete
+      label: Intake Complete
+      description: Whether the intake stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: intake_result
+      label: Intake Result
+      description: Result from the intake stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: documentation_review_complete
+      label: Documentation Review Complete
+      description: Whether the documentation_review stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: documentation_review_result
+      label: Documentation Review Result
+      description: Result from the documentation_review stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: liability_assessment_complete
+      label: Liability Assessment Complete
+      description: Whether the liability_assessment stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: liability_assessment_result
+      label: Liability Assessment Result
+      description: Result from the liability_assessment stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: payout_complete
+      label: Payout Complete
+      description: Whether the payout stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: payout_result
+      label: Payout Result
+      description: Result from the payout stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: priority_level
+      label: Priority Level
+      description: Priority level of the request
+      data_type: string
+      is_list: false
+      default: '''normal'''
+      visibility: Internal
+    - developer_name: notes_text
+      label: Notes Text
+      description: Notes and comments
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: assigned_agent
+      label: Assigned Agent
+      description: Assigned agent name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: resolution_summary
+      label: Resolution Summary
+      description: Summary of the resolution
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: escalation_requested
+      label: Escalation Requested
+      description: Whether escalation was requested
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: is_business_hours
+      label: Is Business Hours
+      description: Whether it is currently business hours
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: case_ref_number
+      label: Case Ref Number
+      description: Reference number for the support case
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_available_slot
+      label: Next Available Slot
+      description: Next available time slot
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for a claims adjudication agent assistant.
+
+                Analyze the user''s input and determine the most appropriate topic.
+
+                Current ins_claim status: {{state.ins_claim_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Steps completed: {{state.step_counter}}
+
+                Priority: {{state.priority_level}}
+
+                Use action.go_to_intake for intake requests.
+
+                Use action.go_to_documentation_review for documentation review requests.
+
+                Use action.go_to_liability_assessment for liability assessment requests.
+
+                Use action.go_to_payout for payout requests.
+
+                Use action.go_to_escalation to escalate if the user is upset or requests
+                a human.'
+      instructions: 'You are a professional claims adjudication agent assistant.
+
+        Help users manage their ins_claim requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> documentation_review -> liability_assessment
+        -> payout.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and route to the appropriate ins_claim management
+        topic
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"intake"'
+          name: go_to_intake
+          description: Transition to intake topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"documentation_review"'
+          name: go_to_documentation_review
+          description: Transition to documentation review topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"liability_assessment"'
+          name: go_to_liability_assessment
+          description: Transition to liability assessment topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"payout"'
+          name: go_to_payout
+          description: Transition to payout topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: go_to_escalation
+          description: Escalate to a human agent for assistance.
+      after_all_tool_calls:
+        - type: handoff
+          target: intake
+          enabled: state.AgentScriptInternal_next_topic=="intake"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: documentation_review
+          enabled: state.AgentScriptInternal_next_topic=="documentation_review"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: liability_assessment
+          enabled: state.AgentScriptInternal_next_topic=="liability_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: payout
+          enabled: state.AgentScriptInternal_next_topic=="payout"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the intake stage for the ins_claim.
+
+                Current ins_claim status: {{state.ins_claim_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Intake result: {{state.intake_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.ins_claim_tier}}
+
+                If the contact information is missing, ask the user to provide their
+                name and email.
+
+                After collecting information, use action.run_intake to begin processing.'
+      instructions: 'You are a professional claims adjudication agent assistant.
+
+        Help users manage their ins_claim requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> documentation_review -> liability_assessment
+        -> payout.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the intake stage of the ins_claim process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.is_verified == False
+        - type: action
+          target: validate_intake_info
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            contact_ref: state.contact_email
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_status: result.updated_status
+            - is_verified: result.is_valid
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_intake_data
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            step_num: state.step_counter
+            category_val: state.ins_claim_category
+          llm_inputs: []
+          state_updates:
+            - intake_result: result.result_code
+            - eligibility_score: result.score_value
+            - intake_complete: result.is_passed
+          name: run_intake
+          description: Run Intake
+        - type: action
+          target: fetch_intake_details
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            include_history: 'False'
+          llm_inputs: []
+          state_updates:
+            - total_items_count: result.item_count
+            - ins_claim_tier: result.tier_value
+          name: fetch_intake_info
+          description: Fetch Intake Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.intake_complete == True and state.eligibility_score >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"documentation_review"'
+          name: go_to_documentation_review
+          description: Move to documentation review stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+      after_all_tool_calls:
+        - type: handoff
+          target: documentation_review
+          enabled: state.AgentScriptInternal_next_topic=="documentation_review"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.intake_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: intake
+      label: Intake
+      action_definitions:
+        - developer_name: process_intake_data
+          label: Process Intake Data
+          description: Process intake stage data for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_Intake_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_intake_info
+          label: Validate Intake Info
+          description: Validate intake information for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Intake_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_intake_details
+          label: Fetch Intake Details
+          description: Fetch intake details for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Intake_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the documentation review stage for the ins_claim.
+
+                Current ins_claim status: {{state.ins_claim_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Documentation Review result: {{state.documentation_review_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.ins_claim_tier}}
+
+                Review the documentation review results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional claims adjudication agent assistant.
+
+        Help users manage their ins_claim requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> documentation_review -> liability_assessment
+        -> payout.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the documentation review stage of the ins_claim process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.intake_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"intake"'
+        - type: handoff
+          target: intake
+          enabled: state.AgentScriptInternal_next_topic=="intake"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_documentation_review_data
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            step_num: state.step_counter
+            category_val: state.ins_claim_category
+          llm_inputs: []
+          state_updates:
+            - documentation_review_result: result.result_code
+            - eligibility_score: result.score_value
+            - documentation_review_complete: result.is_passed
+          name: run_documentation_review
+          description: Run Documentation Review
+        - type: action
+          target: fetch_documentation_review_details
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.ins_claim_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - ins_claim_tier: result.tier_value
+          name: fetch_documentation_review_info
+          description: Fetch Documentation Review Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.documentation_review_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"liability_assessment"'
+          name: go_to_liability_assessment
+          description: Move to liability assessment stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: liability_assessment
+          enabled: state.AgentScriptInternal_next_topic=="liability_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.documentation_review_complete ==
+                True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_status: '"documentation_review_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.documentation_review_complete ==
+                True and state.eligibility_score >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"liability_assessment"'
+        - type: handoff
+          target: liability_assessment
+          enabled: state.AgentScriptInternal_next_topic=="liability_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.documentation_review_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: documentation_review
+      label: Documentation Review
+      action_definitions:
+        - developer_name: process_documentation_review_data
+          label: Process Documentation Review Data
+          description: Process documentation review stage data for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: Process_DocumentationReview
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_documentation_review_info
+          label: Validate Documentation Review Info
+          description: Validate documentation review information for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_DocumentationReview_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_documentation_review_details
+          label: Fetch Documentation Review Details
+          description: Fetch documentation review details for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_DocumentationReview_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the liability assessment stage for the ins_claim.
+
+                Current ins_claim status: {{state.ins_claim_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Liability Assessment result: {{state.liability_assessment_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.ins_claim_tier}}
+
+                Review the liability assessment results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional claims adjudication agent assistant.
+
+        Help users manage their ins_claim requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> documentation_review -> liability_assessment
+        -> payout.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the liability assessment stage of the ins_claim process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.liability_assessment_complete ==
+                False
+        - type: action
+          target: fetch_liability_assessment_details
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            include_history: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - liability_assessment_result: result.detail_data
+            - total_items_count: result.item_count
+            - ins_claim_tier: result.tier_value
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_liability_assessment_data
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            step_num: state.step_counter
+            category_val: state.ins_claim_category
+          llm_inputs: []
+          state_updates:
+            - liability_assessment_result: result.result_code
+            - eligibility_score: result.score_value
+            - liability_assessment_complete: result.is_passed
+          name: run_liability_assessment
+          description: Run Liability Assessment
+        - type: action
+          target: fetch_liability_assessment_details
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.ins_claim_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - ins_claim_tier: result.tier_value
+          name: fetch_liability_assessment_info
+          description: Fetch Liability Assessment Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.liability_assessment_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"payout"'
+          name: go_to_payout
+          description: Move to payout stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: payout
+          enabled: state.AgentScriptInternal_next_topic=="payout"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.liability_assessment_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: liability_assessment
+      label: Liability Assessment
+      action_definitions:
+        - developer_name: process_liability_assessment_data
+          label: Process Liability Assessment Data
+          description: Process liability assessment stage data for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_LiabilityAssessment
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_liability_assessment_info
+          label: Validate Liability Assessment Info
+          description: Validate liability assessment information for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_LiabilityAssessment_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_liability_assessment_details
+          label: Fetch Liability Assessment Details
+          description: Fetch liability assessment details for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_LiabilityAssessment_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the payout stage for the ins_claim.
+
+                Current ins_claim status: {{state.ins_claim_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Payout result: {{state.payout_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.ins_claim_tier}}
+
+                This is the final stage. Review all results and provide a summary.
+
+                Total items processed: {{state.total_items_count}}
+
+                If all stages passed, confirm completion. Otherwise offer to retry
+                or escalate.'
+      instructions: 'You are a professional claims adjudication agent assistant.
+
+        Help users manage their ins_claim requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> documentation_review -> liability_assessment
+        -> payout.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the payout stage of the ins_claim process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.liability_assessment_complete ==
+                False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"liability_assessment"'
+        - type: handoff
+          target: liability_assessment
+          enabled: state.AgentScriptInternal_next_topic=="liability_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_payout_data
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            step_num: state.step_counter
+            category_val: state.ins_claim_category
+          llm_inputs: []
+          state_updates:
+            - payout_result: result.result_code
+            - eligibility_score: result.score_value
+            - payout_complete: result.is_passed
+          name: run_payout
+          description: Run Payout
+        - type: action
+          target: fetch_payout_details
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.ins_claim_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - ins_claim_tier: result.tier_value
+          name: fetch_payout_info
+          description: Fetch Payout Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.payout_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_status: '"payout_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.payout_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: payout
+      label: Payout
+      action_definitions:
+        - developer_name: process_payout_data
+          label: Process Payout Data
+          description: Process payout stage data for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_Payout_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_payout_info
+          label: Validate Payout Info
+          description: Validate payout information for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Payout_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_payout_details
+          label: Fetch Payout Details
+          description: Fetch payout details for the ins_claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Payout_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle escalation for the ins_claim request.
+
+                Business hours active: {{state.is_business_hours}}
+
+                Next available slot: {{state.next_available_slot}}
+
+                Case reference: {{state.case_ref_number}}
+
+                Ins Claim status: {{state.ins_claim_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Priority: {{state.priority_level}}
+
+                If during business hours, offer to connect to a live agent.
+
+                If outside business hours, create a support case and share the case
+                reference.
+
+                Use action.create_case to create a case.
+
+                Use action.get_summary to generate a summary of the interaction.'
+      instructions: 'You are a professional claims adjudication agent assistant.
+
+        Help users manage their ins_claim requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: intake -> documentation_review -> liability_assessment
+        -> payout.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handle escalation and case creation for ins_claim issues
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: check_hours
+          bound_inputs:
+            query_text: '"check_availability"'
+          llm_inputs: []
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - is_business_hours: result.hours_active
+            - next_available_slot: result.next_available
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_support_case
+          bound_inputs:
+            case_subject: state.ins_claim_status
+            case_detail: state.notes_text
+            record_ref: state.ins_claim_record_id
+            priority_val: state.priority_level
+          llm_inputs: []
+          state_updates:
+            - case_ref_number: result.case_ref
+            - assigned_agent: result.assigned_to
+          name: create_case
+          description: Create Case
+        - type: action
+          target: generate_summary
+          bound_inputs:
+            record_ref: state.ins_claim_record_id
+            notes_val: state.notes_text
+          llm_inputs: []
+          state_updates:
+            - resolution_summary: result.summary_text
+          name: get_summary
+          description: Get Summary
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: return_to_selector
+          description: Return to topic selector after escalation.
+      after_all_tool_calls:
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.case_ref_number != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - ins_claim_status: '"escalated"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - escalation_requested: 'False'
+      developer_name: escalation_handling
+      label: Escalation Handling
+      action_definitions:
+        - developer_name: check_hours
+          label: Check Hours
+          description: Check whether it is currently business hours
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Check_Business_Hours
+          input_type:
+            - developer_name: query_text
+              label: Query Text
+              description: Query Text
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: hours_active
+              label: Hours Active
+              description: Hours Active
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: next_available
+              label: Next Available
+              description: Next Available
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: create_support_case
+          label: Create Support Case
+          description: Create a support case for the ins_claim issue
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Create_Support_Case
+          input_type:
+            - developer_name: case_subject
+              label: Case Subject
+              description: Case Subject
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: case_detail
+              label: Case Detail
+              description: Case Detail
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: priority_val
+              label: Priority Val
+              description: Priority Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: case_ref
+              label: Case Ref
+              description: Case Ref
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: assigned_to
+              label: Assigned To
+              description: Assigned To
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: generate_summary
+          label: Generate Summary
+          description: Generate a summary of the ins_claim interaction
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Generate_Summary
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: notes_val
+              label: Notes Val
+              description: Notes Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: summary_text
+              label: Summary Text
+              description: Summary Text
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

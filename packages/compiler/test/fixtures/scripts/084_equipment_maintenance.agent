@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional equipment maintenance coordinator assistant.
+        Help users manage their equipment requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: condition_check -> work_scheduling -> parts_ordering -> completion.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Equipment Maintenance Coordinator Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "equipment_maintenance_agent_v84"
+    default_agent_user: "equipment_maintenance@example.com"
+    agent_description: "Assists users with equipment management through the equipment maintenance coordinator workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    equipment_record_id: mutable string
+        description: "Record ID of the equipment"
+    equipment_status: mutable string = ""
+        description: "Current status of the equipment"
+    equipment_tier: mutable string = "standard"
+        description: "Tier classification for the equipment"
+    equipment_category: mutable string = ""
+        description: "Category of the equipment"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    condition_check_complete: mutable boolean = False
+        description: "Whether the condition_check stage is complete"
+    condition_check_result: mutable string = ""
+        description: "Result from the condition_check stage"
+    work_scheduling_complete: mutable boolean = False
+        description: "Whether the work_scheduling stage is complete"
+    work_scheduling_result: mutable string = ""
+        description: "Result from the work_scheduling stage"
+    parts_ordering_complete: mutable boolean = False
+        description: "Whether the parts_ordering stage is complete"
+    parts_ordering_result: mutable string = ""
+        description: "Result from the parts_ordering stage"
+    completion_complete: mutable boolean = False
+        description: "Whether the completion stage is complete"
+    completion_result: mutable string = ""
+        description: "Result from the completion stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate equipment management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a equipment maintenance coordinator assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current equipment status: {! @variables.equipment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_condition_check} for condition check requests.
+              Use {!@actions.go_to_work_scheduling} for work scheduling requests.
+              Use {!@actions.go_to_parts_ordering} for parts ordering requests.
+              Use {!@actions.go_to_completion} for completion requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_condition_check: @utils.transition to @topic.condition_check
+                description: "Transition to condition check topic."
+            go_to_work_scheduling: @utils.transition to @topic.work_scheduling
+                description: "Transition to work scheduling topic."
+                available when @variables.is_verified == True
+            go_to_parts_ordering: @utils.transition to @topic.parts_ordering
+                description: "Transition to parts ordering topic."
+                available when @variables.is_verified == True
+            go_to_completion: @utils.transition to @topic.completion
+                description: "Transition to completion topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic condition_check:
+    description: "Handles the condition check stage of the equipment process"
+
+    actions:
+        process_condition_check_data:
+            description: "Process condition check stage data for the equipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_ConditionCheck"
+
+        validate_condition_check_info:
+            description: "Validate condition check information for the equipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ConditionCheck_Info"
+
+        fetch_condition_check_details:
+            description: "Fetch condition check details for the equipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ConditionCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_condition_check_info
+                with record_ref=@variables.equipment_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.equipment_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the condition check stage for the equipment.
+              Current equipment status: {! @variables.equipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Condition Check result: {! @variables.condition_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.equipment_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_condition_check} to begin processing.
+        actions:
+            run_condition_check: @actions.process_condition_check_data
+                with record_ref=@variables.equipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.equipment_category
+                set @variables.condition_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.condition_check_complete = @outputs.is_passed
+            fetch_condition_check_info: @actions.fetch_condition_check_details
+                with record_ref=@variables.equipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.equipment_tier = @outputs.tier_value
+            go_to_work_scheduling: @utils.transition to @topic.work_scheduling
+                description: "Move to work scheduling stage."
+                available when @variables.condition_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.equipment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.equipment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.equipment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.condition_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic work_scheduling:
+    description: "Handles the work scheduling stage of the equipment process"
+
+    actions:
+        process_work_scheduling_data:
+            description: "Process work scheduling stage data for the equipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_WorkScheduling_Data"
+
+        validate_work_scheduling_info:
+            description: "Validate work scheduling information for the equipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_WorkScheduling_Info"
+
+        fetch_work_scheduling_details:
+            description: "Fetch work scheduling details for the equipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_WorkScheduling_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.condition_check_complete == False:
+            transition to @topic.condition_check
+
+    reasoning:
+        instructions: ->
+            | Handle the work scheduling stage for the equipment.
+              Current equipment status: {! @variables.equipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Work Scheduling result: {! @variables.work_scheduling_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.equipment_tier }
+              Review the work scheduling results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_work_scheduling: @actions.process_work_scheduling_data
+                with record_ref=@variables.equipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.equipment_category
+                set @variables.work_scheduling_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.work_scheduling_complete = @outputs.is_passed
+            fetch_work_scheduling_info: @actions.fetch_work_scheduling_details
+                with record_ref=@variables.equipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.equipment_tier = @outputs.tier_value
+                available when @variables.equipment_record_id is not None
+            go_to_parts_ordering: @utils.transition to @topic.parts_ordering
+                description: "Move to parts ordering stage."
+                available when @variables.work_scheduling_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.work_scheduling_complete == True:
+            set @variables.equipment_status = "work_scheduling_done"
+        if @variables.work_scheduling_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.parts_ordering
+        if @variables.attempt_count >= 3 and @variables.work_scheduling_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic parts_ordering:
+    description: "Handles the parts ordering stage of the equipment process"
+
+    actions:
+        process_parts_ordering_data:
+            description: "Process parts ordering stage data for the equipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_PartsOrdering"
+
+        validate_parts_ordering_info:
+            description: "Validate parts ordering information for the equipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PartsOrdering_Info"
+
+        fetch_parts_ordering_details:
+            description: "Fetch parts ordering details for the equipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PartsOrdering_Details"
+
+    before_reasoning:
+        if @variables.parts_ordering_complete == False:
+            run @actions.fetch_parts_ordering_details
+                with record_ref=@variables.equipment_record_id
+                with include_history=True
+                set @variables.parts_ordering_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.equipment_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.equipment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.equipment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the parts ordering stage for the equipment.
+              Current equipment status: {! @variables.equipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Parts Ordering result: {! @variables.parts_ordering_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.equipment_tier }
+              Review the parts ordering results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_parts_ordering: @actions.process_parts_ordering_data
+                with record_ref=@variables.equipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.equipment_category
+                set @variables.parts_ordering_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.parts_ordering_complete = @outputs.is_passed
+            fetch_parts_ordering_info: @actions.fetch_parts_ordering_details
+                with record_ref=@variables.equipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.equipment_tier = @outputs.tier_value
+                available when @variables.equipment_record_id is not None
+            go_to_completion: @utils.transition to @topic.completion
+                description: "Move to completion stage."
+                available when @variables.parts_ordering_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.equipment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.equipment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.equipment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.parts_ordering_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic completion:
+    description: "Handles the completion stage of the equipment process"
+
+    actions:
+        process_completion_data:
+            description: "Process completion stage data for the equipment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Completion"
+
+        validate_completion_info:
+            description: "Validate completion information for the equipment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Completion_Info"
+
+        fetch_completion_details:
+            description: "Fetch completion details for the equipment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Completion_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.parts_ordering_complete == False:
+            transition to @topic.parts_ordering
+        if @variables.eligibility_score >= 80:
+            set @variables.equipment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.equipment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the completion stage for the equipment.
+              Current equipment status: {! @variables.equipment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Completion result: {! @variables.completion_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.equipment_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_completion: @actions.process_completion_data
+                with record_ref=@variables.equipment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.equipment_category
+                set @variables.completion_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.completion_complete = @outputs.is_passed
+            fetch_completion_info: @actions.fetch_completion_details
+                with record_ref=@variables.equipment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.equipment_tier = @outputs.tier_value
+                available when @variables.equipment_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.completion_complete == True:
+            set @variables.equipment_status = "completion_done"
+        if @variables.attempt_count >= 3 and @variables.completion_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for equipment issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the equipment issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the equipment interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the equipment request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Equipment status: {! @variables.equipment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.equipment_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.equipment_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.equipment_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.equipment_status = "escalated"
+        set @variables.escalation_requested = False
+

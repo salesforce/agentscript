@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional treasury management specialist assistant.
+        Help users manage their treasury requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: cash_forecasting -> liquidity_analysis -> fund_transfer -> reconciliation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Treasury Management Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "treasury_management_agent_v5"
+    default_agent_user: "treasury_management@example.com"
+    agent_description: "Assists users with treasury management through the treasury management specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    treasury_record_id: mutable string
+        description: "Record ID of the treasury"
+    treasury_status: mutable string = ""
+        description: "Current status of the treasury"
+    treasury_tier: mutable string = "standard"
+        description: "Tier classification for the treasury"
+    treasury_category: mutable string = ""
+        description: "Category of the treasury"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    cash_forecasting_complete: mutable boolean = False
+        description: "Whether the cash_forecasting stage is complete"
+    cash_forecasting_result: mutable string = ""
+        description: "Result from the cash_forecasting stage"
+    liquidity_analysis_complete: mutable boolean = False
+        description: "Whether the liquidity_analysis stage is complete"
+    liquidity_analysis_result: mutable string = ""
+        description: "Result from the liquidity_analysis stage"
+    fund_transfer_complete: mutable boolean = False
+        description: "Whether the fund_transfer stage is complete"
+    fund_transfer_result: mutable string = ""
+        description: "Result from the fund_transfer stage"
+    reconciliation_complete: mutable boolean = False
+        description: "Whether the reconciliation stage is complete"
+    reconciliation_result: mutable string = ""
+        description: "Result from the reconciliation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate treasury management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a treasury management specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current treasury status: {! @variables.treasury_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_cash_forecasting} for cash forecasting requests.
+              Use {!@actions.go_to_liquidity_analysis} for liquidity analysis requests.
+              Use {!@actions.go_to_fund_transfer} for fund transfer requests.
+              Use {!@actions.go_to_reconciliation} for reconciliation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_cash_forecasting: @utils.transition to @topic.cash_forecasting
+                description: "Transition to cash forecasting topic."
+            go_to_liquidity_analysis: @utils.transition to @topic.liquidity_analysis
+                description: "Transition to liquidity analysis topic."
+                available when @variables.is_verified == True
+            go_to_fund_transfer: @utils.transition to @topic.fund_transfer
+                description: "Transition to fund transfer topic."
+                available when @variables.is_verified == True
+            go_to_reconciliation: @utils.transition to @topic.reconciliation
+                description: "Transition to reconciliation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic cash_forecasting:
+    description: "Handles the cash forecasting stage of the treasury process"
+
+    actions:
+        process_cash_forecasting_data:
+            description: "Process cash forecasting stage data for the treasury"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_CashForecasting"
+
+        validate_cash_forecasting_info:
+            description: "Validate cash forecasting information for the treasury"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_CashForecasting_Info"
+
+        fetch_cash_forecasting_details:
+            description: "Fetch cash forecasting details for the treasury"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_CashForecasting_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_cash_forecasting_info
+                with record_ref=@variables.treasury_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.treasury_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the cash forecasting stage for the treasury.
+              Current treasury status: {! @variables.treasury_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Cash Forecasting result: {! @variables.cash_forecasting_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.treasury_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_cash_forecasting} to begin processing.
+        actions:
+            run_cash_forecasting: @actions.process_cash_forecasting_data
+                with record_ref=@variables.treasury_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.treasury_category
+                set @variables.cash_forecasting_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.cash_forecasting_complete = @outputs.is_passed
+            fetch_cash_forecasting_info: @actions.fetch_cash_forecasting_details
+                with record_ref=@variables.treasury_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.treasury_tier = @outputs.tier_value
+            go_to_liquidity_analysis: @utils.transition to @topic.liquidity_analysis
+                description: "Move to liquidity analysis stage."
+                available when @variables.cash_forecasting_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.treasury_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.treasury_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.treasury_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.cash_forecasting_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic liquidity_analysis:
+    description: "Handles the liquidity analysis stage of the treasury process"
+
+    actions:
+        process_liquidity_analysis_data:
+            description: "Process liquidity analysis stage data for the treasury"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_LiquidityAnalysis"
+
+        validate_liquidity_analysis_info:
+            description: "Validate liquidity analysis information for the treasury"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_LiquidityAnalysis_Info"
+
+        fetch_liquidity_analysis_details:
+            description: "Fetch liquidity analysis details for the treasury"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_LiquidityAnalysis_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.cash_forecasting_complete == False:
+            transition to @topic.cash_forecasting
+
+    reasoning:
+        instructions: ->
+            | Handle the liquidity analysis stage for the treasury.
+              Current treasury status: {! @variables.treasury_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Liquidity Analysis result: {! @variables.liquidity_analysis_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.treasury_tier }
+              Review the liquidity analysis results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_liquidity_analysis: @actions.process_liquidity_analysis_data
+                with record_ref=@variables.treasury_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.treasury_category
+                set @variables.liquidity_analysis_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.liquidity_analysis_complete = @outputs.is_passed
+            fetch_liquidity_analysis_info: @actions.fetch_liquidity_analysis_details
+                with record_ref=@variables.treasury_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.treasury_tier = @outputs.tier_value
+                available when @variables.treasury_record_id is not None
+            go_to_fund_transfer: @utils.transition to @topic.fund_transfer
+                description: "Move to fund transfer stage."
+                available when @variables.liquidity_analysis_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.liquidity_analysis_complete == True:
+            set @variables.treasury_status = "liquidity_analysis_done"
+        if @variables.liquidity_analysis_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.fund_transfer
+        if @variables.attempt_count >= 3 and @variables.liquidity_analysis_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic fund_transfer:
+    description: "Handles the fund transfer stage of the treasury process"
+
+    actions:
+        process_fund_transfer_data:
+            description: "Process fund transfer stage data for the treasury"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_FundTransfer_Data"
+
+        validate_fund_transfer_info:
+            description: "Validate fund transfer information for the treasury"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_FundTransfer_Info"
+
+        fetch_fund_transfer_details:
+            description: "Fetch fund transfer details for the treasury"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_FundTransfer_Details"
+
+    before_reasoning:
+        if @variables.fund_transfer_complete == False:
+            run @actions.fetch_fund_transfer_details
+                with record_ref=@variables.treasury_record_id
+                with include_history=True
+                set @variables.fund_transfer_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.treasury_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.treasury_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.treasury_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the fund transfer stage for the treasury.
+              Current treasury status: {! @variables.treasury_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Fund Transfer result: {! @variables.fund_transfer_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.treasury_tier }
+              Review the fund transfer results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_fund_transfer: @actions.process_fund_transfer_data
+                with record_ref=@variables.treasury_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.treasury_category
+                set @variables.fund_transfer_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.fund_transfer_complete = @outputs.is_passed
+            fetch_fund_transfer_info: @actions.fetch_fund_transfer_details
+                with record_ref=@variables.treasury_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.treasury_tier = @outputs.tier_value
+                available when @variables.treasury_record_id is not None
+            go_to_reconciliation: @utils.transition to @topic.reconciliation
+                description: "Move to reconciliation stage."
+                available when @variables.fund_transfer_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.treasury_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.treasury_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.treasury_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.fund_transfer_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic reconciliation:
+    description: "Handles the reconciliation stage of the treasury process"
+
+    actions:
+        process_reconciliation_data:
+            description: "Process reconciliation stage data for the treasury"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Reconciliation"
+
+        validate_reconciliation_info:
+            description: "Validate reconciliation information for the treasury"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Reconciliation_Info"
+
+        fetch_reconciliation_details:
+            description: "Fetch reconciliation details for the treasury"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Reconciliation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.fund_transfer_complete == False:
+            transition to @topic.fund_transfer
+        if @variables.eligibility_score >= 80:
+            set @variables.treasury_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.treasury_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the reconciliation stage for the treasury.
+              Current treasury status: {! @variables.treasury_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Reconciliation result: {! @variables.reconciliation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.treasury_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_reconciliation: @actions.process_reconciliation_data
+                with record_ref=@variables.treasury_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.treasury_category
+                set @variables.reconciliation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.reconciliation_complete = @outputs.is_passed
+            fetch_reconciliation_info: @actions.fetch_reconciliation_details
+                with record_ref=@variables.treasury_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.treasury_tier = @outputs.tier_value
+                available when @variables.treasury_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.reconciliation_complete == True:
+            set @variables.treasury_status = "reconciliation_done"
+        if @variables.attempt_count >= 3 and @variables.reconciliation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for treasury issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the treasury issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the treasury interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the treasury request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Treasury status: {! @variables.treasury_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.treasury_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.treasury_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.treasury_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.treasury_status = "escalated"
+        set @variables.escalation_requested = False
+

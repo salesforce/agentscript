@@ -1,0 +1,372 @@
+unifiedAgentSpec:
+  schema-version: 2.0.0
+  id: customer-support-flow
+  label: Customer Support Workflow
+  definitions:
+    - name: billing_agent-action
+      type: action
+      client: billing_agent-client
+      label: billing_agent-action
+      description: "A2A tool: billing_agent"
+      invocation-target-type: agent
+      invocation-target-name: billing_agent
+      input-schema:
+        type: object
+        properties:
+          message:
+            type: object
+            properties:
+              role:
+                type: string
+              parts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    kind:
+                      type: string
+                    text:
+                      type: string
+      output-schema:
+        type: object
+        properties:
+          result:
+            type: object
+      behavior:
+        require-user-confirmation: false
+        include-in-progress-indicator: false
+      metadata:
+        protocol: a2a
+        url: billing_agent_connection
+        platform: Mulesoft
+    - name: IdentityAction
+      type: action
+      client: in-built
+      label: State Update Action
+      description: Generic action for updating state variables
+      invocation-target-type: internal
+      invocation-target-name: state-update-action
+      input-schema:
+        type: object
+        properties: {}
+        additionalProperties: true
+      output-schema:
+        type: object
+        properties: {}
+        additionalProperties: true
+  graph:
+    state-variables:
+      - name: outputs
+        label: Node outputs
+        data-type: object
+        description: Map of action/execute node outputs in state namespace (agent
+          outputs are in system.node_outputs)
+        default: {}
+      - name: requestTimestamp
+        label: requestTimestamp
+        data-type: string
+        description: ""
+        default: ""
+      - name: customerMessage
+        label: customerMessage
+        data-type: string
+        description: ""
+        default: ""
+    initial-node: set_context
+    nodes:
+      - name: general_response
+        label: null
+        description: Handles general customer support responses and routing.
+        type: agent
+        llm:
+          ref: openai_gpt4
+          configuration:
+            model: gpt-4o
+            max_output_tokens: "1024"
+        on-init: null
+        system-prompt: >-
+          | Customer Message: {{state.customerMessage}}
+
+          |
+
+          | Use the available tools to find relevant information and provide a
+          helpful response.
+        focus-prompt: >
+          You are a task decomposition expert that analyzes user requests,
+          identifies required sub-tasks, selects appropriate tools, and
+          synthesizes final answers.
+
+
+          1. **Decompose** the query into atomic sub-tasks
+
+          2. **Match** each sub-task to the appropriate tool below
+
+          3. **Execute** tools in optimal sequence
+
+          4. **Synthesize** results into final response
+
+
+          Here is an Example of how to break down a user prompt
+
+          **User Query:** 'Analyze Q2 earnings for Tesla and compare to Ford in
+          EUR'
+
+          **Sub-tasks:**
+
+          1. Get Tesla financials (USD) → Financial Summary Tool
+
+          2. Get Ford financials (USD) → Financial Summary Tool
+
+          3. Convert USD figures to EUR → Currency Converter Tool
+
+          4. Perform comparative analysis → Built-in Analysis Module
+
+
+          The User's instructions section contains directives *YOU MUST* follow
+          when deciding which action to take next.
+
+
+          ### User's instructions
+
+
+
+          You are a friendly customer support agent. Help the customer with
+          their inquiry.
+
+
+
+          ### Instructions for executing steps, selecting tools and generating
+          output
+
+
+          - Execute the list of steps in order. For each step, determine if
+          invoking a tool is necessary
+
+          - When you reach a step that requires a tool, look at the available
+          tools and conversation history to determine the *single best tool* to
+          call next.
+
+
+          ### Constraints
+
+
+          - Use the conversation history to avoid redundant tool calls and to
+          track progress toward the goal.
+        tools:
+          - type: mcp_tool
+            ref: search_articles-client
+            enabled: true
+          - type: mcp_tool
+            ref: get_article-client
+            enabled: true
+          - type: a2a
+            ref: billing_agent-client
+            enabled: true
+        after-reasoning:
+          - type: handoff
+            target: send_response
+      - name: technical_handler
+        label: null
+        description: Handles technical support issues using knowledge-base tools.
+        type: agent
+        llm:
+          ref: openai_gpt4
+          configuration:
+            model: gpt-4o
+            max_output_tokens: "1024"
+        on-init: null
+        system-prompt: >-
+          | You are a technical support specialist. Help the customer with their
+          technical issue.
+
+          |
+
+          | Customer Issue: {{state.customerMessage}}
+
+          |
+
+          | Provide a helpful, clear response addressing their technical
+          concern.
+        focus-prompt: You are a customer support coordinator.
+        tools:
+          - type: mcp_tool
+            ref: search_articles-client
+            enabled: true
+          - type: mcp_tool
+            ref: get_article-client
+            enabled: true
+        after-reasoning:
+          - type: handoff
+            target: send_response
+      - name: analyze_request
+        label: null
+        description: null
+        type: agent
+        llm:
+          ref: gemini_2_5_flash
+          configuration:
+            model: gemini-2.5-flash
+          output-structure-ref: os_analyze_request
+        on-init: null
+        system-prompt: >-
+          | Analyze the following customer support request and categorize it as
+          one of: 'billing', 'technical', 'general'. Also extract key entities
+          and sentiment.
+
+          |
+
+          | Request: {{state.customerMessage}}
+        focus-prompt: You are a customer support coordinator.
+        tools: null
+        after-reasoning:
+          - type: handoff
+            target: route_request
+      - name: set_context
+        type: action
+        label: null
+        tools:
+          - type: action
+            ref: IdentityAction
+            state-updates:
+              - requestTimestamp: now()
+              - customerMessage: state.request.payload.message
+        on-init:
+          - ref: IdentityAction
+            state-updates:
+              - request: "{**variables['request'], 'headers': {(k.lower() if isinstance(k, str)
+                  else k): v for k, v in ((variables['request'].get('headers')
+                  or {}).items())}}"
+        on-exit:
+          - type: handoff
+            target: analyze_request
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: billing_handler
+        type: action
+        label: null
+        tools:
+          - type: action
+            ref: billing_agent-action
+            bound-inputs:
+              message: state.customerMessage
+            state-updates:
+              - outputs: add(state.outputs, "billing_handler", result["result"])
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: send_response
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: cleanup
+        type: action
+        label: null
+        tools:
+          - type: action
+            ref: IdentityAction
+            state-updates:
+              - customerMessage: '""'
+              - requestTimestamp: '""'
+        on-init: null
+        on-exit: null
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: route_request
+        type: action
+        label: null
+        tools: []
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: billing_handler
+            enabled: system.node_outputs['analyze_request'].category == "billing"
+          - type: handoff
+            target: technical_handler
+            enabled: system.node_outputs['analyze_request'].category == "technical"
+          - type: handoff
+            target: general_response
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: send_response
+        type: action
+        label: null
+        tools:
+          - ref: IdentityAction
+            state-updates:
+              - __send_response_value: a2a_task(state="completed",
+                  message=a2a_message(parts=[a2a_textPart(state.output_response)]))
+              - outputs: add(state.outputs, "send_response", state.__send_response_value)
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: cleanup
+        add-tool-result-to-chat-history: false
+        output-template: null
+llmProviders:
+  - name: openai_gpt4
+    description: "LLM provider: openai_gpt4"
+    metadata:
+      platform: openai
+      connection: openai_connection
+  - name: gemini_2_5_flash
+    description: "LLM provider: gemini_2_5_flash"
+    metadata:
+      platform: gemini
+      connection: gemini_connection
+invokableClients:
+  - name: search_articles-client
+    type: mcp_tool
+    label: search_articles
+    metadata:
+      description: "MCP tool: search_articles"
+      connection: knowledge_base_connection
+      transport: streamable-http
+  - name: get_article-client
+    type: mcp_tool
+    label: get_article
+    metadata:
+      description: "MCP tool: get_article"
+      connection: knowledge_base_connection
+      transport: streamable-http
+  - name: billing_agent-client
+    type: a2a
+    label: billing_agent
+    metadata:
+      connection: billing_agent_connection
+  - name: in-built
+    type: internal-action
+    label: Internal Actions
+    metadata:
+      description: Built-in actions for state management
+responseNodeNames:
+  - send_response
+trigger:
+  id: customerSupportTrigger
+  kind: a2a
+  namespace: brokers
+  target_id: customer-support-flow
+  on_message:
+    transition_to: "@executor.set_context"
+outputStructures:
+  os_analyze_request:
+    category:
+      type: string
+      description: The category of the customer request
+      enum:
+        - billing
+        - technical
+        - general
+    entities:
+      type: array
+      description: Key entities extracted from the request
+      items:
+        type: string
+    sentiment:
+      type: string
+      description: The sentiment of the request
+      enum:
+        - positive
+        - neutral
+        - negative
+    summary:
+      type: string
+      description: A brief summary of the customer request

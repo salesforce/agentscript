@@ -1,0 +1,58 @@
+system:
+    instructions: "You are a knowledge-powered assistant that searches and retrieves articles."
+    messages:
+        welcome: "Hello! I can search our knowledge base for answers."
+        error: "An error occurred while searching."
+
+config:
+    developer_name: "Edge_Knowledge_And_Actions"
+    default_agent_user: "test_user"
+    description: "Tests knowledge block combined with actions that use knowledge"
+
+variables:
+    search_query: mutable string = ""
+    article_content: mutable string = ""
+    articles_found: mutable number = 0
+
+knowledge:
+    citations_enabled: True
+    citations_url: "https://help.example.com/articles"
+    rag_feature_config_id: "help_center_rag"
+
+start_agent main:
+    description: "Agent with knowledge block and actions leveraging knowledge"
+
+    actions:
+        search_articles:
+            description: "Searches the knowledge base for relevant articles"
+            inputs:
+                query: string
+                source_url: string
+            outputs:
+                content: string
+                count: number
+            target: "flow://SearchArticles"
+
+    reasoning:
+        instructions: ->
+            | I can search our knowledge base to find answers for you.
+              What topic would you like to learn about?
+
+        actions:
+            search: @actions.search_articles
+                with query=@variables.search_query
+                with source_url="https://help.example.com/articles"
+                set @variables.article_content = @outputs.content
+                set @variables.articles_found = @outputs.count
+
+            set_query: @utils.setVariables
+                description: "Capture the search query"
+                with search_query=@variables.search_query
+
+    after_reasoning:
+        if @variables.search_query != "":
+            run @actions.search_articles
+                with query=@variables.search_query
+                with source_url="https://help.example.com/articles"
+                set @variables.article_content = @outputs.content
+                set @variables.articles_found = @outputs.count

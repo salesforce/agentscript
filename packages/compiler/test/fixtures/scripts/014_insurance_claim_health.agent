@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional health insurance claims agent assistant.
+        Help users manage their claim requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: submission -> adjudication -> appeals -> settlement.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Health Insurance Claims Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "insurance_claim_health_agent_v14"
+    default_agent_user: "insurance_claim_health@example.com"
+    agent_description: "Assists users with claim management through the health insurance claims agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    claim_record_id: mutable string
+        description: "Record ID of the claim"
+    claim_status: mutable string = ""
+        description: "Current status of the claim"
+    claim_tier: mutable string = "standard"
+        description: "Tier classification for the claim"
+    claim_category: mutable string = ""
+        description: "Category of the claim"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    submission_complete: mutable boolean = False
+        description: "Whether the submission stage is complete"
+    submission_result: mutable string = ""
+        description: "Result from the submission stage"
+    adjudication_complete: mutable boolean = False
+        description: "Whether the adjudication stage is complete"
+    adjudication_result: mutable string = ""
+        description: "Result from the adjudication stage"
+    appeals_complete: mutable boolean = False
+        description: "Whether the appeals stage is complete"
+    appeals_result: mutable string = ""
+        description: "Result from the appeals stage"
+    settlement_complete: mutable boolean = False
+        description: "Whether the settlement stage is complete"
+    settlement_result: mutable string = ""
+        description: "Result from the settlement stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate claim management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a health insurance claims agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current claim status: {! @variables.claim_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_submission} for submission requests.
+              Use {!@actions.go_to_adjudication} for adjudication requests.
+              Use {!@actions.go_to_appeals} for appeals requests.
+              Use {!@actions.go_to_settlement} for settlement requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_submission: @utils.transition to @topic.submission
+                description: "Transition to submission topic."
+            go_to_adjudication: @utils.transition to @topic.adjudication
+                description: "Transition to adjudication topic."
+                available when @variables.is_verified == True
+            go_to_appeals: @utils.transition to @topic.appeals
+                description: "Transition to appeals topic."
+                available when @variables.is_verified == True
+            go_to_settlement: @utils.transition to @topic.settlement
+                description: "Transition to settlement topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic submission:
+    description: "Handles the submission stage of the claim process"
+
+    actions:
+        process_submission_data:
+            description: "Process submission stage data for the claim"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Submission"
+
+        validate_submission_info:
+            description: "Validate submission information for the claim"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Submission_Info"
+
+        fetch_submission_details:
+            description: "Fetch submission details for the claim"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Submission_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_submission_info
+                with record_ref=@variables.claim_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.claim_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the submission stage for the claim.
+              Current claim status: {! @variables.claim_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Submission result: {! @variables.submission_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.claim_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_submission} to begin processing.
+        actions:
+            run_submission: @actions.process_submission_data
+                with record_ref=@variables.claim_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.claim_category
+                set @variables.submission_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.submission_complete = @outputs.is_passed
+            fetch_submission_info: @actions.fetch_submission_details
+                with record_ref=@variables.claim_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.claim_tier = @outputs.tier_value
+            go_to_adjudication: @utils.transition to @topic.adjudication
+                description: "Move to adjudication stage."
+                available when @variables.submission_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.claim_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.claim_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.claim_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.submission_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic adjudication:
+    description: "Handles the adjudication stage of the claim process"
+
+    actions:
+        process_adjudication_data:
+            description: "Process adjudication stage data for the claim"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Adjudication"
+
+        validate_adjudication_info:
+            description: "Validate adjudication information for the claim"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Adjudication_Info"
+
+        fetch_adjudication_details:
+            description: "Fetch adjudication details for the claim"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Adjudication_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.submission_complete == False:
+            transition to @topic.submission
+
+    reasoning:
+        instructions: ->
+            | Handle the adjudication stage for the claim.
+              Current claim status: {! @variables.claim_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Adjudication result: {! @variables.adjudication_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.claim_tier }
+              Review the adjudication results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_adjudication: @actions.process_adjudication_data
+                with record_ref=@variables.claim_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.claim_category
+                set @variables.adjudication_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.adjudication_complete = @outputs.is_passed
+            fetch_adjudication_info: @actions.fetch_adjudication_details
+                with record_ref=@variables.claim_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.claim_tier = @outputs.tier_value
+                available when @variables.claim_record_id is not None
+            go_to_appeals: @utils.transition to @topic.appeals
+                description: "Move to appeals stage."
+                available when @variables.adjudication_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.adjudication_complete == True:
+            set @variables.claim_status = "adjudication_done"
+        if @variables.adjudication_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.appeals
+        if @variables.attempt_count >= 3 and @variables.adjudication_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic appeals:
+    description: "Handles the appeals stage of the claim process"
+
+    actions:
+        process_appeals_data:
+            description: "Process appeals stage data for the claim"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Appeals_Data"
+
+        validate_appeals_info:
+            description: "Validate appeals information for the claim"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Appeals_Info"
+
+        fetch_appeals_details:
+            description: "Fetch appeals details for the claim"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Appeals_Details"
+
+    before_reasoning:
+        if @variables.appeals_complete == False:
+            run @actions.fetch_appeals_details
+                with record_ref=@variables.claim_record_id
+                with include_history=True
+                set @variables.appeals_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.claim_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.claim_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.claim_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the appeals stage for the claim.
+              Current claim status: {! @variables.claim_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Appeals result: {! @variables.appeals_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.claim_tier }
+              Review the appeals results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_appeals: @actions.process_appeals_data
+                with record_ref=@variables.claim_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.claim_category
+                set @variables.appeals_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.appeals_complete = @outputs.is_passed
+            fetch_appeals_info: @actions.fetch_appeals_details
+                with record_ref=@variables.claim_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.claim_tier = @outputs.tier_value
+                available when @variables.claim_record_id is not None
+            go_to_settlement: @utils.transition to @topic.settlement
+                description: "Move to settlement stage."
+                available when @variables.appeals_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.claim_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.claim_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.claim_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.appeals_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic settlement:
+    description: "Handles the settlement stage of the claim process"
+
+    actions:
+        process_settlement_data:
+            description: "Process settlement stage data for the claim"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Settlement"
+
+        validate_settlement_info:
+            description: "Validate settlement information for the claim"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Settlement_Info"
+
+        fetch_settlement_details:
+            description: "Fetch settlement details for the claim"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Settlement_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.appeals_complete == False:
+            transition to @topic.appeals
+        if @variables.eligibility_score >= 80:
+            set @variables.claim_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.claim_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the settlement stage for the claim.
+              Current claim status: {! @variables.claim_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Settlement result: {! @variables.settlement_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.claim_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_settlement: @actions.process_settlement_data
+                with record_ref=@variables.claim_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.claim_category
+                set @variables.settlement_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.settlement_complete = @outputs.is_passed
+            fetch_settlement_info: @actions.fetch_settlement_details
+                with record_ref=@variables.claim_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.claim_tier = @outputs.tier_value
+                available when @variables.claim_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.settlement_complete == True:
+            set @variables.claim_status = "settlement_done"
+        if @variables.attempt_count >= 3 and @variables.settlement_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for claim issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the claim issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the claim interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the claim request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Claim status: {! @variables.claim_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.claim_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.claim_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.claim_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.claim_status = "escalated"
+        set @variables.escalation_requested = False
+

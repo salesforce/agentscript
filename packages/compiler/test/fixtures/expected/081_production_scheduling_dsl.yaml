@@ -1,0 +1,2048 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: production_scheduling_agent_v81
+  label: Production Scheduling Agent V 81
+  description: Assists users with production management through the production scheduling
+    agent workflow.
+  enable_enhanced_event_logs: true
+  agent_type: EinsteinServiceAgent
+  default_agent_user: production_scheduling@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I am your Production Scheduling Agent Assistant. How can I help
+        you today?
+      message_type: Welcome
+    - message: I apologize, something went wrong on my end. Could you please rephrase
+        your request?
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I am your Production Scheduling Agent Assistant.
+      How can I help you today?", "messageType": "Welcome"}, {"message": "I apologize,
+      something went wrong on my end. Could you please rephrase your request?", "messageType":
+      "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: production_record_id
+      label: Production Record Id
+      description: Record ID of the production
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: production_status
+      label: Production Status
+      description: Current status of the production
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: production_tier
+      label: Production Tier
+      description: Tier classification for the production
+      data_type: string
+      is_list: false
+      default: '''standard'''
+      visibility: Internal
+    - developer_name: production_category
+      label: Production Category
+      description: Category of the production
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: contact_name
+      label: Contact Name
+      description: Full name of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_email
+      label: Contact Email
+      description: Email address of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_phone
+      label: Contact Phone
+      description: Phone number of the contact
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: is_verified
+      label: Is Verified
+      description: Whether the user identity is verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: eligibility_score
+      label: Eligibility Score
+      description: Calculated eligibility score
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: step_counter
+      label: Step Counter
+      description: Current step in the process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: attempt_count
+      label: Attempt Count
+      description: Number of attempts made
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: total_items_count
+      label: Total Items Count
+      description: Total number of items to process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: demand_review_complete
+      label: Demand Review Complete
+      description: Whether the demand_review stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: demand_review_result
+      label: Demand Review Result
+      description: Result from the demand_review stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: resource_allocation_complete
+      label: Resource Allocation Complete
+      description: Whether the resource_allocation stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: resource_allocation_result
+      label: Resource Allocation Result
+      description: Result from the resource_allocation stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: line_scheduling_complete
+      label: Line Scheduling Complete
+      description: Whether the line_scheduling stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: line_scheduling_result
+      label: Line Scheduling Result
+      description: Result from the line_scheduling stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: monitoring_complete
+      label: Monitoring Complete
+      description: Whether the monitoring stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: monitoring_result
+      label: Monitoring Result
+      description: Result from the monitoring stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: priority_level
+      label: Priority Level
+      description: Priority level of the request
+      data_type: string
+      is_list: false
+      default: '''normal'''
+      visibility: Internal
+    - developer_name: notes_text
+      label: Notes Text
+      description: Notes and comments
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: assigned_agent
+      label: Assigned Agent
+      description: Assigned agent name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: resolution_summary
+      label: Resolution Summary
+      description: Summary of the resolution
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: escalation_requested
+      label: Escalation Requested
+      description: Whether escalation was requested
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: is_business_hours
+      label: Is Business Hours
+      description: Whether it is currently business hours
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: case_ref_number
+      label: Case Ref Number
+      description: Reference number for the support case
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_available_slot
+      label: Next Available Slot
+      description: Next available time slot
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for a production scheduling agent assistant.
+
+                Analyze the user''s input and determine the most appropriate topic.
+
+                Current production status: {{state.production_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Steps completed: {{state.step_counter}}
+
+                Priority: {{state.priority_level}}
+
+                Use action.go_to_demand_review for demand review requests.
+
+                Use action.go_to_resource_allocation for resource allocation requests.
+
+                Use action.go_to_line_scheduling for line scheduling requests.
+
+                Use action.go_to_monitoring for monitoring requests.
+
+                Use action.go_to_escalation to escalate if the user is upset or requests
+                a human.'
+      instructions: 'You are a professional production scheduling agent assistant.
+
+        Help users manage their production requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: demand_review -> resource_allocation -> line_scheduling
+        -> monitoring.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and route to the appropriate production management
+        topic
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"demand_review"'
+          name: go_to_demand_review
+          description: Transition to demand review topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"resource_allocation"'
+          name: go_to_resource_allocation
+          description: Transition to resource allocation topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"line_scheduling"'
+          name: go_to_line_scheduling
+          description: Transition to line scheduling topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"monitoring"'
+          name: go_to_monitoring
+          description: Transition to monitoring topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: go_to_escalation
+          description: Escalate to a human agent for assistance.
+      after_all_tool_calls:
+        - type: handoff
+          target: demand_review
+          enabled: state.AgentScriptInternal_next_topic=="demand_review"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: resource_allocation
+          enabled: state.AgentScriptInternal_next_topic=="resource_allocation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: line_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="line_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: monitoring
+          enabled: state.AgentScriptInternal_next_topic=="monitoring"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the demand review stage for the production.
+
+                Current production status: {{state.production_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Demand Review result: {{state.demand_review_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.production_tier}}
+
+                If the contact information is missing, ask the user to provide their
+                name and email.
+
+                After collecting information, use action.run_demand_review to begin
+                processing.'
+      instructions: 'You are a professional production scheduling agent assistant.
+
+        Help users manage their production requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: demand_review -> resource_allocation -> line_scheduling
+        -> monitoring.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the demand review stage of the production process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.is_verified == False
+        - type: action
+          target: validate_demand_review_info
+          bound_inputs:
+            record_ref: state.production_record_id
+            contact_ref: state.contact_email
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_status: result.updated_status
+            - is_verified: result.is_valid
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_demand_review_data
+          bound_inputs:
+            record_ref: state.production_record_id
+            step_num: state.step_counter
+            category_val: state.production_category
+          llm_inputs: []
+          state_updates:
+            - demand_review_result: result.result_code
+            - eligibility_score: result.score_value
+            - demand_review_complete: result.is_passed
+          name: run_demand_review
+          description: Run Demand Review
+        - type: action
+          target: fetch_demand_review_details
+          bound_inputs:
+            record_ref: state.production_record_id
+            include_history: 'False'
+          llm_inputs: []
+          state_updates:
+            - total_items_count: result.item_count
+            - production_tier: result.tier_value
+          name: fetch_demand_review_info
+          description: Fetch Demand Review Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.demand_review_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"resource_allocation"'
+          name: go_to_resource_allocation
+          description: Move to resource allocation stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+      after_all_tool_calls:
+        - type: handoff
+          target: resource_allocation
+          enabled: state.AgentScriptInternal_next_topic=="resource_allocation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.demand_review_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: demand_review
+      label: Demand Review
+      action_definitions:
+        - developer_name: process_demand_review_data
+          label: Process Demand Review Data
+          description: Process demand review stage data for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_DemandReview
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_demand_review_info
+          label: Validate Demand Review Info
+          description: Validate demand review information for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_DemandReview_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_demand_review_details
+          label: Fetch Demand Review Details
+          description: Fetch demand review details for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_DemandReview_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the resource allocation stage for the production.
+
+                Current production status: {{state.production_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Resource Allocation result: {{state.resource_allocation_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.production_tier}}
+
+                Review the resource allocation results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional production scheduling agent assistant.
+
+        Help users manage their production requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: demand_review -> resource_allocation -> line_scheduling
+        -> monitoring.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the resource allocation stage of the production process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.demand_review_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"demand_review"'
+        - type: handoff
+          target: demand_review
+          enabled: state.AgentScriptInternal_next_topic=="demand_review"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_resource_allocation_data
+          bound_inputs:
+            record_ref: state.production_record_id
+            step_num: state.step_counter
+            category_val: state.production_category
+          llm_inputs: []
+          state_updates:
+            - resource_allocation_result: result.result_code
+            - eligibility_score: result.score_value
+            - resource_allocation_complete: result.is_passed
+          name: run_resource_allocation
+          description: Run Resource Allocation
+        - type: action
+          target: fetch_resource_allocation_details
+          bound_inputs:
+            record_ref: state.production_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.production_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - production_tier: result.tier_value
+          name: fetch_resource_allocation_info
+          description: Fetch Resource Allocation Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.resource_allocation_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"line_scheduling"'
+          name: go_to_line_scheduling
+          description: Move to line scheduling stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: line_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="line_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.resource_allocation_complete ==
+                True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_status: '"resource_allocation_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.resource_allocation_complete ==
+                True and state.eligibility_score >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"line_scheduling"'
+        - type: handoff
+          target: line_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="line_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.resource_allocation_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: resource_allocation
+      label: Resource Allocation
+      action_definitions:
+        - developer_name: process_resource_allocation_data
+          label: Process Resource Allocation Data
+          description: Process resource allocation stage data for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_ResourceAllocation_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_resource_allocation_info
+          label: Validate Resource Allocation Info
+          description: Validate resource allocation information for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_ResourceAllocation_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_resource_allocation_details
+          label: Fetch Resource Allocation Details
+          description: Fetch resource allocation details for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_ResourceAllocation_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the line scheduling stage for the production.
+
+                Current production status: {{state.production_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Line Scheduling result: {{state.line_scheduling_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.production_tier}}
+
+                Review the line scheduling results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional production scheduling agent assistant.
+
+        Help users manage their production requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: demand_review -> resource_allocation -> line_scheduling
+        -> monitoring.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the line scheduling stage of the production process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.line_scheduling_complete == False
+        - type: action
+          target: fetch_line_scheduling_details
+          bound_inputs:
+            record_ref: state.production_record_id
+            include_history: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - line_scheduling_result: result.detail_data
+            - total_items_count: result.item_count
+            - production_tier: result.tier_value
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_line_scheduling_data
+          bound_inputs:
+            record_ref: state.production_record_id
+            step_num: state.step_counter
+            category_val: state.production_category
+          llm_inputs: []
+          state_updates:
+            - line_scheduling_result: result.result_code
+            - eligibility_score: result.score_value
+            - line_scheduling_complete: result.is_passed
+          name: run_line_scheduling
+          description: Run Line Scheduling
+        - type: action
+          target: fetch_line_scheduling_details
+          bound_inputs:
+            record_ref: state.production_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.production_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - production_tier: result.tier_value
+          name: fetch_line_scheduling_info
+          description: Fetch Line Scheduling Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.line_scheduling_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"monitoring"'
+          name: go_to_monitoring
+          description: Move to monitoring stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: monitoring
+          enabled: state.AgentScriptInternal_next_topic=="monitoring"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.line_scheduling_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: line_scheduling
+      label: Line Scheduling
+      action_definitions:
+        - developer_name: process_line_scheduling_data
+          label: Process Line Scheduling Data
+          description: Process line scheduling stage data for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: Process_LineScheduling
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_line_scheduling_info
+          label: Validate Line Scheduling Info
+          description: Validate line scheduling information for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_LineScheduling_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_line_scheduling_details
+          label: Fetch Line Scheduling Details
+          description: Fetch line scheduling details for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_LineScheduling_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the monitoring stage for the production.
+
+                Current production status: {{state.production_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Monitoring result: {{state.monitoring_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.production_tier}}
+
+                This is the final stage. Review all results and provide a summary.
+
+                Total items processed: {{state.total_items_count}}
+
+                If all stages passed, confirm completion. Otherwise offer to retry
+                or escalate.'
+      instructions: 'You are a professional production scheduling agent assistant.
+
+        Help users manage their production requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: demand_review -> resource_allocation -> line_scheduling
+        -> monitoring.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the monitoring stage of the production process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.line_scheduling_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"line_scheduling"'
+        - type: handoff
+          target: line_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="line_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_monitoring_data
+          bound_inputs:
+            record_ref: state.production_record_id
+            step_num: state.step_counter
+            category_val: state.production_category
+          llm_inputs: []
+          state_updates:
+            - monitoring_result: result.result_code
+            - eligibility_score: result.score_value
+            - monitoring_complete: result.is_passed
+          name: run_monitoring
+          description: Run Monitoring
+        - type: action
+          target: fetch_monitoring_details
+          bound_inputs:
+            record_ref: state.production_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.production_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - production_tier: result.tier_value
+          name: fetch_monitoring_info
+          description: Fetch Monitoring Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.monitoring_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_status: '"monitoring_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.monitoring_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: monitoring
+      label: Monitoring
+      action_definitions:
+        - developer_name: process_monitoring_data
+          label: Process Monitoring Data
+          description: Process monitoring stage data for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_Monitoring
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_monitoring_info
+          label: Validate Monitoring Info
+          description: Validate monitoring information for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Monitoring_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_monitoring_details
+          label: Fetch Monitoring Details
+          description: Fetch monitoring details for the production
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Monitoring_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle escalation for the production request.
+
+                Business hours active: {{state.is_business_hours}}
+
+                Next available slot: {{state.next_available_slot}}
+
+                Case reference: {{state.case_ref_number}}
+
+                Production status: {{state.production_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Priority: {{state.priority_level}}
+
+                If during business hours, offer to connect to a live agent.
+
+                If outside business hours, create a support case and share the case
+                reference.
+
+                Use action.create_case to create a case.
+
+                Use action.get_summary to generate a summary of the interaction.'
+      instructions: 'You are a professional production scheduling agent assistant.
+
+        Help users manage their production requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: demand_review -> resource_allocation -> line_scheduling
+        -> monitoring.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handle escalation and case creation for production issues
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: check_hours
+          bound_inputs:
+            query_text: '"check_availability"'
+          llm_inputs: []
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - is_business_hours: result.hours_active
+            - next_available_slot: result.next_available
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_support_case
+          bound_inputs:
+            case_subject: state.production_status
+            case_detail: state.notes_text
+            record_ref: state.production_record_id
+            priority_val: state.priority_level
+          llm_inputs: []
+          state_updates:
+            - case_ref_number: result.case_ref
+            - assigned_agent: result.assigned_to
+          name: create_case
+          description: Create Case
+        - type: action
+          target: generate_summary
+          bound_inputs:
+            record_ref: state.production_record_id
+            notes_val: state.notes_text
+          llm_inputs: []
+          state_updates:
+            - resolution_summary: result.summary_text
+          name: get_summary
+          description: Get Summary
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: return_to_selector
+          description: Return to topic selector after escalation.
+      after_all_tool_calls:
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.case_ref_number != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - production_status: '"escalated"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - escalation_requested: 'False'
+      developer_name: escalation_handling
+      label: Escalation Handling
+      action_definitions:
+        - developer_name: check_hours
+          label: Check Hours
+          description: Check whether it is currently business hours
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Check_Business_Hours
+          input_type:
+            - developer_name: query_text
+              label: Query Text
+              description: Query Text
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: hours_active
+              label: Hours Active
+              description: Hours Active
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: next_available
+              label: Next Available
+              description: Next Available
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: create_support_case
+          label: Create Support Case
+          description: Create a support case for the production issue
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Create_Support_Case
+          input_type:
+            - developer_name: case_subject
+              label: Case Subject
+              description: Case Subject
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: case_detail
+              label: Case Detail
+              description: Case Detail
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: priority_val
+              label: Priority Val
+              description: Priority Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: case_ref
+              label: Case Ref
+              description: Case Ref
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: assigned_to
+              label: Assigned To
+              description: Assigned To
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: generate_summary
+          label: Generate Summary
+          description: Generate a summary of the production interaction
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Generate_Summary
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: notes_val
+              label: Notes Val
+              description: Notes Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: summary_text
+              label: Summary Text
+              description: Summary Text
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

@@ -1,0 +1,209 @@
+# NOTE: Differs from Python compiler — TS uses explicit label for input descriptions
+# when no description is set. Python uses normalizeDeveloperName(name) instead,
+# which discards the author's explicit label.
+schema_version: "2.0"
+global_configuration:
+  developer_name: Api_Actions_Agent
+  label: Api Actions Agent
+  description: Agent with multiple externalService:// action targets
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: user@test.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you with weather, news, and translations.
+      message_type: Welcome
+    - message: An error occurred while accessing the service.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: user_token
+      label: User Token
+      description: User authentication token
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+  initial_node: main
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Agent with multiple externalService:// action targets
+      tools:
+        - type: action
+          target: Fetch_Weather
+          bound_inputs:
+            units: '"metric"'
+          llm_inputs:
+            - city
+          state_updates: []
+          name: Weather_Action
+          description: Weather Action
+        - type: action
+          target: Fetch_News
+          bound_inputs: {}
+          llm_inputs:
+            - category
+            - limit
+          state_updates: []
+          name: News_Action
+          description: News Action
+        - type: action
+          target: Translate_Text
+          bound_inputs: {}
+          llm_inputs:
+            - text
+            - source_lang
+            - target_lang
+          state_updates: []
+          name: Translate_Action
+          description: Translate Action
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: Fetch_Weather
+          label: Fetch Weather
+          description: Fetch current weather data
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: WeatherService.getCurrentWeather
+          input_type:
+            - developer_name: city
+              label: City Name
+              description: City Name
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: units
+              label: Temperature Units
+              description: Temperature Units
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: temperature
+              label: Temperature
+              description: Temperature
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: conditions
+              label: Weather Conditions
+              description: Conditions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Fetch_News
+          label: Fetch News
+          description: Fetch latest news articles
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: NewsService.getLatestNews
+          input_type:
+            - developer_name: category
+              label: News Category
+              description: News Category
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: limit
+              label: Result Limit
+              description: Result Limit
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: articles
+              label: News Articles
+              description: Articles
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Translate_Text
+          label: Translate Text
+          description: Translate text between languages
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: TranslationService.translate
+          input_type:
+            - developer_name: text
+              label: Text to Translate
+              description: Text to Translate
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: source_lang
+              label: Source Language
+              description: Source Language
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: target_lang
+              label: Target Language
+              description: Target Language
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: translated_text
+              label: Translated Text
+              description: Translated Text
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a helpful assistant that accesses external services.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Help the user access various external services.
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you with weather, news, and
+      translations.", "messageType": "Welcome"}, {"message": "An error occurred
+      while accessing the service.", "messageType": "Error"}]'

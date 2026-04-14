@@ -1,0 +1,153 @@
+system:
+    instructions: "You are a restaurant reservation assistant. Help guests check availability, make reservations, and manage dietary preferences."
+    messages:
+        welcome: "Welcome! I can help you make a restaurant reservation."
+        error: "Sorry, the reservation system encountered an error."
+
+config:
+    developer_name: "Restaurant_Reservations_Agent"
+    default_agent_user: "reservations@restaurant.com"
+    description: "Handles restaurant reservations including availability, dietary needs, and confirmations."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    guest_name: mutable string = ""
+        description: "Guest name for the reservation"
+    party_size: mutable number = 0
+        description: "Number of guests"
+    reservation_date: mutable string = ""
+        description: "Requested reservation date"
+    reservation_time: mutable string = ""
+        description: "Requested reservation time"
+    dietary_restrictions: mutable string = ""
+        description: "Any dietary restrictions or allergies"
+    special_requests: mutable string = ""
+        description: "Special requests like high chair, wheelchair access"
+    reservation_confirmed: mutable boolean = False
+        description: "Whether reservation is confirmed"
+    confirmation_number: mutable string = ""
+        description: "Reservation confirmation number"
+
+start_agent reservation_intake:
+    description: "Gathers reservation details from the guest"
+
+    reasoning:
+        instructions: ->
+            | Welcome the guest and collect reservation details:
+              name, party size, date, time, and any special requirements.
+
+        actions:
+            save_details: @utils.setVariables
+                description: "Save reservation details"
+                with guest_name=@variables.guest_name
+                with party_size=@variables.party_size
+                with reservation_date=@variables.reservation_date
+                with reservation_time=@variables.reservation_time
+
+            go_availability: @utils.transition to @topic.check_availability
+                description: "Check table availability"
+
+topic check_availability:
+    description: "Checks table availability for the requested date and party size"
+
+    actions:
+        check_tables:
+            description: "Checks available tables for the given date, time, and party size"
+            inputs:
+                reservation_date: string
+                    is_required: True
+                reservation_time: string
+                    is_required: True
+                party_size: number
+                    is_required: True
+            outputs:
+                available: boolean
+                alternative_times: string
+                table_type: string
+            target: "externalService://CheckTableAvailability"
+
+    reasoning:
+        instructions: ->
+            | Check availability for {!@variables.party_size} guests on {!@variables.reservation_date}.
+              If not available, suggest alternative times.
+
+        actions:
+            check: @actions.check_tables
+                with reservation_date=@variables.reservation_date
+                with reservation_time=@variables.reservation_time
+                with party_size=@variables.party_size
+
+            go_dietary: @utils.transition to @topic.dietary_preferences
+                description: "Collect dietary preferences"
+            go_intake: @utils.transition to @topic.reservation_intake
+                description: "Try different date/time"
+
+topic dietary_preferences:
+    description: "Collects and records dietary restrictions and preferences"
+
+    actions:
+        record_dietary:
+            description: "Records dietary restrictions for the reservation"
+            inputs:
+                reservation_date: string
+                dietary_info: string
+                    is_required: True
+                allergies: string
+            outputs:
+                menu_options: string
+                chef_notified: boolean
+            target: "flow://RecordDietaryPreferences"
+
+    reasoning:
+        instructions: ->
+            | Ask about any dietary restrictions, allergies, or special menu requests.
+              Record them for the kitchen staff.
+
+        actions:
+            record: @actions.record_dietary
+                with reservation_date=@variables.reservation_date
+                with dietary_info=@variables.dietary_restrictions
+                with allergies=...
+
+            go_confirm: @utils.transition to @topic.confirmation
+                description: "Confirm the reservation"
+
+topic confirmation:
+    description: "Finalizes and confirms the reservation"
+
+    actions:
+        create_reservation:
+            description: "Creates the final reservation"
+            inputs:
+                guest_name: string
+                    is_required: True
+                party_size: number
+                    is_required: True
+                reservation_date: string
+                    is_required: True
+                reservation_time: string
+                    is_required: True
+                special_requests: string
+            outputs:
+                confirmation_number: string
+                table_number: string
+            target: "flow://CreateReservation"
+
+    reasoning:
+        instructions: ->
+            | Confirm all reservation details with the guest and create the booking.
+              Name: {!@variables.guest_name}
+              Party: {!@variables.party_size}
+              Date: {!@variables.reservation_date} at {!@variables.reservation_time}
+
+        actions:
+            reserve: @actions.create_reservation
+                with guest_name=@variables.guest_name
+                with party_size=@variables.party_size
+                with reservation_date=@variables.reservation_date
+                with reservation_time=@variables.reservation_time
+                with special_requests=@variables.special_requests
+                set @variables.confirmation_number = @outputs.confirmation_number
+                set @variables.reservation_confirmed = True

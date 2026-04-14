@@ -1,0 +1,439 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Insurance_Claims_Agent
+  label: Insurance Claims Agent
+  description: Handles insurance claim filing, document management, and status tracking.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: claims@insurance.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can help you file a new claim or check the status of an existing
+        one.
+      message_type: Welcome
+    - message: Sorry, the claims system encountered an error.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you file a new claim or check
+      the status of an existing one.", "messageType": "Welcome"}, {"message": "Sorry,
+      the claims system encountered an error.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: policy_number
+      label: Policy Number
+      description: Insurance policy number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: claim_id
+      label: Claim Id
+      description: Claim identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: claim_type
+      label: Claim Type
+      description: 'Type of claim: auto, home, health, life'
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: claim_status
+      label: Claim Status
+      description: Current claim status
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: documents_uploaded
+      label: Documents Uploaded
+      description: Whether required documents are uploaded
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: adjuster_assigned
+      label: Adjuster Assigned
+      description: Whether an adjuster has been assigned
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: claim_amount
+      label: Claim Amount
+      description: Claimed amount
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+  initial_node: claim_intake
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer file a new claim or check existing claim status.
+
+                Gather policy number, claim type, and incident details.'
+      instructions: You are an insurance claims assistant. Help customers file claims,
+        upload documents, and track claim status.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Initiates the claims process and gathers initial information
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: file_claim
+          bound_inputs:
+            policy_number: state.policy_number
+            claim_type: state.claim_type
+            claim_amount: state.claim_amount
+          llm_inputs:
+            - details
+          state_updates:
+            - claim_id: result.claim_id
+            - claim_status: result.status
+          name: file
+          description: File
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"document_upload"'
+          name: go_documents
+          description: Upload supporting documents
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"status_tracking"'
+          name: go_status
+          description: Check claim status
+      after_all_tool_calls:
+        - type: handoff
+          target: document_upload
+          enabled: state.AgentScriptInternal_next_topic=="document_upload"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: status_tracking
+          enabled: state.AgentScriptInternal_next_topic=="status_tracking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: claim_intake
+      label: Claim Intake
+      action_definitions:
+        - developer_name: file_claim
+          label: File Claim
+          description: Files a new insurance claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: FileClaim
+          input_type:
+            - developer_name: policy_number
+              label: Policy Number
+              description: Policy Number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: claim_type
+              label: Claim Type
+              description: Claim Type
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: details
+              label: Details
+              description: Details
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: claim_amount
+              label: Claim Amount
+              description: Claim Amount
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: claim_id
+              label: Claim Id
+              description: Claim Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: status
+              label: Status
+              description: Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Guide the customer through uploading required documents for their
+                claim.'
+      instructions: You are an insurance claims assistant. Help customers file claims,
+        upload documents, and track claim status.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles document upload and verification for claims
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: verify_documents
+          bound_inputs:
+            claim_id: state.claim_id
+          llm_inputs: []
+          state_updates:
+            - documents_uploaded: result.all_uploaded
+          name: verify
+          description: Verify
+        - type: action
+          target: __state_update_action__
+          enabled: state.documents_uploaded == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"adjuster_assignment"'
+          name: go_adjuster
+          description: Assign an adjuster
+      after_all_tool_calls:
+        - type: handoff
+          target: adjuster_assignment
+          enabled: state.AgentScriptInternal_next_topic=="adjuster_assignment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: document_upload
+      label: Document Upload
+      action_definitions:
+        - developer_name: verify_documents
+          label: Verify Documents
+          description: Verifies uploaded claim documents
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: VerifyClaimDocuments
+          input_type:
+            - developer_name: claim_id
+              label: Claim Id
+              description: Claim Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: all_uploaded
+              label: All Uploaded
+              description: All Uploaded
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: missing_documents
+              label: Missing Documents
+              description: Missing Documents
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Assign an adjuster to review the claim and inform the customer.'
+      instructions: You are an insurance claims assistant. Help customers file claims,
+        upload documents, and track claim status.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Assigns a claims adjuster to the case
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: assign_adjuster
+          bound_inputs:
+            claim_id: state.claim_id
+            claim_type: state.claim_type
+          llm_inputs: []
+          state_updates:
+            - adjuster_assigned: result.adjuster_name is not None
+          name: assign
+          description: Assign
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"status_tracking"'
+          name: go_tracking
+          description: Track claim progress
+      after_all_tool_calls:
+        - type: handoff
+          target: status_tracking
+          enabled: state.AgentScriptInternal_next_topic=="status_tracking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: adjuster_assignment
+      label: Adjuster Assignment
+      action_definitions:
+        - developer_name: assign_adjuster
+          label: Assign Adjuster
+          description: Assigns a claims adjuster based on claim type and location
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: AssignAdjuster
+          input_type:
+            - developer_name: claim_id
+              label: Claim Id
+              description: Claim Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: claim_type
+              label: Claim Type
+              description: Claim Type
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: adjuster_name
+              label: Adjuster Name
+              description: Adjuster Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: estimated_review
+              label: Estimated Review
+              description: Estimated Review
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Provide the customer with their claim status and next steps.
+
+                Claim: {{state.claim_id}}
+
+                Status: {{state.claim_status}}'
+      instructions: You are an insurance claims assistant. Help customers file claims,
+        upload documents, and track claim status.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Provides claim status updates and tracking
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: get_status
+          bound_inputs:
+            claim_id: state.claim_id
+          llm_inputs: []
+          state_updates:
+            - claim_status: result.status
+          name: status
+          description: Status
+      developer_name: status_tracking
+      label: Status Tracking
+      action_definitions:
+        - developer_name: get_status
+          label: Get Status
+          description: Gets the current status of a claim
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: GetClaimStatus
+          input_type:
+            - developer_name: claim_id
+              label: Claim Id
+              description: Claim Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: status
+              label: Status
+              description: Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_update
+              label: Last Update
+              description: Last Update
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: next_steps
+              label: Next Steps
+              description: Next Steps
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

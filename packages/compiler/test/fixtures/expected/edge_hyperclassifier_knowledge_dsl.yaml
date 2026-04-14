@@ -1,0 +1,187 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Hyperclassifier_Knowledge
+  label: Hyperclassifier Knowledge
+  description: Hyperclassifier with knowledge block and knowledge action in start_agent
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I can search our knowledge base to help you find answers.
+      message_type: Welcome
+    - message: I'm unable to search right now. Please try again later.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can search our knowledge base to help
+      you find answers.", "messageType": "Welcome"}, {"message": "I''m unable to search
+      right now. Please try again later.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - model_configuration:
+        model_ref: sfdc_ai__DefaultEinsteinHyperClassifier
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: knowledge_search
+          bound_inputs:
+            query: state.__user_input__
+          llm_inputs: []
+          state_updates: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Select the tool that best matches the user''s message.
+
+                Use knowledge search results to provide context.'
+      instructions: 'You are an AI assistant that uses knowledge search to help users
+        find answers.
+
+
+        {{state.AgentScriptInternal_agent_instructions}}'
+      type: router
+      description: Routes users using hyperclassifier with knowledge search capabilities
+      tools:
+        - name: go_to_product_help
+          target: product_help
+          description: Route to product help
+        - name: go_to_policy_info
+          target: policy_info
+          description: Route to policy information
+        - name: go_to_off_topic
+          target: off_topic
+          description: Handle off-topic requests
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions:
+        - developer_name: knowledge_search
+          label: Knowledge Search
+          description: Searches the knowledge base for relevant articles
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: searchKnowledge
+          input_type:
+            - developer_name: query
+              label: Query
+              description: Query
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result
+              label: Result
+              description: Result
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user with their product question.
+
+                Provide detailed answers based on available knowledge.'
+      instructions: You are an AI assistant that uses knowledge search to help users
+        find answers.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Provides product-related help using knowledge base
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: product_help
+      label: Product Help
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Provide the user with relevant policy information.
+
+                Reference specific policies when answering.'
+      instructions: You are an AI assistant that uses knowledge search to help users
+        find answers.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Provides company policy information from knowledge base
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: policy_info
+      label: Policy Information
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                The user''s request is off-topic. Politely redirect them.
+
+                Do not answer general knowledge questions.'
+      instructions: You are an AI assistant that uses knowledge search to help users
+        find answers.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles off-topic requests
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: off_topic
+      label: Off Topic
+      action_definitions: []
+  surfaces: []

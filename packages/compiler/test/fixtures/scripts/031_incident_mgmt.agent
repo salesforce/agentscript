@@ -1,0 +1,690 @@
+system:
+    instructions: |
+        You are a professional incident management specialist assistant.
+        Help users manage their incident requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: detection -> classification -> diagnosis -> resolution -> post_mortem.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Incident Management Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "incident_mgmt_agent_v31"
+    default_agent_user: "incident_mgmt@example.com"
+    agent_description: "Assists users with incident management through the incident management specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    incident_record_id: mutable string
+        description: "Record ID of the incident"
+    incident_status: mutable string = ""
+        description: "Current status of the incident"
+    incident_tier: mutable string = "standard"
+        description: "Tier classification for the incident"
+    incident_category: mutable string = ""
+        description: "Category of the incident"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    detection_complete: mutable boolean = False
+        description: "Whether the detection stage is complete"
+    detection_result: mutable string = ""
+        description: "Result from the detection stage"
+    classification_complete: mutable boolean = False
+        description: "Whether the classification stage is complete"
+    classification_result: mutable string = ""
+        description: "Result from the classification stage"
+    diagnosis_complete: mutable boolean = False
+        description: "Whether the diagnosis stage is complete"
+    diagnosis_result: mutable string = ""
+        description: "Result from the diagnosis stage"
+    resolution_complete: mutable boolean = False
+        description: "Whether the resolution stage is complete"
+    resolution_result: mutable string = ""
+        description: "Result from the resolution stage"
+    post_mortem_complete: mutable boolean = False
+        description: "Whether the post_mortem stage is complete"
+    post_mortem_result: mutable string = ""
+        description: "Result from the post_mortem stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate incident management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a incident management specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current incident status: {! @variables.incident_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_detection} for detection requests.
+              Use {!@actions.go_to_classification} for classification requests.
+              Use {!@actions.go_to_diagnosis} for diagnosis requests.
+              Use {!@actions.go_to_resolution} for resolution requests.
+              Use {!@actions.go_to_post_mortem} for post mortem requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_detection: @utils.transition to @topic.detection
+                description: "Transition to detection topic."
+            go_to_classification: @utils.transition to @topic.classification
+                description: "Transition to classification topic."
+                available when @variables.is_verified == True
+            go_to_diagnosis: @utils.transition to @topic.diagnosis
+                description: "Transition to diagnosis topic."
+                available when @variables.is_verified == True
+            go_to_resolution: @utils.transition to @topic.resolution
+                description: "Transition to resolution topic."
+                available when @variables.is_verified == True
+            go_to_post_mortem: @utils.transition to @topic.post_mortem
+                description: "Transition to post mortem topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic detection:
+    description: "Handles the detection stage of the incident process"
+
+    actions:
+        process_detection_data:
+            description: "Process detection stage data for the incident"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Detection_Data"
+
+        validate_detection_info:
+            description: "Validate detection information for the incident"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Detection_Info"
+
+        fetch_detection_details:
+            description: "Fetch detection details for the incident"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Detection_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_detection_info
+                with record_ref=@variables.incident_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.incident_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the detection stage for the incident.
+              Current incident status: {! @variables.incident_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Detection result: {! @variables.detection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.incident_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_detection} to begin processing.
+        actions:
+            run_detection: @actions.process_detection_data
+                with record_ref=@variables.incident_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.incident_category
+                set @variables.detection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.detection_complete = @outputs.is_passed
+            fetch_detection_info: @actions.fetch_detection_details
+                with record_ref=@variables.incident_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+            go_to_classification: @utils.transition to @topic.classification
+                description: "Move to classification stage."
+                available when @variables.detection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.incident_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.incident_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.incident_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.detection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic classification:
+    description: "Handles the classification stage of the incident process"
+
+    actions:
+        process_classification_data:
+            description: "Process classification stage data for the incident"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Classification"
+
+        validate_classification_info:
+            description: "Validate classification information for the incident"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Classification_Info"
+
+        fetch_classification_details:
+            description: "Fetch classification details for the incident"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Classification_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.detection_complete == False:
+            transition to @topic.detection
+
+    reasoning:
+        instructions: ->
+            | Handle the classification stage for the incident.
+              Current incident status: {! @variables.incident_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Classification result: {! @variables.classification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.incident_tier }
+              Review the classification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_classification: @actions.process_classification_data
+                with record_ref=@variables.incident_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.incident_category
+                set @variables.classification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.classification_complete = @outputs.is_passed
+            fetch_classification_info: @actions.fetch_classification_details
+                with record_ref=@variables.incident_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+                available when @variables.incident_record_id is not None
+            go_to_diagnosis: @utils.transition to @topic.diagnosis
+                description: "Move to diagnosis stage."
+                available when @variables.classification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.classification_complete == True:
+            set @variables.incident_status = "classification_done"
+        if @variables.classification_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.diagnosis
+        if @variables.attempt_count >= 3 and @variables.classification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic diagnosis:
+    description: "Handles the diagnosis stage of the incident process"
+
+    actions:
+        process_diagnosis_data:
+            description: "Process diagnosis stage data for the incident"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Diagnosis"
+
+        validate_diagnosis_info:
+            description: "Validate diagnosis information for the incident"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Diagnosis_Info"
+
+        fetch_diagnosis_details:
+            description: "Fetch diagnosis details for the incident"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Diagnosis_Details"
+
+    before_reasoning:
+        if @variables.diagnosis_complete == False:
+            run @actions.fetch_diagnosis_details
+                with record_ref=@variables.incident_record_id
+                with include_history=True
+                set @variables.diagnosis_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.incident_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.incident_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the diagnosis stage for the incident.
+              Current incident status: {! @variables.incident_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Diagnosis result: {! @variables.diagnosis_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.incident_tier }
+              Review the diagnosis results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_diagnosis: @actions.process_diagnosis_data
+                with record_ref=@variables.incident_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.incident_category
+                set @variables.diagnosis_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.diagnosis_complete = @outputs.is_passed
+            fetch_diagnosis_info: @actions.fetch_diagnosis_details
+                with record_ref=@variables.incident_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+                available when @variables.incident_record_id is not None
+            go_to_resolution: @utils.transition to @topic.resolution
+                description: "Move to resolution stage."
+                available when @variables.diagnosis_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.incident_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.incident_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.incident_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.diagnosis_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic resolution:
+    description: "Handles the resolution stage of the incident process"
+
+    actions:
+        process_resolution_data:
+            description: "Process resolution stage data for the incident"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Resolution_Data"
+
+        validate_resolution_info:
+            description: "Validate resolution information for the incident"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Resolution_Info"
+
+        fetch_resolution_details:
+            description: "Fetch resolution details for the incident"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Resolution_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.diagnosis_complete == False:
+            transition to @topic.diagnosis
+        if @variables.eligibility_score >= 80:
+            set @variables.incident_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.incident_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the resolution stage for the incident.
+              Current incident status: {! @variables.incident_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Resolution result: {! @variables.resolution_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.incident_tier }
+              Review the resolution results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_resolution: @actions.process_resolution_data
+                with record_ref=@variables.incident_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.incident_category
+                set @variables.resolution_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.resolution_complete = @outputs.is_passed
+            fetch_resolution_info: @actions.fetch_resolution_details
+                with record_ref=@variables.incident_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+                available when @variables.incident_record_id is not None
+            go_to_post_mortem: @utils.transition to @topic.post_mortem
+                description: "Move to post mortem stage."
+                available when @variables.resolution_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.resolution_complete == True:
+            set @variables.incident_status = "resolution_done"
+        if @variables.resolution_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.post_mortem
+        if @variables.attempt_count >= 3 and @variables.resolution_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic post_mortem:
+    description: "Handles the post mortem stage of the incident process"
+
+    actions:
+        process_post_mortem_data:
+            description: "Process post mortem stage data for the incident"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_PostMortem"
+
+        validate_post_mortem_info:
+            description: "Validate post mortem information for the incident"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PostMortem_Info"
+
+        fetch_post_mortem_details:
+            description: "Fetch post mortem details for the incident"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PostMortem_Details"
+
+    before_reasoning:
+        if @variables.post_mortem_complete == False:
+            run @actions.fetch_post_mortem_details
+                with record_ref=@variables.incident_record_id
+                with include_history=True
+                set @variables.post_mortem_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.incident_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.incident_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the post mortem stage for the incident.
+              Current incident status: {! @variables.incident_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Post Mortem result: {! @variables.post_mortem_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.incident_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_post_mortem: @actions.process_post_mortem_data
+                with record_ref=@variables.incident_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.incident_category
+                set @variables.post_mortem_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.post_mortem_complete = @outputs.is_passed
+            fetch_post_mortem_info: @actions.fetch_post_mortem_details
+                with record_ref=@variables.incident_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.incident_tier = @outputs.tier_value
+                available when @variables.incident_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.incident_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.incident_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.incident_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.post_mortem_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for incident issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the incident issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the incident interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the incident request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Incident status: {! @variables.incident_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.incident_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.incident_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.incident_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.incident_status = "escalated"
+        set @variables.escalation_requested = False
+

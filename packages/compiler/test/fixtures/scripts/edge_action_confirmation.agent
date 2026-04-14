@@ -1,0 +1,97 @@
+system:
+    instructions: "You are a helpful order management agent."
+    messages:
+        welcome: "Hello! I can help you manage your orders."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Confirmation_Actions_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with actions using confirmation and progress indicator annotations"
+
+variables:
+    order_id: mutable string = ""
+        description: "Order identifier"
+
+start_agent main:
+    description: "Agent with actions using confirmation and progress indicator annotations"
+
+    actions:
+        Cancel_Order:
+            description: "Cancel an existing order"
+            target: "flow://Cancel_Order_Flow"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            label: "Cancel Order"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+                reason: string
+                    label: "Cancellation Reason"
+            outputs:
+                cancelled: boolean
+                    label: "Cancellation Confirmed"
+                refund_amount: number
+                    label: "Refund Amount"
+
+        Delete_Account:
+            description: "Permanently delete user account"
+            target: "apex://AccountController.deleteAccount"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            label: "Delete Account"
+            inputs:
+                confirmation_code: string
+                    label: "Confirmation Code"
+                    is_required: True
+            outputs:
+                deleted: boolean
+                    label: "Account Deleted"
+
+        Check_Status:
+            description: "Check order status without confirmation"
+            target: "flow://Check_Order_Status"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            label: "Check Status"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+            outputs:
+                status: string
+                    label: "Order Status"
+
+        Quick_Lookup:
+            description: "Quick lookup with no indicators"
+            target: "flow://Quick_Lookup_Flow"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                query: string
+                    label: "Query"
+                    is_required: True
+            outputs:
+                result: string
+                    label: "Result"
+
+    reasoning:
+        instructions: ->
+            | Help the user manage orders. Destructive actions like
+              cancellation and account deletion require user confirmation.
+              Status checks and lookups do not require confirmation.
+
+        actions:
+            Cancel_Action: @actions.Cancel_Order
+                with order_id=@variables.order_id
+                with reason=...
+
+            Delete_Action: @actions.Delete_Account
+                with confirmation_code=...
+
+            Status_Action: @actions.Check_Status
+                with order_id=@variables.order_id
+
+            Lookup_Action: @actions.Quick_Lookup
+                with query=...

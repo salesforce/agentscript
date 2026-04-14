@@ -1,0 +1,2049 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: discharge_planning_agent_v17
+  label: Discharge Planning Agent V 17
+  description: Assists users with discharge management through the discharge planning
+    specialist workflow.
+  enable_enhanced_event_logs: true
+  agent_type: EinsteinServiceAgent
+  default_agent_user: discharge_planning@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I am your Discharge Planning Specialist Assistant. How can I
+        help you today?
+      message_type: Welcome
+    - message: I apologize, something went wrong on my end. Could you please rephrase
+        your request?
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I am your Discharge Planning Specialist
+      Assistant. How can I help you today?", "messageType": "Welcome"}, {"message":
+      "I apologize, something went wrong on my end. Could you please rephrase your
+      request?", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: discharge_record_id
+      label: Discharge Record Id
+      description: Record ID of the discharge
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: discharge_status
+      label: Discharge Status
+      description: Current status of the discharge
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: discharge_tier
+      label: Discharge Tier
+      description: Tier classification for the discharge
+      data_type: string
+      is_list: false
+      default: '''standard'''
+      visibility: Internal
+    - developer_name: discharge_category
+      label: Discharge Category
+      description: Category of the discharge
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: contact_name
+      label: Contact Name
+      description: Full name of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_email
+      label: Contact Email
+      description: Email address of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_phone
+      label: Contact Phone
+      description: Phone number of the contact
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: is_verified
+      label: Is Verified
+      description: Whether the user identity is verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: eligibility_score
+      label: Eligibility Score
+      description: Calculated eligibility score
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: step_counter
+      label: Step Counter
+      description: Current step in the process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: attempt_count
+      label: Attempt Count
+      description: Number of attempts made
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: total_items_count
+      label: Total Items Count
+      description: Total number of items to process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: readiness_assessment_complete
+      label: Readiness Assessment Complete
+      description: Whether the readiness_assessment stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: readiness_assessment_result
+      label: Readiness Assessment Result
+      description: Result from the readiness_assessment stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: care_coordination_complete
+      label: Care Coordination Complete
+      description: Whether the care_coordination stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: care_coordination_result
+      label: Care Coordination Result
+      description: Result from the care_coordination stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: documentation_complete
+      label: Documentation Complete
+      description: Whether the documentation stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: documentation_result
+      label: Documentation Result
+      description: Result from the documentation stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: followup_scheduling_complete
+      label: Followup Scheduling Complete
+      description: Whether the followup_scheduling stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: followup_scheduling_result
+      label: Followup Scheduling Result
+      description: Result from the followup_scheduling stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: priority_level
+      label: Priority Level
+      description: Priority level of the request
+      data_type: string
+      is_list: false
+      default: '''normal'''
+      visibility: Internal
+    - developer_name: notes_text
+      label: Notes Text
+      description: Notes and comments
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: assigned_agent
+      label: Assigned Agent
+      description: Assigned agent name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: resolution_summary
+      label: Resolution Summary
+      description: Summary of the resolution
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: escalation_requested
+      label: Escalation Requested
+      description: Whether escalation was requested
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: is_business_hours
+      label: Is Business Hours
+      description: Whether it is currently business hours
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: case_ref_number
+      label: Case Ref Number
+      description: Reference number for the support case
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_available_slot
+      label: Next Available Slot
+      description: Next available time slot
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for a discharge planning specialist assistant.
+
+                Analyze the user''s input and determine the most appropriate topic.
+
+                Current discharge status: {{state.discharge_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Steps completed: {{state.step_counter}}
+
+                Priority: {{state.priority_level}}
+
+                Use action.go_to_readiness_assessment for readiness assessment requests.
+
+                Use action.go_to_care_coordination for care coordination requests.
+
+                Use action.go_to_documentation for documentation requests.
+
+                Use action.go_to_followup_scheduling for followup scheduling requests.
+
+                Use action.go_to_escalation to escalate if the user is upset or requests
+                a human.'
+      instructions: 'You are a professional discharge planning specialist assistant.
+
+        Help users manage their discharge requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: readiness_assessment -> care_coordination
+        -> documentation -> followup_scheduling.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and route to the appropriate discharge management
+        topic
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"readiness_assessment"'
+          name: go_to_readiness_assessment
+          description: Transition to readiness assessment topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"care_coordination"'
+          name: go_to_care_coordination
+          description: Transition to care coordination topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"documentation"'
+          name: go_to_documentation
+          description: Transition to documentation topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"followup_scheduling"'
+          name: go_to_followup_scheduling
+          description: Transition to followup scheduling topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: go_to_escalation
+          description: Escalate to a human agent for assistance.
+      after_all_tool_calls:
+        - type: handoff
+          target: readiness_assessment
+          enabled: state.AgentScriptInternal_next_topic=="readiness_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: care_coordination
+          enabled: state.AgentScriptInternal_next_topic=="care_coordination"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: documentation
+          enabled: state.AgentScriptInternal_next_topic=="documentation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: followup_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="followup_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the readiness assessment stage for the discharge.
+
+                Current discharge status: {{state.discharge_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Readiness Assessment result: {{state.readiness_assessment_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.discharge_tier}}
+
+                If the contact information is missing, ask the user to provide their
+                name and email.
+
+                After collecting information, use action.run_readiness_assessment
+                to begin processing.'
+      instructions: 'You are a professional discharge planning specialist assistant.
+
+        Help users manage their discharge requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: readiness_assessment -> care_coordination
+        -> documentation -> followup_scheduling.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the readiness assessment stage of the discharge process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.is_verified == False
+        - type: action
+          target: validate_readiness_assessment_info
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            contact_ref: state.contact_email
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_status: result.updated_status
+            - is_verified: result.is_valid
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_readiness_assessment_data
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            step_num: state.step_counter
+            category_val: state.discharge_category
+          llm_inputs: []
+          state_updates:
+            - readiness_assessment_result: result.result_code
+            - eligibility_score: result.score_value
+            - readiness_assessment_complete: result.is_passed
+          name: run_readiness_assessment
+          description: Run Readiness Assessment
+        - type: action
+          target: fetch_readiness_assessment_details
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            include_history: 'False'
+          llm_inputs: []
+          state_updates:
+            - total_items_count: result.item_count
+            - discharge_tier: result.tier_value
+          name: fetch_readiness_assessment_info
+          description: Fetch Readiness Assessment Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.readiness_assessment_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"care_coordination"'
+          name: go_to_care_coordination
+          description: Move to care coordination stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+      after_all_tool_calls:
+        - type: handoff
+          target: care_coordination
+          enabled: state.AgentScriptInternal_next_topic=="care_coordination"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.readiness_assessment_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: readiness_assessment
+      label: Readiness Assessment
+      action_definitions:
+        - developer_name: process_readiness_assessment_data
+          label: Process Readiness Assessment Data
+          description: Process readiness assessment stage data for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: Process_ReadinessAssessment
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_readiness_assessment_info
+          label: Validate Readiness Assessment Info
+          description: Validate readiness assessment information for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_ReadinessAssessment_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_readiness_assessment_details
+          label: Fetch Readiness Assessment Details
+          description: Fetch readiness assessment details for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_ReadinessAssessment_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the care coordination stage for the discharge.
+
+                Current discharge status: {{state.discharge_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Care Coordination result: {{state.care_coordination_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.discharge_tier}}
+
+                Review the care coordination results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional discharge planning specialist assistant.
+
+        Help users manage their discharge requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: readiness_assessment -> care_coordination
+        -> documentation -> followup_scheduling.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the care coordination stage of the discharge process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.readiness_assessment_complete ==
+                False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"readiness_assessment"'
+        - type: handoff
+          target: readiness_assessment
+          enabled: state.AgentScriptInternal_next_topic=="readiness_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_care_coordination_data
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            step_num: state.step_counter
+            category_val: state.discharge_category
+          llm_inputs: []
+          state_updates:
+            - care_coordination_result: result.result_code
+            - eligibility_score: result.score_value
+            - care_coordination_complete: result.is_passed
+          name: run_care_coordination
+          description: Run Care Coordination
+        - type: action
+          target: fetch_care_coordination_details
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.discharge_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - discharge_tier: result.tier_value
+          name: fetch_care_coordination_info
+          description: Fetch Care Coordination Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.care_coordination_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"documentation"'
+          name: go_to_documentation
+          description: Move to documentation stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: documentation
+          enabled: state.AgentScriptInternal_next_topic=="documentation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.care_coordination_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_status: '"care_coordination_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.care_coordination_complete == True
+                and state.eligibility_score >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"documentation"'
+        - type: handoff
+          target: documentation
+          enabled: state.AgentScriptInternal_next_topic=="documentation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.care_coordination_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: care_coordination
+      label: Care Coordination
+      action_definitions:
+        - developer_name: process_care_coordination_data
+          label: Process Care Coordination Data
+          description: Process care coordination stage data for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_CareCoordination
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_care_coordination_info
+          label: Validate Care Coordination Info
+          description: Validate care coordination information for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_CareCoordination_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_care_coordination_details
+          label: Fetch Care Coordination Details
+          description: Fetch care coordination details for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_CareCoordination_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the documentation stage for the discharge.
+
+                Current discharge status: {{state.discharge_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Documentation result: {{state.documentation_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.discharge_tier}}
+
+                Review the documentation results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional discharge planning specialist assistant.
+
+        Help users manage their discharge requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: readiness_assessment -> care_coordination
+        -> documentation -> followup_scheduling.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the documentation stage of the discharge process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.documentation_complete == False
+        - type: action
+          target: fetch_documentation_details
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            include_history: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - documentation_result: result.detail_data
+            - total_items_count: result.item_count
+            - discharge_tier: result.tier_value
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_documentation_data
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            step_num: state.step_counter
+            category_val: state.discharge_category
+          llm_inputs: []
+          state_updates:
+            - documentation_result: result.result_code
+            - eligibility_score: result.score_value
+            - documentation_complete: result.is_passed
+          name: run_documentation
+          description: Run Documentation
+        - type: action
+          target: fetch_documentation_details
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.discharge_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - discharge_tier: result.tier_value
+          name: fetch_documentation_info
+          description: Fetch Documentation Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.documentation_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"followup_scheduling"'
+          name: go_to_followup_scheduling
+          description: Move to followup scheduling stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: followup_scheduling
+          enabled: state.AgentScriptInternal_next_topic=="followup_scheduling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.documentation_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: documentation
+      label: Documentation
+      action_definitions:
+        - developer_name: process_documentation_data
+          label: Process Documentation Data
+          description: Process documentation stage data for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_Documentation_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_documentation_info
+          label: Validate Documentation Info
+          description: Validate documentation information for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Documentation_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_documentation_details
+          label: Fetch Documentation Details
+          description: Fetch documentation details for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Documentation_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the followup scheduling stage for the discharge.
+
+                Current discharge status: {{state.discharge_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Followup Scheduling result: {{state.followup_scheduling_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.discharge_tier}}
+
+                This is the final stage. Review all results and provide a summary.
+
+                Total items processed: {{state.total_items_count}}
+
+                If all stages passed, confirm completion. Otherwise offer to retry
+                or escalate.'
+      instructions: 'You are a professional discharge planning specialist assistant.
+
+        Help users manage their discharge requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: readiness_assessment -> care_coordination
+        -> documentation -> followup_scheduling.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the followup scheduling stage of the discharge process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.documentation_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"documentation"'
+        - type: handoff
+          target: documentation
+          enabled: state.AgentScriptInternal_next_topic=="documentation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_followup_scheduling_data
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            step_num: state.step_counter
+            category_val: state.discharge_category
+          llm_inputs: []
+          state_updates:
+            - followup_scheduling_result: result.result_code
+            - eligibility_score: result.score_value
+            - followup_scheduling_complete: result.is_passed
+          name: run_followup_scheduling
+          description: Run Followup Scheduling
+        - type: action
+          target: fetch_followup_scheduling_details
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.discharge_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - discharge_tier: result.tier_value
+          name: fetch_followup_scheduling_info
+          description: Fetch Followup Scheduling Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.followup_scheduling_complete ==
+                True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_status: '"followup_scheduling_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.followup_scheduling_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: followup_scheduling
+      label: Followup Scheduling
+      action_definitions:
+        - developer_name: process_followup_scheduling_data
+          label: Process Followup Scheduling Data
+          description: Process followup scheduling stage data for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: Process_FollowupScheduling
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_followup_scheduling_info
+          label: Validate Followup Scheduling Info
+          description: Validate followup scheduling information for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_FollowupScheduling_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_followup_scheduling_details
+          label: Fetch Followup Scheduling Details
+          description: Fetch followup scheduling details for the discharge
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_FollowupScheduling_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle escalation for the discharge request.
+
+                Business hours active: {{state.is_business_hours}}
+
+                Next available slot: {{state.next_available_slot}}
+
+                Case reference: {{state.case_ref_number}}
+
+                Discharge status: {{state.discharge_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Priority: {{state.priority_level}}
+
+                If during business hours, offer to connect to a live agent.
+
+                If outside business hours, create a support case and share the case
+                reference.
+
+                Use action.create_case to create a case.
+
+                Use action.get_summary to generate a summary of the interaction.'
+      instructions: 'You are a professional discharge planning specialist assistant.
+
+        Help users manage their discharge requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: readiness_assessment -> care_coordination
+        -> documentation -> followup_scheduling.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handle escalation and case creation for discharge issues
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: check_hours
+          bound_inputs:
+            query_text: '"check_availability"'
+          llm_inputs: []
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - is_business_hours: result.hours_active
+            - next_available_slot: result.next_available
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_support_case
+          bound_inputs:
+            case_subject: state.discharge_status
+            case_detail: state.notes_text
+            record_ref: state.discharge_record_id
+            priority_val: state.priority_level
+          llm_inputs: []
+          state_updates:
+            - case_ref_number: result.case_ref
+            - assigned_agent: result.assigned_to
+          name: create_case
+          description: Create Case
+        - type: action
+          target: generate_summary
+          bound_inputs:
+            record_ref: state.discharge_record_id
+            notes_val: state.notes_text
+          llm_inputs: []
+          state_updates:
+            - resolution_summary: result.summary_text
+          name: get_summary
+          description: Get Summary
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: return_to_selector
+          description: Return to topic selector after escalation.
+      after_all_tool_calls:
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.case_ref_number != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - discharge_status: '"escalated"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - escalation_requested: 'False'
+      developer_name: escalation_handling
+      label: Escalation Handling
+      action_definitions:
+        - developer_name: check_hours
+          label: Check Hours
+          description: Check whether it is currently business hours
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Check_Business_Hours
+          input_type:
+            - developer_name: query_text
+              label: Query Text
+              description: Query Text
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: hours_active
+              label: Hours Active
+              description: Hours Active
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: next_available
+              label: Next Available
+              description: Next Available
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: create_support_case
+          label: Create Support Case
+          description: Create a support case for the discharge issue
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Create_Support_Case
+          input_type:
+            - developer_name: case_subject
+              label: Case Subject
+              description: Case Subject
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: case_detail
+              label: Case Detail
+              description: Case Detail
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: priority_val
+              label: Priority Val
+              description: Priority Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: case_ref
+              label: Case Ref
+              description: Case Ref
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: assigned_to
+              label: Assigned To
+              description: Assigned To
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: generate_summary
+          label: Generate Summary
+          description: Generate a summary of the discharge interaction
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Generate_Summary
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: notes_val
+              label: Notes Val
+              description: Notes Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: summary_text
+              label: Summary Text
+              description: Summary Text
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

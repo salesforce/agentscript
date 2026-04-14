@@ -1,0 +1,2047 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: appointment_scheduling_agent_v15
+  label: Appointment Scheduling Agent V 15
+  description: Assists users with appointment management through the appointment scheduling
+    assistant workflow.
+  enable_enhanced_event_logs: true
+  agent_type: EinsteinServiceAgent
+  default_agent_user: appointment_scheduling@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I am your Appointment Scheduling Assistant Assistant. How can
+        I help you today?
+      message_type: Welcome
+    - message: I apologize, something went wrong on my end. Could you please rephrase
+        your request?
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I am your Appointment Scheduling Assistant
+      Assistant. How can I help you today?", "messageType": "Welcome"}, {"message":
+      "I apologize, something went wrong on my end. Could you please rephrase your
+      request?", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: appointment_record_id
+      label: Appointment Record Id
+      description: Record ID of the appointment
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: appointment_status
+      label: Appointment Status
+      description: Current status of the appointment
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: appointment_tier
+      label: Appointment Tier
+      description: Tier classification for the appointment
+      data_type: string
+      is_list: false
+      default: '''standard'''
+      visibility: Internal
+    - developer_name: appointment_category
+      label: Appointment Category
+      description: Category of the appointment
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: contact_name
+      label: Contact Name
+      description: Full name of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_email
+      label: Contact Email
+      description: Email address of the contact
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: contact_phone
+      label: Contact Phone
+      description: Phone number of the contact
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: is_verified
+      label: Is Verified
+      description: Whether the user identity is verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: eligibility_score
+      label: Eligibility Score
+      description: Calculated eligibility score
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: step_counter
+      label: Step Counter
+      description: Current step in the process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: attempt_count
+      label: Attempt Count
+      description: Number of attempts made
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: total_items_count
+      label: Total Items Count
+      description: Total number of items to process
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: availability_check_complete
+      label: Availability Check Complete
+      description: Whether the availability_check stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: availability_check_result
+      label: Availability Check Result
+      description: Result from the availability_check stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: booking_complete
+      label: Booking Complete
+      description: Whether the booking stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: booking_result
+      label: Booking Result
+      description: Result from the booking stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: confirmation_complete
+      label: Confirmation Complete
+      description: Whether the confirmation stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: confirmation_result
+      label: Confirmation Result
+      description: Result from the confirmation stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: reminder_complete
+      label: Reminder Complete
+      description: Whether the reminder stage is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: reminder_result
+      label: Reminder Result
+      description: Result from the reminder stage
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: priority_level
+      label: Priority Level
+      description: Priority level of the request
+      data_type: string
+      is_list: false
+      default: '''normal'''
+      visibility: Internal
+    - developer_name: notes_text
+      label: Notes Text
+      description: Notes and comments
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: assigned_agent
+      label: Assigned Agent
+      description: Assigned agent name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: resolution_summary
+      label: Resolution Summary
+      description: Summary of the resolution
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: escalation_requested
+      label: Escalation Requested
+      description: Whether escalation was requested
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: is_business_hours
+      label: Is Business Hours
+      description: Whether it is currently business hours
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: case_ref_number
+      label: Case Ref Number
+      description: Reference number for the support case
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: next_available_slot
+      label: Next Available Slot
+      description: Next available time slot
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for a appointment scheduling assistant assistant.
+
+                Analyze the user''s input and determine the most appropriate topic.
+
+                Current appointment status: {{state.appointment_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Steps completed: {{state.step_counter}}
+
+                Priority: {{state.priority_level}}
+
+                Use action.go_to_availability_check for availability check requests.
+
+                Use action.go_to_booking for booking requests.
+
+                Use action.go_to_confirmation for confirmation requests.
+
+                Use action.go_to_reminder for reminder requests.
+
+                Use action.go_to_escalation to escalate if the user is upset or requests
+                a human.'
+      instructions: 'You are a professional appointment scheduling assistant assistant.
+
+        Help users manage their appointment requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: availability_check -> booking -> confirmation
+        -> reminder.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and route to the appropriate appointment management
+        topic
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"availability_check"'
+          name: go_to_availability_check
+          description: Transition to availability check topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"booking"'
+          name: go_to_booking
+          description: Transition to booking topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"confirmation"'
+          name: go_to_confirmation
+          description: Transition to confirmation topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"reminder"'
+          name: go_to_reminder
+          description: Transition to reminder topic.
+        - type: action
+          target: __state_update_action__
+          enabled: state.is_verified == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: go_to_escalation
+          description: Escalate to a human agent for assistance.
+      after_all_tool_calls:
+        - type: handoff
+          target: availability_check
+          enabled: state.AgentScriptInternal_next_topic=="availability_check"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: booking
+          enabled: state.AgentScriptInternal_next_topic=="booking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: confirmation
+          enabled: state.AgentScriptInternal_next_topic=="confirmation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: reminder
+          enabled: state.AgentScriptInternal_next_topic=="reminder"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the availability check stage for the appointment.
+
+                Current appointment status: {{state.appointment_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Availability Check result: {{state.availability_check_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.appointment_tier}}
+
+                If the contact information is missing, ask the user to provide their
+                name and email.
+
+                After collecting information, use action.run_availability_check to
+                begin processing.'
+      instructions: 'You are a professional appointment scheduling assistant assistant.
+
+        Help users manage their appointment requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: availability_check -> booking -> confirmation
+        -> reminder.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the availability check stage of the appointment process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.is_verified == False
+        - type: action
+          target: validate_availability_check_info
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            contact_ref: state.contact_email
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_status: result.updated_status
+            - is_verified: result.is_valid
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_availability_check_data
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            step_num: state.step_counter
+            category_val: state.appointment_category
+          llm_inputs: []
+          state_updates:
+            - availability_check_result: result.result_code
+            - eligibility_score: result.score_value
+            - availability_check_complete: result.is_passed
+          name: run_availability_check
+          description: Run Availability Check
+        - type: action
+          target: fetch_availability_check_details
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            include_history: 'False'
+          llm_inputs: []
+          state_updates:
+            - total_items_count: result.item_count
+            - appointment_tier: result.tier_value
+          name: fetch_availability_check_info
+          description: Fetch Availability Check Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.availability_check_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"booking"'
+          name: go_to_booking
+          description: Move to booking stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+      after_all_tool_calls:
+        - type: handoff
+          target: booking
+          enabled: state.AgentScriptInternal_next_topic=="booking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.availability_check_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: availability_check
+      label: Availability Check
+      action_definitions:
+        - developer_name: process_availability_check_data
+          label: Process Availability Check Data
+          description: Process availability check stage data for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_AvailabilityCheck
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_availability_check_info
+          label: Validate Availability Check Info
+          description: Validate availability check information for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_AvailabilityCheck_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_availability_check_details
+          label: Fetch Availability Check Details
+          description: Fetch availability check details for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_AvailabilityCheck_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the booking stage for the appointment.
+
+                Current appointment status: {{state.appointment_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Booking result: {{state.booking_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.appointment_tier}}
+
+                Review the booking results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional appointment scheduling assistant assistant.
+
+        Help users manage their appointment requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: availability_check -> booking -> confirmation
+        -> reminder.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the booking stage of the appointment process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.availability_check_complete ==
+                False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"availability_check"'
+        - type: handoff
+          target: availability_check
+          enabled: state.AgentScriptInternal_next_topic=="availability_check"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_booking_data
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            step_num: state.step_counter
+            category_val: state.appointment_category
+          llm_inputs: []
+          state_updates:
+            - booking_result: result.result_code
+            - eligibility_score: result.score_value
+            - booking_complete: result.is_passed
+          name: run_booking
+          description: Run Booking
+        - type: action
+          target: fetch_booking_details
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.appointment_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - appointment_tier: result.tier_value
+          name: fetch_booking_info
+          description: Fetch Booking Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.booking_complete == True and state.eligibility_score >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"confirmation"'
+          name: go_to_confirmation
+          description: Move to confirmation stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: confirmation
+          enabled: state.AgentScriptInternal_next_topic=="confirmation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.booking_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_status: '"booking_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.booking_complete == True and state.eligibility_score
+                >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"confirmation"'
+        - type: handoff
+          target: confirmation
+          enabled: state.AgentScriptInternal_next_topic=="confirmation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.booking_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: booking
+      label: Booking
+      action_definitions:
+        - developer_name: process_booking_data
+          label: Process Booking Data
+          description: Process booking stage data for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Process_Booking_Data
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_booking_info
+          label: Validate Booking Info
+          description: Validate booking information for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Booking_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_booking_details
+          label: Fetch Booking Details
+          description: Fetch booking details for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Booking_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the confirmation stage for the appointment.
+
+                Current appointment status: {{state.appointment_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Confirmation result: {{state.confirmation_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.appointment_tier}}
+
+                Review the confirmation results and determine next steps.
+
+                Eligibility score: {{state.eligibility_score}}
+
+                If the score is sufficient, proceed to the next stage.
+
+                If the user has concerns, address them before proceeding.'
+      instructions: 'You are a professional appointment scheduling assistant assistant.
+
+        Help users manage their appointment requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: availability_check -> booking -> confirmation
+        -> reminder.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the confirmation stage of the appointment process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.confirmation_complete == False
+        - type: action
+          target: fetch_confirmation_details
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            include_history: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - confirmation_result: result.detail_data
+            - total_items_count: result.item_count
+            - appointment_tier: result.tier_value
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_confirmation_data
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            step_num: state.step_counter
+            category_val: state.appointment_category
+          llm_inputs: []
+          state_updates:
+            - confirmation_result: result.result_code
+            - eligibility_score: result.score_value
+            - confirmation_complete: result.is_passed
+          name: run_confirmation
+          description: Run Confirmation
+        - type: action
+          target: fetch_confirmation_details
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.appointment_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - appointment_tier: result.tier_value
+          name: fetch_confirmation_info
+          description: Fetch Confirmation Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.confirmation_complete == True and state.eligibility_score
+            >= 50
+          state_updates:
+            - AgentScriptInternal_next_topic: '"reminder"'
+          name: go_to_reminder
+          description: Move to reminder stage.
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: reminder
+          enabled: state.AgentScriptInternal_next_topic=="reminder"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 40 and state.eligibility_score
+                < 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"standard"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 40
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"basic"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.confirmation_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: confirmation
+      label: Confirmation
+      action_definitions:
+        - developer_name: process_confirmation_data
+          label: Process Confirmation Data
+          description: Process confirmation stage data for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: standardInvocableAction
+          invocation_target_name: Process_Confirmation
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_confirmation_info
+          label: Validate Confirmation Info
+          description: Validate confirmation information for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Confirmation_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_confirmation_details
+          label: Fetch Confirmation Details
+          description: Fetch confirmation details for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Confirmation_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle the reminder stage for the appointment.
+
+                Current appointment status: {{state.appointment_status}}
+
+                Step {{state.step_counter + 1}} of the process.
+
+                Attempts so far: {{state.attempt_count}}
+
+                Contact: {{state.contact_name}} ({{state.contact_email}})
+
+                Reminder result: {{state.reminder_result}}
+
+                Priority level: {{state.priority_level}}
+
+                Current tier: {{state.appointment_tier}}
+
+                This is the final stage. Review all results and provide a summary.
+
+                Total items processed: {{state.total_items_count}}
+
+                If all stages passed, confirm completion. Otherwise offer to retry
+                or escalate.'
+      instructions: 'You are a professional appointment scheduling assistant assistant.
+
+        Help users manage their appointment requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: availability_check -> booking -> confirmation
+        -> reminder.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handles the reminder stage of the appointment process
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count > 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.confirmation_complete == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"confirmation"'
+        - type: handoff
+          target: confirmation
+          enabled: state.AgentScriptInternal_next_topic=="confirmation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 80
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"premium"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 20
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_tier: '"basic"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: process_reminder_data
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            step_num: state.step_counter
+            category_val: state.appointment_category
+          llm_inputs: []
+          state_updates:
+            - reminder_result: result.result_code
+            - eligibility_score: result.score_value
+            - reminder_complete: result.is_passed
+          name: run_reminder
+          description: Run Reminder
+        - type: action
+          target: fetch_reminder_details
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            include_history: 'False'
+          llm_inputs: []
+          enabled: state.appointment_record_id is not None
+          state_updates:
+            - total_items_count: result.item_count
+            - appointment_tier: result.tier_value
+          name: fetch_reminder_info
+          description: Fetch Reminder Info
+        - type: action
+          target: __state_update_action__
+          enabled: state.escalation_requested == True
+          state_updates:
+            - AgentScriptInternal_next_topic: '"escalation_handling"'
+          name: escalate_now
+          description: Escalate if issues arise.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: back_to_start
+          description: Return to topic selector.
+      after_all_tool_calls:
+        - type: handoff
+          target: escalation_handling
+          enabled: state.AgentScriptInternal_next_topic=="escalation_handling"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - step_counter: state.step_counter + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - attempt_count: state.attempt_count + 1
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.reminder_complete == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_status: '"reminder_done"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 3 and state.reminder_complete
+                == False
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - priority_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.attempt_count >= 5
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - escalation_requested: 'True'
+      developer_name: reminder
+      label: Reminder
+      action_definitions:
+        - developer_name: process_reminder_data
+          label: Process Reminder Data
+          description: Process reminder stage data for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: Process_Reminder
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: step_num
+              label: Step Num
+              description: Step Num
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: category_val
+              label: Category Val
+              description: Category Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result_code
+              label: Result Code
+              description: Result Code
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: result_message
+              label: Result Message
+              description: Result Message
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: score_value
+              label: Score Value
+              description: Score Value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: is_passed
+              label: Is Passed
+              description: Is Passed
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: validate_reminder_info
+          label: Validate Reminder Info
+          description: Validate reminder information for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Validate_Reminder_Info
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: contact_ref
+              label: Contact Ref
+              description: Contact Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: is_valid
+              label: Is Valid
+              description: Is Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: error_msg
+              label: Error Msg
+              description: Error Msg
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: updated_status
+              label: Updated Status
+              description: Updated Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: fetch_reminder_details
+          label: Fetch Reminder Details
+          description: Fetch reminder details for the appointment
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Fetch_Reminder_Details
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: include_history
+              label: Include History
+              description: Include History
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: detail_data
+              label: Detail Data
+              description: Detail Data
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: item_count
+              label: Item Count
+              description: Item Count
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: tier_value
+              label: Tier Value
+              description: Tier Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: last_updated
+              label: Last Updated
+              description: Last Updated
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Handle escalation for the appointment request.
+
+                Business hours active: {{state.is_business_hours}}
+
+                Next available slot: {{state.next_available_slot}}
+
+                Case reference: {{state.case_ref_number}}
+
+                Appointment status: {{state.appointment_status}}
+
+                Eligibility score: {{state.eligibility_score}}
+
+                Priority: {{state.priority_level}}
+
+                If during business hours, offer to connect to a live agent.
+
+                If outside business hours, create a support case and share the case
+                reference.
+
+                Use action.create_case to create a case.
+
+                Use action.get_summary to generate a summary of the interaction.'
+      instructions: 'You are a professional appointment scheduling assistant assistant.
+
+        Help users manage their appointment requests efficiently and accurately.
+
+        Always verify the user''s identity before proceeding with sensitive operations.
+
+        Follow the established workflow: availability_check -> booking -> confirmation
+        -> reminder.
+
+        Be concise, professional, and confirm next steps at the end of each exchange.
+
+        If the user is upset or asks for a human, escalate immediately.
+
+        Never reveal internal record IDs or system identifiers to the user.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Handle escalation and case creation for appointment issues
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: check_hours
+          bound_inputs:
+            query_text: '"check_availability"'
+          llm_inputs: []
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - is_business_hours: result.hours_active
+            - next_available_slot: result.next_available
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_support_case
+          bound_inputs:
+            case_subject: state.appointment_status
+            case_detail: state.notes_text
+            record_ref: state.appointment_record_id
+            priority_val: state.priority_level
+          llm_inputs: []
+          state_updates:
+            - case_ref_number: result.case_ref
+            - assigned_agent: result.assigned_to
+          name: create_case
+          description: Create Case
+        - type: action
+          target: generate_summary
+          bound_inputs:
+            record_ref: state.appointment_record_id
+            notes_val: state.notes_text
+          llm_inputs: []
+          state_updates:
+            - resolution_summary: result.summary_text
+          name: get_summary
+          description: Get Summary
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"topic_selector"'
+          name: return_to_selector
+          description: Return to topic selector after escalation.
+      after_all_tool_calls:
+        - type: handoff
+          target: topic_selector
+          enabled: state.AgentScriptInternal_next_topic=="topic_selector"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.case_ref_number != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - appointment_status: '"escalated"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - escalation_requested: 'False'
+      developer_name: escalation_handling
+      label: Escalation Handling
+      action_definitions:
+        - developer_name: check_hours
+          label: Check Hours
+          description: Check whether it is currently business hours
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Check_Business_Hours
+          input_type:
+            - developer_name: query_text
+              label: Query Text
+              description: Query Text
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: hours_active
+              label: Hours Active
+              description: Hours Active
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: next_available
+              label: Next Available
+              description: Next Available
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: create_support_case
+          label: Create Support Case
+          description: Create a support case for the appointment issue
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Create_Support_Case
+          input_type:
+            - developer_name: case_subject
+              label: Case Subject
+              description: Case Subject
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: case_detail
+              label: Case Detail
+              description: Case Detail
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: priority_val
+              label: Priority Val
+              description: Priority Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: case_ref
+              label: Case Ref
+              description: Case Ref
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: assigned_to
+              label: Assigned To
+              description: Assigned To
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: generate_summary
+          label: Generate Summary
+          description: Generate a summary of the appointment interaction
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: Generate_Summary
+          input_type:
+            - developer_name: record_ref
+              label: Record Ref
+              description: Record Ref
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: notes_val
+              label: Notes Val
+              description: Notes Val
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: summary_text
+              label: Summary Text
+              description: Summary Text
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

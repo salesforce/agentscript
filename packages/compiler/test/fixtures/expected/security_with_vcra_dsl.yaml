@@ -1,0 +1,93 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: secure_service_agent
+  label: Secure Service Agent
+  description: Secure Service Agent
+  enable_enhanced_event_logs: true
+  agent_type: EinsteinServiceAgent
+  default_agent_user: service@example.com
+  context_variables: []
+  security:
+    verified_customer_record_access:
+      use_default_objects: true
+      additional_objects:
+        - CustomOrder.ContactId
+        - Account.OwnerId
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: customer_id
+      label: Customer Id
+      description: Customer identifier
+      data_type: string
+      is_list: false
+      visibility: Internal
+    - developer_name: order_status
+      label: Order Status
+      description: Current order status
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: customer_service
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer with their order.
+
+                Current status: {{state.order_status}}'
+      instructions: You are a customer service agent with secure record access.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Main customer service topic
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: "'__human__'"
+          name: check_status
+          description: Check order status
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: customer_service
+      label: Customer Service
+      action_definitions: []
+  surfaces: []

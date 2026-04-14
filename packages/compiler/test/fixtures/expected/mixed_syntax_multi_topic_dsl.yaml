@@ -1,0 +1,199 @@
+schema_version: "2.0"
+global_configuration:
+  developer_name: Mixed_Syntax_Agent
+  label: Mixed Syntax Agent
+  description: Mixed Syntax Agent
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: test_user
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I support both old and new syntax.
+      message_type: Welcome
+    - message: An error occurred.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: customer_id
+      label: Customer Id
+      description: Customer Id
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: data_value
+      label: Data Value
+      description: Data Value
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+  initial_node: old_style
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: "Uses old syntax: actions and reasoning.actions"
+      tools:
+        - type: action
+          target: fetch_data
+          bound_inputs:
+            customer_id: state.customer_id
+          llm_inputs: []
+          state_updates:
+            - data_value: result.value
+          name: fetch
+          description: Fetch
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"new_style"'
+          name: go_new
+          description: Transition to new style subagent
+      developer_name: old_style
+      label: Old Style
+      action_definitions:
+        - developer_name: fetch_data
+          label: Fetch Data
+          description: Fetch customer data using old syntax
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: FetchData
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: value
+              label: Value
+              description: Value
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a helpful agent demonstrating mixed old and new syntax
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Handle customer requests using old syntax.
+                I can fetch data and transition to the new style topic.
+      after_all_tool_calls:
+        - type: handoff
+          target: new_style
+          enabled: state.AgentScriptInternal_next_topic=="new_style"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: "Uses actions syntax"
+      tools:
+        - type: action
+          target: update_data
+          bound_inputs:
+            customer_id: state.customer_id
+            value: state.data_value
+          llm_inputs: []
+          state_updates: []
+          name: update
+          description: Update
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"old_style"'
+          name: go_old
+          description: Transition back to old style
+      developer_name: new_style
+      label: New Style
+      action_definitions:
+        - developer_name: update_data
+          label: Update Data
+          description: Update customer data
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: UpdateData
+          input_type:
+            - developer_name: customer_id
+              label: Customer Id
+              description: Customer Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: value
+              label: Value
+              description: Value
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: success
+              label: Success
+              description: Success
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a helpful agent demonstrating mixed old and new syntax
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Handle updates.
+                I can update data and transition back to old style.
+      after_all_tool_calls:
+        - type: handoff
+          target: old_style
+          enabled: state.AgentScriptInternal_next_topic=="old_style"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+  surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I support both old and new syntax.",
+      "messageType": "Welcome"}, {"message": "An error occurred.",
+      "messageType": "Error"}]'

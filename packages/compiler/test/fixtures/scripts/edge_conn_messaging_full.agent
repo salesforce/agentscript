@@ -1,0 +1,29 @@
+system:
+    instructions: "You are a messaging agent with full routing."
+    messages:
+        welcome: "Hi! How can I help you today?"
+        error: "Something went wrong."
+
+config:
+    developer_name: "EdgeConnMessagingFull"
+    default_agent_user: "msg_bot@example.com"
+    agent_label: "Full Messaging Agent"
+    description: "Agent with messaging connection including escalation and routing"
+
+connection messaging:
+    adaptive_response_allowed: True
+    escalation_message: "Transferring you to a live agent now"
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route_to_Messaging_Queue"
+
+start_agent main:
+    description: "Handle messaging requests with full routing"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their request.
+              If you cannot resolve the issue, escalate.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

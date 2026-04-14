@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional flight rebooking specialist assistant.
+        Help users manage their rebooking requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: disruption_check -> alternative_search -> seat_selection -> reissue.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Flight Rebooking Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "flight_rebooking_agent_v80"
+    default_agent_user: "flight_rebooking@example.com"
+    agent_description: "Assists users with rebooking management through the flight rebooking specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    rebooking_record_id: mutable string
+        description: "Record ID of the rebooking"
+    rebooking_status: mutable string = ""
+        description: "Current status of the rebooking"
+    rebooking_tier: mutable string = "standard"
+        description: "Tier classification for the rebooking"
+    rebooking_category: mutable string = ""
+        description: "Category of the rebooking"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    disruption_check_complete: mutable boolean = False
+        description: "Whether the disruption_check stage is complete"
+    disruption_check_result: mutable string = ""
+        description: "Result from the disruption_check stage"
+    alternative_search_complete: mutable boolean = False
+        description: "Whether the alternative_search stage is complete"
+    alternative_search_result: mutable string = ""
+        description: "Result from the alternative_search stage"
+    seat_selection_complete: mutable boolean = False
+        description: "Whether the seat_selection stage is complete"
+    seat_selection_result: mutable string = ""
+        description: "Result from the seat_selection stage"
+    reissue_complete: mutable boolean = False
+        description: "Whether the reissue stage is complete"
+    reissue_result: mutable string = ""
+        description: "Result from the reissue stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate rebooking management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a flight rebooking specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current rebooking status: {! @variables.rebooking_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_disruption_check} for disruption check requests.
+              Use {!@actions.go_to_alternative_search} for alternative search requests.
+              Use {!@actions.go_to_seat_selection} for seat selection requests.
+              Use {!@actions.go_to_reissue} for reissue requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_disruption_check: @utils.transition to @topic.disruption_check
+                description: "Transition to disruption check topic."
+            go_to_alternative_search: @utils.transition to @topic.alternative_search
+                description: "Transition to alternative search topic."
+                available when @variables.is_verified == True
+            go_to_seat_selection: @utils.transition to @topic.seat_selection
+                description: "Transition to seat selection topic."
+                available when @variables.is_verified == True
+            go_to_reissue: @utils.transition to @topic.reissue
+                description: "Transition to reissue topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic disruption_check:
+    description: "Handles the disruption check stage of the rebooking process"
+
+    actions:
+        process_disruption_check_data:
+            description: "Process disruption check stage data for the rebooking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_DisruptionCheck"
+
+        validate_disruption_check_info:
+            description: "Validate disruption check information for the rebooking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DisruptionCheck_Info"
+
+        fetch_disruption_check_details:
+            description: "Fetch disruption check details for the rebooking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DisruptionCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_disruption_check_info
+                with record_ref=@variables.rebooking_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.rebooking_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the disruption check stage for the rebooking.
+              Current rebooking status: {! @variables.rebooking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Disruption Check result: {! @variables.disruption_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.rebooking_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_disruption_check} to begin processing.
+        actions:
+            run_disruption_check: @actions.process_disruption_check_data
+                with record_ref=@variables.rebooking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.rebooking_category
+                set @variables.disruption_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.disruption_check_complete = @outputs.is_passed
+            fetch_disruption_check_info: @actions.fetch_disruption_check_details
+                with record_ref=@variables.rebooking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.rebooking_tier = @outputs.tier_value
+            go_to_alternative_search: @utils.transition to @topic.alternative_search
+                description: "Move to alternative search stage."
+                available when @variables.disruption_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.rebooking_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.rebooking_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.rebooking_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.disruption_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic alternative_search:
+    description: "Handles the alternative search stage of the rebooking process"
+
+    actions:
+        process_alternative_search_data:
+            description: "Process alternative search stage data for the rebooking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_AlternativeSearch"
+
+        validate_alternative_search_info:
+            description: "Validate alternative search information for the rebooking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_AlternativeSearch_Info"
+
+        fetch_alternative_search_details:
+            description: "Fetch alternative search details for the rebooking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_AlternativeSearch_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.disruption_check_complete == False:
+            transition to @topic.disruption_check
+
+    reasoning:
+        instructions: ->
+            | Handle the alternative search stage for the rebooking.
+              Current rebooking status: {! @variables.rebooking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Alternative Search result: {! @variables.alternative_search_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.rebooking_tier }
+              Review the alternative search results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_alternative_search: @actions.process_alternative_search_data
+                with record_ref=@variables.rebooking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.rebooking_category
+                set @variables.alternative_search_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.alternative_search_complete = @outputs.is_passed
+            fetch_alternative_search_info: @actions.fetch_alternative_search_details
+                with record_ref=@variables.rebooking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.rebooking_tier = @outputs.tier_value
+                available when @variables.rebooking_record_id is not None
+            go_to_seat_selection: @utils.transition to @topic.seat_selection
+                description: "Move to seat selection stage."
+                available when @variables.alternative_search_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.alternative_search_complete == True:
+            set @variables.rebooking_status = "alternative_search_done"
+        if @variables.alternative_search_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.seat_selection
+        if @variables.attempt_count >= 3 and @variables.alternative_search_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic seat_selection:
+    description: "Handles the seat selection stage of the rebooking process"
+
+    actions:
+        process_seat_selection_data:
+            description: "Process seat selection stage data for the rebooking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_SeatSelection_Data"
+
+        validate_seat_selection_info:
+            description: "Validate seat selection information for the rebooking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SeatSelection_Info"
+
+        fetch_seat_selection_details:
+            description: "Fetch seat selection details for the rebooking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SeatSelection_Details"
+
+    before_reasoning:
+        if @variables.seat_selection_complete == False:
+            run @actions.fetch_seat_selection_details
+                with record_ref=@variables.rebooking_record_id
+                with include_history=True
+                set @variables.seat_selection_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.rebooking_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.rebooking_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.rebooking_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the seat selection stage for the rebooking.
+              Current rebooking status: {! @variables.rebooking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Seat Selection result: {! @variables.seat_selection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.rebooking_tier }
+              Review the seat selection results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_seat_selection: @actions.process_seat_selection_data
+                with record_ref=@variables.rebooking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.rebooking_category
+                set @variables.seat_selection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.seat_selection_complete = @outputs.is_passed
+            fetch_seat_selection_info: @actions.fetch_seat_selection_details
+                with record_ref=@variables.rebooking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.rebooking_tier = @outputs.tier_value
+                available when @variables.rebooking_record_id is not None
+            go_to_reissue: @utils.transition to @topic.reissue
+                description: "Move to reissue stage."
+                available when @variables.seat_selection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.rebooking_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.rebooking_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.rebooking_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.seat_selection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic reissue:
+    description: "Handles the reissue stage of the rebooking process"
+
+    actions:
+        process_reissue_data:
+            description: "Process reissue stage data for the rebooking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Reissue"
+
+        validate_reissue_info:
+            description: "Validate reissue information for the rebooking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Reissue_Info"
+
+        fetch_reissue_details:
+            description: "Fetch reissue details for the rebooking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Reissue_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.seat_selection_complete == False:
+            transition to @topic.seat_selection
+        if @variables.eligibility_score >= 80:
+            set @variables.rebooking_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.rebooking_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the reissue stage for the rebooking.
+              Current rebooking status: {! @variables.rebooking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Reissue result: {! @variables.reissue_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.rebooking_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_reissue: @actions.process_reissue_data
+                with record_ref=@variables.rebooking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.rebooking_category
+                set @variables.reissue_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.reissue_complete = @outputs.is_passed
+            fetch_reissue_info: @actions.fetch_reissue_details
+                with record_ref=@variables.rebooking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.rebooking_tier = @outputs.tier_value
+                available when @variables.rebooking_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.reissue_complete == True:
+            set @variables.rebooking_status = "reissue_done"
+        if @variables.attempt_count >= 3 and @variables.reissue_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for rebooking issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the rebooking issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the rebooking interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the rebooking request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Rebooking status: {! @variables.rebooking_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.rebooking_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.rebooking_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.rebooking_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.rebooking_status = "escalated"
+        set @variables.escalation_requested = False
+

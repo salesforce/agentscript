@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional tax compliance advisor assistant.
+        Help users manage their tax requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: document_intake -> classification -> computation -> filing_review.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Tax Compliance Advisor Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "tax_compliance_agent_v7"
+    default_agent_user: "tax_compliance@example.com"
+    agent_description: "Assists users with tax management through the tax compliance advisor workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    tax_record_id: mutable string
+        description: "Record ID of the tax"
+    tax_status: mutable string = ""
+        description: "Current status of the tax"
+    tax_tier: mutable string = "standard"
+        description: "Tier classification for the tax"
+    tax_category: mutable string = ""
+        description: "Category of the tax"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    document_intake_complete: mutable boolean = False
+        description: "Whether the document_intake stage is complete"
+    document_intake_result: mutable string = ""
+        description: "Result from the document_intake stage"
+    classification_complete: mutable boolean = False
+        description: "Whether the classification stage is complete"
+    classification_result: mutable string = ""
+        description: "Result from the classification stage"
+    computation_complete: mutable boolean = False
+        description: "Whether the computation stage is complete"
+    computation_result: mutable string = ""
+        description: "Result from the computation stage"
+    filing_review_complete: mutable boolean = False
+        description: "Whether the filing_review stage is complete"
+    filing_review_result: mutable string = ""
+        description: "Result from the filing_review stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate tax management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a tax compliance advisor assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current tax status: {! @variables.tax_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_document_intake} for document intake requests.
+              Use {!@actions.go_to_classification} for classification requests.
+              Use {!@actions.go_to_computation} for computation requests.
+              Use {!@actions.go_to_filing_review} for filing review requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_document_intake: @utils.transition to @topic.document_intake
+                description: "Transition to document intake topic."
+            go_to_classification: @utils.transition to @topic.classification
+                description: "Transition to classification topic."
+                available when @variables.is_verified == True
+            go_to_computation: @utils.transition to @topic.computation
+                description: "Transition to computation topic."
+                available when @variables.is_verified == True
+            go_to_filing_review: @utils.transition to @topic.filing_review
+                description: "Transition to filing review topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic document_intake:
+    description: "Handles the document intake stage of the tax process"
+
+    actions:
+        process_document_intake_data:
+            description: "Process document intake stage data for the tax"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_DocumentIntake_Data"
+
+        validate_document_intake_info:
+            description: "Validate document intake information for the tax"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DocumentIntake_Info"
+
+        fetch_document_intake_details:
+            description: "Fetch document intake details for the tax"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DocumentIntake_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_document_intake_info
+                with record_ref=@variables.tax_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.tax_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the document intake stage for the tax.
+              Current tax status: {! @variables.tax_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Document Intake result: {! @variables.document_intake_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.tax_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_document_intake} to begin processing.
+        actions:
+            run_document_intake: @actions.process_document_intake_data
+                with record_ref=@variables.tax_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.tax_category
+                set @variables.document_intake_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.document_intake_complete = @outputs.is_passed
+            fetch_document_intake_info: @actions.fetch_document_intake_details
+                with record_ref=@variables.tax_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.tax_tier = @outputs.tier_value
+            go_to_classification: @utils.transition to @topic.classification
+                description: "Move to classification stage."
+                available when @variables.document_intake_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.tax_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.tax_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.tax_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.document_intake_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic classification:
+    description: "Handles the classification stage of the tax process"
+
+    actions:
+        process_classification_data:
+            description: "Process classification stage data for the tax"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Classification"
+
+        validate_classification_info:
+            description: "Validate classification information for the tax"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Classification_Info"
+
+        fetch_classification_details:
+            description: "Fetch classification details for the tax"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Classification_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.document_intake_complete == False:
+            transition to @topic.document_intake
+
+    reasoning:
+        instructions: ->
+            | Handle the classification stage for the tax.
+              Current tax status: {! @variables.tax_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Classification result: {! @variables.classification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.tax_tier }
+              Review the classification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_classification: @actions.process_classification_data
+                with record_ref=@variables.tax_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.tax_category
+                set @variables.classification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.classification_complete = @outputs.is_passed
+            fetch_classification_info: @actions.fetch_classification_details
+                with record_ref=@variables.tax_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.tax_tier = @outputs.tier_value
+                available when @variables.tax_record_id is not None
+            go_to_computation: @utils.transition to @topic.computation
+                description: "Move to computation stage."
+                available when @variables.classification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.classification_complete == True:
+            set @variables.tax_status = "classification_done"
+        if @variables.classification_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.computation
+        if @variables.attempt_count >= 3 and @variables.classification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic computation:
+    description: "Handles the computation stage of the tax process"
+
+    actions:
+        process_computation_data:
+            description: "Process computation stage data for the tax"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Computation"
+
+        validate_computation_info:
+            description: "Validate computation information for the tax"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Computation_Info"
+
+        fetch_computation_details:
+            description: "Fetch computation details for the tax"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Computation_Details"
+
+    before_reasoning:
+        if @variables.computation_complete == False:
+            run @actions.fetch_computation_details
+                with record_ref=@variables.tax_record_id
+                with include_history=True
+                set @variables.computation_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.tax_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.tax_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.tax_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the computation stage for the tax.
+              Current tax status: {! @variables.tax_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Computation result: {! @variables.computation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.tax_tier }
+              Review the computation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_computation: @actions.process_computation_data
+                with record_ref=@variables.tax_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.tax_category
+                set @variables.computation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.computation_complete = @outputs.is_passed
+            fetch_computation_info: @actions.fetch_computation_details
+                with record_ref=@variables.tax_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.tax_tier = @outputs.tier_value
+                available when @variables.tax_record_id is not None
+            go_to_filing_review: @utils.transition to @topic.filing_review
+                description: "Move to filing review stage."
+                available when @variables.computation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.tax_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.tax_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.tax_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.computation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic filing_review:
+    description: "Handles the filing review stage of the tax process"
+
+    actions:
+        process_filing_review_data:
+            description: "Process filing review stage data for the tax"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_FilingReview_Data"
+
+        validate_filing_review_info:
+            description: "Validate filing review information for the tax"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_FilingReview_Info"
+
+        fetch_filing_review_details:
+            description: "Fetch filing review details for the tax"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_FilingReview_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.computation_complete == False:
+            transition to @topic.computation
+        if @variables.eligibility_score >= 80:
+            set @variables.tax_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.tax_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the filing review stage for the tax.
+              Current tax status: {! @variables.tax_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Filing Review result: {! @variables.filing_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.tax_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_filing_review: @actions.process_filing_review_data
+                with record_ref=@variables.tax_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.tax_category
+                set @variables.filing_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.filing_review_complete = @outputs.is_passed
+            fetch_filing_review_info: @actions.fetch_filing_review_details
+                with record_ref=@variables.tax_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.tax_tier = @outputs.tier_value
+                available when @variables.tax_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.filing_review_complete == True:
+            set @variables.tax_status = "filing_review_done"
+        if @variables.attempt_count >= 3 and @variables.filing_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for tax issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the tax issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the tax interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the tax request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Tax status: {! @variables.tax_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.tax_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.tax_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.tax_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.tax_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,70 @@
+system:
+    instructions: "You are a routing agent with different model configurations per topic."
+    messages:
+        welcome: "Welcome! I'll connect you with the right specialist."
+        error: "An error occurred. Please try again."
+
+config:
+    developer_name: "Router_Model_Config"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Multiple topics with model_config on start_agent and regular topics"
+
+language:
+    default_locale: "en_US"
+
+variables:
+    user_intent: mutable string = ""
+        description: "Classified user intent"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Routes using hyperclassifier model"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Classify the user's intent and route to the best topic.
+        actions:
+            go_complex: @utils.transition to @topic.complex_analysis
+                description: "Route to complex analysis requiring advanced model"
+            go_simple: @utils.transition to @topic.simple_faq
+                description: "Route to simple FAQ"
+            go_creative: @utils.transition to @topic.creative_writing
+                description: "Route to creative writing assistance"
+
+topic complex_analysis:
+    label: "Complex Analysis"
+    description: "Handles complex analytical questions requiring advanced reasoning"
+
+
+    reasoning:
+        instructions: ->
+            | Provide detailed analytical responses to complex questions.
+              Use step-by-step reasoning for multi-part problems.
+        actions:
+            back_to_router: @utils.transition to @topic.topic_selector
+                description: "Return to router for new request"
+
+topic simple_faq:
+    label: "Simple FAQ"
+    description: "Answers simple frequently asked questions"
+
+    reasoning:
+        instructions: ->
+            | Answer the user's simple question directly and concisely.
+              If the question is too complex, transition to the complex analysis topic.
+        actions:
+            go_complex: @utils.transition to @topic.complex_analysis
+                description: "Escalate to complex analysis"
+
+topic creative_writing:
+    label: "Creative Writing"
+    description: "Assists with creative writing tasks"
+
+
+    reasoning:
+        instructions: ->
+            | Help the user with creative writing tasks.
+              Provide suggestions, edits, and feedback on their writing.

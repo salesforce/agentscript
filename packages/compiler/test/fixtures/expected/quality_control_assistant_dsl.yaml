@@ -1,0 +1,1229 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Quality_Control_Assistant_v1
+  label: Quality Control Assistant V 1
+  description: Assists quality control inspectors with defect logging, quality metrics
+    tracking, and corrective action processes
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome to the Quality Control System! I'm here to help you manage
+        quality inspections, log defects, and track corrective actions.
+      message_type: Welcome
+    - message: I'm having trouble accessing the quality control system. Please try
+        again or contact the quality assurance supervisor.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome to the Quality Control System! I''m here
+      to help you manage quality inspections, log defects, and track corrective actions.",
+      "messageType": "Welcome"}, {"message": "I''m having trouble accessing the quality
+      control system. Please try again or contact the quality assurance supervisor.",
+      "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: inspector_id
+      label: Inspector Id
+      description: Quality inspector's employee ID
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: inspector_name
+      label: Inspector Name
+      description: Inspector's full name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: inspector_verified
+      label: Inspector Verified
+      description: Whether inspector credentials are verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: shift_number
+      label: Shift Number
+      description: Current production shift
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: inspection_date
+      label: Inspection Date
+      description: Date of inspection
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: product_id
+      label: Product Id
+      description: Product being inspected
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: product_name
+      label: Product Name
+      description: Product name or description
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: batch_number
+      label: Batch Number
+      description: Production batch number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: lot_size
+      label: Lot Size
+      description: Total units in the batch
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: sample_size
+      label: Sample Size
+      description: Number of units inspected
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: production_line
+      label: Production Line
+      description: Manufacturing line identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: defect_count
+      label: Defect Count
+      description: Total number of defects found
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: critical_defects
+      label: Critical Defects
+      description: Number of critical defects
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: major_defects
+      label: Major Defects
+      description: Number of major defects
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: minor_defects
+      label: Minor Defects
+      description: Number of minor defects
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: defect_types
+      label: Defect Types
+      description: Types of defects identified
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: defect_locations
+      label: Defect Locations
+      description: Locations where defects were found
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: quality_status
+      label: Quality Status
+      description: Quality assessment status
+      data_type: string
+      is_list: false
+      default: '''pending'''
+      visibility: Internal
+    - developer_name: quality_score
+      label: Quality Score
+      description: Quality score percentage
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: acceptance_criteria_met
+      label: Acceptance Criteria Met
+      description: Whether product meets acceptance criteria
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: inspection_complete
+      label: Inspection Complete
+      description: Whether inspection is completed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: corrective_action_needed
+      label: Corrective Action Needed
+      description: Whether corrective action is required
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: corrective_action_type
+      label: Corrective Action Type
+      description: Type of corrective action required
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: root_cause_analysis_needed
+      label: Root Cause Analysis Needed
+      description: Whether root cause analysis is required
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: quarantine_required
+      label: Quarantine Required
+      description: Whether batch needs to be quarantined
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: inspection_report_id
+      label: Inspection Report Id
+      description: Generated inspection report ID
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: non_conformance_id
+      label: Non Conformance Id
+      description: Non-conformance report ID if applicable
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: corrective_action_id
+      label: Corrective Action Id
+      description: Corrective action request ID
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: inspection_setup
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Welcome to the Quality Control System! Let''s start your inspection
+                session.
+
+
+                Please provide:
+
+                - Inspector ID
+
+                - Product ID or description
+
+                - Batch/Lot number
+
+
+                I''ll help you log defects and assess quality status.'
+      instructions: You are a manufacturing quality control assistant. Your role is
+        to help quality inspectors log defects, track quality metrics, manage non-conforming
+        products, and initiate corrective actions.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Initializes quality inspection session and verifies inspector credentials
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.inspector_id == ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - defect_count: '0'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_status: '"pending"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Verify_Inspector_Credentials
+          bound_inputs:
+            inspector_id: state.inspector_id
+            shift_number: state.shift_number
+          llm_inputs: []
+          state_updates:
+            - inspector_verified: result.inspector_verified
+            - inspector_name: result.inspector_name
+          name: verify_inspector
+          description: Verify Inspector
+        - type: action
+          target: Retrieve_Product_Specifications
+          bound_inputs:
+            product_id: state.product_id
+            batch_number: state.batch_number
+          llm_inputs: []
+          state_updates:
+            - product_name: result.product_name
+            - lot_size: result.lot_size
+          name: get_specs
+          description: Get Specs
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - inspector_id: state.inspector_id
+            - product_id: state.product_id
+            - batch_number: state.batch_number
+            - production_line: state.production_line
+          name: capture_setup_info
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"defect_logging"'
+          name: start_inspection
+          description: Manages defect identification and logging with comprehensive
+            tracking
+      after_all_tool_calls:
+        - type: handoff
+          target: defect_logging
+          enabled: state.AgentScriptInternal_next_topic=="defect_logging"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.inspector_id != "" and state.shift_number
+                != ""
+        - type: action
+          target: Verify_Inspector_Credentials
+          bound_inputs:
+            inspector_id: state.inspector_id
+            shift_number: state.shift_number
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - inspector_verified: result.inspector_verified
+            - inspector_name: result.inspector_name
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.product_id != "" and state.batch_number
+                != ""
+        - type: action
+          target: Retrieve_Product_Specifications
+          bound_inputs:
+            product_id: state.product_id
+            batch_number: state.batch_number
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - product_name: result.product_name
+            - lot_size: result.lot_size
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.inspector_verified and state.product_name
+                != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"defect_logging"'
+        - type: handoff
+          target: defect_logging
+          enabled: state.AgentScriptInternal_next_topic=="defect_logging"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: inspection_setup
+      label: Inspection Setup
+      action_definitions:
+        - developer_name: Verify_Inspector_Credentials
+          label: Verify Inspector
+          description: Verifies inspector ID and qualifications for the inspection
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: VerifyInspectorCredentials
+          input_type:
+            - developer_name: inspector_id
+              label: Inspector ID
+              description: Quality inspector employee ID
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: shift_number
+              label: Shift Number
+              description: Current production shift
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: inspector_verified
+              label: Inspector Verified
+              description: Inspector Verified
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: inspector_name
+              label: Inspector Name
+              description: Inspector Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: certification_valid
+              label: Certification Valid
+              description: Certification Valid
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: authorized_products
+              label: Authorized Products
+              description: Authorized Products
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Retrieve_Product_Specifications
+          label: Get Product Specs
+          description: Retrieves product specifications and quality standards
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: RetrieveProductSpecifications
+          input_type:
+            - developer_name: product_id
+              label: Product ID
+              description: Product identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: batch_number
+              label: Batch Number
+              description: Production batch identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: product_name
+              label: Product Name
+              description: Product Name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: quality_standards
+              label: Quality Standards
+              description: Quality Standards
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: inspection_requirements
+              label: Inspection Requirements
+              description: Inspection Requirements
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: sampling_plan
+              label: Sampling Plan
+              description: Sampling Plan
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: lot_size
+              label: Lot Size
+              description: Lot Size
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Current Inspection Session:**
+
+                - Inspector: {{state.inspector_id}}
+
+                - Product: {{state.product_id}}
+
+                - Batch: {{state.batch_number}}
+
+                - Defects Found: {{state.defect_count}}
+
+
+                **Defect Logging:**
+
+                Report any defects you identify during inspection. For each defect,
+                provide:
+
+                1. Defect type and severity
+
+                2. Description of the defect
+
+                3. Location on the product
+
+
+                When inspection is complete, I''ll assess the overall quality status.'
+      instructions: You are a manufacturing quality control assistant. Your role is
+        to help quality inspectors log defects, track quality metrics, manage non-conforming
+        products, and initiate corrective actions.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Manages defect identification and logging with comprehensive tracking
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.defect_count == 0
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - corrective_action_needed: 'False'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Log_Quality_Defect
+          bound_inputs:
+            defect_type: '"visual"'
+            defect_severity: '"major"'
+            defect_description: '"Surface defect identified"'
+            defect_location: '"Front panel"'
+            unit_number: '""'
+          llm_inputs: []
+          state_updates:
+            - defect_count: state.defect_count + 1
+          name: log_defect
+          description: Log Defect
+        - type: action
+          target: Calculate_Sample_Statistics
+          bound_inputs:
+            sample_size: state.sample_size
+            total_defects: state.defect_count
+            critical_defects: state.critical_defects
+            major_defects: state.major_defects
+          llm_inputs: []
+          state_updates:
+            - quality_score: result.quality_score
+          name: calc_stats
+          description: Calc Stats
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - defect_count: state.defect_count
+            - defect_types: state.defect_types
+            - defect_locations: state.defect_locations
+          name: capture_defect_details
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"quality_assessment"'
+          name: assess_quality
+          description: Evaluates overall quality and determines corrective actions
+      after_all_tool_calls:
+        - type: handoff
+          target: quality_assessment
+          enabled: state.AgentScriptInternal_next_topic=="quality_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.sample_size > 0
+        - type: action
+          target: Calculate_Sample_Statistics
+          bound_inputs:
+            sample_size: state.sample_size
+            total_defects: state.defect_count
+            critical_defects: state.critical_defects
+            major_defects: state.major_defects
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_score: result.quality_score
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.critical_defects > 0
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - corrective_action_needed: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_status: '"failed"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quarantine_required: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.major_defects > 3
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - corrective_action_needed: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_status: '"conditional"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.defect_count == 0
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_status: '"passed"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - acceptance_criteria_met: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.defect_count >= 0
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - inspection_complete: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"quality_assessment"'
+        - type: handoff
+          target: quality_assessment
+          enabled: state.AgentScriptInternal_next_topic=="quality_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: defect_logging
+      label: Defect Logging
+      action_definitions:
+        - developer_name: Log_Quality_Defect
+          label: Log Defect
+          description: Logs a quality defect with detailed classification and location
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: LogQualityDefect
+          input_type:
+            - developer_name: defect_type
+              label: Defect Type
+              description: Type of defect (visual, dimensional, functional)
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: defect_severity
+              label: Defect Severity
+              description: Severity level (critical, major, minor)
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: defect_description
+              label: Defect Description
+              description: Detailed description of the defect
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: defect_location
+              label: Defect Location
+              description: Location on product where defect was found
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: unit_number
+              label: Unit Number
+              description: Specific unit identifier with defect
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: defect_logged
+              label: Defect Logged
+              description: Defect Logged
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: defect_id
+              label: Defect ID
+              description: Defect Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: severity_score
+              label: Severity Score
+              description: Severity Score
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: requires_immediate_action
+              label: Immediate Action Required
+              description: Requires Immediate Action
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Calculate_Sample_Statistics
+          label: Calculate Statistics
+          description: Calculates statistical metrics for the inspection sample
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: CalculateSampleStatistics
+          input_type:
+            - developer_name: sample_size
+              label: Sample Size
+              description: Number of units inspected
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: total_defects
+              label: Total Defects
+              description: Total number of defects found
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: critical_defects
+              label: Critical Defects
+              description: Number of critical defects
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: major_defects
+              label: Major Defects
+              description: Number of major defects
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: defect_rate
+              label: Defect Rate
+              description: Defect Rate
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: quality_score
+              label: Quality Score
+              description: Quality Score
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: statistical_confidence
+              label: Statistical Confidence
+              description: Statistical Confidence
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: pass_fail_recommendation
+              label: Pass/Fail Recommendation
+              description: Pass Fail Recommendation
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Quality Assessment Results:**
+
+                - Product: {{state.product_id}}
+
+                - Batch: {{state.batch_number}}
+
+                - Total Defects: {{state.defect_count}}
+
+                - Quality Status: {{state.quality_status}}
+
+
+                Based on the inspection results:
+
+                - Defect count assessment completed
+
+                - Quality disposition determined
+
+
+                What action would you like to take next?'
+      instructions: You are a manufacturing quality control assistant. Your role is
+        to help quality inspectors log defects, track quality metrics, manage non-conforming
+        products, and initiate corrective actions.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Evaluates overall quality and determines corrective actions
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.defect_count > 3
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_status: '"failed"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.defect_count <= 3
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - quality_status: '"passed"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Generate_Quality_Report
+          bound_inputs:
+            inspector_id: state.inspector_id
+            product_id: state.product_id
+            batch_number: state.batch_number
+            quality_score: state.quality_score
+            defect_summary: state.defect_types
+          llm_inputs: []
+          state_updates:
+            - inspection_report_id: result.report_id
+          name: create_report
+          description: Create Report
+        - type: action
+          target: Initiate_Corrective_Action
+          bound_inputs:
+            batch_number: state.batch_number
+            defect_severity: '"major"'
+            root_cause_suspected: '"Process variation"'
+            immediate_containment: '"Hold batch for review"'
+          llm_inputs: []
+          state_updates:
+            - corrective_action_id: result.corrective_action_id
+          name: start_corrective_action
+          description: Start Corrective Action
+        - type: action
+          target: Quarantine_Batch
+          bound_inputs:
+            batch_number: state.batch_number
+            quarantine_reason: '"Quality defects identified"'
+            inspector_id: state.inspector_id
+          llm_inputs: []
+          state_updates:
+            - quarantine_required: result.quarantine_initiated
+          name: quarantine_product
+          description: Quarantine Product
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - quality_status: state.quality_status
+            - corrective_action_needed: state.corrective_action_needed
+          name: finalize_assessment
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"inspection_setup"'
+          name: new_inspection
+          description: Initializes quality inspection session and verifies inspector
+            credentials
+      after_all_tool_calls:
+        - type: handoff
+          target: inspection_setup
+          enabled: state.AgentScriptInternal_next_topic=="inspection_setup"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.inspection_complete
+        - type: action
+          target: Generate_Quality_Report
+          bound_inputs:
+            inspector_id: state.inspector_id
+            product_id: state.product_id
+            batch_number: state.batch_number
+            quality_score: state.quality_score
+            defect_summary: state.defect_types
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - inspection_report_id: result.report_id
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.corrective_action_needed
+        - type: action
+          target: Initiate_Corrective_Action
+          bound_inputs:
+            batch_number: state.batch_number
+            defect_severity: '"major"'
+            root_cause_suspected: '"Process variation"'
+            immediate_containment: '"Hold batch for review"'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - corrective_action_id: result.corrective_action_id
+            - quality_status: '"requires_action"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.quarantine_required
+        - type: action
+          target: Quarantine_Batch
+          bound_inputs:
+            batch_number: state.batch_number
+            quarantine_reason: '"Critical quality defects identified"'
+            inspector_id: state.inspector_id
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates: []
+      developer_name: quality_assessment
+      label: Quality Assessment
+      action_definitions:
+        - developer_name: Generate_Quality_Report
+          label: Generate Report
+          description: Generates comprehensive quality inspection report
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: GenerateQualityReport
+          input_type:
+            - developer_name: inspector_id
+              label: Inspector ID
+              description: Inspector identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: product_id
+              label: Product ID
+              description: Product identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: batch_number
+              label: Batch Number
+              description: Batch identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: quality_score
+              label: Quality Score
+              description: Calculated quality score
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: defect_summary
+              label: Defect Summary
+              description: Summary of defects found
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: report_id
+              label: Report ID
+              description: Report Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: report_generated
+              label: Report Generated
+              description: Report Generated
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: compliance_status
+              label: Compliance Status
+              description: Compliance Status
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: recommendations
+              label: Recommendations
+              description: Recommendations
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Initiate_Corrective_Action
+          label: Initiate Corrective Action
+          description: Initiates corrective action process for quality issues
+          require_user_confirmation: true
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: InitiateCorrectiveAction
+          input_type:
+            - developer_name: batch_number
+              label: Batch Number
+              description: Affected batch number
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: defect_severity
+              label: Defect Severity
+              description: Highest severity defect found
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: root_cause_suspected
+              label: Suspected Root Cause
+              description: Suspected root cause of defects
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: immediate_containment
+              label: Immediate Containment
+              description: Immediate containment actions required
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: corrective_action_id
+              label: Corrective Action ID
+              description: Corrective Action Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: containment_actions
+              label: Containment Actions
+              description: Containment Actions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: investigation_required
+              label: Investigation Required
+              description: Investigation Required
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: escalation_level
+              label: Escalation Level
+              description: Escalation Level
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Quarantine_Batch
+          label: Quarantine Batch
+          description: Places batch under quarantine for quality issues
+          require_user_confirmation: true
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: QuarantineBatch
+          input_type:
+            - developer_name: batch_number
+              label: Batch Number
+              description: Batch to quarantine
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: quarantine_reason
+              label: Quarantine Reason
+              description: Reason for quarantine
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: inspector_id
+              label: Inspector ID
+              description: Inspector requesting quarantine
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: quarantine_initiated
+              label: Quarantine Initiated
+              description: Quarantine Initiated
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: quarantine_location
+              label: Quarantine Location
+              description: Quarantine Location
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: hold_notification_sent
+              label: Hold Notification Sent
+              description: Hold Notification Sent
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: review_required_by
+              label: Review Required By
+              description: Review Required By
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+  surfaces: []

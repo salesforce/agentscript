@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional public records agent assistant.
+        Help users manage their record_request requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: request_intake -> search -> redaction -> delivery.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Public Records Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "public_records_agent_v95"
+    default_agent_user: "public_records@example.com"
+    agent_description: "Assists users with record_request management through the public records agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    record_request_record_id: mutable string
+        description: "Record ID of the record_request"
+    record_request_status: mutable string = ""
+        description: "Current status of the record_request"
+    record_request_tier: mutable string = "standard"
+        description: "Tier classification for the record_request"
+    record_request_category: mutable string = ""
+        description: "Category of the record_request"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    request_intake_complete: mutable boolean = False
+        description: "Whether the request_intake stage is complete"
+    request_intake_result: mutable string = ""
+        description: "Result from the request_intake stage"
+    search_complete: mutable boolean = False
+        description: "Whether the search stage is complete"
+    search_result: mutable string = ""
+        description: "Result from the search stage"
+    redaction_complete: mutable boolean = False
+        description: "Whether the redaction stage is complete"
+    redaction_result: mutable string = ""
+        description: "Result from the redaction stage"
+    delivery_complete: mutable boolean = False
+        description: "Whether the delivery stage is complete"
+    delivery_result: mutable string = ""
+        description: "Result from the delivery stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate record_request management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a public records agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current record_request status: {! @variables.record_request_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_request_intake} for request intake requests.
+              Use {!@actions.go_to_search} for search requests.
+              Use {!@actions.go_to_redaction} for redaction requests.
+              Use {!@actions.go_to_delivery} for delivery requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_request_intake: @utils.transition to @topic.request_intake
+                description: "Transition to request intake topic."
+            go_to_search: @utils.transition to @topic.search
+                description: "Transition to search topic."
+                available when @variables.is_verified == True
+            go_to_redaction: @utils.transition to @topic.redaction
+                description: "Transition to redaction topic."
+                available when @variables.is_verified == True
+            go_to_delivery: @utils.transition to @topic.delivery
+                description: "Transition to delivery topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic request_intake:
+    description: "Handles the request intake stage of the record_request process"
+
+    actions:
+        process_request_intake_data:
+            description: "Process request intake stage data for the record_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_RequestIntake"
+
+        validate_request_intake_info:
+            description: "Validate request intake information for the record_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RequestIntake_Info"
+
+        fetch_request_intake_details:
+            description: "Fetch request intake details for the record_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RequestIntake_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_request_intake_info
+                with record_ref=@variables.record_request_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.record_request_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the request intake stage for the record_request.
+              Current record_request status: {! @variables.record_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Request Intake result: {! @variables.request_intake_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.record_request_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_request_intake} to begin processing.
+        actions:
+            run_request_intake: @actions.process_request_intake_data
+                with record_ref=@variables.record_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.record_request_category
+                set @variables.request_intake_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.request_intake_complete = @outputs.is_passed
+            fetch_request_intake_info: @actions.fetch_request_intake_details
+                with record_ref=@variables.record_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.record_request_tier = @outputs.tier_value
+            go_to_search: @utils.transition to @topic.search
+                description: "Move to search stage."
+                available when @variables.request_intake_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.record_request_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.record_request_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.record_request_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.request_intake_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic search:
+    description: "Handles the search stage of the record_request process"
+
+    actions:
+        process_search_data:
+            description: "Process search stage data for the record_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Search"
+
+        validate_search_info:
+            description: "Validate search information for the record_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Search_Info"
+
+        fetch_search_details:
+            description: "Fetch search details for the record_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Search_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.request_intake_complete == False:
+            transition to @topic.request_intake
+
+    reasoning:
+        instructions: ->
+            | Handle the search stage for the record_request.
+              Current record_request status: {! @variables.record_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Search result: {! @variables.search_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.record_request_tier }
+              Review the search results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_search: @actions.process_search_data
+                with record_ref=@variables.record_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.record_request_category
+                set @variables.search_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.search_complete = @outputs.is_passed
+            fetch_search_info: @actions.fetch_search_details
+                with record_ref=@variables.record_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.record_request_tier = @outputs.tier_value
+                available when @variables.record_request_record_id is not None
+            go_to_redaction: @utils.transition to @topic.redaction
+                description: "Move to redaction stage."
+                available when @variables.search_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.search_complete == True:
+            set @variables.record_request_status = "search_done"
+        if @variables.search_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.redaction
+        if @variables.attempt_count >= 3 and @variables.search_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic redaction:
+    description: "Handles the redaction stage of the record_request process"
+
+    actions:
+        process_redaction_data:
+            description: "Process redaction stage data for the record_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Redaction_Data"
+
+        validate_redaction_info:
+            description: "Validate redaction information for the record_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Redaction_Info"
+
+        fetch_redaction_details:
+            description: "Fetch redaction details for the record_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Redaction_Details"
+
+    before_reasoning:
+        if @variables.redaction_complete == False:
+            run @actions.fetch_redaction_details
+                with record_ref=@variables.record_request_record_id
+                with include_history=True
+                set @variables.redaction_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.record_request_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.record_request_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.record_request_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the redaction stage for the record_request.
+              Current record_request status: {! @variables.record_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Redaction result: {! @variables.redaction_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.record_request_tier }
+              Review the redaction results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_redaction: @actions.process_redaction_data
+                with record_ref=@variables.record_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.record_request_category
+                set @variables.redaction_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.redaction_complete = @outputs.is_passed
+            fetch_redaction_info: @actions.fetch_redaction_details
+                with record_ref=@variables.record_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.record_request_tier = @outputs.tier_value
+                available when @variables.record_request_record_id is not None
+            go_to_delivery: @utils.transition to @topic.delivery
+                description: "Move to delivery stage."
+                available when @variables.redaction_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.record_request_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.record_request_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.record_request_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.redaction_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic delivery:
+    description: "Handles the delivery stage of the record_request process"
+
+    actions:
+        process_delivery_data:
+            description: "Process delivery stage data for the record_request"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Delivery"
+
+        validate_delivery_info:
+            description: "Validate delivery information for the record_request"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Delivery_Info"
+
+        fetch_delivery_details:
+            description: "Fetch delivery details for the record_request"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Delivery_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.redaction_complete == False:
+            transition to @topic.redaction
+        if @variables.eligibility_score >= 80:
+            set @variables.record_request_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.record_request_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the delivery stage for the record_request.
+              Current record_request status: {! @variables.record_request_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Delivery result: {! @variables.delivery_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.record_request_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_delivery: @actions.process_delivery_data
+                with record_ref=@variables.record_request_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.record_request_category
+                set @variables.delivery_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.delivery_complete = @outputs.is_passed
+            fetch_delivery_info: @actions.fetch_delivery_details
+                with record_ref=@variables.record_request_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.record_request_tier = @outputs.tier_value
+                available when @variables.record_request_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.delivery_complete == True:
+            set @variables.record_request_status = "delivery_done"
+        if @variables.attempt_count >= 3 and @variables.delivery_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for record_request issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the record_request issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the record_request interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the record_request request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Record Request status: {! @variables.record_request_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.record_request_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.record_request_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.record_request_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.record_request_status = "escalated"
+        set @variables.escalation_requested = False
+

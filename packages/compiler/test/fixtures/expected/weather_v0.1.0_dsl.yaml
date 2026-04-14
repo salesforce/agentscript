@@ -1,0 +1,405 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: WeatherBot
+  label: Weather Bot
+  description: Weather Bot
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: hotel@booking.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages: []
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: user_city
+      label: User City
+      description: User City
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: user_country
+      label: User Country
+      description: User Country
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: temperature
+      label: Temperature
+      description: Temperature
+      data_type: number
+      is_list: false
+      default: 999
+      visibility: Internal
+    - developer_name: conditions
+      label: Conditions
+      description: Conditions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: humidity
+      label: Humidity
+      description: Humidity
+      data_type: number
+      is_list: false
+      default: 1
+      visibility: Internal
+    - developer_name: severe_weather_alert
+      label: Severe Weather Alert
+      description: Severe Weather Alert
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: alert_description
+      label: Alert Description
+      description: Alert Description
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: current_weather
+      label: Current Weather
+      description: Current Weather
+      data_type: object
+      is_list: false
+      default: {}
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for a weather assistant. Analyze the user''s
+
+                input and determine the most appropriate topic to handle their request.
+
+
+                Call the *set_topic* action with one of these topic options:
+
+
+                - **weather_assistant**: A basic weather assistant demonstrating some
+                simple state-based variable updates
+
+
+                - **severe_weather_warning**: Alerts the user to severe weather conditions
+                and provides additional information.
+
+
+                If this is the beginning of the interview, please welcome the candidate
+                and then
+
+                determine the appropriate topic based on user input.'
+      instructions: 'You are a helpful weather assistant. You help users find weather
+        information
+
+        for their location. First, ask the user for their city and country if not
+        already
+
+        provided.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and determine the appropriate topic based on user
+        input
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"weather_assistant"'
+          name: go_to_weather_assistant
+          description: Call this action if the user asks for general weather information.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"severe_weather_warning"'
+          name: go_to_severe_weather_warning
+          description: Call this action if the user indicates they wish to know about
+            severe weather.
+      after_all_tool_calls:
+        - type: handoff
+          target: weather_assistant
+          enabled: state.AgentScriptInternal_next_topic=="weather_assistant"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: severe_weather_warning
+          enabled: state.AgentScriptInternal_next_topic=="severe_weather_warning"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Please first gather the user''s city/country information. When you
+                have answers to both,
+
+                store them by using the set_location tool.
+
+
+                Once you have the user''s location, find the weather by calling the
+                get_weather
+
+
+                Here is the current weather for {{state.user_city}}, {{state.user_country}}:
+
+
+                Temperature: {{state.temperature}}°C
+
+                Conditions: {{state.conditions}}
+
+                Humidity: {{state.humidity}}%
+
+
+                Would you like a forecast for the next few days?'
+      instructions: 'You are a helpful weather assistant. You help users find weather
+        information
+
+        for their location. First, ask the user for their city and country if not
+        already
+
+        provided.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: A basic weather assistant demonstrating some simple state-based
+        variable updates
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.user_city != "" and state.user_country
+                != ""
+        - type: action
+          target: get_weather
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - current_weather: result.current_weather
+            - temperature: result.temperature
+            - conditions: result.conditions
+            - humidity: result.humidity
+            - severe_weather_alert: result.severe_weather_alert
+            - alert_description: result.alert_description
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: get_weather
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs: []
+          state_updates:
+            - current_weather: result.current_weather
+            - temperature: result.temperature
+            - conditions: result.conditions
+            - humidity: result.humidity
+            - severe_weather_alert: result.severe_weather_alert
+            - alert_description: result.alert_description
+          name: get_weather
+          description: Get Weather
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - user_city: state.user_city
+          name: set_city
+          description: Call this action to set the user's city.
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - user_country: state.user_country
+          name: set_country
+          description: Call this action to set the user's country.
+          input_parameters: []
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.severe_weather_alert
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"severe_weather_warning"'
+        - type: handoff
+          target: severe_weather_warning
+          enabled: state.AgentScriptInternal_next_topic=="severe_weather_warning"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: weather_assistant
+      label: Weather Assistant
+      action_definitions:
+        - developer_name: get_weather
+          label: Get Weather
+          description: Get current weather information for a specific city and country
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: api
+          invocation_target_name: get_weather
+          input_type:
+            - developer_name: city
+              label: City
+              description: City
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: country
+              label: Country
+              description: Country
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: temperature
+              label: Temperature
+              description: Temperature
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: conditions
+              label: Conditions
+              description: Conditions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: humidity
+              label: Humidity
+              description: Humidity
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: severe_weather_alert
+              label: Severe Weather Alert
+              description: Severe Weather Alert
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: alert_description
+              label: Alert Description
+              description: Alert Description
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: current_weather
+              label: Current Weather
+              description: Current Weather
+              data_type: LightningTypes
+              complex_data_type_name: lightning__objectType
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Please inform the user of a sever weather warning. You should show
+                something like this:
+
+
+                SEVERE WEATHER ALERT for {{state.user_city}}, {{state.user_country}}!
+
+
+                {{state.current_weather.alert_description}}
+
+
+                Please take all necessary precautions and follow local guidance.
+
+
+                Would you like more information about this weather event?'
+      instructions: 'You are a helpful weather assistant. You help users find weather
+        information
+
+        for their location. First, ask the user for their city and country if not
+        already
+
+        provided.'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Alerts the user to severe weather conditions and provides additional
+        information.
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: severe_weather_warning
+      label: Severe Weather Warning
+      action_definitions: []
+  surfaces: []

@@ -1,0 +1,76 @@
+system:
+    instructions: "You are a helpful assistant with access to multiple action types."
+    messages:
+        welcome: "Hello! I have access to multiple service types."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Mixed_Targets_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with one action of each supported target type"
+
+start_agent main:
+    description: "Agent with one action of each supported target type"
+
+    actions:
+        Flow_Action:
+            description: "Action using flow target"
+            target: "flow://MyFlowAction"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                flow_result: string
+                    label: "Flow Result"
+
+        Apex_Action:
+            description: "Action using apex target"
+            target: "apex://MyController.myMethod"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                apex_result: string
+                    label: "Apex Result"
+
+        External_Service_Action:
+            description: "Action using externalService target"
+            target: "externalService://MyExternalService.myOperation"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                external_result: string
+                    label: "External Result"
+
+        Standard_Invocable_Action:
+            description: "Action using standardInvocableAction target"
+            target: "standardInvocableAction://MyStandardAction"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                standard_result: string
+                    label: "Standard Result"
+
+    reasoning:
+        instructions: ->
+            | You have access to four different action types.
+              Use the appropriate action based on the user's request.
+
+        actions:
+            Use_Flow: @actions.Flow_Action
+                with input_val=...
+
+            Use_Apex: @actions.Apex_Action
+                with input_val=...
+
+            Use_External: @actions.External_Service_Action
+                with input_val=...
+
+            Use_Standard: @actions.Standard_Invocable_Action
+                with input_val=...

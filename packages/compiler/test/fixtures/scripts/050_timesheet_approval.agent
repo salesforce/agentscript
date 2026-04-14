@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional timesheet approval agent assistant.
+        Help users manage their timesheet requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: submission_review -> validation -> exception_handling -> batch_approval.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Timesheet Approval Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "timesheet_approval_agent_v50"
+    default_agent_user: "timesheet_approval@example.com"
+    agent_description: "Assists users with timesheet management through the timesheet approval agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    timesheet_record_id: mutable string
+        description: "Record ID of the timesheet"
+    timesheet_status: mutable string = ""
+        description: "Current status of the timesheet"
+    timesheet_tier: mutable string = "standard"
+        description: "Tier classification for the timesheet"
+    timesheet_category: mutable string = ""
+        description: "Category of the timesheet"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    submission_review_complete: mutable boolean = False
+        description: "Whether the submission_review stage is complete"
+    submission_review_result: mutable string = ""
+        description: "Result from the submission_review stage"
+    validation_complete: mutable boolean = False
+        description: "Whether the validation stage is complete"
+    validation_result: mutable string = ""
+        description: "Result from the validation stage"
+    exception_handling_complete: mutable boolean = False
+        description: "Whether the exception_handling stage is complete"
+    exception_handling_result: mutable string = ""
+        description: "Result from the exception_handling stage"
+    batch_approval_complete: mutable boolean = False
+        description: "Whether the batch_approval stage is complete"
+    batch_approval_result: mutable string = ""
+        description: "Result from the batch_approval stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate timesheet management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a timesheet approval agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current timesheet status: {! @variables.timesheet_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_submission_review} for submission review requests.
+              Use {!@actions.go_to_validation} for validation requests.
+              Use {!@actions.go_to_exception_handling} for exception handling requests.
+              Use {!@actions.go_to_batch_approval} for batch approval requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_submission_review: @utils.transition to @topic.submission_review
+                description: "Transition to submission review topic."
+            go_to_validation: @utils.transition to @topic.validation
+                description: "Transition to validation topic."
+                available when @variables.is_verified == True
+            go_to_exception_handling: @utils.transition to @topic.exception_handling
+                description: "Transition to exception handling topic."
+                available when @variables.is_verified == True
+            go_to_batch_approval: @utils.transition to @topic.batch_approval
+                description: "Transition to batch approval topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic submission_review:
+    description: "Handles the submission review stage of the timesheet process"
+
+    actions:
+        process_submission_review_data:
+            description: "Process submission review stage data for the timesheet"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_SubmissionReview"
+
+        validate_submission_review_info:
+            description: "Validate submission review information for the timesheet"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SubmissionReview_Info"
+
+        fetch_submission_review_details:
+            description: "Fetch submission review details for the timesheet"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SubmissionReview_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_submission_review_info
+                with record_ref=@variables.timesheet_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.timesheet_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the submission review stage for the timesheet.
+              Current timesheet status: {! @variables.timesheet_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Submission Review result: {! @variables.submission_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.timesheet_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_submission_review} to begin processing.
+        actions:
+            run_submission_review: @actions.process_submission_review_data
+                with record_ref=@variables.timesheet_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.timesheet_category
+                set @variables.submission_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.submission_review_complete = @outputs.is_passed
+            fetch_submission_review_info: @actions.fetch_submission_review_details
+                with record_ref=@variables.timesheet_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.timesheet_tier = @outputs.tier_value
+            go_to_validation: @utils.transition to @topic.validation
+                description: "Move to validation stage."
+                available when @variables.submission_review_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.timesheet_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.timesheet_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.timesheet_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.submission_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic validation:
+    description: "Handles the validation stage of the timesheet process"
+
+    actions:
+        process_validation_data:
+            description: "Process validation stage data for the timesheet"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Validation"
+
+        validate_validation_info:
+            description: "Validate validation information for the timesheet"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Validation_Info"
+
+        fetch_validation_details:
+            description: "Fetch validation details for the timesheet"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Validation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.submission_review_complete == False:
+            transition to @topic.submission_review
+
+    reasoning:
+        instructions: ->
+            | Handle the validation stage for the timesheet.
+              Current timesheet status: {! @variables.timesheet_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Validation result: {! @variables.validation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.timesheet_tier }
+              Review the validation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_validation: @actions.process_validation_data
+                with record_ref=@variables.timesheet_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.timesheet_category
+                set @variables.validation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.validation_complete = @outputs.is_passed
+            fetch_validation_info: @actions.fetch_validation_details
+                with record_ref=@variables.timesheet_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.timesheet_tier = @outputs.tier_value
+                available when @variables.timesheet_record_id is not None
+            go_to_exception_handling: @utils.transition to @topic.exception_handling
+                description: "Move to exception handling stage."
+                available when @variables.validation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.validation_complete == True:
+            set @variables.timesheet_status = "validation_done"
+        if @variables.validation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.exception_handling
+        if @variables.attempt_count >= 3 and @variables.validation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic exception_handling:
+    description: "Handles the exception handling stage of the timesheet process"
+
+    actions:
+        process_exception_handling_data:
+            description: "Process exception handling stage data for the timesheet"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ExceptionHandling_Data"
+
+        validate_exception_handling_info:
+            description: "Validate exception handling information for the timesheet"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ExceptionHandling_Info"
+
+        fetch_exception_handling_details:
+            description: "Fetch exception handling details for the timesheet"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ExceptionHandling_Details"
+
+    before_reasoning:
+        if @variables.exception_handling_complete == False:
+            run @actions.fetch_exception_handling_details
+                with record_ref=@variables.timesheet_record_id
+                with include_history=True
+                set @variables.exception_handling_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.timesheet_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.timesheet_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.timesheet_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the exception handling stage for the timesheet.
+              Current timesheet status: {! @variables.timesheet_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Exception Handling result: {! @variables.exception_handling_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.timesheet_tier }
+              Review the exception handling results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_exception_handling: @actions.process_exception_handling_data
+                with record_ref=@variables.timesheet_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.timesheet_category
+                set @variables.exception_handling_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.exception_handling_complete = @outputs.is_passed
+            fetch_exception_handling_info: @actions.fetch_exception_handling_details
+                with record_ref=@variables.timesheet_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.timesheet_tier = @outputs.tier_value
+                available when @variables.timesheet_record_id is not None
+            go_to_batch_approval: @utils.transition to @topic.batch_approval
+                description: "Move to batch approval stage."
+                available when @variables.exception_handling_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.timesheet_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.timesheet_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.timesheet_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.exception_handling_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic batch_approval:
+    description: "Handles the batch approval stage of the timesheet process"
+
+    actions:
+        process_batch_approval_data:
+            description: "Process batch approval stage data for the timesheet"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_BatchApproval"
+
+        validate_batch_approval_info:
+            description: "Validate batch approval information for the timesheet"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_BatchApproval_Info"
+
+        fetch_batch_approval_details:
+            description: "Fetch batch approval details for the timesheet"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_BatchApproval_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.exception_handling_complete == False:
+            transition to @topic.exception_handling
+        if @variables.eligibility_score >= 80:
+            set @variables.timesheet_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.timesheet_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the batch approval stage for the timesheet.
+              Current timesheet status: {! @variables.timesheet_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Batch Approval result: {! @variables.batch_approval_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.timesheet_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_batch_approval: @actions.process_batch_approval_data
+                with record_ref=@variables.timesheet_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.timesheet_category
+                set @variables.batch_approval_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.batch_approval_complete = @outputs.is_passed
+            fetch_batch_approval_info: @actions.fetch_batch_approval_details
+                with record_ref=@variables.timesheet_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.timesheet_tier = @outputs.tier_value
+                available when @variables.timesheet_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.batch_approval_complete == True:
+            set @variables.timesheet_status = "batch_approval_done"
+        if @variables.attempt_count >= 3 and @variables.batch_approval_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for timesheet issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the timesheet issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the timesheet interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the timesheet request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Timesheet status: {! @variables.timesheet_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.timesheet_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.timesheet_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.timesheet_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.timesheet_status = "escalated"
+        set @variables.escalation_requested = False
+

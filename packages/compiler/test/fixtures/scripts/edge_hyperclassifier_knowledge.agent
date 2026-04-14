@@ -1,0 +1,73 @@
+system:
+    instructions: "You are an AI assistant that uses knowledge search to help users find answers."
+    messages:
+        welcome: "Hello! I can search our knowledge base to help you find answers."
+        error: "I'm unable to search right now. Please try again later."
+
+config:
+    developer_name: "Hyperclassifier_Knowledge"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Hyperclassifier with knowledge block and knowledge action in start_agent"
+
+language:
+    default_locale: "en_US"
+
+knowledge:
+    citations_enabled: True
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Routes users using hyperclassifier with knowledge search capabilities"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    actions:
+        knowledge_search:
+            description: "Searches the knowledge base for relevant articles"
+            inputs:
+                query: string
+            outputs:
+                result: string
+            target: "standardInvocableAction://searchKnowledge"
+
+    reasoning:
+        instructions: ->
+            run @actions.knowledge_search
+                with query=@system_variables.user_input
+            | Select the tool that best matches the user's message.
+              Use knowledge search results to provide context.
+        actions:
+            go_to_product_help: @utils.transition to @topic.product_help
+                description: "Route to product help"
+            go_to_policy_info: @utils.transition to @topic.policy_info
+                description: "Route to policy information"
+            go_to_off_topic: @utils.transition to @topic.off_topic
+                description: "Handle off-topic requests"
+
+topic product_help:
+    label: "Product Help"
+    description: "Provides product-related help using knowledge base"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their product question.
+              Provide detailed answers based on available knowledge.
+
+topic policy_info:
+    label: "Policy Information"
+    description: "Provides company policy information from knowledge base"
+
+    reasoning:
+        instructions: ->
+            | Provide the user with relevant policy information.
+              Reference specific policies when answering.
+
+topic off_topic:
+    label: "Off Topic"
+    description: "Handles off-topic requests"
+
+    reasoning:
+        instructions: ->
+            | The user's request is off-topic. Politely redirect them.
+              Do not answer general knowledge questions.

@@ -1,0 +1,35 @@
+system:
+    instructions: "You are an assistant that handles null checks."
+    messages:
+        welcome: "Hello!"
+        error: "Error occurred."
+
+config:
+    developer_name: "Edge_Cond_Is_None"
+    default_agent_user: "test_user"
+    description: "Tests is None and is not None conditional checks"
+
+variables:
+    customer_name: mutable string = None
+    order_id: mutable string = "ORD-123"
+    name_status: mutable string = ""
+    order_status: mutable string = ""
+
+start_agent main:
+    description: "Tests is None and is not None conditionals"
+
+    before_reasoning:
+        if @variables.customer_name is None:
+            set @variables.name_status = "name_missing"
+        if @variables.customer_name is not None:
+            set @variables.name_status = "name_present"
+        if @variables.order_id is not None:
+            set @variables.order_status = "order_found"
+        if @variables.order_id is None:
+            set @variables.order_status = "order_missing"
+
+    reasoning:
+        instructions: ->
+            | Help the user check their information.
+              Name status: {! @variables.name_status }
+              Order status: {! @variables.order_status }

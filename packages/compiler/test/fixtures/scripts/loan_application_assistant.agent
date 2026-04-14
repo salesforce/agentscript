@@ -1,0 +1,698 @@
+system:
+    instructions: "You are a loan application processing assistant for a financial institution. Guide customers through the loan application process, collect documentation, and perform eligibility assessments."
+    messages:
+        welcome: "Welcome to our loan application system! I'll help you through the application process. Let's start by gathering some basic information."
+        error: "I'm experiencing technical difficulties. Please contact our loan office directly."
+
+config:
+    developer_name: "Loan_Application_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Processes loan applications with deterministic eligibility assessment and routing"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Applicant information
+    applicant_name: mutable string = ""
+        description: "Applicant's name"
+    ssn: mutable string = ""
+        description: "Social Security Number"
+    date_of_birth: mutable string = ""
+        description: "Date of birth"
+    phone_number: mutable string = ""
+        description: "Contact phone number"
+    email: mutable string = ""
+        description: "Email address"
+    address: mutable string = ""
+        description: "Home address"
+
+    # Employment and income
+    employment_status: mutable string = ""
+        description: "Current employment status"
+    employer_name: mutable string = ""
+        description: "Current employer"
+    annual_income: mutable number = 0
+        description: "Annual income"
+    employment_duration: mutable string = ""
+        description: "Length of employment"
+    additional_income: mutable number = 0
+        description: "Additional income sources"
+
+    # Financial profile
+    credit_score: mutable number = 0
+        description: "Credit score"
+    existing_debt: mutable number = 0
+        description: "Current debt obligations"
+    monthly_expenses: mutable number = 0
+        description: "Monthly living expenses"
+    savings_amount: mutable number = 0
+        description: "Current savings"
+    assets_value: mutable number = 0
+        description: "Total asset value"
+
+    # Loan details
+    loan_type: mutable string = ""
+        description: "Type of loan requested"
+    loan_amount: mutable number = 0
+        description: "Requested loan amount"
+    loan_purpose: mutable string = ""
+        description: "Purpose of the loan"
+    collateral_offered: mutable string = ""
+        description: "Collateral being offered"
+    loan_term: mutable number = 0
+        description: "Requested loan term in months"
+
+    # Assessment results
+    eligibility_score: mutable number = 0
+        description: "Loan eligibility score (0-100)"
+    debt_to_income_ratio: mutable number = 0
+        description: "Debt-to-income ratio percentage"
+    risk_level: mutable string = ""
+        description: "Risk assessment level"
+    application_status: mutable string = "pending"
+        description: "Current application status"
+    approved_amount: mutable number = 0
+        description: "Approved loan amount"
+    interest_rate: mutable number = 0
+        description: "Offered interest rate"
+
+    # Documentation
+    documents_required: mutable string = ""
+        description: "Required documentation list"
+    documents_received: mutable string = ""
+        description: "Documents already submitted"
+    application_complete: mutable boolean = False
+        description: "Whether application is complete"
+    identity_verified: mutable boolean = False
+        description: "Whether applicant identity has been verified"
+
+start_agent application_intake:
+    description: "Collects initial loan application information and applicant details"
+
+    actions:
+        Verify_Identity:
+            description: "Verifies applicant identity using SSN and personal information"
+            label: "Verify Identity"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                ssn: string
+                    label: "Social Security Number"
+                    description: "Applicant's SSN for identity verification"
+                    is_required: True
+                full_name: string
+                    label: "Full Name"
+                    description: "Applicant's legal name"
+                    is_required: True
+                date_of_birth: string
+                    label: "Date of Birth"
+                    description: "Date of birth (MM/DD/YYYY)"
+                    is_required: True
+                address: string
+                    label: "Address"
+                    description: "Current home address"
+                    is_required: True
+            outputs:
+                identity_verified: boolean
+                    label: "Identity Verified"
+                    is_displayable: True
+                applicant_id: string
+                    label: "Applicant ID"
+                    is_displayable: False
+                existing_customer: boolean
+                    label: "Existing Customer"
+                    is_displayable: False
+                fraud_alert: boolean
+                    label: "Fraud Alert"
+                    is_displayable: False
+            target: "flow://VerifyIdentity"
+
+        Pull_Credit_Report:
+            description: "Retrieves comprehensive credit report and score"
+            label: "Pull Credit Report"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                ssn: string
+                    label: "SSN"
+                    description: "Social Security Number for credit check"
+                    is_required: True
+                consent_given: boolean
+                    label: "Credit Check Consent"
+                    description: "Applicant consent for credit check"
+                    is_required: True
+            outputs:
+                credit_score: number
+                    label: "Credit Score"
+                    is_displayable: True
+                credit_history_length: number
+                    label: "Credit History Length"
+                    is_displayable: False
+                payment_history: string
+                    label: "Payment History"
+                    is_displayable: False
+                existing_accounts: number
+                    label: "Existing Accounts"
+                    is_displayable: False
+                total_debt: number
+                    label: "Total Existing Debt"
+                    is_displayable: True
+                derogatory_marks: number
+                    label: "Derogatory Marks"
+                    is_displayable: False
+            target: "flow://PullCreditReport"
+
+        Validate_Income:
+            description: "Validates employment and income information"
+            label: "Validate Income"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                employer_name: string
+                    label: "Employer Name"
+                    description: "Current employer"
+                    is_required: True
+                annual_income: number
+                    label: "Annual Income"
+                    description: "Stated annual income"
+                    is_required: True
+                employment_duration: string
+                    label: "Employment Duration"
+                    description: "Length of current employment"
+                    is_required: True
+                employment_type: string
+                    label: "Employment Type"
+                    description: "Type of employment (full-time, part-time, etc.)"
+                    is_required: True
+            outputs:
+                income_verified: boolean
+                    label: "Income Verified"
+                    is_displayable: True
+                verified_income: number
+                    label: "Verified Income"
+                    is_displayable: True
+                employment_stable: boolean
+                    label: "Employment Stable"
+                    is_displayable: False
+                income_documentation_required: list[string]
+                    label: "Income Docs Required"
+                    is_displayable: True
+            target: "flow://ValidateIncome"
+
+    before_reasoning:
+        if @variables.applicant_name == "":
+            set @variables.eligibility_score = 0
+            set @variables.application_status = "pending"
+            set @variables.application_complete = False
+
+    reasoning:
+        instructions: ->
+            |   Welcome to our loan application system! I'll help you through the application process step by step.
+
+                **Getting Started:**
+                To begin your loan application, I'll need to collect some personal information and verify your identity.
+
+                **Information I'll Need:**
+                - Personal details (name, SSN, date of birth, address)
+                - Contact information (phone and email)
+                - Employment information
+                - Income details
+                - Loan requirements
+
+                **Privacy & Security:**
+                All information is encrypted and handled according to banking regulations. I'll need your consent before running any credit checks.
+
+                Let's start with your basic information.
+        actions:
+            verify_applicant: @actions.Verify_Identity
+                with ssn=@variables.ssn
+                with full_name=@variables.applicant_name
+                with date_of_birth=@variables.date_of_birth
+                with address=@variables.address
+                set @variables.identity_verified = @outputs.identity_verified
+
+            get_credit_report: @actions.Pull_Credit_Report
+                with ssn=@variables.ssn
+                with consent_given=True
+                set @variables.credit_score = @outputs.credit_score
+                set @variables.existing_debt = @outputs.total_debt
+
+            verify_income: @actions.Validate_Income
+                with employer_name=@variables.employer_name
+                with annual_income=@variables.annual_income
+                with employment_duration=@variables.employment_duration
+                with employment_type=@variables.employment_status
+                set @variables.annual_income = @outputs.verified_income
+
+            capture_application_info: @utils.setVariables
+                description: "Capture loan application details"
+                with applicant_name=@variables.applicant_name
+                with ssn=@variables.ssn
+                with date_of_birth=@variables.date_of_birth
+                with phone_number=@variables.phone_number
+                with email=@variables.email
+                with address=@variables.address
+                with loan_type=@variables.loan_type
+                with loan_amount=@variables.loan_amount
+                with loan_purpose=@variables.loan_purpose
+
+            assess_finances: @utils.transition to @topic.financial_assessment
+                description: "Assess financial eligibility"
+
+    after_reasoning:
+        if @variables.applicant_name != "" and @variables.ssn != "":
+            run @actions.Verify_Identity
+                with ssn=@variables.ssn
+                with full_name=@variables.applicant_name
+                with date_of_birth=@variables.date_of_birth
+                with address=@variables.address
+
+            run @actions.Pull_Credit_Report
+                with ssn=@variables.ssn
+                with consent_given=True
+                set @variables.credit_score = @outputs.credit_score
+                set @variables.existing_debt = @outputs.total_debt
+
+        if @variables.employer_name != "" and @variables.annual_income > 0:
+            run @actions.Validate_Income
+                with employer_name=@variables.employer_name
+                with annual_income=@variables.annual_income
+                with employment_duration=@variables.employment_duration
+                with employment_type=@variables.employment_status
+                set @variables.annual_income = @outputs.verified_income
+            transition to @topic.financial_assessment
+
+topic financial_assessment:
+    description: "Performs comprehensive financial analysis and eligibility scoring"
+
+    actions:
+        Calculate_DTI_Ratio:
+            description: "Calculates debt-to-income ratio and affordability metrics"
+            label: "Calculate DTI Ratio"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                monthly_income: number
+                    label: "Monthly Income"
+                    description: "Monthly gross income"
+                    is_required: True
+                existing_monthly_debt: number
+                    label: "Existing Monthly Debt"
+                    description: "Current monthly debt payments"
+                    is_required: True
+                new_loan_payment: number
+                    label: "New Loan Payment"
+                    description: "Estimated new loan payment"
+                    is_required: True
+                monthly_expenses: number
+                    label: "Monthly Expenses"
+                    description: "Monthly living expenses"
+                    is_required: True
+            outputs:
+                current_dti_ratio: number
+                    label: "Current DTI Ratio"
+                    is_displayable: True
+                new_dti_ratio: number
+                    label: "New DTI Ratio"
+                    is_displayable: True
+                affordability_score: number
+                    label: "Affordability Score"
+                    is_displayable: False
+                max_affordable_payment: number
+                    label: "Max Affordable Payment"
+                    is_displayable: True
+            target: "flow://CalculateDTIRatio"
+
+        Assess_Risk_Profile:
+            description: "Comprehensive risk assessment based on financial profile"
+            label: "Assess Risk Profile"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                credit_score: number
+                    label: "Credit Score"
+                    description: "Applicant's credit score"
+                    is_required: True
+                dti_ratio: number
+                    label: "DTI Ratio"
+                    description: "Debt-to-income ratio"
+                    is_required: True
+                employment_stability: string
+                    label: "Employment Stability"
+                    description: "Employment history stability"
+                    is_required: True
+                loan_to_value: number
+                    label: "Loan to Value"
+                    description: "LTV ratio for secured loans"
+                    is_required: False
+                savings_ratio: number
+                    label: "Savings Ratio"
+                    description: "Savings as percentage of income"
+                    is_required: False
+            outputs:
+                risk_score: number
+                    label: "Risk Score"
+                    is_displayable: False
+                risk_category: string
+                    label: "Risk Category"
+                    is_displayable: True
+                approval_probability: number
+                    label: "Approval Probability"
+                    is_displayable: True
+                recommended_terms: object
+                    label: "Recommended Terms"
+                    is_displayable: False
+            target: "flow://AssessRiskProfile"
+
+        Generate_Loan_Options:
+            description: "Generates personalized loan options based on assessment"
+            label: "Generate Loan Options"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                requested_amount: number
+                    label: "Requested Amount"
+                    description: "Amount requested by applicant"
+                    is_required: True
+                risk_profile: string
+                    label: "Risk Profile"
+                    description: "Assessed risk category"
+                    is_required: True
+                loan_type: string
+                    label: "Loan Type"
+                    description: "Type of loan requested"
+                    is_required: True
+                max_affordable_payment: number
+                    label: "Max Affordable Payment"
+                    description: "Maximum affordable monthly payment"
+                    is_required: True
+            outputs:
+                approved_amount: number
+                    label: "Approved Amount"
+                    is_displayable: True
+                interest_rate: number
+                    label: "Interest Rate"
+                    is_displayable: True
+                loan_terms_options: string
+                    label: "Loan Terms Options"
+                    is_displayable: True
+                monthly_payment: number
+                    label: "Monthly Payment"
+                    is_displayable: True
+                conditions: string
+                    label: "Loan Conditions"
+                    is_displayable: True
+            target: "flow://GenerateLoanOptions"
+
+    before_reasoning:
+        if @variables.annual_income > 0 and @variables.existing_debt >= 0:
+            # multiply and divide not supported - simplified calculation
+            set @variables.debt_to_income_ratio = 0.5
+
+        if @variables.credit_score >= 750:
+            set @variables.risk_level = "low"
+            set @variables.eligibility_score = @variables.eligibility_score + 25
+        if @variables.credit_score >= 650 and @variables.credit_score < 750:
+            set @variables.risk_level = "medium"
+            set @variables.eligibility_score = @variables.eligibility_score + 15
+        if @variables.credit_score < 650:
+            set @variables.risk_level = "high"
+            set @variables.eligibility_score = @variables.eligibility_score + 5
+
+    reasoning:
+        instructions: ->
+            |   **Financial Assessment in Progress**
+
+                **Applicant:** {! @variables.applicant_name }
+                **Loan Request:** ${! @variables.loan_amount } {! @variables.loan_type }
+                **Purpose:** {! @variables.loan_purpose }
+
+                **Financial Profile:**
+                - Annual Income: ${! @variables.annual_income }
+                - Credit Score: {! @variables.credit_score }
+                - Existing Debt: ${! @variables.existing_debt }
+                - Debt-to-Income Ratio: {! @variables.debt_to_income_ratio }%
+                - Risk Level: {! @variables.risk_level }
+
+                **Assessment Progress:** {! @variables.eligibility_score }/100
+
+                I'm analyzing your financial profile to determine the best loan options available to you.
+        actions:
+            # multiply and divide not supported - using raw values instead of calculated
+            calculate_dti: @actions.Calculate_DTI_Ratio
+                with monthly_income=@variables.annual_income
+                with existing_monthly_debt=@variables.existing_debt
+                with new_loan_payment=@variables.loan_amount
+                with monthly_expenses=@variables.monthly_expenses
+                set @variables.debt_to_income_ratio = @outputs.new_dti_ratio
+
+            assess_risk: @actions.Assess_Risk_Profile
+                with credit_score=@variables.credit_score
+                with dti_ratio=@variables.debt_to_income_ratio
+                with employment_stability=@variables.employment_duration
+                with loan_to_value=80
+                with savings_ratio=10
+                set @variables.risk_level = @outputs.risk_category
+                set @variables.eligibility_score = @outputs.approval_probability
+
+            create_options: @actions.Generate_Loan_Options
+                with requested_amount=@variables.loan_amount
+                with risk_profile=@variables.risk_level
+                with loan_type=@variables.loan_type
+                with max_affordable_payment=5000
+                set @variables.approved_amount = @outputs.approved_amount
+                set @variables.interest_rate = @outputs.interest_rate
+
+            capture_financial_details: @utils.setVariables
+                description: "Capture additional financial information"
+                with employment_status=@variables.employment_status
+                with employer_name=@variables.employer_name
+                with annual_income=@variables.annual_income
+                with monthly_expenses=@variables.monthly_expenses
+                with savings_amount=@variables.savings_amount
+
+            make_decision: @utils.transition to @topic.application_decision
+                description: "Make loan decision"
+
+    after_reasoning:
+        # multiply and divide not supported - using raw values instead of calculated
+        if @variables.annual_income > 0 and @variables.credit_score > 0:
+            run @actions.Calculate_DTI_Ratio
+                with monthly_income=@variables.annual_income
+                with existing_monthly_debt=@variables.existing_debt
+                with new_loan_payment=@variables.loan_amount
+                with monthly_expenses=@variables.monthly_expenses
+                set @variables.debt_to_income_ratio = @outputs.new_dti_ratio
+
+            run @actions.Assess_Risk_Profile
+                with credit_score=@variables.credit_score
+                with dti_ratio=@variables.debt_to_income_ratio
+                with employment_stability=@variables.employment_duration
+                with loan_to_value=80
+                with savings_ratio=10
+                set @variables.risk_level = @outputs.risk_category
+                set @variables.eligibility_score = @outputs.approval_probability
+
+            run @actions.Generate_Loan_Options
+                with requested_amount=@variables.loan_amount
+                with risk_profile=@variables.risk_level
+                with loan_type=@variables.loan_type
+                with max_affordable_payment=5000
+                set @variables.approved_amount = @outputs.approved_amount
+                set @variables.interest_rate = @outputs.interest_rate
+
+        if @variables.eligibility_score >= 70:
+            set @variables.application_status = "approved"
+        if @variables.eligibility_score < 70 and @variables.eligibility_score >= 50:
+            set @variables.application_status = "conditional_approval"
+        if @variables.eligibility_score < 50:
+            set @variables.application_status = "declined"
+
+        transition to @topic.application_decision
+
+topic application_decision:
+    description: "Provides final loan decision and next steps"
+
+    actions:
+        Generate_Approval_Letter:
+            description: "Creates formal loan approval documentation"
+            label: "Generate Approval Letter"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                applicant_name: string
+                    label: "Applicant Name"
+                    description: "Name of approved applicant"
+                    is_required: True
+                approved_amount: number
+                    label: "Approved Amount"
+                    description: "Final approved loan amount"
+                    is_required: True
+                interest_rate: number
+                    label: "Interest Rate"
+                    description: "Approved interest rate"
+                    is_required: True
+                loan_terms: string
+                    label: "Loan Terms"
+                    description: "Complete loan terms"
+                    is_required: True
+                conditions: string
+                    label: "Conditions"
+                    description: "Any approval conditions"
+                    is_required: False
+            outputs:
+                approval_letter_id: string
+                    label: "Approval Letter ID"
+                    is_displayable: True
+                expiration_date: string
+                    label: "Offer Expiration"
+                    is_displayable: True
+                next_steps: string
+                    label: "Next Steps"
+                    is_displayable: True
+                closing_requirements: string
+                    label: "Closing Requirements"
+                    is_displayable: True
+            target: "flow://GenerateApprovalLetter"
+
+        Schedule_Closing:
+            description: "Schedules loan closing appointment"
+            label: "Schedule Closing"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                applicant_id: string
+                    label: "Applicant ID"
+                    description: "Application identifier"
+                    is_required: True
+                preferred_date: string
+                    label: "Preferred Date"
+                    description: "Preferred closing date"
+                    is_required: False
+                location_preference: string
+                    label: "Location Preference"
+                    description: "Preferred closing location"
+                    is_required: False
+            outputs:
+                closing_scheduled: boolean
+                    label: "Closing Scheduled"
+                    is_displayable: True
+                closing_date: string
+                    label: "Closing Date"
+                    is_displayable: True
+                closing_location: string
+                    label: "Closing Location"
+                    is_displayable: True
+                documents_to_bring: string
+                    label: "Documents to Bring"
+                    is_displayable: True
+            target: "flow://ScheduleClosing"
+
+        Send_Decline_Letter:
+            description: "Sends formal loan decline notification with reasons"
+            label: "Send Decline Letter"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                applicant_name: string
+                    label: "Applicant Name"
+                    description: "Name of declined applicant"
+                    is_required: True
+                decline_reasons: string
+                    label: "Decline Reasons"
+                    description: "Specific reasons for decline"
+                    is_required: True
+                credit_score: number
+                    label: "Credit Score"
+                    description: "Applicant's credit score"
+                    is_required: True
+                adverse_action_required: boolean
+                    label: "Adverse Action Required"
+                    description: "Whether adverse action notice is required"
+                    is_required: True
+            outputs:
+                decline_letter_sent: boolean
+                    label: "Decline Letter Sent"
+                    is_displayable: True
+                reapplication_eligible: boolean
+                    label: "Reapplication Eligible"
+                    is_displayable: True
+                improvement_suggestions: string
+                    label: "Improvement Suggestions"
+                    is_displayable: True
+            target: "flow://SendDeclineLetter"
+
+    before_reasoning:
+        if @variables.application_status == "approved":
+            set @variables.documents_required = "Income verification, Asset documentation, Insurance information"
+        if @variables.application_status == "conditional_approval":
+            set @variables.documents_required = "Additional income verification, Explanation of credit items"
+        if @variables.application_status == "declined":
+            set @variables.documents_required = "N/A"
+
+    reasoning:
+        instructions: ->
+            |   **Loan Application Decision**
+
+                **Applicant:** {! @variables.applicant_name }
+                **Application Status:** {! @variables.application_status }
+                **Eligibility Score:** {! @variables.eligibility_score }/100
+
+                **Decision Details:**
+                - Approved Amount: ${! @variables.approved_amount }
+                - Interest Rate: {! @variables.interest_rate }%
+                - Risk Assessment: {! @variables.risk_level }
+
+                **Required Documentation:** {! @variables.documents_required }
+
+                Your loan application has been processed. Next steps will depend on your approval status.
+
+                Would you like to proceed with the next steps or need assistance with anything else?
+        actions:
+            create_approval: @actions.Generate_Approval_Letter
+                with applicant_name=@variables.applicant_name
+                with approved_amount=@variables.approved_amount
+                with interest_rate=@variables.interest_rate
+                with loan_terms="Standard terms apply"
+                with conditions="Subject to final verification"
+
+            book_closing: @actions.Schedule_Closing
+                with applicant_id="APP-001"
+                with preferred_date=""
+                with location_preference="Main Branch"
+
+            send_decline: @actions.Send_Decline_Letter
+                with applicant_name=@variables.applicant_name
+                with decline_reasons="Credit score below threshold"
+                with credit_score=@variables.credit_score
+                with adverse_action_required=True
+
+            capture_next_steps: @utils.setVariables
+                description: "Capture next step preferences"
+                with application_status=@variables.application_status
+
+            new_application: @utils.transition to @topic.application_intake
+                description: "Process new application"
+
+    after_reasoning:
+        if @variables.application_status == "approved":
+            run @actions.Generate_Approval_Letter
+                with applicant_name=@variables.applicant_name
+                with approved_amount=@variables.approved_amount
+                with interest_rate=@variables.interest_rate
+                with loan_terms="Standard terms apply"
+                with conditions="Subject to final verification"
+
+            run @actions.Schedule_Closing
+                with applicant_id="APP-001"
+                with preferred_date=""
+                with location_preference="Main Branch"
+
+        if @variables.application_status == "declined":
+            run @actions.Send_Decline_Letter
+                with applicant_name=@variables.applicant_name
+                with decline_reasons="Credit score below threshold"
+                with credit_score=@variables.credit_score
+                with adverse_action_required=True

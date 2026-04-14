@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional clinical trial coordinator assistant.
+        Help users manage their trial requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: screening -> enrollment -> monitoring -> reporting.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Clinical Trial Coordinator Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "clinical_trial_agent_v12"
+    default_agent_user: "clinical_trial@example.com"
+    agent_description: "Assists users with trial management through the clinical trial coordinator workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    trial_record_id: mutable string
+        description: "Record ID of the trial"
+    trial_status: mutable string = ""
+        description: "Current status of the trial"
+    trial_tier: mutable string = "standard"
+        description: "Tier classification for the trial"
+    trial_category: mutable string = ""
+        description: "Category of the trial"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    screening_complete: mutable boolean = False
+        description: "Whether the screening stage is complete"
+    screening_result: mutable string = ""
+        description: "Result from the screening stage"
+    enrollment_complete: mutable boolean = False
+        description: "Whether the enrollment stage is complete"
+    enrollment_result: mutable string = ""
+        description: "Result from the enrollment stage"
+    monitoring_complete: mutable boolean = False
+        description: "Whether the monitoring stage is complete"
+    monitoring_result: mutable string = ""
+        description: "Result from the monitoring stage"
+    reporting_complete: mutable boolean = False
+        description: "Whether the reporting stage is complete"
+    reporting_result: mutable string = ""
+        description: "Result from the reporting stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate trial management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a clinical trial coordinator assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current trial status: {! @variables.trial_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_screening} for screening requests.
+              Use {!@actions.go_to_enrollment} for enrollment requests.
+              Use {!@actions.go_to_monitoring} for monitoring requests.
+              Use {!@actions.go_to_reporting} for reporting requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_screening: @utils.transition to @topic.screening
+                description: "Transition to screening topic."
+            go_to_enrollment: @utils.transition to @topic.enrollment
+                description: "Transition to enrollment topic."
+                available when @variables.is_verified == True
+            go_to_monitoring: @utils.transition to @topic.monitoring
+                description: "Transition to monitoring topic."
+                available when @variables.is_verified == True
+            go_to_reporting: @utils.transition to @topic.reporting
+                description: "Transition to reporting topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic screening:
+    description: "Handles the screening stage of the trial process"
+
+    actions:
+        process_screening_data:
+            description: "Process screening stage data for the trial"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Screening"
+
+        validate_screening_info:
+            description: "Validate screening information for the trial"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Screening_Info"
+
+        fetch_screening_details:
+            description: "Fetch screening details for the trial"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Screening_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_screening_info
+                with record_ref=@variables.trial_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.trial_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the screening stage for the trial.
+              Current trial status: {! @variables.trial_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Screening result: {! @variables.screening_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.trial_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_screening} to begin processing.
+        actions:
+            run_screening: @actions.process_screening_data
+                with record_ref=@variables.trial_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.trial_category
+                set @variables.screening_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.screening_complete = @outputs.is_passed
+            fetch_screening_info: @actions.fetch_screening_details
+                with record_ref=@variables.trial_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.trial_tier = @outputs.tier_value
+            go_to_enrollment: @utils.transition to @topic.enrollment
+                description: "Move to enrollment stage."
+                available when @variables.screening_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.trial_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.trial_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.trial_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.screening_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic enrollment:
+    description: "Handles the enrollment stage of the trial process"
+
+    actions:
+        process_enrollment_data:
+            description: "Process enrollment stage data for the trial"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Enrollment_Data"
+
+        validate_enrollment_info:
+            description: "Validate enrollment information for the trial"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Enrollment_Info"
+
+        fetch_enrollment_details:
+            description: "Fetch enrollment details for the trial"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Enrollment_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.screening_complete == False:
+            transition to @topic.screening
+
+    reasoning:
+        instructions: ->
+            | Handle the enrollment stage for the trial.
+              Current trial status: {! @variables.trial_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Enrollment result: {! @variables.enrollment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.trial_tier }
+              Review the enrollment results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_enrollment: @actions.process_enrollment_data
+                with record_ref=@variables.trial_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.trial_category
+                set @variables.enrollment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.enrollment_complete = @outputs.is_passed
+            fetch_enrollment_info: @actions.fetch_enrollment_details
+                with record_ref=@variables.trial_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.trial_tier = @outputs.tier_value
+                available when @variables.trial_record_id is not None
+            go_to_monitoring: @utils.transition to @topic.monitoring
+                description: "Move to monitoring stage."
+                available when @variables.enrollment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.enrollment_complete == True:
+            set @variables.trial_status = "enrollment_done"
+        if @variables.enrollment_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.monitoring
+        if @variables.attempt_count >= 3 and @variables.enrollment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic monitoring:
+    description: "Handles the monitoring stage of the trial process"
+
+    actions:
+        process_monitoring_data:
+            description: "Process monitoring stage data for the trial"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Monitoring"
+
+        validate_monitoring_info:
+            description: "Validate monitoring information for the trial"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Monitoring_Info"
+
+        fetch_monitoring_details:
+            description: "Fetch monitoring details for the trial"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Monitoring_Details"
+
+    before_reasoning:
+        if @variables.monitoring_complete == False:
+            run @actions.fetch_monitoring_details
+                with record_ref=@variables.trial_record_id
+                with include_history=True
+                set @variables.monitoring_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.trial_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.trial_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.trial_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the monitoring stage for the trial.
+              Current trial status: {! @variables.trial_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Monitoring result: {! @variables.monitoring_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.trial_tier }
+              Review the monitoring results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_monitoring: @actions.process_monitoring_data
+                with record_ref=@variables.trial_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.trial_category
+                set @variables.monitoring_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.monitoring_complete = @outputs.is_passed
+            fetch_monitoring_info: @actions.fetch_monitoring_details
+                with record_ref=@variables.trial_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.trial_tier = @outputs.tier_value
+                available when @variables.trial_record_id is not None
+            go_to_reporting: @utils.transition to @topic.reporting
+                description: "Move to reporting stage."
+                available when @variables.monitoring_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.trial_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.trial_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.trial_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.monitoring_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic reporting:
+    description: "Handles the reporting stage of the trial process"
+
+    actions:
+        process_reporting_data:
+            description: "Process reporting stage data for the trial"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Reporting"
+
+        validate_reporting_info:
+            description: "Validate reporting information for the trial"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Reporting_Info"
+
+        fetch_reporting_details:
+            description: "Fetch reporting details for the trial"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Reporting_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.monitoring_complete == False:
+            transition to @topic.monitoring
+        if @variables.eligibility_score >= 80:
+            set @variables.trial_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.trial_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the reporting stage for the trial.
+              Current trial status: {! @variables.trial_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Reporting result: {! @variables.reporting_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.trial_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_reporting: @actions.process_reporting_data
+                with record_ref=@variables.trial_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.trial_category
+                set @variables.reporting_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.reporting_complete = @outputs.is_passed
+            fetch_reporting_info: @actions.fetch_reporting_details
+                with record_ref=@variables.trial_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.trial_tier = @outputs.tier_value
+                available when @variables.trial_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.reporting_complete == True:
+            set @variables.trial_status = "reporting_done"
+        if @variables.attempt_count >= 3 and @variables.reporting_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for trial issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the trial issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the trial interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the trial request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Trial status: {! @variables.trial_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.trial_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.trial_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.trial_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.trial_status = "escalated"
+        set @variables.escalation_requested = False
+

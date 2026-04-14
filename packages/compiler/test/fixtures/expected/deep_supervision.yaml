@@ -1,0 +1,86 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: EmployeeCopilotPlanner
+  label: EmployeeCopilotPlanner
+  description: An AI assistant for in-org business tasks.
+  enable_enhanced_event_logs: false
+  agent_type: AgentforceServiceAgent
+  context_variables: []
+agent_version:
+  developer_name: "v1"
+  role: "You are a friendly and empathetic Salesforce Employee bot that help employees with their day to day questions."
+  planner_type: "Atlas__ConcurrentMultiAgentOrchestration"
+  system_messages:
+    - message: "Hello! I'm a Salesforce Employee Bot. How are you feeling today?"
+      message_type: "Welcome"
+    - message: "Sorry, something went wrong."
+      message_type: "Error"
+  initial_node: "A1"
+
+  nodes:
+    - developer_name: "A1"
+      label: "A1"
+      description: "Asks the user if they want to know about something?"
+      type: "subagent"
+      instructions: "You are Salesforce employee support bot. You can help employees with their questions about Salesforce"
+      transitions:
+        - target: "A2"
+          instruction: "If the user query is about something related to Salesforce Tower in San Francisco"
+          mode: "auto"
+          type: "handoff"
+    - developer_name: "A2"
+      label: "A2"
+      description: "Help user with questions related to Salesforce Tower in San Francisco."
+      type: "subagent"
+      instructions: "You are Salesforce SF Tower expert. You can help employees with their questions about Salesforce SF Tower"
+      transitions:
+        - target: "B1"
+          instruction: "If user query mentions meeting room at all"
+          mode: "auto"
+          type: "supervision"
+    - developer_name: "B1"
+      label: "B1"
+      description: "Help user with questions related to Meeting rooms in Salesforce SF Tower."
+      type: "subagent"
+      instructions: "You are Meeting room expert for Salesforce SF Tower. You can help employees with their meeting room in Salesforce SF Tower"
+      transitions:
+        - target: "B2"
+          instruction: "If user query mentions microkitchen at all"
+          mode: "auto"
+          type: "handoff"
+    - developer_name: "B2"
+      label: "B2"
+      description: "Help user with questions related to microkitchen in Salesforce SF Tower."
+      type: "subagent"
+      instructions: "You are microkitchen expert for Salesforce SF Tower. You can help employees with their microkitchen in Salesforce SF Tower"
+      transitions:
+        - target: "C1"
+          instruction: "If user query mentions microkitchen buffet and food items at all"
+          mode: "auto"
+          type: "supervision"
+    - developer_name: "C1"
+      label: "C1"
+      description: "Help user with questions related to buffets in microkitchen in Salesforce SF Tower."
+      type: "subagent"
+      instructions: "You are buffets in microkitchen expert for Salesforce SF Tower. You can help employees with their buffets in microkitchen in Salesforce SF Tower"
+      transitions:
+        - target: "C2"
+          instruction: "If user query mentions food items in buffet at all"
+          mode: "auto"
+          type: "handoff"
+    - developer_name: "C2"
+      label: "C2"
+      description: "Help user with questions related to food items in buffets happening in microkitchen in Salesforce SF Tower."
+      type: "subagent"
+      instructions: "You are buffets in food items in buffets happening microkitchen expert for Salesforce SF Tower. You can help employees with their buffet food item related questions"
+      transitions:
+        - target: "D1"
+          instruction: "If user query questions anything about the missing food items in buffet at all"
+          mode: "auto"
+          type: "supervision"
+    - developer_name: "D1"
+      label: "D1"
+      description: "You know the answer to the Microkitchen buffet missing food item at all."
+      type: "subagent"
+      instructions: "Let the user know that the missing item was Butter Croissant."
+      transitions: []

@@ -1,0 +1,287 @@
+================
+Template: empty template (pipe with no content)
+================
+config:
+    message: |
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template))))))
+================
+Template: pipe as colinear value with content on same line
+================
+config:
+    message: | hello world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)))))))
+================
+Template: multi-line with empty line between content
+================
+config:
+    message: |
+        first line
+
+        third line
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)))))))
+================
+Template: multiple template expressions with interleaved content
+================
+config:
+    greeting: |
+        Hello {!@user.first} and {!@user.last}!
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)
+            (template_expression
+              expression: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id))))
+            (template_content)
+            (template_expression
+              expression: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id))))
+            (template_content)))))))
+================
+Template: chained member access in template expression
+================
+config:
+    msg: |
+        Value is {!@data.nested.value}
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)
+            (template_expression
+              expression: (expression
+                (member_expression
+                  (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  (id))))))))))
+================
+Template: empty template expression {!}
+================
+config:
+    msg: |
+        Hello {!} world
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)
+            (template_expression
+              (ERROR))
+            (template_content)))))))
+================
+Template: function call inside template expression
+================
+config:
+    msg: |
+        Result: {!@utils.format(@data.value)}
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)
+            (template_expression
+              expression: (expression
+                (call_expression
+                  function: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))
+                  argument: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id))))))))))))
+================
+Template: dictionary literal inside template expression
+================
+config:
+    msg: |
+        Data: {! {} }
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)
+            (template_expression
+              expression: (expression
+                (atom
+                  (dictionary))))))))))
+================
+Template: hash in template content is not a comment
+================
+config:
+    msg: |
+        ## Section Title
+        Some content
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)))))))
+================
+Template: multi-line with expression at end of last line
+================
+config:
+    msg: |
+        Hello there
+        Your name is {!@user.name}
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)
+            (template_expression
+              expression: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id))))))))))
+================
+Template: multiple pipes in procedure body
+================
+topic test:
+    instructions: ->
+        | line one
+        | line two
+        | line three
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id)
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (template
+              (template_content))
+            (template
+              (template_content))
+            (template
+              (template_content))))))))
+================
+Template: pipe on same line with multiline body below
+================
+config:
+    message: |
+        line one
+        line two
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (template
+            (template_content)))))))

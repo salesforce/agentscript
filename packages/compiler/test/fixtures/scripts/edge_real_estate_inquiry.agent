@@ -1,0 +1,109 @@
+system:
+    instructions: "You are a real estate inquiry assistant. Help users search properties, schedule viewings, and get notifications."
+    messages:
+        welcome: "Welcome! I can help you find properties and schedule viewings."
+        error: "Sorry, something went wrong with the property system."
+
+config:
+    developer_name: "Real_Estate_Agent"
+    default_agent_user: "realty@example.com"
+    description: "Handles property search, viewing scheduling, and notifications."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    location: mutable string = ""
+        description: "Desired property location"
+    budget: mutable number = 0
+        description: "Maximum budget"
+    bedrooms: mutable number = 0
+        description: "Number of bedrooms"
+    property_id: mutable string = ""
+        description: "Selected property ID"
+    viewing_scheduled: mutable boolean = False
+        description: "Whether a viewing is scheduled"
+
+start_agent property_intake:
+    description: "Gathers property search criteria from the user"
+
+    reasoning:
+        instructions: ->
+            | Ask the user about their property preferences: location, budget, bedrooms, property type.
+
+        actions:
+            save_prefs: @utils.setVariables
+                description: "Save search preferences"
+                with location=@variables.location
+                with budget=@variables.budget
+                with bedrooms=@variables.bedrooms
+
+            go_search: @utils.transition to @topic.property_search
+                description: "Search for properties"
+
+topic property_search:
+    description: "Searches for properties matching user criteria"
+
+    actions:
+        search_listings:
+            description: "Searches property listings"
+            inputs:
+                location: string
+                max_price: number
+                min_bedrooms: number
+            outputs:
+                listings: string
+                total_results: number
+            target: "externalService://SearchListings"
+
+    reasoning:
+        instructions: ->
+            | Search for properties matching the user's criteria and present results.
+
+        actions:
+            search: @actions.search_listings
+                with location=@variables.location
+                with max_price=@variables.budget
+                with min_bedrooms=@variables.bedrooms
+
+            go_viewing: @utils.transition to @topic.schedule_viewing
+                description: "Schedule a property viewing"
+
+topic schedule_viewing:
+    description: "Schedules property viewings for the user"
+
+    actions:
+        book_viewing:
+            description: "Books a property viewing appointment"
+            inputs:
+                property_id: string
+                    is_required: True
+                preferred_date: string
+                    is_required: True
+            outputs:
+                confirmed: boolean
+                viewing_time: string
+            target: "flow://BookViewing"
+
+        send_notification:
+            description: "Sends viewing confirmation notification"
+            inputs:
+                property_id: string
+                viewing_time: string
+            outputs:
+                sent: boolean
+            target: "flow://SendNotification"
+
+    reasoning:
+        instructions: ->
+            | Help the user schedule a viewing for their selected property.
+
+        actions:
+            book: @actions.book_viewing
+                with property_id=@variables.property_id
+                with preferred_date=...
+                set @variables.viewing_scheduled = @outputs.confirmed
+
+            notify: @actions.send_notification
+                with property_id=@variables.property_id
+                with viewing_time=...

@@ -1,0 +1,81 @@
+system:
+    instructions: "You are a universal agent available on all communication surfaces."
+    messages:
+        welcome: "Welcome! I'm available on messaging, Slack, email, and voice."
+        error: "Something went wrong."
+
+config:
+    developer_name: "EdgeConnAllSurfaces"
+    default_agent_user: "universal_bot@example.com"
+    agent_label: "Universal Agent"
+    description: "Agent with all connection types: messaging, slack, service_email, voice"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "End user ID"
+    RoutableId: linked string
+        source: @MessagingSession.Id
+        description: "Session ID"
+    channel: mutable string
+        description: "Current channel"
+    resolved: mutable boolean = False
+        description: "Issue resolved flag"
+
+language:
+    default_locale: "en_US"
+
+connection messaging:
+    adaptive_response_allowed: True
+
+connection slack:
+    adaptive_response_allowed: True
+
+connection service_email:
+    adaptive_response_allowed: True
+
+connection voice:
+    adaptive_response_allowed: True
+
+start_agent main:
+    description: "Handle requests from any communication surface"
+
+    reasoning:
+        instructions: ->
+            | Help the customer regardless of their communication channel.
+              Adapt your response style to the channel.
+
+        actions:
+            go_to_support: @utils.transition to @topic.general_support
+                description: "Route to general support"
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"
+
+topic general_support:
+    description: "General support available on all surfaces"
+
+    actions:
+        resolve_issue:
+            description: "Resolve the customer issue"
+            inputs:
+                issue: string
+                    is_required: True
+                channel: string
+                    is_required: False
+            outputs:
+                resolved: boolean
+                resolution_notes: string
+            target: "flow://Resolve_Issue"
+
+    reasoning:
+        instructions: ->
+            | Provide support to the customer.
+
+        actions:
+            resolve: @actions.resolve_issue
+                with issue=...
+                with channel=@variables.channel
+                set @variables.resolved = @outputs.resolved
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human"

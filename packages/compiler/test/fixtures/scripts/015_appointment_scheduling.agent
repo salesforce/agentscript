@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional appointment scheduling assistant assistant.
+        Help users manage their appointment requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: availability_check -> booking -> confirmation -> reminder.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Appointment Scheduling Assistant Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "appointment_scheduling_agent_v15"
+    default_agent_user: "appointment_scheduling@example.com"
+    agent_description: "Assists users with appointment management through the appointment scheduling assistant workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    appointment_record_id: mutable string
+        description: "Record ID of the appointment"
+    appointment_status: mutable string = ""
+        description: "Current status of the appointment"
+    appointment_tier: mutable string = "standard"
+        description: "Tier classification for the appointment"
+    appointment_category: mutable string = ""
+        description: "Category of the appointment"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    availability_check_complete: mutable boolean = False
+        description: "Whether the availability_check stage is complete"
+    availability_check_result: mutable string = ""
+        description: "Result from the availability_check stage"
+    booking_complete: mutable boolean = False
+        description: "Whether the booking stage is complete"
+    booking_result: mutable string = ""
+        description: "Result from the booking stage"
+    confirmation_complete: mutable boolean = False
+        description: "Whether the confirmation stage is complete"
+    confirmation_result: mutable string = ""
+        description: "Result from the confirmation stage"
+    reminder_complete: mutable boolean = False
+        description: "Whether the reminder stage is complete"
+    reminder_result: mutable string = ""
+        description: "Result from the reminder stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate appointment management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a appointment scheduling assistant assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current appointment status: {! @variables.appointment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_availability_check} for availability check requests.
+              Use {!@actions.go_to_booking} for booking requests.
+              Use {!@actions.go_to_confirmation} for confirmation requests.
+              Use {!@actions.go_to_reminder} for reminder requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_availability_check: @utils.transition to @topic.availability_check
+                description: "Transition to availability check topic."
+            go_to_booking: @utils.transition to @topic.booking
+                description: "Transition to booking topic."
+                available when @variables.is_verified == True
+            go_to_confirmation: @utils.transition to @topic.confirmation
+                description: "Transition to confirmation topic."
+                available when @variables.is_verified == True
+            go_to_reminder: @utils.transition to @topic.reminder
+                description: "Transition to reminder topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic availability_check:
+    description: "Handles the availability check stage of the appointment process"
+
+    actions:
+        process_availability_check_data:
+            description: "Process availability check stage data for the appointment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_AvailabilityCheck"
+
+        validate_availability_check_info:
+            description: "Validate availability check information for the appointment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_AvailabilityCheck_Info"
+
+        fetch_availability_check_details:
+            description: "Fetch availability check details for the appointment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_AvailabilityCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_availability_check_info
+                with record_ref=@variables.appointment_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.appointment_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the availability check stage for the appointment.
+              Current appointment status: {! @variables.appointment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Availability Check result: {! @variables.availability_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.appointment_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_availability_check} to begin processing.
+        actions:
+            run_availability_check: @actions.process_availability_check_data
+                with record_ref=@variables.appointment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.appointment_category
+                set @variables.availability_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.availability_check_complete = @outputs.is_passed
+            fetch_availability_check_info: @actions.fetch_availability_check_details
+                with record_ref=@variables.appointment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.appointment_tier = @outputs.tier_value
+            go_to_booking: @utils.transition to @topic.booking
+                description: "Move to booking stage."
+                available when @variables.availability_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.appointment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.appointment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.appointment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.availability_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic booking:
+    description: "Handles the booking stage of the appointment process"
+
+    actions:
+        process_booking_data:
+            description: "Process booking stage data for the appointment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Booking_Data"
+
+        validate_booking_info:
+            description: "Validate booking information for the appointment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Booking_Info"
+
+        fetch_booking_details:
+            description: "Fetch booking details for the appointment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Booking_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.availability_check_complete == False:
+            transition to @topic.availability_check
+
+    reasoning:
+        instructions: ->
+            | Handle the booking stage for the appointment.
+              Current appointment status: {! @variables.appointment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Booking result: {! @variables.booking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.appointment_tier }
+              Review the booking results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_booking: @actions.process_booking_data
+                with record_ref=@variables.appointment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.appointment_category
+                set @variables.booking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.booking_complete = @outputs.is_passed
+            fetch_booking_info: @actions.fetch_booking_details
+                with record_ref=@variables.appointment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.appointment_tier = @outputs.tier_value
+                available when @variables.appointment_record_id is not None
+            go_to_confirmation: @utils.transition to @topic.confirmation
+                description: "Move to confirmation stage."
+                available when @variables.booking_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.booking_complete == True:
+            set @variables.appointment_status = "booking_done"
+        if @variables.booking_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.confirmation
+        if @variables.attempt_count >= 3 and @variables.booking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic confirmation:
+    description: "Handles the confirmation stage of the appointment process"
+
+    actions:
+        process_confirmation_data:
+            description: "Process confirmation stage data for the appointment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Confirmation"
+
+        validate_confirmation_info:
+            description: "Validate confirmation information for the appointment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Confirmation_Info"
+
+        fetch_confirmation_details:
+            description: "Fetch confirmation details for the appointment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Confirmation_Details"
+
+    before_reasoning:
+        if @variables.confirmation_complete == False:
+            run @actions.fetch_confirmation_details
+                with record_ref=@variables.appointment_record_id
+                with include_history=True
+                set @variables.confirmation_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.appointment_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.appointment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.appointment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the confirmation stage for the appointment.
+              Current appointment status: {! @variables.appointment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Confirmation result: {! @variables.confirmation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.appointment_tier }
+              Review the confirmation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_confirmation: @actions.process_confirmation_data
+                with record_ref=@variables.appointment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.appointment_category
+                set @variables.confirmation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.confirmation_complete = @outputs.is_passed
+            fetch_confirmation_info: @actions.fetch_confirmation_details
+                with record_ref=@variables.appointment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.appointment_tier = @outputs.tier_value
+                available when @variables.appointment_record_id is not None
+            go_to_reminder: @utils.transition to @topic.reminder
+                description: "Move to reminder stage."
+                available when @variables.confirmation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.appointment_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.appointment_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.appointment_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.confirmation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic reminder:
+    description: "Handles the reminder stage of the appointment process"
+
+    actions:
+        process_reminder_data:
+            description: "Process reminder stage data for the appointment"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Reminder"
+
+        validate_reminder_info:
+            description: "Validate reminder information for the appointment"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Reminder_Info"
+
+        fetch_reminder_details:
+            description: "Fetch reminder details for the appointment"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Reminder_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.confirmation_complete == False:
+            transition to @topic.confirmation
+        if @variables.eligibility_score >= 80:
+            set @variables.appointment_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.appointment_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the reminder stage for the appointment.
+              Current appointment status: {! @variables.appointment_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Reminder result: {! @variables.reminder_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.appointment_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_reminder: @actions.process_reminder_data
+                with record_ref=@variables.appointment_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.appointment_category
+                set @variables.reminder_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.reminder_complete = @outputs.is_passed
+            fetch_reminder_info: @actions.fetch_reminder_details
+                with record_ref=@variables.appointment_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.appointment_tier = @outputs.tier_value
+                available when @variables.appointment_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.reminder_complete == True:
+            set @variables.appointment_status = "reminder_done"
+        if @variables.attempt_count >= 3 and @variables.reminder_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for appointment issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the appointment issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the appointment interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the appointment request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Appointment status: {! @variables.appointment_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.appointment_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.appointment_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.appointment_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.appointment_status = "escalated"
+        set @variables.escalation_requested = False
+

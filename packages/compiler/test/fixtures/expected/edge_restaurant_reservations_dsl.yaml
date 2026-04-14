@@ -1,0 +1,454 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Restaurant_Reservations_Agent
+  label: Restaurant Reservations Agent
+  description: Handles restaurant reservations including availability, dietary needs,
+    and confirmations.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: reservations@restaurant.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome! I can help you make a restaurant reservation.
+      message_type: Welcome
+    - message: Sorry, the reservation system encountered an error.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome! I can help you make a restaurant reservation.",
+      "messageType": "Welcome"}, {"message": "Sorry, the reservation system encountered
+      an error.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: guest_name
+      label: Guest Name
+      description: Guest name for the reservation
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: party_size
+      label: Party Size
+      description: Number of guests
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: reservation_date
+      label: Reservation Date
+      description: Requested reservation date
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: reservation_time
+      label: Reservation Time
+      description: Requested reservation time
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: dietary_restrictions
+      label: Dietary Restrictions
+      description: Any dietary restrictions or allergies
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: special_requests
+      label: Special Requests
+      description: Special requests like high chair, wheelchair access
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: reservation_confirmed
+      label: Reservation Confirmed
+      description: Whether reservation is confirmed
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: confirmation_number
+      label: Confirmation Number
+      description: Reservation confirmation number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: reservation_intake
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Welcome the guest and collect reservation details:
+
+                name, party size, date, time, and any special requirements.'
+      instructions: You are a restaurant reservation assistant. Help guests check
+        availability, make reservations, and manage dietary preferences.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Gathers reservation details from the guest
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - guest_name: state.guest_name
+            - party_size: state.party_size
+            - reservation_date: state.reservation_date
+            - reservation_time: state.reservation_time
+          name: save_details
+          description: Save reservation details
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"check_availability"'
+          name: go_availability
+          description: Check table availability
+      after_all_tool_calls:
+        - type: handoff
+          target: check_availability
+          enabled: state.AgentScriptInternal_next_topic=="check_availability"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: reservation_intake
+      label: Reservation Intake
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Check availability for {{state.party_size}} guests on {{state.reservation_date}}.
+
+                If not available, suggest alternative times.'
+      instructions: You are a restaurant reservation assistant. Help guests check
+        availability, make reservations, and manage dietary preferences.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Checks table availability for the requested date and party size
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: check_tables
+          bound_inputs:
+            reservation_date: state.reservation_date
+            reservation_time: state.reservation_time
+            party_size: state.party_size
+          llm_inputs: []
+          state_updates: []
+          name: check
+          description: Check
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"dietary_preferences"'
+          name: go_dietary
+          description: Collect dietary preferences
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"reservation_intake"'
+          name: go_intake
+          description: Try different date/time
+      after_all_tool_calls:
+        - type: handoff
+          target: dietary_preferences
+          enabled: state.AgentScriptInternal_next_topic=="dietary_preferences"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: reservation_intake
+          enabled: state.AgentScriptInternal_next_topic=="reservation_intake"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: check_availability
+      label: Check Availability
+      action_definitions:
+        - developer_name: check_tables
+          label: Check Tables
+          description: Checks available tables for the given date, time, and party
+            size
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: CheckTableAvailability
+          input_type:
+            - developer_name: reservation_date
+              label: Reservation Date
+              description: Reservation Date
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: reservation_time
+              label: Reservation Time
+              description: Reservation Time
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: party_size
+              label: Party Size
+              description: Party Size
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: available
+              label: Available
+              description: Available
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: alternative_times
+              label: Alternative Times
+              description: Alternative Times
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: table_type
+              label: Table Type
+              description: Table Type
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Ask about any dietary restrictions, allergies, or special menu requests.
+
+                Record them for the kitchen staff.'
+      instructions: You are a restaurant reservation assistant. Help guests check
+        availability, make reservations, and manage dietary preferences.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Collects and records dietary restrictions and preferences
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: record_dietary
+          bound_inputs:
+            reservation_date: state.reservation_date
+            dietary_info: state.dietary_restrictions
+          llm_inputs:
+            - allergies
+          state_updates: []
+          name: record
+          description: Record
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"confirmation"'
+          name: go_confirm
+          description: Confirm the reservation
+      after_all_tool_calls:
+        - type: handoff
+          target: confirmation
+          enabled: state.AgentScriptInternal_next_topic=="confirmation"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: dietary_preferences
+      label: Dietary Preferences
+      action_definitions:
+        - developer_name: record_dietary
+          label: Record Dietary
+          description: Records dietary restrictions for the reservation
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: RecordDietaryPreferences
+          input_type:
+            - developer_name: reservation_date
+              label: Reservation Date
+              description: Reservation Date
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: dietary_info
+              label: Dietary Info
+              description: Dietary Info
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: allergies
+              label: Allergies
+              description: Allergies
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: menu_options
+              label: Menu Options
+              description: Menu Options
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: chef_notified
+              label: Chef Notified
+              description: Chef Notified
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Confirm all reservation details with the guest and create the booking.
+
+                Name: {{state.guest_name}}
+
+                Party: {{state.party_size}}
+
+                Date: {{state.reservation_date}} at {{state.reservation_time}}'
+      instructions: You are a restaurant reservation assistant. Help guests check
+        availability, make reservations, and manage dietary preferences.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Finalizes and confirms the reservation
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: create_reservation
+          bound_inputs:
+            guest_name: state.guest_name
+            party_size: state.party_size
+            reservation_date: state.reservation_date
+            reservation_time: state.reservation_time
+            special_requests: state.special_requests
+          llm_inputs: []
+          state_updates:
+            - confirmation_number: result.confirmation_number
+            - reservation_confirmed: 'True'
+          name: reserve
+          description: Reserve
+      developer_name: confirmation
+      label: Confirmation
+      action_definitions:
+        - developer_name: create_reservation
+          label: Create Reservation
+          description: Creates the final reservation
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: CreateReservation
+          input_type:
+            - developer_name: guest_name
+              label: Guest Name
+              description: Guest Name
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: party_size
+              label: Party Size
+              description: Party Size
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: reservation_date
+              label: Reservation Date
+              description: Reservation Date
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: reservation_time
+              label: Reservation Time
+              description: Reservation Time
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: special_requests
+              label: Special Requests
+              description: Special Requests
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: confirmation_number
+              label: Confirmation Number
+              description: Confirmation Number
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: table_number
+              label: Table Number
+              description: Table Number
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

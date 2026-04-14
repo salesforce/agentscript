@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional showing scheduler assistant assistant.
+        Help users manage their showing requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: availability_check -> booking -> notification -> feedback_collection.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Showing Scheduler Assistant Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "showing_scheduler_agent_v67"
+    default_agent_user: "showing_scheduler@example.com"
+    agent_description: "Assists users with showing management through the showing scheduler assistant workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    showing_record_id: mutable string
+        description: "Record ID of the showing"
+    showing_status: mutable string = ""
+        description: "Current status of the showing"
+    showing_tier: mutable string = "standard"
+        description: "Tier classification for the showing"
+    showing_category: mutable string = ""
+        description: "Category of the showing"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    availability_check_complete: mutable boolean = False
+        description: "Whether the availability_check stage is complete"
+    availability_check_result: mutable string = ""
+        description: "Result from the availability_check stage"
+    booking_complete: mutable boolean = False
+        description: "Whether the booking stage is complete"
+    booking_result: mutable string = ""
+        description: "Result from the booking stage"
+    notification_complete: mutable boolean = False
+        description: "Whether the notification stage is complete"
+    notification_result: mutable string = ""
+        description: "Result from the notification stage"
+    feedback_collection_complete: mutable boolean = False
+        description: "Whether the feedback_collection stage is complete"
+    feedback_collection_result: mutable string = ""
+        description: "Result from the feedback_collection stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate showing management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a showing scheduler assistant assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current showing status: {! @variables.showing_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_availability_check} for availability check requests.
+              Use {!@actions.go_to_booking} for booking requests.
+              Use {!@actions.go_to_notification} for notification requests.
+              Use {!@actions.go_to_feedback_collection} for feedback collection requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_availability_check: @utils.transition to @topic.availability_check
+                description: "Transition to availability check topic."
+            go_to_booking: @utils.transition to @topic.booking
+                description: "Transition to booking topic."
+                available when @variables.is_verified == True
+            go_to_notification: @utils.transition to @topic.notification
+                description: "Transition to notification topic."
+                available when @variables.is_verified == True
+            go_to_feedback_collection: @utils.transition to @topic.feedback_collection
+                description: "Transition to feedback collection topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic availability_check:
+    description: "Handles the availability check stage of the showing process"
+
+    actions:
+        process_availability_check_data:
+            description: "Process availability check stage data for the showing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_AvailabilityCheck_Data"
+
+        validate_availability_check_info:
+            description: "Validate availability check information for the showing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_AvailabilityCheck_Info"
+
+        fetch_availability_check_details:
+            description: "Fetch availability check details for the showing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_AvailabilityCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_availability_check_info
+                with record_ref=@variables.showing_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.showing_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the availability check stage for the showing.
+              Current showing status: {! @variables.showing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Availability Check result: {! @variables.availability_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.showing_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_availability_check} to begin processing.
+        actions:
+            run_availability_check: @actions.process_availability_check_data
+                with record_ref=@variables.showing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.showing_category
+                set @variables.availability_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.availability_check_complete = @outputs.is_passed
+            fetch_availability_check_info: @actions.fetch_availability_check_details
+                with record_ref=@variables.showing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.showing_tier = @outputs.tier_value
+            go_to_booking: @utils.transition to @topic.booking
+                description: "Move to booking stage."
+                available when @variables.availability_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.showing_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.showing_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.showing_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.availability_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic booking:
+    description: "Handles the booking stage of the showing process"
+
+    actions:
+        process_booking_data:
+            description: "Process booking stage data for the showing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Booking"
+
+        validate_booking_info:
+            description: "Validate booking information for the showing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Booking_Info"
+
+        fetch_booking_details:
+            description: "Fetch booking details for the showing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Booking_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.availability_check_complete == False:
+            transition to @topic.availability_check
+
+    reasoning:
+        instructions: ->
+            | Handle the booking stage for the showing.
+              Current showing status: {! @variables.showing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Booking result: {! @variables.booking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.showing_tier }
+              Review the booking results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_booking: @actions.process_booking_data
+                with record_ref=@variables.showing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.showing_category
+                set @variables.booking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.booking_complete = @outputs.is_passed
+            fetch_booking_info: @actions.fetch_booking_details
+                with record_ref=@variables.showing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.showing_tier = @outputs.tier_value
+                available when @variables.showing_record_id is not None
+            go_to_notification: @utils.transition to @topic.notification
+                description: "Move to notification stage."
+                available when @variables.booking_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.booking_complete == True:
+            set @variables.showing_status = "booking_done"
+        if @variables.booking_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.notification
+        if @variables.attempt_count >= 3 and @variables.booking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic notification:
+    description: "Handles the notification stage of the showing process"
+
+    actions:
+        process_notification_data:
+            description: "Process notification stage data for the showing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Notification"
+
+        validate_notification_info:
+            description: "Validate notification information for the showing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Notification_Info"
+
+        fetch_notification_details:
+            description: "Fetch notification details for the showing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Notification_Details"
+
+    before_reasoning:
+        if @variables.notification_complete == False:
+            run @actions.fetch_notification_details
+                with record_ref=@variables.showing_record_id
+                with include_history=True
+                set @variables.notification_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.showing_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.showing_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.showing_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the notification stage for the showing.
+              Current showing status: {! @variables.showing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Notification result: {! @variables.notification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.showing_tier }
+              Review the notification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_notification: @actions.process_notification_data
+                with record_ref=@variables.showing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.showing_category
+                set @variables.notification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.notification_complete = @outputs.is_passed
+            fetch_notification_info: @actions.fetch_notification_details
+                with record_ref=@variables.showing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.showing_tier = @outputs.tier_value
+                available when @variables.showing_record_id is not None
+            go_to_feedback_collection: @utils.transition to @topic.feedback_collection
+                description: "Move to feedback collection stage."
+                available when @variables.notification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.showing_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.showing_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.showing_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.notification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic feedback_collection:
+    description: "Handles the feedback collection stage of the showing process"
+
+    actions:
+        process_feedback_collection_data:
+            description: "Process feedback collection stage data for the showing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_FeedbackCollection_Data"
+
+        validate_feedback_collection_info:
+            description: "Validate feedback collection information for the showing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_FeedbackCollection_Info"
+
+        fetch_feedback_collection_details:
+            description: "Fetch feedback collection details for the showing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_FeedbackCollection_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.notification_complete == False:
+            transition to @topic.notification
+        if @variables.eligibility_score >= 80:
+            set @variables.showing_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.showing_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the feedback collection stage for the showing.
+              Current showing status: {! @variables.showing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Feedback Collection result: {! @variables.feedback_collection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.showing_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_feedback_collection: @actions.process_feedback_collection_data
+                with record_ref=@variables.showing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.showing_category
+                set @variables.feedback_collection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.feedback_collection_complete = @outputs.is_passed
+            fetch_feedback_collection_info: @actions.fetch_feedback_collection_details
+                with record_ref=@variables.showing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.showing_tier = @outputs.tier_value
+                available when @variables.showing_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.feedback_collection_complete == True:
+            set @variables.showing_status = "feedback_collection_done"
+        if @variables.attempt_count >= 3 and @variables.feedback_collection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for showing issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the showing issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the showing interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the showing request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Showing status: {! @variables.showing_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.showing_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.showing_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.showing_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.showing_status = "escalated"
+        set @variables.escalation_requested = False
+

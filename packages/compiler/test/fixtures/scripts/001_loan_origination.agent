@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional loan origination specialist assistant.
+        Help users manage their loan requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: intake -> credit_check -> underwriting -> approval.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Loan Origination Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "loan_origination_agent_v1"
+    default_agent_user: "loan_origination@example.com"
+    agent_description: "Assists users with loan management through the loan origination specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    loan_record_id: mutable string
+        description: "Record ID of the loan"
+    loan_status: mutable string = ""
+        description: "Current status of the loan"
+    loan_tier: mutable string = "standard"
+        description: "Tier classification for the loan"
+    loan_category: mutable string = ""
+        description: "Category of the loan"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    intake_complete: mutable boolean = False
+        description: "Whether the intake stage is complete"
+    intake_result: mutable string = ""
+        description: "Result from the intake stage"
+    credit_check_complete: mutable boolean = False
+        description: "Whether the credit_check stage is complete"
+    credit_check_result: mutable string = ""
+        description: "Result from the credit_check stage"
+    underwriting_complete: mutable boolean = False
+        description: "Whether the underwriting stage is complete"
+    underwriting_result: mutable string = ""
+        description: "Result from the underwriting stage"
+    approval_complete: mutable boolean = False
+        description: "Whether the approval stage is complete"
+    approval_result: mutable string = ""
+        description: "Result from the approval stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate loan management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a loan origination specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current loan status: {! @variables.loan_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_intake} for intake requests.
+              Use {!@actions.go_to_credit_check} for credit check requests.
+              Use {!@actions.go_to_underwriting} for underwriting requests.
+              Use {!@actions.go_to_approval} for approval requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_intake: @utils.transition to @topic.intake
+                description: "Transition to intake topic."
+            go_to_credit_check: @utils.transition to @topic.credit_check
+                description: "Transition to credit check topic."
+                available when @variables.is_verified == True
+            go_to_underwriting: @utils.transition to @topic.underwriting
+                description: "Transition to underwriting topic."
+                available when @variables.is_verified == True
+            go_to_approval: @utils.transition to @topic.approval
+                description: "Transition to approval topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic intake:
+    description: "Handles the intake stage of the loan process"
+
+    actions:
+        process_intake_data:
+            description: "Process intake stage data for the loan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Intake_Data"
+
+        validate_intake_info:
+            description: "Validate intake information for the loan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Intake_Info"
+
+        fetch_intake_details:
+            description: "Fetch intake details for the loan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Intake_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_intake_info
+                with record_ref=@variables.loan_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.loan_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the intake stage for the loan.
+              Current loan status: {! @variables.loan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Intake result: {! @variables.intake_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.loan_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_intake} to begin processing.
+        actions:
+            run_intake: @actions.process_intake_data
+                with record_ref=@variables.loan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.loan_category
+                set @variables.intake_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.intake_complete = @outputs.is_passed
+            fetch_intake_info: @actions.fetch_intake_details
+                with record_ref=@variables.loan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.loan_tier = @outputs.tier_value
+            go_to_credit_check: @utils.transition to @topic.credit_check
+                description: "Move to credit check stage."
+                available when @variables.intake_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.loan_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.loan_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.loan_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.intake_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic credit_check:
+    description: "Handles the credit check stage of the loan process"
+
+    actions:
+        process_credit_check_data:
+            description: "Process credit check stage data for the loan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_CreditCheck"
+
+        validate_credit_check_info:
+            description: "Validate credit check information for the loan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_CreditCheck_Info"
+
+        fetch_credit_check_details:
+            description: "Fetch credit check details for the loan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_CreditCheck_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.intake_complete == False:
+            transition to @topic.intake
+
+    reasoning:
+        instructions: ->
+            | Handle the credit check stage for the loan.
+              Current loan status: {! @variables.loan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Credit Check result: {! @variables.credit_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.loan_tier }
+              Review the credit check results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_credit_check: @actions.process_credit_check_data
+                with record_ref=@variables.loan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.loan_category
+                set @variables.credit_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.credit_check_complete = @outputs.is_passed
+            fetch_credit_check_info: @actions.fetch_credit_check_details
+                with record_ref=@variables.loan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.loan_tier = @outputs.tier_value
+                available when @variables.loan_record_id is not None
+            go_to_underwriting: @utils.transition to @topic.underwriting
+                description: "Move to underwriting stage."
+                available when @variables.credit_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.credit_check_complete == True:
+            set @variables.loan_status = "credit_check_done"
+        if @variables.credit_check_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.underwriting
+        if @variables.attempt_count >= 3 and @variables.credit_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic underwriting:
+    description: "Handles the underwriting stage of the loan process"
+
+    actions:
+        process_underwriting_data:
+            description: "Process underwriting stage data for the loan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Underwriting"
+
+        validate_underwriting_info:
+            description: "Validate underwriting information for the loan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Underwriting_Info"
+
+        fetch_underwriting_details:
+            description: "Fetch underwriting details for the loan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Underwriting_Details"
+
+    before_reasoning:
+        if @variables.underwriting_complete == False:
+            run @actions.fetch_underwriting_details
+                with record_ref=@variables.loan_record_id
+                with include_history=True
+                set @variables.underwriting_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.loan_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.loan_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.loan_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the underwriting stage for the loan.
+              Current loan status: {! @variables.loan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Underwriting result: {! @variables.underwriting_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.loan_tier }
+              Review the underwriting results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_underwriting: @actions.process_underwriting_data
+                with record_ref=@variables.loan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.loan_category
+                set @variables.underwriting_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.underwriting_complete = @outputs.is_passed
+            fetch_underwriting_info: @actions.fetch_underwriting_details
+                with record_ref=@variables.loan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.loan_tier = @outputs.tier_value
+                available when @variables.loan_record_id is not None
+            go_to_approval: @utils.transition to @topic.approval
+                description: "Move to approval stage."
+                available when @variables.underwriting_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.loan_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.loan_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.loan_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.underwriting_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic approval:
+    description: "Handles the approval stage of the loan process"
+
+    actions:
+        process_approval_data:
+            description: "Process approval stage data for the loan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Approval_Data"
+
+        validate_approval_info:
+            description: "Validate approval information for the loan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Approval_Info"
+
+        fetch_approval_details:
+            description: "Fetch approval details for the loan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Approval_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.underwriting_complete == False:
+            transition to @topic.underwriting
+        if @variables.eligibility_score >= 80:
+            set @variables.loan_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.loan_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the approval stage for the loan.
+              Current loan status: {! @variables.loan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Approval result: {! @variables.approval_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.loan_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_approval: @actions.process_approval_data
+                with record_ref=@variables.loan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.loan_category
+                set @variables.approval_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.approval_complete = @outputs.is_passed
+            fetch_approval_info: @actions.fetch_approval_details
+                with record_ref=@variables.loan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.loan_tier = @outputs.tier_value
+                available when @variables.loan_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.approval_complete == True:
+            set @variables.loan_status = "approval_done"
+        if @variables.attempt_count >= 3 and @variables.approval_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for loan issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the loan issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the loan interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the loan request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Loan status: {! @variables.loan_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.loan_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.loan_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.loan_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.loan_status = "escalated"
+        set @variables.escalation_requested = False
+

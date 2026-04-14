@@ -1,0 +1,51 @@
+system:
+    instructions: "You are a conversational guidance agent."
+    messages:
+        welcome: "Hello! I can provide guidance and information."
+        error: "An error occurred. Please try again."
+
+config:
+    developer_name: "Topic_No_Actions_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent where topics have only reasoning instructions and no actions"
+
+start_agent main:
+    description: "Agent where topics have only reasoning instructions and no actions"
+
+    reasoning:
+        instructions: ->
+            | You are a conversational agent that provides guidance
+              and information without invoking any external actions.
+              Listen to the user and provide helpful advice.
+              If they need billing help, transition to the billing topic.
+              If they need general info, transition to the info topic.
+
+        actions:
+            go_to_billing: @utils.transition to @topic.billing_advice
+            go_to_info: @utils.transition to @topic.general_info
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent"
+
+topic billing_advice:
+    description: "Provide billing advice without any action invocations"
+
+    reasoning:
+        instructions: ->
+            | Provide the user with general billing advice.
+              Explain common billing terms and processes.
+              You do not have access to any billing systems.
+              If the user needs actual account changes, escalate.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent"
+
+topic general_info:
+    description: "Provide general information"
+
+    reasoning:
+        instructions: ->
+            | Answer the user's general questions.
+              Provide helpful and accurate information.
+              Be concise and friendly.
+

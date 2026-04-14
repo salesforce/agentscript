@@ -1,0 +1,196 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Ordering_Customer_Service_Bot
+  label: Ordering Customer Service Bot
+  description: Ordering Customer Service Bot
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: order@customerservice.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages: []
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: next_topic
+      label: Next Topic
+      description: Next Topic
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You are a topic selector for an "Ordering Customer Service Bot". Analyze
+                the user''s
+
+                input and determine the most appropriate topic to handle their request.
+
+
+                Call the *set_topic* action with one of these topic options:
+
+
+                - **get_order_info**: Get information about the user''s order.
+
+
+                - **process_return**: Help users process a return for an order they
+                have received.
+
+
+                - **FAQ**: Answer any questions a user might have.
+
+
+                If this is the beginning of the conversation, please welcome the user
+                and then
+
+                determine the appropriate topic based on their input.'
+      instructions: You are an agent that assists users with their orders.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome the user and determine the appropriate topic based on user
+        input
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"get_order_info"'
+          name: go_to_get_order_info
+          description: Call this action if the user asks for information about their
+            order.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"process_return"'
+          name: go_to_process_return
+          description: Call this action if the user indicates they wish to process
+            a return.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"FAQ"'
+          name: go_to_FAQ
+          description: Call this action if the user asks a general question.
+      after_all_tool_calls:
+        - type: handoff
+          target: get_order_info
+          enabled: state.AgentScriptInternal_next_topic=="get_order_info"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: process_return
+          enabled: state.AgentScriptInternal_next_topic=="process_return"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: FAQ
+          enabled: state.AgentScriptInternal_next_topic=="FAQ"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Gather information on the order from the user and return any info
+                you might have about it'
+      instructions: You are an agent that assists users with their orders.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: An agent that will get information about the users order
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: get_order_info
+      label: Get Order Info
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Gather information on the order from the user and help them process
+                the return'
+      instructions: You are an agent that assists users with their orders.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: An agent that helps users process a return for an order they have
+        received
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: process_return
+      label: Process Return
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Answer any questions a user might have about the company'
+      instructions: You are an agent that assists users with their orders.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: An agent that answers any questions a user might have
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: FAQ
+      label: FAQ
+      action_definitions: []
+  surfaces: []

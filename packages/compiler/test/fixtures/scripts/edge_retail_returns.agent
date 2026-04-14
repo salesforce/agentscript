@@ -1,0 +1,144 @@
+system:
+    instructions: "You are a retail returns assistant. Help customers process returns, check eligibility, and issue refunds."
+    messages:
+        welcome: "Welcome to our returns department! I can help you with product returns and refunds."
+        error: "Sorry, I encountered an issue processing your return request."
+
+config:
+    developer_name: "Retail_Returns_Agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "returns_agent@retail.com"
+    description: "Handles retail return processing, eligibility checks, and refund issuance."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    customer_email: mutable string = ""
+        description: "Customer email for lookup"
+    order_number: mutable string = ""
+        description: "Order number for the return"
+    return_eligible: mutable boolean = False
+        description: "Whether the order is eligible for return"
+    refund_amount: mutable number = 0
+        description: "Calculated refund amount"
+    return_reason: mutable string = ""
+        description: "Reason for the return"
+    case_id: mutable string = ""
+        description: "Support case ID"
+
+start_agent return_intake:
+    description: "Gathers customer and order information for return processing"
+
+    actions:
+        lookup_order:
+            description: "Looks up order details by order number and customer email"
+            inputs:
+                order_number: string
+                    description: "The order number"
+                    is_required: True
+                customer_email: string
+                    description: "Customer email address"
+                    is_required: True
+            outputs:
+                order_found: boolean
+                order_date: string
+                order_total: number
+                items: string
+            target: "flow://LookupOrder"
+
+    reasoning:
+        instructions: ->
+            | Welcome the customer and ask for their order number and email.
+              Use the lookup_order action to find their order details.
+              If the order is found, proceed to eligibility check.
+
+        actions:
+            lookup: @actions.lookup_order
+                with order_number=@variables.order_number
+                with customer_email=@variables.customer_email
+
+            go_eligibility: @utils.transition to @topic.eligibility_check
+                description: "Check return eligibility"
+
+            go_escalation: @utils.transition to @topic.escalation
+                description: "Escalate if order not found"
+
+topic eligibility_check:
+    description: "Checks whether the order is eligible for return based on policy"
+
+    actions:
+        check_eligibility:
+            description: "Checks return eligibility based on order date and item type"
+            inputs:
+                order_number: string
+                    is_required: True
+                return_reason: string
+                    is_required: True
+            outputs:
+                eligible: boolean
+                refund_amount: number
+                policy_message: string
+            target: "flow://CheckReturnEligibility"
+
+    before_reasoning:
+        if @variables.order_number != "":
+            run @actions.check_eligibility
+                with order_number=@variables.order_number
+                with return_reason=@variables.return_reason
+                set @variables.return_eligible = @outputs.eligible
+                set @variables.refund_amount = @outputs.refund_amount
+
+    reasoning:
+        instructions: ->
+            | Review the eligibility results. If eligible, proceed to refund processing.
+              If not eligible, explain the policy and offer to escalate.
+
+        actions:
+            go_refund: @utils.transition to @topic.refund_processing
+                description: "Process the refund"
+                available when @variables.return_eligible == True
+            go_escalation: @utils.transition to @topic.escalation
+                description: "Escalate ineligible return"
+
+    after_reasoning:
+        if @variables.return_eligible == True:
+            transition to @topic.refund_processing
+        if @variables.return_eligible == False:
+            transition to @topic.escalation
+
+topic refund_processing:
+    description: "Processes the refund for eligible returns"
+
+    actions:
+        process_refund:
+            description: "Issues refund to the customer's original payment method"
+            inputs:
+                order_number: string
+                    is_required: True
+                refund_amount: number
+                    is_required: True
+            outputs:
+                refund_id: string
+                estimated_days: number
+            target: "apex://ProcessRefund"
+
+    reasoning:
+        instructions: ->
+            | Process the refund for {!@variables.refund_amount}.
+              Confirm the refund details with the customer.
+
+        actions:
+            refund: @actions.process_refund
+                with order_number=@variables.order_number
+                with refund_amount=@variables.refund_amount
+
+topic escalation:
+    description: "Escalates complex return cases to a human agent"
+
+    reasoning:
+        instructions: ->
+            | This case needs human review. Escalate to a returns specialist.
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to returns specialist"

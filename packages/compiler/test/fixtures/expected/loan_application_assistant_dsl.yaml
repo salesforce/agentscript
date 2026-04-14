@@ -1,0 +1,1519 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Loan_Application_Assistant_v1
+  label: Loan Application Assistant V 1
+  description: Processes loan applications with deterministic eligibility assessment
+    and routing
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: defaultagentuser@example.com
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome to our loan application system! I'll help you through the application
+        process. Let's start by gathering some basic information.
+      message_type: Welcome
+    - message: I'm experiencing technical difficulties. Please contact our loan office
+        directly.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome to our loan application system! I''ll
+      help you through the application process. Let''s start by gathering some basic
+      information.", "messageType": "Welcome"}, {"message": "I''m experiencing technical
+      difficulties. Please contact our loan office directly.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: applicant_name
+      label: Applicant Name
+      description: Applicant's name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: ssn
+      label: Ssn
+      description: Social Security Number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: date_of_birth
+      label: Date Of Birth
+      description: Date of birth
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: phone_number
+      label: Phone Number
+      description: Contact phone number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: email
+      label: Email
+      description: Email address
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: address
+      label: Address
+      description: Home address
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: employment_status
+      label: Employment Status
+      description: Current employment status
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: employer_name
+      label: Employer Name
+      description: Current employer
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: annual_income
+      label: Annual Income
+      description: Annual income
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: employment_duration
+      label: Employment Duration
+      description: Length of employment
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: additional_income
+      label: Additional Income
+      description: Additional income sources
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: credit_score
+      label: Credit Score
+      description: Credit score
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: existing_debt
+      label: Existing Debt
+      description: Current debt obligations
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: monthly_expenses
+      label: Monthly Expenses
+      description: Monthly living expenses
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: savings_amount
+      label: Savings Amount
+      description: Current savings
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: assets_value
+      label: Assets Value
+      description: Total asset value
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: loan_type
+      label: Loan Type
+      description: Type of loan requested
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: loan_amount
+      label: Loan Amount
+      description: Requested loan amount
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: loan_purpose
+      label: Loan Purpose
+      description: Purpose of the loan
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: collateral_offered
+      label: Collateral Offered
+      description: Collateral being offered
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: loan_term
+      label: Loan Term
+      description: Requested loan term in months
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: eligibility_score
+      label: Eligibility Score
+      description: Loan eligibility score (0-100)
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: debt_to_income_ratio
+      label: Debt To Income Ratio
+      description: Debt-to-income ratio percentage
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: risk_level
+      label: Risk Level
+      description: Risk assessment level
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: application_status
+      label: Application Status
+      description: Current application status
+      data_type: string
+      is_list: false
+      default: '''pending'''
+      visibility: Internal
+    - developer_name: approved_amount
+      label: Approved Amount
+      description: Approved loan amount
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: interest_rate
+      label: Interest Rate
+      description: Offered interest rate
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+    - developer_name: documents_required
+      label: Documents Required
+      description: Required documentation list
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: documents_received
+      label: Documents Received
+      description: Documents already submitted
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: application_complete
+      label: Application Complete
+      description: Whether application is complete
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: identity_verified
+      label: Identity Verified
+      description: Whether applicant identity has been verified
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+  initial_node: application_intake
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Welcome to our loan application system! I''ll help you through the
+                application process step by step.
+
+
+                **Getting Started:**
+
+                To begin your loan application, I''ll need to collect some personal
+                information and verify your identity.
+
+
+                **Information I''ll Need:**
+
+                - Personal details (name, SSN, date of birth, address)
+
+                - Contact information (phone and email)
+
+                - Employment information
+
+                - Income details
+
+                - Loan requirements
+
+
+                **Privacy & Security:**
+
+                All information is encrypted and handled according to banking regulations.
+                I''ll need your consent before running any credit checks.
+
+
+                Let''s start with your basic information.'
+      instructions: You are a loan application processing assistant for a financial
+        institution. Guide customers through the loan application process, collect
+        documentation, and perform eligibility assessments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Collects initial loan application information and applicant details
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.applicant_name == ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - eligibility_score: '0'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - application_status: '"pending"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - application_complete: 'False'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Verify_Identity
+          bound_inputs:
+            ssn: state.ssn
+            full_name: state.applicant_name
+            date_of_birth: state.date_of_birth
+            address: state.address
+          llm_inputs: []
+          state_updates:
+            - identity_verified: result.identity_verified
+          name: verify_applicant
+          description: Verify Applicant
+        - type: action
+          target: Pull_Credit_Report
+          bound_inputs:
+            ssn: state.ssn
+            consent_given: 'True'
+          llm_inputs: []
+          state_updates:
+            - credit_score: result.credit_score
+            - existing_debt: result.total_debt
+          name: get_credit_report
+          description: Get Credit Report
+        - type: action
+          target: Validate_Income
+          bound_inputs:
+            employer_name: state.employer_name
+            annual_income: state.annual_income
+            employment_duration: state.employment_duration
+            employment_type: state.employment_status
+          llm_inputs: []
+          state_updates:
+            - annual_income: result.verified_income
+          name: verify_income
+          description: Verify Income
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - applicant_name: state.applicant_name
+            - ssn: state.ssn
+            - date_of_birth: state.date_of_birth
+            - phone_number: state.phone_number
+            - email: state.email
+            - address: state.address
+            - loan_type: state.loan_type
+            - loan_amount: state.loan_amount
+            - loan_purpose: state.loan_purpose
+          name: capture_application_info
+          description: Capture loan application details
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"financial_assessment"'
+          name: assess_finances
+          description: Assess financial eligibility
+      after_all_tool_calls:
+        - type: handoff
+          target: financial_assessment
+          enabled: state.AgentScriptInternal_next_topic=="financial_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.applicant_name != "" and state.ssn
+                != ""
+        - type: action
+          target: Verify_Identity
+          bound_inputs:
+            ssn: state.ssn
+            full_name: state.applicant_name
+            date_of_birth: state.date_of_birth
+            address: state.address
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates: []
+        - type: action
+          target: Pull_Credit_Report
+          bound_inputs:
+            ssn: state.ssn
+            consent_given: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - credit_score: result.credit_score
+            - existing_debt: result.total_debt
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.employer_name != "" and state.annual_income
+                > 0
+        - type: action
+          target: Validate_Income
+          bound_inputs:
+            employer_name: state.employer_name
+            annual_income: state.annual_income
+            employment_duration: state.employment_duration
+            employment_type: state.employment_status
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - annual_income: result.verified_income
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"financial_assessment"'
+        - type: handoff
+          target: financial_assessment
+          enabled: state.AgentScriptInternal_next_topic=="financial_assessment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: application_intake
+      label: Application Intake
+      action_definitions:
+        - developer_name: Verify_Identity
+          label: Verify Identity
+          description: Verifies applicant identity using SSN and personal information
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: VerifyIdentity
+          input_type:
+            - developer_name: ssn
+              label: Social Security Number
+              description: Applicant's SSN for identity verification
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: full_name
+              label: Full Name
+              description: Applicant's legal name
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: date_of_birth
+              label: Date of Birth
+              description: Date of birth (MM/DD/YYYY)
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: address
+              label: Address
+              description: Current home address
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: identity_verified
+              label: Identity Verified
+              description: Identity Verified
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: applicant_id
+              label: Applicant ID
+              description: Applicant Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: existing_customer
+              label: Existing Customer
+              description: Existing Customer
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: fraud_alert
+              label: Fraud Alert
+              description: Fraud Alert
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Pull_Credit_Report
+          label: Pull Credit Report
+          description: Retrieves comprehensive credit report and score
+          require_user_confirmation: true
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: PullCreditReport
+          input_type:
+            - developer_name: ssn
+              label: SSN
+              description: Social Security Number for credit check
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: consent_given
+              label: Credit Check Consent
+              description: Applicant consent for credit check
+              data_type: Boolean
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: credit_score
+              label: Credit Score
+              description: Credit Score
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: credit_history_length
+              label: Credit History Length
+              description: Credit History Length
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: payment_history
+              label: Payment History
+              description: Payment History
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: existing_accounts
+              label: Existing Accounts
+              description: Existing Accounts
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: total_debt
+              label: Total Existing Debt
+              description: Total Debt
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: derogatory_marks
+              label: Derogatory Marks
+              description: Derogatory Marks
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Validate_Income
+          label: Validate Income
+          description: Validates employment and income information
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: ValidateIncome
+          input_type:
+            - developer_name: employer_name
+              label: Employer Name
+              description: Current employer
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: annual_income
+              label: Annual Income
+              description: Stated annual income
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: employment_duration
+              label: Employment Duration
+              description: Length of current employment
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: employment_type
+              label: Employment Type
+              description: Type of employment (full-time, part-time, etc.)
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: income_verified
+              label: Income Verified
+              description: Income Verified
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: verified_income
+              label: Verified Income
+              description: Verified Income
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: employment_stable
+              label: Employment Stable
+              description: Employment Stable
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: income_documentation_required
+              label: Income Docs Required
+              description: Income Documentation Required
+              data_type: String
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: true
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Financial Assessment in Progress**
+
+
+                **Applicant:** {{state.applicant_name}}
+
+                **Loan Request:** ${{state.loan_amount}} {{state.loan_type}}
+
+                **Purpose:** {{state.loan_purpose}}
+
+
+                **Financial Profile:**
+
+                - Annual Income: ${{state.annual_income}}
+
+                - Credit Score: {{state.credit_score}}
+
+                - Existing Debt: ${{state.existing_debt}}
+
+                - Debt-to-Income Ratio: {{state.debt_to_income_ratio}}%
+
+                - Risk Level: {{state.risk_level}}
+
+
+                **Assessment Progress:** {{state.eligibility_score}}/100
+
+
+                I''m analyzing your financial profile to determine the best loan options
+                available to you.'
+      instructions: You are a loan application processing assistant for a financial
+        institution. Guide customers through the loan application process, collect
+        documentation, and perform eligibility assessments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Performs comprehensive financial analysis and eligibility scoring
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.annual_income > 0 and state.existing_debt
+                >= 0
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - debt_to_income_ratio: '0.5'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.credit_score >= 750
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - risk_level: '"low"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - eligibility_score: state.eligibility_score + 25
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.credit_score >= 650 and state.credit_score
+                < 750
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - risk_level: '"medium"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - eligibility_score: state.eligibility_score + 15
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.credit_score < 650
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - risk_level: '"high"'
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - eligibility_score: state.eligibility_score + 5
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Calculate_DTI_Ratio
+          bound_inputs:
+            monthly_income: state.annual_income
+            existing_monthly_debt: state.existing_debt
+            new_loan_payment: state.loan_amount
+            monthly_expenses: state.monthly_expenses
+          llm_inputs: []
+          state_updates:
+            - debt_to_income_ratio: result.new_dti_ratio
+          name: calculate_dti
+          description: Calculate Dti
+        - type: action
+          target: Assess_Risk_Profile
+          bound_inputs:
+            credit_score: state.credit_score
+            dti_ratio: state.debt_to_income_ratio
+            employment_stability: state.employment_duration
+            loan_to_value: '80'
+            savings_ratio: '10'
+          llm_inputs: []
+          state_updates:
+            - risk_level: result.risk_category
+            - eligibility_score: result.approval_probability
+          name: assess_risk
+          description: Assess Risk
+        - type: action
+          target: Generate_Loan_Options
+          bound_inputs:
+            requested_amount: state.loan_amount
+            risk_profile: state.risk_level
+            loan_type: state.loan_type
+            max_affordable_payment: '5000'
+          llm_inputs: []
+          state_updates:
+            - approved_amount: result.approved_amount
+            - interest_rate: result.interest_rate
+          name: create_options
+          description: Create Options
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - employment_status: state.employment_status
+            - employer_name: state.employer_name
+            - annual_income: state.annual_income
+            - monthly_expenses: state.monthly_expenses
+            - savings_amount: state.savings_amount
+          name: capture_financial_details
+          description: Capture additional financial information
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"application_decision"'
+          name: make_decision
+          description: Make loan decision
+      after_all_tool_calls:
+        - type: handoff
+          target: application_decision
+          enabled: state.AgentScriptInternal_next_topic=="application_decision"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.annual_income > 0 and state.credit_score
+                > 0
+        - type: action
+          target: Calculate_DTI_Ratio
+          bound_inputs:
+            monthly_income: state.annual_income
+            existing_monthly_debt: state.existing_debt
+            new_loan_payment: state.loan_amount
+            monthly_expenses: state.monthly_expenses
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - debt_to_income_ratio: result.new_dti_ratio
+        - type: action
+          target: Assess_Risk_Profile
+          bound_inputs:
+            credit_score: state.credit_score
+            dti_ratio: state.debt_to_income_ratio
+            employment_stability: state.employment_duration
+            loan_to_value: '80'
+            savings_ratio: '10'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - risk_level: result.risk_category
+            - eligibility_score: result.approval_probability
+        - type: action
+          target: Generate_Loan_Options
+          bound_inputs:
+            requested_amount: state.loan_amount
+            risk_profile: state.risk_level
+            loan_type: state.loan_type
+            max_affordable_payment: '5000'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - approved_amount: result.approved_amount
+            - interest_rate: result.interest_rate
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score >= 70
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - application_status: '"approved"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 70 and state.eligibility_score
+                >= 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - application_status: '"conditional_approval"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.eligibility_score < 50
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - application_status: '"declined"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"application_decision"'
+        - type: handoff
+          target: application_decision
+          enabled: state.AgentScriptInternal_next_topic=="application_decision"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: financial_assessment
+      label: Financial Assessment
+      action_definitions:
+        - developer_name: Calculate_DTI_Ratio
+          label: Calculate DTI Ratio
+          description: Calculates debt-to-income ratio and affordability metrics
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: CalculateDTIRatio
+          input_type:
+            - developer_name: monthly_income
+              label: Monthly Income
+              description: Monthly gross income
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: existing_monthly_debt
+              label: Existing Monthly Debt
+              description: Current monthly debt payments
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: new_loan_payment
+              label: New Loan Payment
+              description: Estimated new loan payment
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: monthly_expenses
+              label: Monthly Expenses
+              description: Monthly living expenses
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: current_dti_ratio
+              label: Current DTI Ratio
+              description: Current Dti Ratio
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: new_dti_ratio
+              label: New DTI Ratio
+              description: New Dti Ratio
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: affordability_score
+              label: Affordability Score
+              description: Affordability Score
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: max_affordable_payment
+              label: Max Affordable Payment
+              description: Max Affordable Payment
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Assess_Risk_Profile
+          label: Assess Risk Profile
+          description: Comprehensive risk assessment based on financial profile
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: AssessRiskProfile
+          input_type:
+            - developer_name: credit_score
+              label: Credit Score
+              description: Applicant's credit score
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: dti_ratio
+              label: DTI Ratio
+              description: Debt-to-income ratio
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: employment_stability
+              label: Employment Stability
+              description: Employment history stability
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: loan_to_value
+              label: Loan to Value
+              description: LTV ratio for secured loans
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: savings_ratio
+              label: Savings Ratio
+              description: Savings as percentage of income
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: risk_score
+              label: Risk Score
+              description: Risk Score
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: risk_category
+              label: Risk Category
+              description: Risk Category
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: approval_probability
+              label: Approval Probability
+              description: Approval Probability
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: recommended_terms
+              label: Recommended Terms
+              description: Recommended Terms
+              data_type: LightningTypes
+              complex_data_type_name: lightning__objectType
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+        - developer_name: Generate_Loan_Options
+          label: Generate Loan Options
+          description: Generates personalized loan options based on assessment
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: GenerateLoanOptions
+          input_type:
+            - developer_name: requested_amount
+              label: Requested Amount
+              description: Amount requested by applicant
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: risk_profile
+              label: Risk Profile
+              description: Assessed risk category
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: loan_type
+              label: Loan Type
+              description: Type of loan requested
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: max_affordable_payment
+              label: Max Affordable Payment
+              description: Maximum affordable monthly payment
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: approved_amount
+              label: Approved Amount
+              description: Approved Amount
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: interest_rate
+              label: Interest Rate
+              description: Interest Rate
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: loan_terms_options
+              label: Loan Terms Options
+              description: Loan Terms Options
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: monthly_payment
+              label: Monthly Payment
+              description: Monthly Payment
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: conditions
+              label: Loan Conditions
+              description: Conditions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                **Loan Application Decision**
+
+
+                **Applicant:** {{state.applicant_name}}
+
+                **Application Status:** {{state.application_status}}
+
+                **Eligibility Score:** {{state.eligibility_score}}/100
+
+
+                **Decision Details:**
+
+                - Approved Amount: ${{state.approved_amount}}
+
+                - Interest Rate: {{state.interest_rate}}%
+
+                - Risk Assessment: {{state.risk_level}}
+
+
+                **Required Documentation:** {{state.documents_required}}
+
+
+                Your loan application has been processed. Next steps will depend on
+                your approval status.
+
+
+                Would you like to proceed with the next steps or need assistance with
+                anything else?'
+      instructions: You are a loan application processing assistant for a financial
+        institution. Guide customers through the loan application process, collect
+        documentation, and perform eligibility assessments.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Provides final loan decision and next steps
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.application_status == "approved"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - documents_required: '"Income verification, Asset documentation, Insurance
+                information"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.application_status == "conditional_approval"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - documents_required: '"Additional income verification, Explanation of
+                credit items"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.application_status == "declined"
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - documents_required: '"N/A"'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: Generate_Approval_Letter
+          bound_inputs:
+            applicant_name: state.applicant_name
+            approved_amount: state.approved_amount
+            interest_rate: state.interest_rate
+            loan_terms: '"Standard terms apply"'
+            conditions: '"Subject to final verification"'
+          llm_inputs: []
+          state_updates: []
+          name: create_approval
+          description: Create Approval
+        - type: action
+          target: Schedule_Closing
+          bound_inputs:
+            applicant_id: '"APP-001"'
+            preferred_date: '""'
+            location_preference: '"Main Branch"'
+          llm_inputs: []
+          state_updates: []
+          name: book_closing
+          description: Book Closing
+        - type: action
+          target: Send_Decline_Letter
+          bound_inputs:
+            applicant_name: state.applicant_name
+            decline_reasons: '"Credit score below threshold"'
+            credit_score: state.credit_score
+            adverse_action_required: 'True'
+          llm_inputs: []
+          state_updates: []
+          name: send_decline
+          description: Send Decline
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - application_status: state.application_status
+          name: capture_next_steps
+          description: Capture next step preferences
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"application_intake"'
+          name: new_application
+          description: Process new application
+      after_all_tool_calls:
+        - type: handoff
+          target: application_intake
+          enabled: state.AgentScriptInternal_next_topic=="application_intake"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.application_status == "approved"
+        - type: action
+          target: Generate_Approval_Letter
+          bound_inputs:
+            applicant_name: state.applicant_name
+            approved_amount: state.approved_amount
+            interest_rate: state.interest_rate
+            loan_terms: '"Standard terms apply"'
+            conditions: '"Subject to final verification"'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates: []
+        - type: action
+          target: Schedule_Closing
+          bound_inputs:
+            applicant_id: '"APP-001"'
+            preferred_date: '""'
+            location_preference: '"Main Branch"'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates: []
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.application_status == "declined"
+        - type: action
+          target: Send_Decline_Letter
+          bound_inputs:
+            applicant_name: state.applicant_name
+            decline_reasons: '"Credit score below threshold"'
+            credit_score: state.credit_score
+            adverse_action_required: 'True'
+          llm_inputs: []
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates: []
+      developer_name: application_decision
+      label: Application Decision
+      action_definitions:
+        - developer_name: Generate_Approval_Letter
+          label: Generate Approval Letter
+          description: Creates formal loan approval documentation
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: GenerateApprovalLetter
+          input_type:
+            - developer_name: applicant_name
+              label: Applicant Name
+              description: Name of approved applicant
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: approved_amount
+              label: Approved Amount
+              description: Final approved loan amount
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: interest_rate
+              label: Interest Rate
+              description: Approved interest rate
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: loan_terms
+              label: Loan Terms
+              description: Complete loan terms
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: conditions
+              label: Conditions
+              description: Any approval conditions
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: approval_letter_id
+              label: Approval Letter ID
+              description: Approval Letter Id
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: expiration_date
+              label: Offer Expiration
+              description: Expiration Date
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: next_steps
+              label: Next Steps
+              description: Next Steps
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: closing_requirements
+              label: Closing Requirements
+              description: Closing Requirements
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Schedule_Closing
+          label: Schedule Closing
+          description: Schedules loan closing appointment
+          require_user_confirmation: true
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: ScheduleClosing
+          input_type:
+            - developer_name: applicant_id
+              label: Applicant ID
+              description: Application identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: preferred_date
+              label: Preferred Date
+              description: Preferred closing date
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: location_preference
+              label: Location Preference
+              description: Preferred closing location
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: closing_scheduled
+              label: Closing Scheduled
+              description: Closing Scheduled
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: closing_date
+              label: Closing Date
+              description: Closing Date
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: closing_location
+              label: Closing Location
+              description: Closing Location
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: documents_to_bring
+              label: Documents to Bring
+              description: Documents To Bring
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+        - developer_name: Send_Decline_Letter
+          label: Send Decline Letter
+          description: Sends formal loan decline notification with reasons
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: SendDeclineLetter
+          input_type:
+            - developer_name: applicant_name
+              label: Applicant Name
+              description: Name of declined applicant
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: decline_reasons
+              label: Decline Reasons
+              description: Specific reasons for decline
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: credit_score
+              label: Credit Score
+              description: Applicant's credit score
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: adverse_action_required
+              label: Adverse Action Required
+              description: Whether adverse action notice is required
+              data_type: Boolean
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: decline_letter_sent
+              label: Decline Letter Sent
+              description: Decline Letter Sent
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: reapplication_eligible
+              label: Reapplication Eligible
+              description: Reapplication Eligible
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: improvement_suggestions
+              label: Improvement Suggestions
+              description: Improvement Suggestions
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+  surfaces: []

@@ -1,0 +1,556 @@
+system:
+    instructions: "You are a retail inventory management assistant. Your role is to help store managers track inventory levels, process stock updates, and manage restocking operations."
+    messages:
+        welcome: "Welcome to the Inventory Management System! I can help you track inventory, process stock updates, and manage restocking operations."
+        error: "I'm having trouble accessing the inventory system. Please try again or contact the system administrator."
+
+config:
+    developer_name: "Inventory_Management_Bot_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Assists retail managers with inventory tracking, stock updates, and restocking operations"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Store and location information
+    store_id: mutable string = ""
+        description: "Store identifier"
+    store_name: mutable string = ""
+        description: "Store name"
+    manager_id: mutable string = ""
+        description: "Store manager identifier"
+    manager_verified: mutable boolean = False
+        description: "Whether manager credentials are verified"
+    warehouse_location: mutable string = ""
+        description: "Warehouse or storage location"
+
+    # Product information
+    product_sku: mutable string = ""
+        description: "Product SKU being tracked"
+    product_name: mutable string = ""
+        description: "Product name or description"
+    product_category: mutable string = ""
+        description: "Product category"
+    unit_cost: mutable number = 0
+        description: "Cost per unit"
+    selling_price: mutable number = 0
+        description: "Retail selling price"
+    supplier_id: mutable string = ""
+        description: "Primary supplier identifier"
+
+    # Inventory levels and tracking
+    current_stock: mutable number = 0
+        description: "Current stock level"
+    reserved_stock: mutable number = 0
+        description: "Stock reserved for pending orders"
+    available_stock: mutable number = 0
+        description: "Available stock for sale"
+    incoming_stock: mutable number = 0
+        description: "Stock expected from pending orders"
+    reorder_level: mutable number = 10
+        description: "Minimum stock level for reordering"
+    max_stock_level: mutable number = 100
+        description: "Maximum stock level to maintain"
+    safety_stock: mutable number = 5
+        description: "Safety stock buffer"
+
+    # Stock status and alerts
+    stock_status: mutable string = "normal"
+        description: "Stock status (normal, low, critical, out_of_stock)"
+    stock_turnover_rate: mutable number = 0
+        description: "Stock turnover rate per month"
+    last_stock_check: mutable string = ""
+        description: "Date of last stock verification"
+    stock_accuracy: mutable number = 100
+        description: "Inventory accuracy percentage"
+    stockout_risk: mutable string = "low"
+        description: "Risk of stockout (low, medium, high)"
+
+    # Restocking and orders
+    restock_needed: mutable boolean = False
+        description: "Whether restocking is needed"
+    recommended_order_quantity: mutable number = 0
+        description: "Recommended reorder quantity"
+    purchase_order_id: mutable string = ""
+        description: "Generated purchase order ID"
+    supplier_lead_time: mutable number = 7
+        description: "Supplier lead time in days"
+    order_placed: mutable boolean = False
+        description: "Whether purchase order has been placed"
+
+    # Analytics and reporting
+    inventory_value: mutable number = 0
+        description: "Total inventory value"
+    days_of_supply: mutable number = 0
+        description: "Days of supply remaining"
+    demand_forecast: mutable number = 0
+        description: "Forecasted demand for next period"
+
+start_agent inventory_tracker:
+    description: "Tracks inventory levels with comprehensive stock monitoring and verification"
+
+    actions:
+        Verify_Manager_Access:
+            description: "Verifies store manager access and permissions"
+            label: "Verify Manager"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                manager_id: string
+                    label: "Manager ID"
+                    description: "Store manager identifier"
+                    is_required: True
+                store_id: string
+                    label: "Store ID"
+                    description: "Store identifier"
+                    is_required: True
+            outputs:
+                manager_verified: boolean
+                    label: "Manager Verified"
+                    is_displayable: True
+                manager_name: string
+                    label: "Manager Name"
+                    is_displayable: True
+                access_level: string
+                    label: "Access Level"
+                    is_displayable: False
+                authorized_locations: string
+                    label: "Authorized Locations"
+                    is_displayable: False
+            target: "flow://VerifyManagerAccess"
+
+        Lookup_Product_Information:
+            description: "Retrieves comprehensive product information and current stock levels"
+            label: "Lookup Product"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                product_sku: string
+                    label: "Product SKU"
+                    description: "Product identifier"
+                    is_required: True
+                store_id: string
+                    label: "Store ID"
+                    description: "Store location"
+                    is_required: True
+            outputs:
+                product_found: boolean
+                    label: "Product Found"
+                    is_displayable: True
+                product_name: string
+                    label: "Product Name"
+                    is_displayable: True
+                current_stock: number
+                    label: "Current Stock"
+                    is_displayable: True
+                reserved_stock: number
+                    label: "Reserved Stock"
+                    is_displayable: True
+                last_updated: string
+                    label: "Last Updated"
+                    is_displayable: True
+                supplier_info: string
+                    label: "Supplier Info"
+                    is_displayable: False
+            target: "flow://LookupProductInformation"
+
+    before_reasoning:
+        if @variables.store_id == "":
+            set @variables.current_stock = 0
+            set @variables.stock_status = "normal"
+
+    reasoning:
+        instructions: ->
+            |   Welcome to the Inventory Management System!
+
+                I can help you:
+                - Check current inventory levels
+                - Update stock counts
+                - Identify products needing restocking
+                - Process inventory adjustments
+
+                Please provide:
+                - Store ID
+                - Product SKU to check or update
+        actions:
+            verify_manager: @actions.Verify_Manager_Access
+                with manager_id=@variables.manager_id
+                with store_id=@variables.store_id
+                set @variables.manager_verified = @outputs.manager_verified
+                set @variables.store_name = @outputs.manager_name
+
+            lookup_product: @actions.Lookup_Product_Information
+                with product_sku=@variables.product_sku
+                with store_id=@variables.store_id
+                set @variables.product_name = @outputs.product_name
+                set @variables.current_stock = @outputs.current_stock
+                set @variables.reserved_stock = @outputs.reserved_stock
+
+            capture_store_info: @utils.setVariables
+                with store_id=@variables.store_id
+                with product_sku=@variables.product_sku
+                with manager_id=@variables.manager_id
+
+            manage_stock: @utils.transition to @topic.stock_management
+
+    after_reasoning:
+        if @variables.manager_id != "" and @variables.store_id != "":
+            run @actions.Verify_Manager_Access
+                with manager_id=@variables.manager_id
+                with store_id=@variables.store_id
+                set @variables.manager_verified = @outputs.manager_verified
+                set @variables.store_name = @outputs.manager_name
+
+        if @variables.product_sku != "" and @variables.manager_verified:
+            run @actions.Lookup_Product_Information
+                with product_sku=@variables.product_sku
+                with store_id=@variables.store_id
+                set @variables.product_name = @outputs.product_name
+                set @variables.current_stock = @outputs.current_stock
+                set @variables.reserved_stock = @outputs.reserved_stock
+                set @variables.available_stock = @variables.current_stock - @variables.reserved_stock
+
+        if @variables.current_stock >= 0:
+            transition to @topic.stock_management
+
+topic stock_management:
+    description: "Manages stock levels with real-time updates and automated analysis"
+
+    actions:
+        Update_Stock_Level:
+            description: "Updates stock levels with audit trail and validation"
+            label: "Update Stock"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                product_sku: string
+                    label: "Product SKU"
+                    description: "Product identifier"
+                    is_required: True
+                new_stock_count: number
+                    label: "New Stock Count"
+                    description: "Updated stock quantity"
+                    is_required: True
+                adjustment_reason: string
+                    label: "Adjustment Reason"
+                    description: "Reason for stock adjustment"
+                    is_required: True
+                manager_id: string
+                    label: "Manager ID"
+                    description: "Manager making the update"
+                    is_required: True
+            outputs:
+                update_successful: boolean
+                    label: "Update Successful"
+                    is_displayable: True
+                previous_stock: number
+                    label: "Previous Stock"
+                    is_displayable: True
+                variance_amount: number
+                    label: "Variance Amount"
+                    is_displayable: True
+                audit_trail_updated: boolean
+                    label: "Audit Trail Updated"
+                    is_displayable: False
+            target: "flow://UpdateStockLevel"
+
+        Calculate_Inventory_Metrics:
+            description: "Calculates key inventory metrics and performance indicators"
+            label: "Calculate Metrics"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                current_stock: number
+                    label: "Current Stock"
+                    description: "Current inventory level"
+                    is_required: True
+                unit_cost: number
+                    label: "Unit Cost"
+                    description: "Cost per unit"
+                    is_required: True
+                monthly_sales: number
+                    label: "Monthly Sales"
+                    description: "Average monthly sales volume"
+                    is_required: True
+                lead_time_days: number
+                    label: "Lead Time"
+                    description: "Supplier lead time in days"
+                    is_required: True
+            outputs:
+                inventory_value: number
+                    label: "Inventory Value"
+                    is_displayable: True
+                turnover_rate: number
+                    label: "Turnover Rate"
+                    is_displayable: True
+                days_of_supply: number
+                    label: "Days of Supply"
+                    is_displayable: True
+                stockout_risk: string
+                    label: "Stockout Risk"
+                    is_displayable: True
+            target: "flow://CalculateInventoryMetrics"
+
+    before_reasoning:
+        if @variables.current_stock <= @variables.reorder_level:
+            set @variables.stock_status = "low"
+        if @variables.current_stock == 0:
+            set @variables.stock_status = "out_of_stock"
+
+    reasoning:
+        instructions: ->
+            |   **Current Inventory Status:**
+                - Store: {! @variables.store_id }
+                - Product SKU: {! @variables.product_sku }
+                - Current Stock: {! @variables.current_stock }
+                - Reorder Level: {! @variables.reorder_level }
+                - Status: {! @variables.stock_status }
+
+                **Available Actions:**
+                1. Update stock count
+                2. Adjust reorder levels
+                3. Generate restocking report
+                4. Check another product
+
+                What would you like to do?
+        actions:
+            update_stock: @actions.Update_Stock_Level
+                with product_sku=@variables.product_sku
+                with new_stock_count=@variables.current_stock
+                with adjustment_reason="Routine stock check"
+                with manager_id=@variables.manager_id
+
+            calc_metrics: @actions.Calculate_Inventory_Metrics
+                with current_stock=@variables.current_stock
+                with unit_cost=@variables.unit_cost
+                with monthly_sales=30
+                with lead_time_days=@variables.supplier_lead_time
+                set @variables.inventory_value = @outputs.inventory_value
+                set @variables.stock_turnover_rate = @outputs.turnover_rate
+                set @variables.days_of_supply = @outputs.days_of_supply
+                set @variables.stockout_risk = @outputs.stockout_risk
+
+            capture_stock_data: @utils.setVariables
+                with current_stock=@variables.current_stock
+                with reorder_level=@variables.reorder_level
+                with available_stock=@variables.available_stock
+
+            check_restocking: @utils.transition to @topic.restocking_alerts
+
+    after_reasoning:
+        if @variables.current_stock > 0:
+            run @actions.Calculate_Inventory_Metrics
+                with current_stock=@variables.current_stock
+                with unit_cost=@variables.unit_cost
+                with monthly_sales=30
+                with lead_time_days=@variables.supplier_lead_time
+                set @variables.inventory_value = @outputs.inventory_value
+                set @variables.stock_turnover_rate = @outputs.turnover_rate
+                set @variables.days_of_supply = @outputs.days_of_supply
+                set @variables.stockout_risk = @outputs.stockout_risk
+
+        if @variables.current_stock <= @variables.reorder_level:
+            set @variables.stock_status = "low"
+            set @variables.restock_needed = True
+        if @variables.current_stock == 0:
+            set @variables.stock_status = "out_of_stock"
+            set @variables.restock_needed = True
+        if @variables.current_stock <= @variables.safety_stock:
+            set @variables.stock_status = "critical"
+            set @variables.restock_needed = True
+
+        if @variables.restock_needed or @variables.stockout_risk == "high":
+            transition to @topic.restocking_alerts
+
+topic restocking_alerts:
+    description: "Manages automated restocking with supplier integration and purchase order generation"
+
+    actions:
+        Generate_Restock_Recommendation:
+            description: "Generates intelligent restocking recommendations based on demand patterns"
+            label: "Generate Recommendation"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                product_sku: string
+                    label: "Product SKU"
+                    description: "Product requiring restock"
+                    is_required: True
+                current_stock: number
+                    label: "Current Stock"
+                    description: "Current inventory level"
+                    is_required: True
+                demand_forecast: number
+                    label: "Demand Forecast"
+                    description: "Forecasted demand"
+                    is_required: True
+                lead_time: number
+                    label: "Lead Time"
+                    description: "Supplier lead time in days"
+                    is_required: True
+                safety_stock: number
+                    label: "Safety Stock"
+                    description: "Required safety stock level"
+                    is_required: True
+            outputs:
+                recommended_quantity: number
+                    label: "Recommended Quantity"
+                    is_displayable: True
+                order_urgency: string
+                    label: "Order Urgency"
+                    is_displayable: True
+                total_cost: number
+                    label: "Total Cost"
+                    is_displayable: True
+                supplier_recommendation: string
+                    label: "Supplier Recommendation"
+                    is_displayable: True
+            target: "flow://GenerateRestockRecommendation"
+
+        Create_Purchase_Order:
+            description: "Creates and submits purchase order to supplier"
+            label: "Create Purchase Order"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                product_sku: string
+                    label: "Product SKU"
+                    description: "Product to order"
+                    is_required: True
+                quantity: number
+                    label: "Order Quantity"
+                    description: "Quantity to order"
+                    is_required: True
+                supplier_id: string
+                    label: "Supplier ID"
+                    description: "Supplier identifier"
+                    is_required: True
+                manager_id: string
+                    label: "Manager ID"
+                    description: "Manager approving the order"
+                    is_required: True
+            outputs:
+                purchase_order_id: string
+                    label: "Purchase Order ID"
+                    is_displayable: True
+                order_submitted: boolean
+                    label: "Order Submitted"
+                    is_displayable: True
+                expected_delivery: string
+                    label: "Expected Delivery"
+                    is_displayable: True
+                approval_required: boolean
+                    label: "Approval Required"
+                    is_displayable: True
+            target: "flow://CreatePurchaseOrder"
+
+        Send_Stock_Alert:
+            description: "Sends stock alerts to relevant stakeholders"
+            label: "Send Alert"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                product_sku: string
+                    label: "Product SKU"
+                    description: "Product with stock issue"
+                    is_required: True
+                alert_type: string
+                    label: "Alert Type"
+                    description: "Type of stock alert"
+                    is_required: True
+                current_stock: number
+                    label: "Current Stock"
+                    description: "Current inventory level"
+                    is_required: True
+                recipients: string
+                    label: "Recipients"
+                    description: "Alert recipients"
+                    is_required: True
+            outputs:
+                alert_sent: boolean
+                    label: "Alert Sent"
+                    is_displayable: True
+                notification_method: string
+                    label: "Notification Method"
+                    is_displayable: True
+                escalation_triggered: boolean
+                    label: "Escalation Triggered"
+                    is_displayable: False
+            target: "flow://SendStockAlert"
+    before_reasoning:
+        if @variables.stock_status == "out_of_stock":
+            set @variables.reorder_level = @variables.reorder_level + 5
+
+    reasoning:
+        instructions: ->
+            |   **Restocking Alert for {! @variables.product_sku }**
+
+                Current Status: {! @variables.stock_status }
+                Current Stock: {! @variables.current_stock }
+                Recommended Reorder Quantity: {! @variables.reorder_level }
+
+                **Action Required:**
+                This product requires immediate restocking to maintain inventory levels.
+
+                Would you like to:
+                1. Generate purchase order
+                2. Update reorder parameters
+                3. Check inventory for other products
+                4. Return to main menu
+        actions:
+            generate_recommendation: @actions.Generate_Restock_Recommendation
+                with product_sku=@variables.product_sku
+                with current_stock=@variables.current_stock
+                with demand_forecast=@variables.demand_forecast
+                with lead_time=@variables.supplier_lead_time
+                with safety_stock=@variables.safety_stock
+                set @variables.recommended_order_quantity = @outputs.recommended_quantity
+
+            create_po: @actions.Create_Purchase_Order
+                with product_sku=@variables.product_sku
+                with quantity=@variables.recommended_order_quantity
+                with supplier_id=@variables.supplier_id
+                with manager_id=@variables.manager_id
+                set @variables.purchase_order_id = @outputs.purchase_order_id
+                set @variables.order_placed = @outputs.order_submitted
+
+            send_alert: @actions.Send_Stock_Alert
+                with product_sku=@variables.product_sku
+                with alert_type=@variables.stock_status
+                with current_stock=@variables.current_stock
+                with recipients="Store Management"
+
+            process_restock: @utils.setVariables
+                with stock_status=@variables.stock_status
+                with recommended_order_quantity=@variables.recommended_order_quantity
+                with purchase_order_id=@variables.purchase_order_id
+
+            check_more_inventory: @utils.transition to @topic.inventory_tracker
+
+    after_reasoning:
+        if @variables.restock_needed:
+            run @actions.Generate_Restock_Recommendation
+                with product_sku=@variables.product_sku
+                with current_stock=@variables.current_stock
+                with demand_forecast=@variables.demand_forecast
+                with lead_time=@variables.supplier_lead_time
+                with safety_stock=@variables.safety_stock
+                set @variables.recommended_order_quantity = @outputs.recommended_quantity
+
+        if @variables.stock_status == "critical" or @variables.stock_status == "out_of_stock":
+            run @actions.Send_Stock_Alert
+                with product_sku=@variables.product_sku
+                with alert_type=@variables.stock_status
+                with current_stock=@variables.current_stock
+                with recipients="Store Management"
+
+        if @variables.recommended_order_quantity > 0:
+            run @actions.Create_Purchase_Order
+                with product_sku=@variables.product_sku
+                with quantity=@variables.recommended_order_quantity
+                with supplier_id=@variables.supplier_id
+                with manager_id=@variables.manager_id
+                set @variables.purchase_order_id = @outputs.purchase_order_id
+                set @variables.order_placed = @outputs.order_submitted

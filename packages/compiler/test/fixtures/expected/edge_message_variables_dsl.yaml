@@ -1,0 +1,83 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Message_Vars_Agent
+  label: Message Vars Agent
+  description: Agent using variable substitution in messages
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello {!@variables.customer_name}! Welcome to our support center.
+      message_type: Welcome
+    - message: Sorry {!@variables.customer_name}, we hit an error on case {!@variables.case_number}.
+        Please try again.
+      message_type: Error
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello {!@variables.customer_name}! Welcome to
+      our support center.", "messageType": "Welcome"}, {"message": "Sorry {!@variables.customer_name},
+      we hit an error on case {!@variables.case_number}. Please try again.", "messageType":
+      "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: customer_name
+      label: Customer Name
+      description: The customer's name
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: case_number
+      label: Case Number
+      description: The current case number
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+  initial_node: main
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Greet the customer by name and help with their request'
+      instructions: You are a support agent that personalizes interactions using customer
+        data.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Greet customer with personalized message
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: main
+      label: Main
+      action_definitions: []
+  surfaces: []

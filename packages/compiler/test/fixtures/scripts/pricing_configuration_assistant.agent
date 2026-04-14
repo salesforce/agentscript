@@ -1,0 +1,514 @@
+system:
+    instructions: "You are a Revenue Cloud pricing configuration assistant. Your role is to help sales operations teams configure pricing models and manage discount approvals."
+    messages:
+        welcome: "Welcome to Revenue Cloud Pricing Configuration! I can help you set up pricing models and configure discounts."
+        error: "I'm experiencing difficulties accessing the Revenue Cloud system. Please try again or contact the Revenue Operations team."
+
+config:
+    developer_name: "Pricing_Configuration_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Assists revenue operations teams with pricing model configuration and discount management"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Product and pricing information
+    product_id: mutable string = ""
+        description: "Product identifier"
+    product_name: mutable string = ""
+        description: "Product name for pricing configuration"
+    product_family: mutable string = ""
+        description: "Product family or category"
+    product_sku: mutable string = ""
+        description: "Product SKU"
+    pricing_model_type: mutable string = ""
+        description: "Type of pricing model (subscription, one-time, usage-based)"
+    base_price: mutable number = 0
+        description: "Base price of the product"
+    list_price: mutable number = 0
+        description: "Standard list price"
+    cost_basis: mutable number = 0
+        description: "Cost basis for margin calculations"
+
+    # Discount and pricing rules
+    discount_percentage: mutable number = 0
+        description: "Discount percentage to apply"
+    discount_type: mutable string = ""
+        description: "Type of discount (volume, promotional, loyalty)"
+    discount_reason: mutable string = ""
+        description: "Business justification for discount"
+    margin_threshold: mutable number = 20
+        description: "Minimum margin threshold percentage"
+    competitive_price: mutable number = 0
+        description: "Competitive benchmark price"
+    volume_tier: mutable string = ""
+        description: "Volume pricing tier"
+
+    # Calculated pricing
+    final_price: mutable number = 0
+        description: "Final calculated price"
+    margin_percentage: mutable number = 0
+        description: "Calculated margin percentage"
+    revenue_impact: mutable number = 0
+        description: "Revenue impact calculation"
+    price_variance: mutable number = 0
+        description: "Variance from standard pricing"
+
+    # Approval and workflow
+    approval_required: mutable boolean = False
+        description: "Whether pricing approval is required"
+    approval_level: mutable string = ""
+        description: "Required approval level (manager, director, vp)"
+    approver_id: mutable string = ""
+        description: "Assigned approver identifier"
+    approval_status: mutable string = "pending"
+        description: "Current approval status"
+    pricing_effective_date: mutable string = ""
+        description: "Effective date for pricing"
+
+    # Configuration metadata
+    sales_rep_id: mutable string = ""
+        description: "Sales representative requesting pricing"
+    customer_segment: mutable string = ""
+        description: "Target customer segment"
+    deal_size: mutable number = 0
+        description: "Total deal size"
+    contract_term: mutable number = 12
+        description: "Contract term in months"
+    pricing_valid_until: mutable string = ""
+        description: "Pricing validity expiration"
+
+start_agent pricing_setup:
+    description: "Sets up comprehensive pricing configuration with validation and competitive analysis"
+
+    actions:
+        Validate_Product_Configuration:
+            description: "Validates product exists and retrieves pricing metadata"
+            label: "Validate Product"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                product_id: string
+                    label: "Product ID"
+                    description: "Product identifier"
+                    is_required: True
+                sales_rep_id: string
+                    label: "Sales Rep ID"
+                    description: "Sales representative identifier"
+                    is_required: True
+            outputs:
+                product_found: boolean
+                    label: "Product Found"
+                    is_displayable: True
+                product_name: string
+                    label: "Product Name"
+                    is_displayable: True
+                base_price: number
+                    label: "Base Price"
+                    is_displayable: True
+                list_price: number
+                    label: "List Price"
+                    is_displayable: True
+                pricing_model: string
+                    label: "Pricing Model"
+                    is_displayable: True
+                margin_guidelines: string
+                    label: "Margin Guidelines"
+                    is_displayable: False
+            target: "flow://ValidateProductConfiguration"
+
+        Analyze_Competitive_Pricing:
+            description: "Analyzes competitive pricing and market positioning"
+            label: "Analyze Competition"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                product_family: string
+                    label: "Product Family"
+                    description: "Product category for analysis"
+                    is_required: True
+                customer_segment: string
+                    label: "Customer Segment"
+                    description: "Target customer segment"
+                    is_required: True
+                deal_size: number
+                    label: "Deal Size"
+                    description: "Total opportunity value"
+                    is_required: True
+            outputs:
+                competitive_benchmark: number
+                    label: "Competitive Benchmark"
+                    is_displayable: True
+                market_position: string
+                    label: "Market Position"
+                    is_displayable: True
+                recommended_discount: number
+                    label: "Recommended Discount"
+                    is_displayable: True
+                competitive_threats: string
+                    label: "Competitive Threats"
+                    is_displayable: False
+            target: "flow://AnalyzeCompetitivePricing"
+
+    before_reasoning:
+        if @variables.product_name == "":
+            set @variables.base_price = 0
+            set @variables.approval_required = False
+
+    reasoning:
+        instructions: ->
+            |   Welcome to Revenue Cloud Pricing Configuration!
+
+                I can help you:
+                - Set up product pricing models
+                - Configure discount rules
+                - Calculate final pricing
+                - Manage approval workflows
+
+                Please provide:
+                - Product name
+                - Base price
+                - Discount percentage (if applicable)
+        actions:
+            validate_product: @actions.Validate_Product_Configuration
+                with product_id=@variables.product_id
+                with sales_rep_id=@variables.sales_rep_id
+                set @variables.product_name = @outputs.product_name
+                set @variables.base_price = @outputs.base_price
+                set @variables.list_price = @outputs.list_price
+                set @variables.pricing_model_type = @outputs.pricing_model
+
+            analyze_competition: @actions.Analyze_Competitive_Pricing
+                with product_family=@variables.product_family
+                with customer_segment=@variables.customer_segment
+                with deal_size=@variables.deal_size
+                set @variables.competitive_price = @outputs.competitive_benchmark
+                set @variables.discount_percentage = @outputs.recommended_discount
+
+            capture_pricing_info: @utils.setVariables
+                with product_name=@variables.product_name
+                with base_price=@variables.base_price
+                with discount_percentage=@variables.discount_percentage
+                with sales_rep_id=@variables.sales_rep_id
+
+            calculate_price: @utils.transition to @topic.price_calculation
+
+    after_reasoning:
+        if @variables.product_id != "" and @variables.sales_rep_id != "":
+            run @actions.Validate_Product_Configuration
+                with product_id=@variables.product_id
+                with sales_rep_id=@variables.sales_rep_id
+                set @variables.product_name = @outputs.product_name
+                set @variables.base_price = @outputs.base_price
+                set @variables.list_price = @outputs.list_price
+                set @variables.pricing_model_type = @outputs.pricing_model
+
+        if @variables.product_family != "" and @variables.customer_segment != "":
+            run @actions.Analyze_Competitive_Pricing
+                with product_family=@variables.product_family
+                with customer_segment=@variables.customer_segment
+                with deal_size=@variables.deal_size
+                set @variables.competitive_price = @outputs.competitive_benchmark
+
+        if @variables.base_price > 0:
+            transition to @topic.price_calculation
+
+topic price_calculation:
+    description: "Calculates comprehensive pricing with margin analysis and discount validation"
+
+    actions:
+        Calculate_Pricing_Metrics:
+            description: "Calculates comprehensive pricing metrics and margin analysis"
+            label: "Calculate Metrics"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                base_price: number
+                    label: "Base Price"
+                    description: "Product base price"
+                    is_required: True
+                discount_percentage: number
+                    label: "Discount Percentage"
+                    description: "Proposed discount percentage"
+                    is_required: True
+                cost_basis: number
+                    label: "Cost Basis"
+                    description: "Product cost basis"
+                    is_required: True
+                volume_multiplier: number
+                    label: "Volume Multiplier"
+                    description: "Volume-based pricing multiplier"
+                    is_required: False
+            outputs:
+                final_price: number
+                    label: "Final Price"
+                    is_displayable: True
+                margin_percentage: number
+                    label: "Margin Percentage"
+                    is_displayable: True
+                margin_dollars: number
+                    label: "Margin Dollars"
+                    is_displayable: True
+                price_variance: number
+                    label: "Price Variance"
+                    is_displayable: True
+                revenue_impact: number
+                    label: "Revenue Impact"
+                    is_displayable: True
+            target: "flow://CalculatePricingMetrics"
+
+        Validate_Discount_Rules:
+            description: "Validates discount against business rules and thresholds"
+            label: "Validate Discount"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                discount_percentage: number
+                    label: "Discount Percentage"
+                    description: "Proposed discount"
+                    is_required: True
+                discount_type: string
+                    label: "Discount Type"
+                    description: "Type of discount being applied"
+                    is_required: True
+                customer_segment: string
+                    label: "Customer Segment"
+                    description: "Target customer segment"
+                    is_required: True
+                deal_size: number
+                    label: "Deal Size"
+                    description: "Total opportunity value"
+                    is_required: True
+                margin_percentage: number
+                    label: "Calculated Margin"
+                    description: "Calculated margin percentage"
+                    is_required: True
+            outputs:
+                discount_valid: boolean
+                    label: "Discount Valid"
+                    is_displayable: True
+                approval_required: boolean
+                    label: "Approval Required"
+                    is_displayable: True
+                approval_level: string
+                    label: "Approval Level"
+                    is_displayable: True
+                business_justification: string
+                    label: "Business Justification"
+                    is_displayable: True
+                max_allowed_discount: number
+                    label: "Max Allowed Discount"
+                    is_displayable: True
+            target: "flow://ValidateDiscountRules"
+
+    before_reasoning:
+        if @variables.discount_percentage > 20:
+            set @variables.approval_required = True
+        if @variables.base_price > 0:
+            # multiply and divide not supported - simplified calculation
+            set @variables.final_price = @variables.base_price - @variables.discount_percentage
+
+    reasoning:
+        instructions: ->
+            |   **Pricing Configuration Summary:**
+                - Product: {! @variables.product_name }
+                - Base Price: ${! @variables.base_price }
+                - Discount: {! @variables.discount_percentage }%
+                - Final Price: ${! @variables.final_price }
+                - Approval Required: {! @variables.approval_required }
+
+                Price calculation completed successfully.
+
+                What would you like to do next?
+        actions:
+            calculate_metrics: @actions.Calculate_Pricing_Metrics
+                with base_price=@variables.base_price
+                with discount_percentage=@variables.discount_percentage
+                with cost_basis=@variables.cost_basis
+                with volume_multiplier=1
+                set @variables.final_price = @outputs.final_price
+                set @variables.margin_percentage = @outputs.margin_percentage
+                set @variables.revenue_impact = @outputs.revenue_impact
+
+            validate_discount: @actions.Validate_Discount_Rules
+                with discount_percentage=@variables.discount_percentage
+                with discount_type=@variables.discount_type
+                with customer_segment=@variables.customer_segment
+                with deal_size=@variables.deal_size
+                with margin_percentage=@variables.margin_percentage
+                set @variables.approval_required = @outputs.approval_required
+                set @variables.approval_level = @outputs.approval_level
+
+            finalize_pricing: @utils.setVariables
+                with final_price=@variables.final_price
+                with margin_percentage=@variables.margin_percentage
+                with approval_required=@variables.approval_required
+
+            handle_approval: @utils.transition to @topic.approval_workflow
+
+    after_reasoning:
+        if @variables.base_price > 0:
+            run @actions.Calculate_Pricing_Metrics
+                with base_price=@variables.base_price
+                with discount_percentage=@variables.discount_percentage
+                with cost_basis=@variables.cost_basis
+                with volume_multiplier=1
+                set @variables.final_price = @outputs.final_price
+                set @variables.margin_percentage = @outputs.margin_percentage
+                set @variables.revenue_impact = @outputs.revenue_impact
+
+            run @actions.Validate_Discount_Rules
+                with discount_percentage=@variables.discount_percentage
+                with discount_type=@variables.discount_type
+                with customer_segment=@variables.customer_segment
+                with deal_size=@variables.deal_size
+                with margin_percentage=@variables.margin_percentage
+                set @variables.approval_required = @outputs.approval_required
+                set @variables.approval_level = @outputs.approval_level
+
+        if @variables.approval_required:
+            transition to @topic.approval_workflow
+        if @variables.final_price > 0 and @variables.approval_required == False:
+            set @variables.approval_status = "auto_approved"
+
+topic approval_workflow:
+    description: "Manages comprehensive pricing approval workflow with automated routing"
+
+    actions:
+        Submit_Pricing_Approval:
+            description: "Submits pricing configuration for approval workflow"
+            label: "Submit for Approval"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                pricing_request: string
+                    label: "Pricing Request"
+                    description: "Complete pricing request details"
+                    is_required: True
+                approval_level: string
+                    label: "Approval Level"
+                    description: "Required approval level"
+                    is_required: True
+                sales_rep_id: string
+                    label: "Sales Rep ID"
+                    description: "Requesting sales representative"
+                    is_required: True
+                business_justification: string
+                    label: "Business Justification"
+                    description: "Justification for pricing request"
+                    is_required: True
+            outputs:
+                approval_submitted: boolean
+                    label: "Approval Submitted"
+                    is_displayable: True
+                approver_assigned: string
+                    label: "Approver Assigned"
+                    is_displayable: True
+                approval_timeline: string
+                    label: "Approval Timeline"
+                    is_displayable: True
+                approval_id: string
+                    label: "Approval ID"
+                    is_displayable: True
+            target: "flow://SubmitPricingApproval"
+
+        Generate_Pricing_Quote:
+            description: "Generates formal pricing quote with approved pricing"
+            label: "Generate Quote"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                final_price: number
+                    label: "Final Price"
+                    description: "Approved final price"
+                    is_required: True
+                product_details: string
+                    label: "Product Details"
+                    description: "Complete product information"
+                    is_required: True
+                customer_info: string
+                    label: "Customer Info"
+                    description: "Customer information"
+                    is_required: True
+                pricing_terms: string
+                    label: "Pricing Terms"
+                    description: "Terms and conditions"
+                    is_required: True
+            outputs:
+                quote_generated: boolean
+                    label: "Quote Generated"
+                    is_displayable: True
+                quote_id: string
+                    label: "Quote ID"
+                    is_displayable: True
+                quote_valid_until: string
+                    label: "Quote Valid Until"
+                    is_displayable: True
+                delivery_method: string
+                    label: "Delivery Method"
+                    is_displayable: False
+            target: "flow://GeneratePricingQuote"
+
+    before_reasoning:
+        if @variables.approval_level == "manager":
+            set @variables.approver_id = "MGR-001"
+        if @variables.approval_level == "director":
+            set @variables.approver_id = "DIR-001"
+        if @variables.approval_level == "vp":
+            set @variables.approver_id = "VP-001"
+
+    reasoning:
+        instructions: ->
+            |   **Approval Required for Pricing Configuration:**
+                - Product: {! @variables.product_name }
+                - Discount: {! @variables.discount_percentage }%
+                - Final Price: ${! @variables.final_price }
+
+                High discount percentage requires management approval.
+
+                The pricing configuration has been submitted for approval.
+                You will be notified once the approval process is complete.
+
+                Would you like to configure pricing for another product?
+        actions:
+            submit_approval: @actions.Submit_Pricing_Approval
+                with pricing_request=@variables.product_name + " pricing"
+                with approval_level=@variables.approval_level
+                with sales_rep_id=@variables.sales_rep_id
+                with business_justification=@variables.discount_reason
+                set @variables.approver_id = @outputs.approver_assigned
+                set @variables.approval_status = "pending"
+
+            create_quote: @actions.Generate_Pricing_Quote
+                with final_price=@variables.final_price
+                with product_details=@variables.product_name
+                with customer_info=@variables.customer_segment
+                with pricing_terms="Standard terms apply"
+                set @variables.pricing_valid_until = @outputs.quote_valid_until
+
+            process_approval: @utils.setVariables
+                with approval_required=@variables.approval_required
+                with approver_id=@variables.approver_id
+                with approval_status=@variables.approval_status
+
+            configure_another: @utils.transition to @topic.pricing_setup
+
+    after_reasoning:
+        if @variables.approval_required and @variables.approval_level != "":
+            run @actions.Submit_Pricing_Approval
+                with pricing_request=@variables.product_name + " pricing configuration"
+                with approval_level=@variables.approval_level
+                with sales_rep_id=@variables.sales_rep_id
+                with business_justification=@variables.discount_reason
+                set @variables.approver_id = @outputs.approver_assigned
+                set @variables.approval_status = "pending"
+
+        if @variables.final_price > 0:
+            run @actions.Generate_Pricing_Quote
+                with final_price=@variables.final_price
+                with product_details=@variables.product_name
+                with customer_info=@variables.customer_segment
+                with pricing_terms="Standard terms and conditions apply"
+                set @variables.pricing_valid_until = @outputs.quote_valid_until

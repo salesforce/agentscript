@@ -1,0 +1,138 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Edge_Cond_Boolean_Ops
+  label: Edge Cond Boolean Ops
+  description: Tests and/or boolean operators in conditionals
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: test_user
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome!
+      message_type: Welcome
+    - message: An error occurred.
+      message_type: Error
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome!", "messageType": "Welcome"}, {"message":
+      "An error occurred.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: x
+      label: X
+      description: X
+      data_type: string
+      is_list: false
+      default: '''hello'''
+      visibility: Internal
+    - developer_name: y
+      label: Y
+      description: Y
+      data_type: string
+      is_list: false
+      default: '''world'''
+      visibility: Internal
+    - developer_name: a
+      label: A
+      description: A
+      data_type: boolean
+      is_list: false
+      default: true
+      visibility: Internal
+    - developer_name: b
+      label: B
+      description: B
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: both_present
+      label: Both Present
+      description: Both Present
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: either_true
+      label: Either True
+      description: Either True
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+  initial_node: main
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user with their request.
+
+                Both present: {{state.both_present}}
+
+                Either true: {{state.either_true}}'
+      instructions: You are an assistant that evaluates boolean conditions.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Tests boolean and/or operators in conditions
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.x != "" and state.y != ""
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - both_present: 'True'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.a == True or state.b == True
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - either_true: 'True'
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools: []
+      developer_name: main
+      label: Main
+      action_definitions: []
+  surfaces: []

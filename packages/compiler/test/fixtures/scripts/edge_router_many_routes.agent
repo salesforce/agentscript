@@ -1,0 +1,100 @@
+system:
+    instructions: "You are a comprehensive routing agent for a large enterprise with many departments."
+    messages:
+        welcome: "Welcome to Enterprise Support! I can help with sales, support, billing, HR, IT, legal, or compliance."
+        error: "An error occurred. Please try again."
+
+config:
+    developer_name: "Router_Many_Routes"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Router with transitions to 6+ topics"
+
+language:
+    default_locale: "en_US"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Routes users to one of many enterprise departments"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Classify the user's request and route to the most appropriate department.
+              Consider the full context of the conversation.
+        actions:
+            go_sales: @utils.transition to @topic.sales
+                description: "Route to sales department"
+            go_support: @utils.transition to @topic.support
+                description: "Route to customer support"
+            go_billing: @utils.transition to @topic.billing
+                description: "Route to billing department"
+            go_hr: @utils.transition to @topic.human_resources
+                description: "Route to HR department"
+            go_it: @utils.transition to @topic.it_helpdesk
+                description: "Route to IT helpdesk"
+            go_legal: @utils.transition to @topic.legal
+                description: "Route to legal department"
+            go_compliance: @utils.transition to @topic.compliance
+                description: "Route to compliance department"
+
+topic sales:
+    label: "Sales"
+    description: "Handles sales inquiries, quotes, and product demonstrations"
+
+    reasoning:
+        instructions: ->
+            | Assist the user with sales questions.
+              Provide product information, pricing, and demo scheduling.
+
+topic support:
+    label: "Customer Support"
+    description: "Handles customer support tickets and troubleshooting"
+
+    reasoning:
+        instructions: ->
+            | Help the customer resolve their support issue.
+              Follow standard troubleshooting procedures.
+
+topic billing:
+    label: "Billing"
+    description: "Handles billing inquiries, payments, and invoice disputes"
+
+    reasoning:
+        instructions: ->
+            | Assist with billing questions, payment processing, and invoice disputes.
+
+topic human_resources:
+    label: "Human Resources"
+    description: "Handles HR inquiries, benefits, and employee relations"
+
+    reasoning:
+        instructions: ->
+            | Help with HR-related questions including benefits, policies, and employee matters.
+
+topic it_helpdesk:
+    label: "IT Helpdesk"
+    description: "Handles IT support requests, password resets, and system access"
+
+    reasoning:
+        instructions: ->
+            | Assist with IT issues including password resets, system access, and technical problems.
+
+topic legal:
+    label: "Legal"
+    description: "Handles legal inquiries and contract questions"
+
+    reasoning:
+        instructions: ->
+            | Assist with legal questions. Note that this is general guidance only.
+              For specific legal advice, recommend consulting with a legal professional.
+
+topic compliance:
+    label: "Compliance"
+    description: "Handles compliance inquiries and regulatory questions"
+
+    reasoning:
+        instructions: ->
+            | Help with compliance-related questions and regulatory requirements.
+              Provide guidance on company policies and procedures.

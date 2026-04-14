@@ -1,0 +1,87 @@
+system:
+    instructions: "You are a flexible support agent that determines values dynamically."
+
+config:
+    developer_name: "EdgeActionWithEllipsis"
+    default_agent_user: "admin@example.com"
+    description: "Tests with clauses using ... (LLM-provided values)"
+
+variables:
+    customer_id: linked string
+        description: "Customer ID from context"
+    ticket_id: mutable string
+        description: "Created ticket ID"
+    search_results: mutable list[object]
+        description: "Search results"
+    summary: mutable string
+        description: "Generated summary"
+
+start_agent main:
+    description: "Agent that lets the LLM fill in action parameters"
+
+    actions:
+        search_knowledge:
+            description: "Search knowledge base"
+            inputs:
+                query: string
+                    is_required: True
+                category: string
+                    is_required: False
+                max_results: number
+                    is_required: False
+            outputs:
+                results: list[object]
+            target: "flow://Search_Knowledge"
+
+        create_ticket:
+            description: "Create a support ticket"
+            inputs:
+                subject: string
+                    is_required: True
+                details: string
+                    is_required: True
+                priority: string
+                    is_required: False
+                category: string
+                    is_required: False
+            outputs:
+                ticket_id: string
+            target: "flow://Create_Ticket"
+
+        summarize_case:
+            description: "Summarize a customer case"
+            inputs:
+                case_id: string
+                    is_required: True
+                detail_level: string
+                    is_required: False
+            outputs:
+                summary: string
+            target: "apex://CaseService.summarize"
+
+    reasoning:
+        instructions: ->
+            | Help the customer by searching knowledge, creating tickets, and summarizing cases.
+              Determine the appropriate parameter values based on the conversation.
+
+        actions:
+            search: @actions.search_knowledge
+                with query=...
+                with category=...
+                with max_results=...
+                set @variables.search_results = @outputs.results
+
+            create_ticket: @actions.create_ticket
+                with subject=...
+                with details=...
+                with priority=...
+                with category=...
+                set @variables.ticket_id = @outputs.ticket_id
+
+            summarize: @actions.summarize_case
+                with case_id=...
+                with detail_level=...
+                set @variables.summary = @outputs.summary
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human if needed"

@@ -1,0 +1,120 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: ConstantValuesLiterals
+  label: Constant Values Literals
+  description: Constant Values Literals
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+  initial_node: main
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Test literal constant values'
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Test literal constant values (not @knowledge references)
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: test_action
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates: []
+          name: run_test
+          description: Run Test
+      developer_name: main
+      label: Main
+      action_definitions:
+        - developer_name: test_action
+          label: Test Action
+          description: Action with literal constant values
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: TestAction
+          input_type:
+            - developer_name: str_const
+              label: Str Const
+              description: Str Const
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+              constant_value: literal_string
+            - developer_name: bool_true
+              label: Bool True
+              description: Bool True
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+              constant_value: true
+            - developer_name: bool_false
+              label: Bool False
+              description: Bool False
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+              constant_value: false
+            - developer_name: empty_str
+              label: Empty Str
+              description: Empty Str
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+              constant_value: ""
+            - developer_name: no_default
+              label: No Default
+              description: No Default
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: result
+              label: Result
+              description: Result
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

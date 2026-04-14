@@ -1,0 +1,415 @@
+schema_version: '2.0'
+global_configuration:
+  developer_name: Education_Enrollment_Agent
+  label: Education Enrollment Agent
+  description: Handles course search, financial aid checks, and student registration.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  default_agent_user: enrollment@university.edu
+  context_variables: []
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Welcome! I can help you with course enrollment and financial aid.
+      message_type: Welcome
+    - message: An error occurred in the enrollment system.
+      message_type: Error
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Welcome! I can help you with course enrollment
+      and financial aid.", "messageType": "Welcome"}, {"message": "An error occurred
+      in the enrollment system.", "messageType": "Error"}]'
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: student_id
+      label: Student Id
+      description: Student identifier
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: major
+      label: Major
+      description: Student major
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: selected_courses
+      label: Selected Courses
+      description: Comma-separated list of selected course IDs
+      data_type: string
+      is_list: false
+      default: ''''''
+      visibility: Internal
+    - developer_name: financial_aid_eligible
+      label: Financial Aid Eligible
+      description: Whether student is eligible for financial aid
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: registration_complete
+      label: Registration Complete
+      description: Whether registration is finalized
+      data_type: boolean
+      is_list: false
+      default: false
+      visibility: Internal
+    - developer_name: total_credits
+      label: Total Credits
+      description: Total credits for selected courses
+      data_type: number
+      is_list: false
+      default: 0
+      visibility: Internal
+  initial_node: enrollment_start
+  nodes:
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Welcome the student and ask about their enrollment needs.
+
+                Collect student ID and major to begin the process.'
+      instructions: You are a student enrollment assistant. Help students search for
+        courses, check financial aid eligibility, and complete registration.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Initiates the enrollment process and gathers student information
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: __state_update_action__
+          bound_inputs: {}
+          llm_inputs: []
+          state_updates:
+            - student_id: state.student_id
+            - major: state.major
+          name: save_info
+          description: Save student information
+          input_parameters: []
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"course_search"'
+          name: go_courses
+          description: Search for courses
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"financial_aid"'
+          name: go_aid
+          description: Check financial aid
+      after_all_tool_calls:
+        - type: handoff
+          target: course_search
+          enabled: state.AgentScriptInternal_next_topic=="course_search"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: financial_aid
+          enabled: state.AgentScriptInternal_next_topic=="financial_aid"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: enrollment_start
+      label: Enrollment Start
+      action_definitions: []
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Search for courses matching the student''s major and present options.'
+      instructions: You are a student enrollment assistant. Help students search for
+        courses, check financial aid eligibility, and complete registration.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Searches for available courses based on major and requirements
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: search_courses
+          bound_inputs:
+            major: state.major
+          llm_inputs:
+            - semester
+            - level
+          state_updates: []
+          name: search
+          description: Search
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"financial_aid"'
+          name: go_aid
+          description: Check financial aid before registering
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"registration"'
+          name: go_register
+          description: Proceed to registration
+      after_all_tool_calls:
+        - type: handoff
+          target: financial_aid
+          enabled: state.AgentScriptInternal_next_topic=="financial_aid"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: registration
+          enabled: state.AgentScriptInternal_next_topic=="registration"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: course_search
+      label: Course Search
+      action_definitions:
+        - developer_name: search_courses
+          label: Search Courses
+          description: Searches available courses by department and requirements
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: externalService
+          invocation_target_name: SearchCourses
+          input_type:
+            - developer_name: major
+              label: Major
+              description: Major
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: semester
+              label: Semester
+              description: Semester
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+            - developer_name: level
+              label: Level
+              description: Level
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: courses
+              label: Courses
+              description: Courses
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: total_available
+              label: Total Available
+              description: Total Available
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Check the student''s financial aid eligibility and present results.'
+      instructions: You are a student enrollment assistant. Help students search for
+        courses, check financial aid eligibility, and complete registration.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Checks financial aid eligibility and award details
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: check_aid
+          bound_inputs:
+            student_id: state.student_id
+            total_credits: state.total_credits
+          llm_inputs: []
+          state_updates:
+            - financial_aid_eligible: result.eligible
+          name: check
+          description: Check
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"registration"'
+          name: go_register
+          description: Proceed to registration
+      after_all_tool_calls:
+        - type: handoff
+          target: registration
+          enabled: state.AgentScriptInternal_next_topic=="registration"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      developer_name: financial_aid
+      label: Financial Aid
+      action_definitions:
+        - developer_name: check_aid
+          label: Check Aid
+          description: Checks financial aid eligibility
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: CheckFinancialAid
+          input_type:
+            - developer_name: student_id
+              label: Student Id
+              description: Student Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: total_credits
+              label: Total Credits
+              description: Total Credits
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: eligible
+              label: Eligible
+              description: Eligible
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: award_amount
+              label: Award Amount
+              description: Award Amount
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: aid_type
+              label: Aid Type
+              description: Aid Type
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+    - before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: 'True'
+          state_updates:
+            - AgentScriptInternal_agent_instructions: ''''''
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Finalize registration for the selected courses.
+
+                Confirm the schedule with the student.'
+      instructions: You are a student enrollment assistant. Help students search for
+        courses, check financial aid eligibility, and complete registration.
+      type: subagent
+      reasoning_type: salesforce.default
+      description: Finalizes course registration
+      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
+      tools:
+        - type: action
+          target: register_courses
+          bound_inputs:
+            student_id: state.student_id
+            course_ids: state.selected_courses
+          llm_inputs: []
+          state_updates:
+            - registration_complete: result.success
+            - total_credits: result.total_credits
+          name: register
+          description: Register
+      developer_name: registration
+      label: Registration
+      action_definitions:
+        - developer_name: register_courses
+          label: Register Courses
+          description: Registers the student for selected courses
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: flow
+          invocation_target_name: RegisterCourses
+          input_type:
+            - developer_name: student_id
+              label: Student Id
+              description: Student Id
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: course_ids
+              label: Course Ids
+              description: Course Ids
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: success
+              label: Success
+              description: Success
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: schedule
+              label: Schedule
+              description: Schedule
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: total_credits
+              label: Total Credits
+              description: Total Credits
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+  surfaces: []

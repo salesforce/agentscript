@@ -1,0 +1,1054 @@
+schema_version: "2.0"
+global_configuration:
+  developer_name: WeatherPro_Assistant
+  label: Weather Pro Assistant
+  description: Weather Pro Assistant
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: support@weatherpro.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I'm your WeatherPro Assistant. I can provide current weather conditions, forecasts, and severe weather alerts for any location. How can I help you today?
+      message_type: Welcome
+    - message: I apologize, but I'm experiencing technical difficulties retrieving weather data. Please try again in a moment.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: user_city
+      label: User City
+      description: User's requested city for weather information
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: user_country
+      label: User Country
+      description: User's requested country for weather information
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: location_coordinates
+      label: Location Coordinates
+      description: Latitude and longitude coordinates for the location
+      data_type: object
+      is_list: false
+      visibility: Internal
+      default: {}
+    - developer_name: general_forecast
+      label: General Forecast
+      description: General forecast information with sample data
+      data_type: object
+      is_list: false
+      visibility: Internal
+      default:
+        var1: ""
+        var2: false
+    - developer_name: alert_regions
+      label: Alert Regions
+      description: List of regions to monitor for weather alerts
+      data_type: string
+      is_list: true
+      visibility: Internal
+      default:
+        - North
+        - South
+        - East
+        - West
+    - developer_name: temperature
+      label: Temperature
+      description: Current temperature in Celsius
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: temperature_fahrenheit
+      label: Temperature Fahrenheit
+      description: Current temperature in Fahrenheit
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 32
+    - developer_name: conditions
+      label: Conditions
+      description: Current weather conditions description
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: humidity
+      label: Humidity
+      description: Current humidity percentage
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: wind_speed
+      label: Wind Speed
+      description: Current wind speed in km/h
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: wind_direction
+      label: Wind Direction
+      description: Wind direction (N, NE, E, SE, S, SW, W, NW)
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: pressure
+      label: Pressure
+      description: Atmospheric pressure in hPa
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: visibility_km
+      label: Visibility Km
+      description: Visibility in kilometers
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: uv_index
+      label: Uv Index
+      description: UV index value
+      data_type: number
+      is_list: false
+      visibility: Internal
+      default: 0
+    - developer_name: forecast_data
+      label: Forecast Data
+      description: Multi-day weather forecast data
+      data_type: object
+      is_list: true
+      visibility: Internal
+      default: []
+    - developer_name: hourly_forecast
+      label: Hourly Forecast
+      description: 24-hour hourly forecast data
+      data_type: object
+      is_list: true
+      visibility: Internal
+      default: []
+    - developer_name: severe_weather_alert
+      label: Severe Weather Alert
+      description: Whether there are active severe weather alerts
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+      default: false
+    - developer_name: alert_type
+      label: Alert Type
+      description: Type of weather alert (storm, flood, heat, cold, etc.)
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: alert_severity
+      label: Alert Severity
+      description: Alert severity level (minor, moderate, severe, extreme)
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: alert_description
+      label: Alert Description
+      description: Detailed description of the weather alert
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: alert_expires
+      label: Alert Expires
+      description: When the weather alert expires
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "''"
+    - developer_name: preferred_units
+      label: Preferred Units
+      description: User's preferred temperature units (metric/imperial)
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "'metric'"
+    - developer_name: notification_preferences
+      label: Notification Preferences
+      description: User's weather notification preferences
+      data_type: object
+      is_list: false
+      visibility: Internal
+      default: {}
+  initial_node: weather_service_router
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Welcome users and route them to the appropriate weather service based on their needs
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"current_weather_service"'
+          name: current_weather
+          description: Route to current weather service when users ask for current conditions, temperature, or immediate weather status.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"forecast_service"'
+          name: weather_forecast
+          description: Route to forecast service when users ask for future weather predictions, multi-day forecasts, or planning information.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"severe_weather_alerts"'
+          name: emergency_alerts
+          description: Route to severe weather alerts when users mention storms, warnings, emergencies, or safety concerns.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"weather_preferences"'
+          name: user_settings
+          description: Route to preferences when users want to set temperature units, location defaults, or notification settings.
+      developer_name: weather_service_router
+      label: Weather Service Router
+      action_definitions: []
+      instructions: You are a professional weather service assistant. Analyze user requests and route them to the appropriate weather service. Always prioritize safety by directing users with severe weather concerns to emergency alerts first.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Analyze user input to determine weather service intent and route appropriately:
+                - For current weather requests, call action.current_weather
+                - For forecast or future weather requests, call action.weather_forecast
+                - For alerts, emergencies, or safety concerns, call action.emergency_alerts
+                - For settings, preferences, or unit changes, call action.user_settings
+
+                Welcome users professionally and gather location information if not provided.
+      after_all_tool_calls:
+        - type: handoff
+          target: current_weather_service
+          enabled: state.AgentScriptInternal_next_topic=="current_weather_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: forecast_service
+          enabled: state.AgentScriptInternal_next_topic=="forecast_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: severe_weather_alerts
+          enabled: state.AgentScriptInternal_next_topic=="severe_weather_alerts"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: weather_preferences
+          enabled: state.AgentScriptInternal_next_topic=="weather_preferences"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Provides comprehensive current weather conditions for any location worldwide
+      tools:
+        - type: action
+          target: Get_Current_Weather_Data
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs: []
+          state_updates:
+            - temperature: result.temperature_celsius
+            - temperature_fahrenheit: result.temperature_fahrenheit
+            - conditions: result.conditions
+            - humidity: result.humidity
+            - wind_speed: result.wind_speed
+            - wind_direction: result.wind_direction
+            - pressure: result.pressure
+            - visibility_km: result.visibility_km
+            - uv_index: result.uv_index
+          name: Get_Current_Weather_Data
+          description: Get Current Weather Data
+        - type: action
+          target: Geocode_Location
+          bound_inputs: {}
+          llm_inputs:
+            - location_query
+          state_updates:
+            - location_coordinates: result.coordinates
+          name: Geocode_Location
+          description: Geocode Location
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - user_city: result.user_city
+            - user_country: result.user_country
+          name: set_location
+          description: Set the user's preferred location for weather information.
+          bound_inputs: {}
+          llm_inputs:
+            - user_city
+            - user_country
+          input_parameters:
+            - developer_name: user_city
+              label: user_city
+              data_type: String
+            - developer_name: user_country
+              label: user_country
+              data_type: String
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"forecast_service"'
+          name: get_forecast
+          description: Get detailed weather forecast for the current location.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"severe_weather_alerts"'
+          name: check_alerts
+          description: Check for severe weather alerts in the area.
+      developer_name: current_weather_service
+      label: Current Weather Service
+      action_definitions:
+        - developer_name: Get_Current_Weather_Data
+          label: Get Current Weather Data
+          description: Retrieves comprehensive current weather data for a specified location
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: 300WX000001WeatherCurrentAPI
+          input_type:
+            - developer_name: city
+              label: City
+              description: City name for weather lookup
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: true
+            - developer_name: country
+              label: Country
+              description: Country name or code for weather lookup
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: true
+            - developer_name: coordinates
+              label: Coordinates
+              description: Latitude and longitude coordinates (optional, for precise location)
+              data_type: LightningTypes
+              is_list: false
+              required: false
+              is_user_input: false
+              complex_data_type_name: lightning__objectType
+          output_type:
+            - developer_name: temperature_celsius
+              label: Temperature Celsius
+              description: Current temperature in Celsius
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: temperature_fahrenheit
+              label: Temperature Fahrenheit
+              description: Current temperature in Fahrenheit
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: conditions
+              label: Conditions
+              description: Current weather conditions description
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: humidity
+              label: Humidity
+              description: Current humidity percentage
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: wind_speed
+              label: Wind Speed
+              description: Wind speed in km/h
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: wind_direction
+              label: Wind Direction
+              description: Wind direction
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: pressure
+              label: Pressure
+              description: Atmospheric pressure in hPa
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: visibility_km
+              label: Visibility Km
+              description: Visibility in kilometers
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: uv_index
+              label: Uv Index
+              description: UV index value
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: weather_alerts
+              label: Weather Alerts
+              description: Any active weather alerts or warnings
+              data_type: LightningTypes
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: true
+              complex_data_type_name: lightning__objectType
+          progress_indicator_message: Fetching current weather data...
+        - developer_name: Geocode_Location
+          label: Geocode Location
+          description: Converts city/country names to precise coordinates for weather lookup
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: 01pWX000001GeoLocationAPI
+          input_type:
+            - developer_name: location_query
+              label: Location Query
+              description: Location search query (city, country)
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: true
+          output_type:
+            - developer_name: coordinates
+              label: Coordinates
+              description: Latitude and longitude coordinates
+              data_type: LightningTypes
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+              complex_data_type_name: lightning__objectType
+            - developer_name: location_name
+              label: Location Name
+              description: Standardized location name
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: timezone
+              label: Timezone
+              description: Local timezone for the location
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+      instructions: You are a professional weather data specialist providing accurate current weather conditions. Always include safety information when severe weather is present.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Provide current weather conditions for the user's location.
+
+                If {{state.user_city}} and {{state.user_country}} are available, call action.Get_Current_Weather_Data to fetch comprehensive data.
+                If location needs geocoding or clarification, call action.Geocode_Location first.
+                When user provides new location details, call action.set_location to store the information.
+
+                If user asks for forecasts, call action.get_forecast to transition to forecast service.
+                If severe weather is detected, the after_reasoning logic will handle transition to alerts.
+
+                Present comprehensive weather data including temperature, conditions, humidity, wind, pressure, visibility, and UV index.
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.user_city != "" and state.user_country != ""
+        - type: action
+          target: Get_Current_Weather_Data
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs: []
+          state_updates:
+            - temperature: result.temperature_celsius
+            - temperature_fahrenheit: result.temperature_fahrenheit
+            - conditions: result.conditions
+            - humidity: result.humidity
+            - wind_speed: result.wind_speed
+            - wind_direction: result.wind_direction
+            - pressure: result.pressure
+            - visibility_km: result.visibility_km
+            - uv_index: result.uv_index
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+      after_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.severe_weather_alert
+        - type: action
+          target: __state_update_action__
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+          state_updates:
+            - AgentScriptInternal_next_topic: '"severe_weather_alerts"'
+        - type: handoff
+          target: severe_weather_alerts
+          enabled: state.AgentScriptInternal_next_topic=="severe_weather_alerts"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+      after_all_tool_calls:
+        - type: handoff
+          target: forecast_service
+          enabled: state.AgentScriptInternal_next_topic=="forecast_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: severe_weather_alerts
+          enabled: state.AgentScriptInternal_next_topic=="severe_weather_alerts"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Provides critical severe weather alerts, warnings, and safety guidance
+      tools:
+        - type: action
+          target: Get_Weather_Alerts_Data
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs: []
+          state_updates:
+            - severe_weather_alert: result.alert_count > 0
+            - alert_severity: result.highest_severity
+            - alert_type: result.active_alerts[0].type
+          name: Get_Weather_Alerts_Data
+          description: Get Weather Alerts Data
+        - type: action
+          target: Get_Safety_Guidelines
+          bound_inputs:
+            hazard_type: state.alert_type
+            severity_level: state.alert_severity
+          llm_inputs: []
+          state_updates: []
+          name: Get_Safety_Guidelines
+          description: Get Safety Guidelines
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - notification_preferences: result.notification_preferences
+          name: update_alert_preferences
+          description: Update user's weather alert notification preferences.
+          bound_inputs: {}
+          llm_inputs:
+            - notification_preferences
+          input_parameters:
+            - developer_name: notification_preferences
+              label: notification_preferences
+              data_type: LightningTypes
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"current_weather_service"'
+          name: check_current_conditions
+          description: Check current weather conditions after reviewing alerts.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"forecast_service"'
+          name: extended_forecast
+          description: Get extended forecast to track severe weather progression.
+      developer_name: severe_weather_alerts
+      label: Severe Weather Alerts
+      action_definitions:
+        - developer_name: Get_Weather_Alerts_Data
+          label: Get Weather Alerts Data
+          description: Retrieves active weather alerts, warnings, and watches for a specified location
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: 300WX000002WeatherAlertsAPI
+          input_type:
+            - developer_name: city
+              label: City
+              description: City name for alert lookup
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: country
+              label: Country
+              description: Country name for alert lookup
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: alert_severity_filter
+              label: Alert Severity Filter
+              description: Filter by severity level (minor, moderate, severe, extreme)
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: active_alerts
+              label: Active Alerts
+              description: List of all active weather alerts
+              data_type: LightningTypes
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: true
+              complex_data_type_name: lightning__objectType
+            - developer_name: highest_severity
+              label: Highest Severity
+              description: Highest severity level among active alerts
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: alert_count
+              label: Alert Count
+              description: Total number of active alerts
+              data_type: Double
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: emergency_contacts
+              label: Emergency Contacts
+              description: Local emergency contact information
+              data_type: LightningTypes
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+              complex_data_type_name: lightning__objectType
+          progress_indicator_message: Checking for weather alerts...
+        - developer_name: Get_Safety_Guidelines
+          label: Get Safety Guidelines
+          description: Retrieves safety guidelines and recommendations for specific weather hazards
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: 01pWX000003SafetyGuidelinesAPI
+          input_type:
+            - developer_name: hazard_type
+              label: Hazard Type
+              description: Type of weather hazard (storm, flood, tornado, hurricane, blizzard, etc.)
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: severity_level
+              label: Severity Level
+              description: Severity level of the hazard
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type:
+            - developer_name: safety_guidelines
+              label: Safety Guidelines
+              description: Detailed safety guidelines and recommendations
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: evacuation_info
+              label: Evacuation Info
+              description: Evacuation procedures if applicable
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+            - developer_name: emergency_supplies
+              label: Emergency Supplies
+              description: Recommended emergency supplies
+              data_type: String
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: true
+      instructions: You are an emergency weather alert specialist. Prioritize user safety by providing clear, actionable severe weather information and safety guidance. Always emphasize the urgency and importance of following official emergency guidance.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Monitor and respond to weather alerts with safety as the top priority.
+
+                If {{state.user_city}} and {{state.user_country}} are available, call action.Get_Weather_Alerts_Data to retrieve active alerts.
+                The before_reasoning logic will populate alert variables if alerts are found.
+
+                When {{state.severe_weather_alert}} is true, call action.Get_Safety_Guidelines for specific hazard guidance.
+                If user wants to manage notifications, action.update_alert_preferences can update preferences.
+
+                Always prioritize safety messaging when {{state.severe_weather_alert}} is true.
+                If user needs current conditions, action.check_current_conditions can transition to current weather service.
+                For extended weather tracking, action.extended_forecast can transition to forecast service.
+
+                Emphasize following official emergency guidance for any severe weather events.
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: __state_update_action__
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+          state_updates:
+            - AgentScriptInternal_condition: state.user_city != "" and state.user_country != ""
+        - type: action
+          target: Get_Weather_Alerts_Data
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs: []
+          state_updates:
+            - severe_weather_alert: result.alert_count > 0
+            - alert_severity: result.highest_severity
+            - alert_type: result.active_alerts[0].type
+          enabled: (state.AgentScriptInternal_next_topic=="__EMPTY__") and (state.AgentScriptInternal_condition)
+      after_all_tool_calls:
+        - type: handoff
+          target: current_weather_service
+          enabled: state.AgentScriptInternal_next_topic=="current_weather_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: forecast_service
+          enabled: state.AgentScriptInternal_next_topic=="forecast_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Provides detailed weather forecasts including hourly and multi-day predictions
+      tools:
+        - type: action
+          target: Get_Weather_Forecast
+          bound_inputs:
+            city: state.user_city
+            country: state.user_country
+          llm_inputs:
+            - forecast_days
+            - include_hourly
+          state_updates:
+            - forecast_data: result.daily_forecast
+            - hourly_forecast: result.hourly_forecast
+          name: Get_Weather_Forecast
+          description: Get Weather Forecast
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"current_weather_service"'
+          name: current_conditions
+          description: Check current weather conditions alongside the forecast.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"severe_weather_alerts"'
+          name: alert_monitoring
+          description: Monitor for any severe weather in the forecast period.
+      developer_name: forecast_service
+      label: Forecast Service
+      action_definitions:
+        - developer_name: Get_Weather_Forecast
+          label: Get Weather Forecast
+          description: Retrieves detailed weather forecast data for specified location and timeframe
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: 300WX000003WeatherForecastAPI
+          input_type:
+            - developer_name: city
+              label: City
+              description: City name for forecast
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: country
+              label: Country
+              description: Country name for forecast
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: forecast_days
+              label: Forecast Days
+              description: Number of days to forecast (1-14)
+              data_type: Double
+              is_list: false
+              required: false
+              is_user_input: true
+            - developer_name: include_hourly
+              label: Include Hourly
+              description: Include hourly breakdown for first 24-48 hours
+              data_type: Boolean
+              is_list: false
+              required: false
+              is_user_input: false
+          output_type:
+            - developer_name: daily_forecast
+              label: Daily Forecast
+              description: Multi-day weather forecast
+              data_type: LightningTypes
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: true
+              complex_data_type_name: lightning__objectType
+            - developer_name: hourly_forecast
+              label: Hourly Forecast
+              description: Hourly weather forecast
+              data_type: LightningTypes
+              is_list: true
+              is_used_by_planner: true
+              is_displayable: true
+              complex_data_type_name: lightning__objectType
+            - developer_name: forecast_confidence
+              label: Forecast Confidence
+              description: Confidence level of the forecast
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: weather_trends
+              label: Weather Trends
+              description: Notable weather trends and patterns
+              data_type: String
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+          progress_indicator_message: Generating weather forecast...
+      instructions: You are a professional weather forecasting specialist providing accurate, detailed weather predictions. Include confidence levels and highlight any significant weather changes.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Deliver comprehensive weather forecasts tailored to user needs.
+
+                Call action.Get_Weather_Forecast with {{state.user_city}} and {{state.user_country}} if available.
+                Include forecast_days parameter (1-14 days) and set include_hourly flag based on user needs.
+                Store results in {{state.forecast_data}} and {{state.hourly_forecast}}.
+
+                Present multi-day forecasts showing daily conditions, high/low temperatures, precipitation chances, and wind information.
+                Always include forecast confidence level and highlight notable weather trends.
+
+                If user also wants current conditions, action.current_conditions can transition to current weather service.
+                If severe weather is detected in forecast data, action.alert_monitoring can transition to alerts.
+
+                Gather missing preferences when needed: number of days, hourly details, or location clarification.
+      after_all_tool_calls:
+        - type: handoff
+          target: current_weather_service
+          enabled: state.AgentScriptInternal_next_topic=="current_weather_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: severe_weather_alerts
+          enabled: state.AgentScriptInternal_next_topic=="severe_weather_alerts"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Manages user preferences for weather information display and notifications
+      tools:
+        - type: action
+          target: Update_User_Preferences
+          bound_inputs: {}
+          llm_inputs:
+            - temperature_units
+            - default_location
+            - notification_settings
+            - display_preferences
+          state_updates:
+            - preferred_units: result.current_settings.temperature_units
+            - notification_preferences: result.current_settings.notifications
+          name: Update_User_Preferences
+          description: Update User Preferences
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"current_weather_service"'
+          name: get_weather
+          description: Get weather information with updated preferences.
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"weather_service_router"'
+          name: main_menu
+          description: Return to main weather service menu.
+      developer_name: weather_preferences
+      label: Weather Preferences
+      action_definitions:
+        - developer_name: Update_User_Preferences
+          label: Update User Preferences
+          description: Updates user's weather display and notification preferences
+          require_user_confirmation: false
+          include_in_progress_indicator: false
+          invocation_target_type: apex
+          invocation_target_name: 01pWX000004UserPreferencesAPI
+          input_type:
+            - developer_name: temperature_units
+              label: Temperature Units
+              description: Preferred temperature units (celsius/fahrenheit)
+              data_type: String
+              is_list: false
+              required: false
+              is_user_input: true
+            - developer_name: default_location
+              label: Default Location
+              description: User's default location for weather information
+              data_type: LightningTypes
+              is_list: false
+              required: false
+              is_user_input: true
+              complex_data_type_name: lightning__objectType
+            - developer_name: notification_settings
+              label: Notification Settings
+              description: Weather alert notification preferences
+              data_type: LightningTypes
+              is_list: false
+              required: false
+              is_user_input: true
+              complex_data_type_name: lightning__objectType
+            - developer_name: display_preferences
+              label: Display Preferences
+              description: Weather information display preferences
+              data_type: LightningTypes
+              is_list: false
+              required: false
+              is_user_input: true
+              complex_data_type_name: lightning__objectType
+          output_type:
+            - developer_name: preferences_updated
+              label: Preferences Updated
+              description: Confirmation that preferences were updated
+              data_type: Boolean
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: false
+            - developer_name: current_settings
+              label: Current Settings
+              description: Current user preference settings
+              data_type: LightningTypes
+              is_list: false
+              is_used_by_planner: true
+              is_displayable: true
+              complex_data_type_name: lightning__objectType
+      instructions: You are a user experience specialist helping users customize their weather information preferences. Make the setup process simple and intuitive.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Help users customize their weather experience through preference management.
+
+                Call action.Update_User_Preferences to handle temperature_units, default_location, notification_settings, and display_preferences.
+
+                Update relevant state variables based on user choices:
+                - Set {{state.preferred_units}} from temperature_units selection
+                - Update {{state.notification_preferences}} from notification_settings
+                - Store location in {{state.user_city}} and {{state.user_country}} if changed
+
+                After updating preferences, action.get_weather can transition to apply the new settings immediately.
+                To return to the main weather services, action.main_menu can transition back to the router.
+
+                Current preference state: units={{state.preferred_units}}, location set={{state.user_city}} and {{state.user_country}}.
+                Gather missing preferences: temperature units (celsius/fahrenheit), default location, alert notifications, display format.
+      after_all_tool_calls:
+        - type: handoff
+          target: current_weather_service
+          enabled: state.AgentScriptInternal_next_topic=="current_weather_service"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: weather_service_router
+          enabled: state.AgentScriptInternal_next_topic=="weather_service_router"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+  surfaces: []
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: "[{\"message\": \"Hello! I'm your WeatherPro Assistant. I can provide current weather conditions, forecasts, and severe weather alerts for any location. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, but I'm experiencing technical difficulties retrieving weather data. Please try again in a moment.\", \"messageType\": \"Error\"}]"

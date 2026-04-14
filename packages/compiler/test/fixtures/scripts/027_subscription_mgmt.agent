@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional subscription management agent assistant.
+        Help users manage their subscription requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: enrollment -> billing_review -> modification -> cancellation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Subscription Management Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "subscription_mgmt_agent_v27"
+    default_agent_user: "subscription_mgmt@example.com"
+    agent_description: "Assists users with subscription management through the subscription management agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    subscription_record_id: mutable string
+        description: "Record ID of the subscription"
+    subscription_status: mutable string = ""
+        description: "Current status of the subscription"
+    subscription_tier: mutable string = "standard"
+        description: "Tier classification for the subscription"
+    subscription_category: mutable string = ""
+        description: "Category of the subscription"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    enrollment_complete: mutable boolean = False
+        description: "Whether the enrollment stage is complete"
+    enrollment_result: mutable string = ""
+        description: "Result from the enrollment stage"
+    billing_review_complete: mutable boolean = False
+        description: "Whether the billing_review stage is complete"
+    billing_review_result: mutable string = ""
+        description: "Result from the billing_review stage"
+    modification_complete: mutable boolean = False
+        description: "Whether the modification stage is complete"
+    modification_result: mutable string = ""
+        description: "Result from the modification stage"
+    cancellation_complete: mutable boolean = False
+        description: "Whether the cancellation stage is complete"
+    cancellation_result: mutable string = ""
+        description: "Result from the cancellation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate subscription management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a subscription management agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current subscription status: {! @variables.subscription_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_enrollment} for enrollment requests.
+              Use {!@actions.go_to_billing_review} for billing review requests.
+              Use {!@actions.go_to_modification} for modification requests.
+              Use {!@actions.go_to_cancellation} for cancellation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_enrollment: @utils.transition to @topic.enrollment
+                description: "Transition to enrollment topic."
+            go_to_billing_review: @utils.transition to @topic.billing_review
+                description: "Transition to billing review topic."
+                available when @variables.is_verified == True
+            go_to_modification: @utils.transition to @topic.modification
+                description: "Transition to modification topic."
+                available when @variables.is_verified == True
+            go_to_cancellation: @utils.transition to @topic.cancellation
+                description: "Transition to cancellation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic enrollment:
+    description: "Handles the enrollment stage of the subscription process"
+
+    actions:
+        process_enrollment_data:
+            description: "Process enrollment stage data for the subscription"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Enrollment"
+
+        validate_enrollment_info:
+            description: "Validate enrollment information for the subscription"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Enrollment_Info"
+
+        fetch_enrollment_details:
+            description: "Fetch enrollment details for the subscription"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Enrollment_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_enrollment_info
+                with record_ref=@variables.subscription_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.subscription_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the enrollment stage for the subscription.
+              Current subscription status: {! @variables.subscription_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Enrollment result: {! @variables.enrollment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.subscription_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_enrollment} to begin processing.
+        actions:
+            run_enrollment: @actions.process_enrollment_data
+                with record_ref=@variables.subscription_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.subscription_category
+                set @variables.enrollment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.enrollment_complete = @outputs.is_passed
+            fetch_enrollment_info: @actions.fetch_enrollment_details
+                with record_ref=@variables.subscription_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.subscription_tier = @outputs.tier_value
+            go_to_billing_review: @utils.transition to @topic.billing_review
+                description: "Move to billing review stage."
+                available when @variables.enrollment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.subscription_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.subscription_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.subscription_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.enrollment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic billing_review:
+    description: "Handles the billing review stage of the subscription process"
+
+    actions:
+        process_billing_review_data:
+            description: "Process billing review stage data for the subscription"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_BillingReview_Data"
+
+        validate_billing_review_info:
+            description: "Validate billing review information for the subscription"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_BillingReview_Info"
+
+        fetch_billing_review_details:
+            description: "Fetch billing review details for the subscription"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_BillingReview_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.enrollment_complete == False:
+            transition to @topic.enrollment
+
+    reasoning:
+        instructions: ->
+            | Handle the billing review stage for the subscription.
+              Current subscription status: {! @variables.subscription_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Billing Review result: {! @variables.billing_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.subscription_tier }
+              Review the billing review results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_billing_review: @actions.process_billing_review_data
+                with record_ref=@variables.subscription_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.subscription_category
+                set @variables.billing_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.billing_review_complete = @outputs.is_passed
+            fetch_billing_review_info: @actions.fetch_billing_review_details
+                with record_ref=@variables.subscription_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.subscription_tier = @outputs.tier_value
+                available when @variables.subscription_record_id is not None
+            go_to_modification: @utils.transition to @topic.modification
+                description: "Move to modification stage."
+                available when @variables.billing_review_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.billing_review_complete == True:
+            set @variables.subscription_status = "billing_review_done"
+        if @variables.billing_review_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.modification
+        if @variables.attempt_count >= 3 and @variables.billing_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic modification:
+    description: "Handles the modification stage of the subscription process"
+
+    actions:
+        process_modification_data:
+            description: "Process modification stage data for the subscription"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Modification"
+
+        validate_modification_info:
+            description: "Validate modification information for the subscription"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Modification_Info"
+
+        fetch_modification_details:
+            description: "Fetch modification details for the subscription"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Modification_Details"
+
+    before_reasoning:
+        if @variables.modification_complete == False:
+            run @actions.fetch_modification_details
+                with record_ref=@variables.subscription_record_id
+                with include_history=True
+                set @variables.modification_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.subscription_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.subscription_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.subscription_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the modification stage for the subscription.
+              Current subscription status: {! @variables.subscription_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Modification result: {! @variables.modification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.subscription_tier }
+              Review the modification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_modification: @actions.process_modification_data
+                with record_ref=@variables.subscription_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.subscription_category
+                set @variables.modification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.modification_complete = @outputs.is_passed
+            fetch_modification_info: @actions.fetch_modification_details
+                with record_ref=@variables.subscription_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.subscription_tier = @outputs.tier_value
+                available when @variables.subscription_record_id is not None
+            go_to_cancellation: @utils.transition to @topic.cancellation
+                description: "Move to cancellation stage."
+                available when @variables.modification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.subscription_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.subscription_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.subscription_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.modification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic cancellation:
+    description: "Handles the cancellation stage of the subscription process"
+
+    actions:
+        process_cancellation_data:
+            description: "Process cancellation stage data for the subscription"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Cancellation"
+
+        validate_cancellation_info:
+            description: "Validate cancellation information for the subscription"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Cancellation_Info"
+
+        fetch_cancellation_details:
+            description: "Fetch cancellation details for the subscription"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Cancellation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.modification_complete == False:
+            transition to @topic.modification
+        if @variables.eligibility_score >= 80:
+            set @variables.subscription_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.subscription_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the cancellation stage for the subscription.
+              Current subscription status: {! @variables.subscription_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Cancellation result: {! @variables.cancellation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.subscription_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_cancellation: @actions.process_cancellation_data
+                with record_ref=@variables.subscription_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.subscription_category
+                set @variables.cancellation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.cancellation_complete = @outputs.is_passed
+            fetch_cancellation_info: @actions.fetch_cancellation_details
+                with record_ref=@variables.subscription_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.subscription_tier = @outputs.tier_value
+                available when @variables.subscription_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.cancellation_complete == True:
+            set @variables.subscription_status = "cancellation_done"
+        if @variables.attempt_count >= 3 and @variables.cancellation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for subscription issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the subscription issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the subscription interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the subscription request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Subscription status: {! @variables.subscription_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.subscription_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.subscription_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.subscription_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.subscription_status = "escalated"
+        set @variables.escalation_requested = False
+

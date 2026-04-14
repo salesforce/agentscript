@@ -1,0 +1,130 @@
+system:
+    instructions: "You are a gated service agent with conditional action availability."
+
+config:
+    developer_name: "EdgeActionAvailableWhen"
+    default_agent_user: "admin@example.com"
+    description: "Tests available when conditions on reasoning actions"
+
+variables:
+    verified: mutable boolean = False
+        description: "Whether customer is verified"
+    customer_name: mutable string
+        description: "Customer name"
+    account_type: mutable string
+        description: "Account type"
+    ticket_id: mutable string
+        description: "Active ticket ID"
+    balance: mutable number = 0
+        description: "Account balance"
+    is_premium: mutable boolean = False
+        description: "Premium customer flag"
+
+start_agent main:
+    description: "Route to service topic"
+
+    reasoning:
+        actions:
+            go_to_service: @utils.transition to @topic.gated_service
+            go_to_verify: @utils.transition to @topic.verify
+                available when @variables.verified == False
+
+topic verify:
+    description: "Verify the customer identity"
+
+    actions:
+        verify_identity:
+            description: "Verify customer identity"
+            inputs:
+                name: string
+                    is_required: True
+            outputs:
+                verified: boolean
+                account_type: string
+                is_premium: boolean
+            target: "flow://Verify_Identity"
+
+    reasoning:
+        instructions: ->
+            | Verify the customer before proceeding.
+
+        actions:
+            verify: @actions.verify_identity
+                with name=...
+                set @variables.verified = @outputs.verified
+                set @variables.account_type = @outputs.account_type
+                set @variables.is_premium = @outputs.is_premium
+
+            go_to_service: @utils.transition to @topic.gated_service
+                available when @variables.verified == True
+
+topic gated_service:
+    description: "Service topic with conditionally available actions"
+
+    actions:
+        check_balance:
+            description: "Check account balance"
+            inputs:
+                customer_name: string
+                    is_required: True
+            outputs:
+                balance: number
+            target: "flow://Check_Balance"
+
+        process_refund:
+            description: "Process a refund"
+            inputs:
+                ticket_id: string
+                    is_required: True
+                amount: number
+                    is_required: True
+            outputs:
+                refund_id: string
+            target: "flow://Process_Refund"
+
+        premium_support:
+            description: "Access premium support features"
+            inputs:
+                request: string
+                    is_required: True
+            outputs:
+                response: string
+            target: "flow://Premium_Support"
+
+        create_ticket:
+            description: "Create a support ticket"
+            inputs:
+                subject: string
+                    is_required: True
+            outputs:
+                ticket_id: string
+            target: "flow://Create_Ticket"
+
+    reasoning:
+        instructions: ->
+            | Help the verified customer with their request.
+              Premium actions are only available for premium customers.
+
+        actions:
+            check_balance: @actions.check_balance
+                with customer_name=@variables.customer_name
+                set @variables.balance = @outputs.balance
+                available when @variables.verified == True
+
+            process_refund: @actions.process_refund
+                with ticket_id=@variables.ticket_id
+                with amount=...
+                available when @variables.ticket_id != None and @variables.verified == True
+
+            premium_support: @actions.premium_support
+                with request=...
+                available when @variables.is_premium == True and @variables.verified == True
+
+            create_ticket: @actions.create_ticket
+                with subject=...
+                set @variables.ticket_id = @outputs.ticket_id
+                available when @variables.customer_name != None
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human"
+                available when @variables.verified == True
