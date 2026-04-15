@@ -7,8 +7,40 @@ import { buildBrowserBundle, buildDeclarations } from './build.shared.mjs';
 
 console.log('📦 Building bundles (parser-javascript)...\n');
 
+/** Stubs WASM-related modules so they don't appear in compiled output. */
+const stubWasmPlugin = {
+  name: 'stub-wasm',
+  setup(b) {
+    b.onResolve({ filter: /wasm-loader/ }, () => ({
+      path: 'wasm-loader',
+      namespace: 'stub-wasm',
+    }));
+    b.onResolve({ filter: /wasm-constants-generated/ }, () => ({
+      path: 'wasm-constants-generated',
+      namespace: 'stub-wasm',
+    }));
+    b.onLoad({ filter: /.*/, namespace: 'stub-wasm' }, args => {
+      if (args.path === 'wasm-loader') {
+        return {
+          contents:
+            'export async function loadWasmModule() { return undefined; }',
+          loader: 'js',
+        };
+      }
+      return {
+        contents:
+          'export const TREE_SITTER_ENGINE_BASE64 = [];\nexport const TREE_SITTER_AGENTSCRIPT_BASE64 = [];',
+        loader: 'js',
+      };
+    });
+  },
+};
+
 console.log('1️⃣  Building browser ESM bundle...');
-await buildBrowserBundle({ external: ['web-tree-sitter'] });
+await buildBrowserBundle({
+  external: ['web-tree-sitter'],
+  plugins: [stubWasmPlugin],
+});
 console.log('   ✓ dist/index.bundle.js created\n');
 
 console.log('2️⃣  Generating TypeScript declarations...');

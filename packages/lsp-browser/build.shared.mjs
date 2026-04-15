@@ -14,9 +14,9 @@ export const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Build the browser ESM bundle.
- * @param {{ external: string[] }} options
+ * @param {{ external: string[], plugins?: import('esbuild').Plugin[] }} options
  */
-export async function buildBrowserBundle({ external }) {
+export async function buildBrowserBundle({ external, plugins = [] }) {
   await build({
     entryPoints: [resolve(__dirname, 'src/index.ts')],
     bundle: true,
@@ -34,6 +34,7 @@ export async function buildBrowserBundle({ external }) {
       '@agentscript/parser-tree-sitter',
       ...external,
     ],
+    plugins,
     sourcemap: true,
     minify: false,
     legalComments: 'none',

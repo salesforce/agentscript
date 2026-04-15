@@ -14,9 +14,13 @@ export const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Build the Node.js ESM bundle.
- * @param {{ external?: string[], conditions?: string[] }} options
+ * @param {{ external?: string[], conditions?: string[], plugins?: import('esbuild').Plugin[] }} options
  */
-export async function buildNodeBundle({ external = [], conditions = [] } = {}) {
+export async function buildNodeBundle({
+  external = [],
+  conditions = [],
+  plugins = [],
+} = {}) {
   console.log('Building Node.js bundle (external deps)...');
   await build({
     entryPoints: ['src/index.ts'],
@@ -32,6 +36,7 @@ export async function buildNodeBundle({ external = [], conditions = [] } = {}) {
       ...external,
     ],
     conditions,
+    plugins,
     sourcemap: true,
   });
   console.log('   ✓ dist/index.js created\n');
