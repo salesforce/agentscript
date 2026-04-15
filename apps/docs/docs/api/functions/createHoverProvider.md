@@ -16,4 +16,4 @@
 
 ## Defined in
 
-[monaco/src/hover-provider.ts:31](https://github.com/salesforce/agentscript/blob/2a9b4427238262399df3e6ef885d5749b8cf7732/packages/monaco/src/hover-provider.ts#L31)
+[monaco/src/hover-provider.ts:31](https://github.com/salesforce/agentscript/blob/fbe864ab5fc4785e497a92e2c3f6f4575ef8510c/packages/monaco/src/hover-provider.ts#L31)
