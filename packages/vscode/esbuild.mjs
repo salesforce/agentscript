@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Salesforce Inc.
+ * Copyright (c) 2026, Salesforce, Inc.
  * All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
@@ -81,7 +81,7 @@ async function build() {
 
 /**
  * Assemble staging/ directory for VSIX packaging.
- * Copies build output, supporting files, and a modified package.json.
+ * Copies build output, icons, supporting files, and a modified package.json.
  */
 function stageForPackaging() {
   const stagingDir = join(__dirname, 'staging');
@@ -94,6 +94,10 @@ function stageForPackaging() {
   cpSync(join(__dirname, 'dist'), join(stagingDir, 'dist'), {
     recursive: true,
   });
+  cpSync(join(__dirname, 'icons'), join(stagingDir, 'icons'), {
+    recursive: true,
+  });
+
   for (const file of [
     'LICENSE.txt',
     'CHANGELOG.md',

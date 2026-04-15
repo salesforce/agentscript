@@ -35,6 +35,12 @@ export interface ParamInfo {
   /** e.g. "string", "boolean", "list[object]" */
   type: string;
   hasDefault: boolean;
+  /**
+   * Value of the `is_required` property, if explicitly specified.
+   * `undefined` means unspecified (defaults to required). `false` marks
+   * the input as explicitly optional.
+   */
+  isRequired?: boolean;
 }
 
 export interface OutputParamInfo extends ParamInfo {
@@ -149,10 +155,19 @@ function extractParamMap(mapValue: unknown): Map<string, ParamInfo> {
     const obj = decl as Record<string, unknown>;
     const typeText = getTypeText(obj);
     if (!typeText) continue;
-    result.set(name, {
+
+    const info: ParamInfo = {
       type: typeText,
       hasDefault: obj.defaultValue != null,
-    });
+    };
+
+    const props = obj.properties as Record<string, unknown> | undefined;
+    if (props) {
+      const isRequired = extractBooleanField(props.is_required);
+      if (isRequired) info.isRequired = isRequired.value;
+    }
+
+    result.set(name, info);
   }
 
   return result;

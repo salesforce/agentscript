@@ -204,6 +204,19 @@ export const baseSubagentFields = {
   ).required(),
   system: SystemBlock.pick(['instructions']),
   actions: ActionsBlock.describe('Action definitions available to this block.'),
+  schema: StringValue.describe(
+    'URI identifying the subagent schema variant (e.g., "node://CustomSubagent"). When specified, enables custom field validation.'
+  )
+    .pattern(/^node:\/\/\S+$/)
+    .accepts(['StringLiteral']),
+};
+
+/**
+ * Default subagent fields including reasoning capabilities.
+ * Used by SubagentBlock and StartAgentBlock for standard agent behavior.
+ */
+export const defaultSubagentFields = {
+  ...baseSubagentFields,
   before_reasoning: ProcedureValue.describe(
     'Procedures that run before the reasoning loop starts, once per turn.'
   )
@@ -223,6 +236,32 @@ export const baseSubagentFields = {
   ),
 };
 
+/**
+ * Custom subagent fields for schema variants.
+ * Includes parameters block for custom configuration.
+ * Used when registering custom schema variants with .variant().
+ */
+export const customSubagentFields = {
+  ...baseSubagentFields,
+  parameters: Block('ParametersBlock', {}).describe(
+    'Custom parameters for schema variants. Structure is defined by the schema variant.'
+  ),
+  on_init: ProcedureValue.describe(
+    'Procedures that run when the subagent is initialized.'
+  )
+    .omitArrow()
+    .disallowTemplates(
+      'Templates are for LLM instructions and should only be used in reasoning.instructions.'
+    ),
+  on_exit: ProcedureValue.describe(
+    'Procedures that run when the subagent is exited from.'
+  )
+    .omitArrow()
+    .disallowTemplates(
+      'Templates are for LLM instructions and should only be used in reasoning.instructions.'
+    ),
+};
+
 const baseAgentOpts = {
   allowAnonymous: true,
   capabilities: ['invocationTarget', 'transitionTarget'] as const,
@@ -230,7 +269,7 @@ const baseAgentOpts = {
 
 export const SubagentBlock = NamedBlock(
   'SubagentBlock',
-  { ...baseSubagentFields },
+  { ...defaultSubagentFields },
   {
     scopeAlias: 'subagent',
     ...baseAgentOpts,
@@ -239,7 +278,7 @@ export const SubagentBlock = NamedBlock(
 
 export const StartAgentBlock = NamedBlock(
   'StartAgentBlock',
-  { ...baseSubagentFields },
+  { ...defaultSubagentFields },
   {
     scopeAlias: 'subagent',
     ...baseAgentOpts,

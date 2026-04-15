@@ -21,6 +21,8 @@ import {
   TemplateExpression,
   TemplateText,
   TemplateInterpolation,
+  CallExpression,
+  SpreadExpression,
 } from '@agentscript/language';
 import { compileExpression } from '../src/expressions/compile-expression.js';
 import { CompilerContext } from '../src/compiler-context.js';
@@ -301,6 +303,39 @@ describe('compileExpression', () => {
       expect(
         ctx.diagnostics.some(d => d.severity === DiagnosticSeverity.Error)
       ).toBe(true);
+    });
+  });
+
+  describe('spread expressions', () => {
+    it('should compile spread of identifier', () => {
+      const expr = new SpreadExpression(new Identifier('items'));
+      expect(compileExpression(expr, ctx)).toBe('*items');
+    });
+
+    it('should compile spread of @variables member', () => {
+      ctx.mutableVariableNames.add('artifacts');
+      const expr = new SpreadExpression(
+        new MemberExpression(new AtIdentifier('variables'), 'artifacts')
+      );
+      expect(compileExpression(expr, ctx)).toBe('*state.artifacts');
+    });
+
+    it('should compile spread of linked @variables member', () => {
+      ctx.linkedVariableNames.add('artifacts');
+      const expr = new SpreadExpression(
+        new MemberExpression(new AtIdentifier('variables'), 'artifacts')
+      );
+      expect(compileExpression(expr, ctx)).toBe('*variables.artifacts');
+    });
+
+    it('should compile spread inside call expression', () => {
+      ctx.mutableVariableNames.add('artifacts');
+      const expr = new CallExpression(new Identifier('a2a_parts'), [
+        new SpreadExpression(
+          new MemberExpression(new AtIdentifier('variables'), 'artifacts')
+        ),
+      ]);
+      expect(compileExpression(expr, ctx)).toBe('a2a_parts(*state.artifacts)');
     });
   });
 });

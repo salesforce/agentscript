@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-
-# Copyright (c) 2026, Salesforce, Inc.
-# All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-# For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
 # Build linux-x64 prebuilds using Docker (required for CI).
 # Run: pnpm run prebuild:linux-x64
 # Requires Docker. Produces packages/parser-tree-sitter/prebuilds/linux-x64/

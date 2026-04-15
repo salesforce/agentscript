@@ -122,10 +122,26 @@ start_agent main:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.initial_node).toBe('main');
   });
+
+  // agent_template compilation
+  it('should compile agent_template from config', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+    agent_template: "my_template"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+start_agent main:
+    description: "desc"
+`;
+    const { output } = compile(parseSource(source));
+    expect(output.global_configuration.template_name).toBe('my_template');
+  });
 });
 
 describe('config: additional parameters', () => {
-  // NOTE: The compiler always defaults reset_to_initial_node: true
+  // NOTE: Differs from Python compiler — TS always defaults reset_to_initial_node: true
   it('should default reset_to_initial_node to true when config has no extras', () => {
     const source = `
 config:

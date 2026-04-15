@@ -10,7 +10,7 @@
  * values and input parameter types, and `set` clause targets and output types.
  *
  * Conservative: skips checks when types can't be resolved.
- * Diagnostic: type-mismatch
+ * Diagnostic: type-mismatch (Warning severity)
  */
 
 import type { LintPass } from '@agentscript/language';
@@ -23,6 +23,7 @@ import {
   LINT_SOURCE,
   extractOutputRef,
   extractVariableRef,
+  DiagnosticSeverity,
 } from '@agentscript/language';
 import { reasoningActionsKey } from './reasoning-actions.js';
 import { typeMapKey } from './type-map.js';
@@ -89,16 +90,15 @@ export function actionTypeCheckRule(): LintPass {
           if (actualType && !typesCompatible(inputInfo.type, actualType)) {
             const cst = stmt.__cst as CstMeta | undefined;
             if (cst) {
-              attachDiagnostic(
-                stmt,
-                typeMismatchDiagnostic(
-                  cst.range,
-                  `Type mismatch: input '${param}' expects '${inputInfo.type}' but got '${actualType}'`,
-                  inputInfo.type,
-                  actualType,
-                  LINT_SOURCE
-                )
+              const diag = typeMismatchDiagnostic(
+                cst.range,
+                `Type mismatch: input '${param}' expects '${inputInfo.type}' but got '${actualType}'`,
+                inputInfo.type,
+                actualType,
+                LINT_SOURCE
               );
+              diag.severity = DiagnosticSeverity.Warning;
+              attachDiagnostic(stmt, diag);
             }
           }
         }
@@ -117,16 +117,15 @@ export function actionTypeCheckRule(): LintPass {
           if (targetType && !typesCompatible(targetType, outputInfo.type)) {
             const cst = stmt.__cst as CstMeta | undefined;
             if (cst) {
-              attachDiagnostic(
-                stmt,
-                typeMismatchDiagnostic(
-                  cst.range,
-                  `Type mismatch: output '${outputRef.name}' is '${outputInfo.type}' but target '@variables.${targetVarName}' expects '${targetType}'`,
-                  targetType,
-                  outputInfo.type,
-                  LINT_SOURCE
-                )
+              const diag = typeMismatchDiagnostic(
+                cst.range,
+                `Type mismatch: output '${outputRef.name}' is '${outputInfo.type}' but target '@variables.${targetVarName}' expects '${targetType}'`,
+                targetType,
+                outputInfo.type,
+                LINT_SOURCE
               );
+              diag.severity = DiagnosticSeverity.Warning;
+              attachDiagnostic(stmt, diag);
             }
           }
         }

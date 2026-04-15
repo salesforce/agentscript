@@ -5,6 +5,8 @@
 
 from os import path
 from sysconfig import get_config_var
+from os import path
+from sysconfig import get_config_var
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build import build

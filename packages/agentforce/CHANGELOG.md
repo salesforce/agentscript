@@ -1,5 +1,46 @@
 # @agentscript/agentforce
 
+## 2.5.19
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/compiler@2.4.18
+  - @agentscript/language@2.4.10
+  - @agentscript/agentforce-dialect@2.7.13
+
+## 2.5.18
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.9
+  - @agentscript/compiler@2.4.17
+  - @agentscript/agentforce-dialect@2.7.12
+  - @agentscript/parser@3.0.6
+
+## 2.5.17
+
+### Patch Changes
+
+- @agentscript/agentforce-dialect@2.7.11
+- @agentscript/compiler@2.4.16
+
+## 2.5.16
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/compiler@2.4.15
+
+## 2.5.15
+
+### Patch Changes
+
+- Disallow supervision tools with hyper-clf
+- Updated dependencies
+  - @agentscript/compiler@2.4.14
+
 ## 2.5.14
 
 ### Patch Changes

@@ -1273,6 +1273,122 @@ subagent main:
     expect(outputsErrors[0].data?.expected).toEqual(['result']);
   });
 
+  it('resolves @outputs inside nested `run @actions.X` to the run target', () => {
+    // Regression: inside a nested `run @actions.inner`, @outputs.* must
+    // resolve against `inner`'s outputs, NOT the enclosing action binding
+    // (`outer`). Before the fix, resolveColinearCandidates walked past the
+    // RunStatement to the outer binding's colinear `.value` and checked
+    // @outputs against outer's outputs — so `innerResult` was flagged.
+    const diagnostics = runLint(`
+variables:
+  x: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    outer:
+      description: "Outer"
+      target: "externalService://outer"
+      outputs:
+        outerResult: string
+    inner:
+      description: "Inner"
+      target: "externalService://inner"
+      outputs:
+        innerResult: string
+  reasoning:
+    instructions: ->
+      |Do work
+    actions:
+      outerBinding: @actions.outer
+        run @actions.inner
+          set @variables.x=@outputs.innerResult
+`);
+
+    const outputsErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.innerResult'
+    );
+    expect(outputsErrors).toHaveLength(0);
+  });
+
+  it('reports @outputs inside nested run when member belongs to outer, not run target', () => {
+    // Symmetric negative: `outerResult` exists on `outer` but not on `inner`.
+    // Inside the nested `run @actions.inner`, @outputs must resolve against
+    // `inner` — so `outerResult` should be reported as undefined.
+    const diagnostics = runLint(`
+variables:
+  x: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    outer:
+      description: "Outer"
+      target: "externalService://outer"
+      outputs:
+        outerResult: string
+    inner:
+      description: "Inner"
+      target: "externalService://inner"
+      outputs:
+        innerResult: string
+  reasoning:
+    instructions: ->
+      |Do work
+    actions:
+      outerBinding: @actions.outer
+        run @actions.inner
+          set @variables.x=@outputs.outerResult
+`);
+
+    const outputsErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.outerResult'
+    );
+    expect(outputsErrors).toHaveLength(1);
+    expect(outputsErrors[0].data?.expected).toEqual(['innerResult']);
+  });
+
+  it('resolves @outputs directly under outer binding (outside nested run)', () => {
+    // Control: `set @outputs.outerResult` at the outer binding level (not
+    // inside a `run`) must still resolve against `outer`'s outputs. This
+    // guards against the nested-run fix regressing the plain colinear case.
+    const diagnostics = runLint(`
+variables:
+  x: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    outer:
+      description: "Outer"
+      target: "externalService://outer"
+      outputs:
+        outerResult: string
+    inner:
+      description: "Inner"
+      target: "externalService://inner"
+      outputs:
+        innerResult: string
+  reasoning:
+    instructions: ->
+      |Do work
+    actions:
+      outerBinding: @actions.outer
+        set @variables.x=@outputs.outerResult
+        run @actions.inner
+          set @variables.x=@outputs.innerResult
+`);
+
+    const outputsErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@outputs.')
+    );
+    expect(outputsErrors).toHaveLength(0);
+  });
+
   it('reports unknown namespace as error', () => {
     const diagnostics = runLint(`
 subagent main:
@@ -2377,6 +2493,77 @@ subagent main:
     expect(missing).toHaveLength(0);
   });
 
+  it('does not report missing input when is_required is False', () => {
+    const source = `
+variables:
+  city: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    lookup:
+      description: "Lookup weather"
+      inputs:
+        city: string
+          description: "City name"
+          is_required: True
+        coordinates: object
+          description: "Optional coordinates"
+          is_required: False
+      outputs:
+        temp: number
+      target: "flow://lookup"
+  reasoning:
+    instructions: ->
+      |Look up weather
+    actions:
+      do_lookup: @actions.lookup
+        with city=@variables.city
+        set @variables.temp = @outputs.temp
+`;
+
+    const diagnostics = runLint(source);
+    const missing = diagnostics.filter(d => d.code === 'action-missing-input');
+    expect(missing).toHaveLength(0);
+  });
+
+  it('treats inputs without is_required as required by default', () => {
+    // Mix of three inputs: explicit is_required: True, explicit is_required:
+    // False, and no is_required property at all. Omitting the explicit-True
+    // one and the unspecified one should both produce diagnostics; omitting
+    // the explicit-False one should not.
+    const source = `
+variables:
+  city: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    lookup:
+      description: "Lookup weather"
+      inputs:
+        city: string
+          is_required: True
+        country: string
+        coordinates: object
+          is_required: False
+      outputs:
+        temp: number
+      target: "flow://lookup"
+  reasoning:
+    instructions: ->
+      |Look up weather
+    actions:
+      do_lookup: @actions.lookup
+        set @variables.temp = @outputs.temp
+`;
+
+    const diagnostics = runLint(source);
+    const missing = diagnostics.filter(d => d.code === 'action-missing-input');
+    const names = missing.map(d => d.message).sort();
+    expect(names).toHaveLength(2);
+    expect(names[0]).toContain("'city'");
+    expect(names[1]).toContain("'country'");
+  });
+
   it('passes valid inputs and outputs', () => {
     const diagnostics = runLint(
       BASE +
@@ -2621,7 +2808,7 @@ subagent main:
     actions:
 `;
 
-  it('reports type mismatch on with clause', () => {
+  it('reports type mismatch warning on with clause', () => {
     const diagnostics = runLint(
       BASE +
         `      check: @actions.send_code
@@ -2630,14 +2817,15 @@ subagent main:
 `
     );
 
-    const errors = diagnostics.filter(d => d.code === 'type-mismatch');
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("input 'email'");
-    expect(errors[0].message).toContain("'string'");
-    expect(errors[0].message).toContain("'boolean'");
+    const warnings = diagnostics.filter(d => d.code === 'type-mismatch');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(2); // Warning
+    expect(warnings[0].message).toContain("input 'email'");
+    expect(warnings[0].message).toContain("'string'");
+    expect(warnings[0].message).toContain("'boolean'");
   });
 
-  it('reports type mismatch on set clause', () => {
+  it('reports type mismatch warning on set clause', () => {
     const diagnostics = runLint(
       BASE +
         `      check: @actions.send_code
@@ -2647,11 +2835,12 @@ subagent main:
 `
     );
 
-    const errors = diagnostics.filter(d => d.code === 'type-mismatch');
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("output 'verification_code'");
-    expect(errors[0].message).toContain("'string'");
-    expect(errors[0].message).toContain("'boolean'");
+    const warnings = diagnostics.filter(d => d.code === 'type-mismatch');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(2); // Warning
+    expect(warnings[0].message).toContain("output 'verification_code'");
+    expect(warnings[0].message).toContain("'string'");
+    expect(warnings[0].message).toContain("'boolean'");
   });
 
   it('passes compatible types', () => {
@@ -3677,6 +3866,19 @@ describe('expressionValidationPass', () => {
     return diagnostics;
   }
 
+  function runLintWithOptions(
+    source: string,
+    options: Parameters<typeof expressionValidationPass>[0]
+  ): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = new LintEngine({
+      passes: [expressionValidationPass(options)],
+      source: 'test',
+    });
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
   it('accepts valid len() function', () => {
     const diagnostics = runLint(`
 variables:
@@ -3780,8 +3982,9 @@ subagent main:
     expect(funcErrors[0].message).toContain("Did you mean 'min'");
   });
 
-  it('reports indirect/method calls as errors', () => {
-    const diagnostics = runLint(`
+  it('reports namespace-function-call when call receiver is not a simple identifier', () => {
+    const diagnostics = runLintWithOptions(
+      `
 variables:
   items: mutable list[string] = []
 
@@ -3791,13 +3994,41 @@ subagent main:
     instructions: ->
       if @variables.items.append("x") == 0:
         | hello
-`);
-    const indirectErrors = diagnostics.filter(
-      d => d.code === 'indirect-function-call'
+`,
+      { namespacedFunctions: { items: new Set(['append']) } }
     );
-    expect(indirectErrors).toHaveLength(1);
-    expect(indirectErrors[0].message).toContain('Indirect function calls');
-    expect(indirectErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    const namespaceCallErrors = diagnostics.filter(
+      d => d.code === 'namespace-function-call'
+    );
+    expect(namespaceCallErrors).toHaveLength(1);
+    expect(namespaceCallErrors[0].message).toContain(
+      'Namespace function calls are not permitted'
+    );
+    expect(namespaceCallErrors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports namespace-function-call for @namespace.foo(...) when the receiver is an @-reference', () => {
+    const diagnostics = runLintWithOptions(
+      `
+variables:
+  x: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if @not_a_declared_namespace.foo("x") == "":
+      transition to @subagent.main
+`,
+      { namespacedFunctions: { not_a_declared_namespace: new Set(['foo']) } }
+    );
+    const namespaceCallErrors = diagnostics.filter(
+      d => d.code === 'namespace-function-call'
+    );
+    expect(namespaceCallErrors).toHaveLength(1);
+    expect(namespaceCallErrors[0].message).toContain(
+      'Namespace function calls are not permitted'
+    );
+    expect(namespaceCallErrors[0].severity).toBe(DiagnosticSeverity.Error);
   });
 
   it('reports * operator as unsupported', () => {
@@ -3905,19 +4136,6 @@ subagent main:
   });
 
   describe('configurable options', () => {
-    function runLintWithOptions(
-      source: string,
-      options: Parameters<typeof expressionValidationPass>[0]
-    ): Diagnostic[] {
-      const ast = parseDocument(source);
-      const engine = new LintEngine({
-        passes: [expressionValidationPass(options)],
-        source: 'test',
-      });
-      const { diagnostics } = engine.run(ast, testSchemaCtx);
-      return diagnostics;
-    }
-
     it('accepts custom function via functions option', () => {
       const diagnostics = runLintWithOptions(
         `
@@ -4009,6 +4227,75 @@ subagent main:
       );
       const funcErrors = diagnostics.filter(d => d.code === 'unknown-function');
       expect(funcErrors).toHaveLength(1);
+    });
+
+    it('accepts member calls when namespacedFunctions maps namespace to allowed functions', () => {
+      const diagnostics = runLintWithOptions(
+        `
+variables:
+  x: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if a2a.task("x") == "":
+      transition to @subagent.main
+`,
+        {
+          namespacedFunctions: {
+            a2a: new Set(['task']),
+          },
+        }
+      );
+      const funcErrors = diagnostics.filter(d => d.code === 'unknown-function');
+      expect(funcErrors).toHaveLength(0);
+    });
+
+    it('reports unknown-function when the namespace is not in the allowlist', () => {
+      const diagnostics = runLintWithOptions(
+        `
+variables:
+  x: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if other.task("x") == "":
+      transition to @subagent.main
+`,
+        {
+          namespacedFunctions: {
+            a2a: new Set(['task']),
+          },
+        }
+      );
+      const funcErrors = diagnostics.filter(d => d.code === 'unknown-function');
+      expect(funcErrors).toHaveLength(1);
+      expect(funcErrors[0].message).toContain("'other'");
+    });
+
+    it('reports unknown-function when function is not allowed in the namespace', () => {
+      const diagnostics = runLintWithOptions(
+        `
+variables:
+  x: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if a2a.unknown_fn("x") == "":
+      transition to @subagent.main
+`,
+        {
+          namespacedFunctions: {
+            a2a: new Set(['task', 'message']),
+          },
+        }
+      );
+      const funcErrors = diagnostics.filter(d => d.code === 'unknown-function');
+      expect(funcErrors).toHaveLength(1);
+      expect(funcErrors[0].message).toContain("'unknown_fn'");
+      expect(funcErrors[0].message).toContain('a2a');
     });
   });
 });

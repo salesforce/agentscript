@@ -38,7 +38,8 @@ export function resolveActionType(name: string, def: ParsedTool): ActionType {
       // @topic.XXX and @subagent.XXX references are supervision actions
       if (
         decomposed.namespace === 'topic' ||
-        decomposed.namespace === 'subagent'
+        decomposed.namespace === 'subagent' ||
+        decomposed.namespace === 'connected_subagent'
       ) {
         return 'supervise';
       }

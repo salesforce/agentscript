@@ -44,7 +44,7 @@ import {
   AgentScriptSchema,
   AgentScriptSchemaAliases,
   AgentScriptSchemaInfo,
-  baseSubagentFields,
+  defaultSubagentFields,
 } from '@agentscript/agentscript-dialect';
 
 const AFVariablesBlock = VariablesBlock.extendProperties({
@@ -275,7 +275,7 @@ export const SecurityBlock = Block('SecurityBlock', {
 // ---------------------------------------------------------------------------
 
 const sharedBlockFields = {
-  ...baseSubagentFields,
+  ...defaultSubagentFields,
   // Agentforce-specific fields
   model_config: ModelConfigBlock.describe(
     'Model configuration for this block.'
@@ -298,10 +298,11 @@ export const AFTopicBlock = NamedBlock(
   {
     ...sharedBlockFields,
     actions: AFActionsBlock,
-    reasoning: ReasoningBlock,
   },
   { scopeAlias: 'topic', ...sharedBlockOpts }
-).describe('A topic defining agent logic with actions and reasoning.');
+)
+  .describe('A topic defining agent logic with actions and reasoning.')
+  .discriminant('schema');
 
 // ---------------------------------------------------------------------------
 // Subagent block — uses 'actions' and 'reasoning.actions' (same as topic)
@@ -313,10 +314,11 @@ export const AFSubagentBlock = NamedBlock(
   {
     ...sharedBlockFields,
     actions: AFActionsBlock,
-    reasoning: ReasoningBlock,
   },
   { scopeAlias: 'subagent', ...sharedBlockOpts }
-).describe('A subagent defining agent logic with actions and reasoning.');
+)
+  .describe('A subagent defining agent logic with actions and reasoning.')
+  .discriminant('schema');
 
 // ---------------------------------------------------------------------------
 // StartAgent block
@@ -333,7 +335,7 @@ export const AFStartAgentBlock = StartAgentBlock.extend(
     security: SecurityBlock,
   },
   { scopeAlias: 'topic' }
-);
+).discriminant('schema');
 
 export const KnowledgeBlock = Block('KnowledgeBlock', {
   citations_url: StringValue.describe('URL prefix for citation links.'),
@@ -616,7 +618,7 @@ export const AgentforceSchema = {
                 with order_number=...`
     )
   ),
-  // Deprecation notice temporarily disabled.
+  // TODO: restore deprecated() call once migration is complete
   // .deprecated(
   //   'Replace topic with subagent, actions with tool_definitions and reasoning.actions with reasoning.tools.',
   //   { replacement: 'subagent' }

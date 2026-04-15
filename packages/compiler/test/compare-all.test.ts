@@ -327,10 +327,6 @@ const FIXTURE_PAIRS: [string, string][] = [
   ['edge_vars_object_complex.agent', 'edge_vars_object_complex_dsl.yaml'],
   // Connected agent fixtures
   ['connected_subagent_tool.agent', 'connected_subagent_tool_dsl.yaml'],
-  [
-    'router_with_connected_agents.agent',
-    'router_with_connected_agents_dsl.yaml',
-  ],
   // New syntax fixtures
   ['new_syntax_two_topic.agent', 'new_syntax_two_topic_dsl.yaml'],
   ['new_syntax_action_flow.agent', 'new_syntax_action_flow_dsl.yaml'],

@@ -1,5 +1,12 @@
 # @agentscript/parser
 
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/parser-javascript@2.3.6
+
 ## 3.0.5
 
 ### Patch Changes

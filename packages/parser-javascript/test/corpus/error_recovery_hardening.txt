@@ -1,0 +1,150 @@
+================
+Error 3b: Missing colon on field should recover with MISSING colon
+================
+config:
+    agent_name "WeatherBot"
+    default_agent_user: "user@example.com"
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          (MISSING :)
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (expression_with_to
+            expression: (expression
+              (atom
+                (string
+                  (string_content))))))))))
+
+================
+Error 4a: Misspelled modifier should wrap in ERROR and parse declaration
+================
+variables:
+    name: mutble string = "default"
+    count: muttable number = 0
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (variable_declaration
+            (ERROR
+              (id))
+            type: (expression
+              (atom
+                (id)))
+            default: (expression
+              (atom
+                (string
+                  (string_content))))))
+        (mapping_element
+          key: (key
+            (id))
+          colinear_value: (variable_declaration
+            (ERROR
+              (id))
+            type: (expression
+              (atom
+                (id)))
+            default: (expression
+              (atom
+                (number)))))))))
+
+================
+Error 3d: Missing to keyword should recover with MISSING to
+================
+after_reasoning:
+    transition @topic.greeting
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (transition_statement
+          with_to_statement_list: (with_to_statement_list
+            (to_statement
+              (MISSING to)
+              target: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id))))))))))
+
+================
+Error 4c: Misspelled elseif should parse as elif clause with ERROR
+================
+reasoning:
+    instructions: ->
+        if @variable.ready:
+            run @action.Process
+        elseif @variable.fallback:
+            run @action.Fallback
+---
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      block_value: (mapping
+        (mapping_element
+          key: (key
+            (id))
+          block_value: (procedure
+            (if_statement
+              condition: (expression
+                (member_expression
+                  (expression
+                    (atom
+                      (at_id
+                        (id))))
+                  (id)))
+              consequence: (procedure
+                (run_statement
+                  target: (expression
+                    (member_expression
+                      (expression
+                        (atom
+                          (at_id
+                            (id))))
+                      (id)))))
+              alternative: (elif_clause
+                (ERROR
+                  (id))
+                condition: (expression
+                  (member_expression
+                    (expression
+                      (atom
+                        (at_id
+                          (id))))
+                    (id)))
+                consequence: (procedure
+                  (run_statement
+                    target: (expression
+                      (member_expression
+                        (expression
+                          (atom
+                            (at_id
+                              (id))))
+                        (id)))))))))))))

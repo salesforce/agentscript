@@ -887,7 +887,13 @@ export class DictLiteral extends AstNodeBase implements Expression {
     const entries: DictLiteral['entries'] = [];
     for (const child of node.namedChildren) {
       if (child.type === 'dictionary_pair') {
-        const keyNode = child.childForFieldName('key');
+        const rawKeyNode = child.childForFieldName('key');
+        // Tree-sitter wraps dict keys in a `key` node (e.g., `(key (string))`).
+        // Unwrap it so we parse the actual literal/identifier inside.
+        const keyNode =
+          rawKeyNode?.type === 'key' && rawKeyNode.namedChildren.length > 0
+            ? rawKeyNode.namedChildren[0]
+            : rawKeyNode;
         const valueNode = child.childForFieldName('value');
         if (keyNode && valueNode) {
           entries.push(
@@ -1009,6 +1015,48 @@ export class Ellipsis extends AstNodeBase implements Expression {
   }
 }
 
+/**
+ * A spread/unpack expression, e.g. *items or *@variables.artifacts
+ * Python-style iterable unpacking in function calls and list literals.
+ */
+export class SpreadExpression extends AstNodeBase implements Expression {
+  static readonly kind = 'SpreadExpression' as const;
+  static readonly kindLabel = 'a spread expression';
+  readonly __kind = SpreadExpression.kind;
+
+  constructor(public expression: Expression) {
+    super();
+  }
+
+  __describe(): string {
+    return `spread *${this.expression.__describe()}`;
+  }
+
+  __emit(ctx: EmitContext): string {
+    return `*${this.expression.__emit(ctx)}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression
+  ): Parsed<SpreadExpression> {
+    const exprNode = node.childForFieldName('expression');
+    if (exprNode) {
+      return withCst(new SpreadExpression(parseExpr(exprNode)), node);
+    }
+    const inner = withCst(new ErrorValue(''), node);
+    inner.__diagnostics.push(
+      createDiagnostic(
+        node,
+        'Spread operator `*` requires an expression to unpack',
+        DiagnosticSeverity.Error,
+        'spread-missing-expression'
+      )
+    );
+    return withCst(new SpreadExpression(inner), node);
+  }
+}
+
 export function createExpression<T extends Expression>(expr: T): AstNode<T> {
   return createNode(expr);
 }
@@ -1027,16 +1075,38 @@ export interface AtMemberDecomposition {
 }
 
 /**
+ * Decompose a `namespace.property` member expression into its parts.
+ * Matches `@namespace.property` (AtIdentifier) unconditionally.
+ * Also matches bare `namespace.property` (Identifier) when the name
+ * appears in the optional {@link knownNamespaces} set.
+ */
+export function decomposeMemberExpression(
+  expr: unknown,
+  knownNamespaces?: ReadonlySet<string>
+): AtMemberDecomposition | null {
+  if (!isMemberExpression(expr)) return null;
+  if (!expr.property) return null;
+  if (isAtIdentifier(expr.object)) {
+    return { namespace: expr.object.name, property: expr.property };
+  }
+  if (
+    knownNamespaces &&
+    expr.object instanceof Identifier &&
+    knownNamespaces.has(expr.object.name)
+  ) {
+    return { namespace: expr.object.name, property: expr.property };
+  }
+  return null;
+}
+
+/**
  * Decompose an `@namespace.property` expression into its parts.
  * Returns null if the expression is not a MemberExpression with an AtIdentifier object.
  */
 export function decomposeAtMemberExpression(
   expr: unknown
 ): AtMemberDecomposition | null {
-  if (!isMemberExpression(expr)) return null;
-  if (!isAtIdentifier(expr.object)) return null;
-  if (!expr.property) return null;
-  return { namespace: expr.object.name, property: expr.property };
+  return decomposeMemberExpression(expr);
 }
 
 /**
@@ -1061,6 +1131,7 @@ const ALL_EXPRESSION_CLASSES = [
   ListLiteral,
   DictLiteral,
   Ellipsis,
+  SpreadExpression,
 ] as const;
 
 export type ExpressionKind = (typeof ALL_EXPRESSION_CLASSES)[number]['kind'];
@@ -1119,4 +1190,6 @@ export const expressionParsers = {
     ListLiteral.parse(node, parseExpr),
   dictionary: (node: SyntaxNode, parseExpr: ParseExprFn) =>
     DictLiteral.parse(node, parseExpr),
+  spread_expression: (node: SyntaxNode, parseExpr: ParseExprFn) =>
+    SpreadExpression.parse(node, parseExpr),
 } satisfies Record<string, ExpressionParser>;

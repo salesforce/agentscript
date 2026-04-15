@@ -22,10 +22,13 @@ enum TokenType {
     TEMPLATE_END,
     COMMENT,
     ERROR_SENTINEL,
+    OPEN_PAREN,
+    CLOSE_PAREN,
 };
 
 typedef struct {
     Array(uint16_t) indents;
+    uint16_t bracket_depth;
 } Scanner;
 
 static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
@@ -130,6 +133,21 @@ bool tree_sitter_agentscript_external_scanner_scan(void *payload, TSLexer *lexer
         }
     }
 
+    if (valid_symbols[OPEN_PAREN] && lexer->lookahead == '(') {
+        advance(lexer);
+        lexer->mark_end(lexer);
+        lexer->result_symbol = OPEN_PAREN;
+        scanner->bracket_depth++;
+        return true;
+    }
+    if (valid_symbols[CLOSE_PAREN] && lexer->lookahead == ')') {
+        advance(lexer);
+        lexer->mark_end(lexer);
+        lexer->result_symbol = CLOSE_PAREN;
+        if (scanner->bracket_depth > 0) scanner->bracket_depth--;
+        return true;
+    }
+
     lexer->mark_end(lexer);
     
     bool found_end_of_line = false;
@@ -145,7 +163,7 @@ bool tree_sitter_agentscript_external_scanner_scan(void *payload, TSLexer *lexer
             indent_length++;
             skip(lexer);
         } else if (lexer->lookahead == '\r' || lexer->lookahead == '\f') {
-            // TODO: do we need to handle form feed at all?
+            // TODO (Allen): do we need to handle form feed at all?
             indent_length = 0;
             skip(lexer);
         } else if (lexer->lookahead == '\t') {
@@ -187,7 +205,22 @@ bool tree_sitter_agentscript_external_scanner_scan(void *payload, TSLexer *lexer
         }
     }
 
-    if (found_end_of_line) {
+    if (valid_symbols[OPEN_PAREN] && lexer->lookahead == '(') {
+        advance(lexer);
+        lexer->mark_end(lexer);
+        lexer->result_symbol = OPEN_PAREN;
+        scanner->bracket_depth++;
+        return true;
+    }
+    if (valid_symbols[CLOSE_PAREN] && lexer->lookahead == ')') {
+        advance(lexer);
+        lexer->mark_end(lexer);
+        lexer->result_symbol = CLOSE_PAREN;
+        if (scanner->bracket_depth > 0) scanner->bracket_depth--;
+        return true;
+    }
+
+    if (found_end_of_line && scanner->bracket_depth == 0) {
         if (scanner->indents.size > 0) {
             uint16_t current_indent_length = *array_back(&scanner->indents);
 
@@ -224,6 +257,9 @@ unsigned tree_sitter_agentscript_external_scanner_serialize(void *payload, char 
 
     size_t size = 0;
 
+    buffer[size++] = (char)(scanner->bracket_depth & 0xFF);
+    buffer[size++] = (char)((scanner->bracket_depth >> 8) & 0xFF);
+
     uint32_t iter = 1;
     for (; iter < scanner->indents.size && size < TREE_SITTER_SERIALIZATION_BUFFER_SIZE; ++iter) {
         uint16_t indent_value = *array_get(&scanner->indents, iter);
@@ -237,15 +273,19 @@ unsigned tree_sitter_agentscript_external_scanner_serialize(void *payload, char 
 void tree_sitter_agentscript_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
     Scanner *scanner = (Scanner *)payload;
 
-    // TODO: could be replaced with array_clear
+    // TODO (Allen): could be replaced with array_clear
     array_delete(&scanner->indents);
     array_push(&scanner->indents, 0);
+    scanner->bracket_depth = 0;
 
     if (length == 0) {
         return;
     }
 
     size_t size = 0;
+
+    scanner->bracket_depth = (unsigned char)buffer[size] | ((unsigned char)buffer[size + 1] << 8);
+    size += 2;
 
     for (; size < length; size += 2) {
         uint16_t indent_value = (unsigned char)buffer[size] | ((unsigned char)buffer[size + 1] << 8);
@@ -256,6 +296,7 @@ void tree_sitter_agentscript_external_scanner_deserialize(void *payload, const c
 void *tree_sitter_agentscript_external_scanner_create() {
     Scanner *scanner = ts_calloc(1, sizeof(Scanner));
     array_init(&scanner->indents);
+    scanner->bracket_depth = 0;
     tree_sitter_agentscript_external_scanner_deserialize(scanner, NULL, 0);
     return scanner;
 }

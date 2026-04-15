@@ -5,6 +5,8 @@
 
 from unittest import TestCase
 
+from unittest import TestCase
+
 from tree_sitter import Language, Parser
 import tree_sitter_agentscript
 

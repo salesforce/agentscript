@@ -1,5 +1,3 @@
-#!/usr/bin/env tsx
-
 /*
  * Copyright (c) 2026, Salesforce, Inc.
  * All rights reserved.

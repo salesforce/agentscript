@@ -115,6 +115,14 @@ describe('toParameterDataType', () => {
   it('should map id to ID', () => {
     expect(toParameterDataType('id')).toBe('ID');
   });
+
+  it('should map integer to Integer', () => {
+    expect(toParameterDataType('integer')).toBe('Integer');
+  });
+
+  it('should map long to Long', () => {
+    expect(toParameterDataType('long')).toBe('Long');
+  });
 });
 
 describe('resolveParameterTypeInfo', () => {
@@ -139,6 +147,18 @@ describe('resolveParameterTypeInfo', () => {
   it('should default to String for unknown types', () => {
     const result = resolveParameterTypeInfo('unknown', false);
     expect(result.dataType).toBe('String');
+    expect(result.complexDataTypeName).toBeNull();
+  });
+
+  it('should resolve integer to Integer with no complex_data_type_name', () => {
+    const result = resolveParameterTypeInfo('integer', false);
+    expect(result.dataType).toBe('Integer');
+    expect(result.complexDataTypeName).toBeNull();
+  });
+
+  it('should resolve long to Long with no complex_data_type_name', () => {
+    const result = resolveParameterTypeInfo('long', false);
+    expect(result.dataType).toBe('Long');
     expect(result.complexDataTypeName).toBeNull();
   });
 });

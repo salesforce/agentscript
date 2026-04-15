@@ -98,7 +98,7 @@ export function parseExpression(
   while (true) {
     // Fast path: sync points (NEWLINE/DEDENT/EOF) are never infix operators.
     // This avoids the infixPrecedence() lookup in the most common case for mappings.
-    const nextKind = ctx.peek().kind;
+    const nextKind = ctx.peekKind();
     if (
       nextKind === TokenKind.NEWLINE ||
       nextKind === TokenKind.DEDENT ||
@@ -131,6 +131,11 @@ function parsePrefix(ctx: ParserContext): CSTNode | null {
     return parseUnary(ctx, op, 7);
   }
 
+  // Spread *expr (precedence 7)
+  if (tok.kind === TokenKind.STAR) {
+    return parseSpread(ctx);
+  }
+
   // Parenthesized expression
   if (tok.kind === TokenKind.LPAREN) {
     return parseParenthesized(ctx);
@@ -157,6 +162,21 @@ function parseUnary(
   return node;
 }
 
+function parseSpread(ctx: ParserContext): CSTNode | null {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('spread_expression');
+  ctx.addAnonymousChild(node, ctx.consume()); // *
+
+  // Bind at precedence 8 (same as postfix call/member/subscript) so
+  // *@variables.x parses as *(variables.x), not (*variables).x
+  const operand = parseExpression(ctx, 8);
+  if (operand) {
+    node.appendChild(wrapExpression(ctx, operand), 'expression');
+  }
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
 function parseParenthesized(ctx: ParserContext): CSTNode | null {
   const startTok = ctx.peek();
   const node = ctx.startNode('parenthesized_expression');
@@ -165,12 +185,12 @@ function parseParenthesized(ctx: ParserContext): CSTNode | null {
   const expr = parseExpression(ctx, 0);
   if (expr) {
     node.appendChild(wrapExpression(ctx, expr), 'expression');
-  } else if (ctx.peek().kind === TokenKind.RPAREN) {
+  } else if (ctx.peekKind() === TokenKind.RPAREN) {
     // Empty parens () → insert MISSING id
     node.appendChild(makeMissingArgument(ctx), 'expression');
   }
 
-  if (ctx.peek().kind === TokenKind.RPAREN) {
+  if (ctx.peekKind() === TokenKind.RPAREN) {
     ctx.addAnonymousChild(node, ctx.consume()); // )
   } else {
     // Unclosed paren → add ERROR node
@@ -251,7 +271,7 @@ function parseAtId(ctx: ParserContext): CSTNode {
   const node = ctx.startNode('at_id');
   ctx.addAnonymousChild(node, ctx.consume()); // @
 
-  if (ctx.peek().kind === TokenKind.ID) {
+  if (ctx.peekKind() === TokenKind.ID) {
     node.appendChild(ctx.consumeNamed('id'));
   } else {
     // @ with no identifier → ERROR
@@ -431,19 +451,19 @@ function parseList(ctx: ParserContext): CSTNode {
   // Lists can span multiple lines — skip whitespace tokens inside [...]
   let _listIndentDepth = 0;
   while (
-    ctx.peek().kind !== TokenKind.RBRACKET &&
-    ctx.peek().kind !== TokenKind.EOF
+    ctx.peekKind() !== TokenKind.RBRACKET &&
+    ctx.peekKind() !== TokenKind.EOF
   ) {
-    if (ctx.peek().kind === TokenKind.NEWLINE) {
+    if (ctx.peekKind() === TokenKind.NEWLINE) {
       ctx.consume();
       continue;
     }
-    if (ctx.peek().kind === TokenKind.INDENT) {
+    if (ctx.peekKind() === TokenKind.INDENT) {
       _listIndentDepth++;
       ctx.consume();
       continue;
     }
-    if (ctx.peek().kind === TokenKind.DEDENT) {
+    if (ctx.peekKind() === TokenKind.DEDENT) {
       _listIndentDepth--;
       ctx.consume();
       continue;
@@ -454,7 +474,7 @@ function parseList(ctx: ParserContext): CSTNode {
     } else {
       break;
     }
-    if (ctx.peek().kind === TokenKind.COMMA) {
+    if (ctx.peekKind() === TokenKind.COMMA) {
       ctx.addAnonymousChild(node, ctx.consume());
     } else {
       break;
@@ -463,14 +483,14 @@ function parseList(ctx: ParserContext): CSTNode {
 
   // Skip whitespace tokens to find the closing ]
   while (
-    ctx.peek().kind === TokenKind.NEWLINE ||
-    ctx.peek().kind === TokenKind.INDENT ||
-    ctx.peek().kind === TokenKind.DEDENT
+    ctx.peekKind() === TokenKind.NEWLINE ||
+    ctx.peekKind() === TokenKind.INDENT ||
+    ctx.peekKind() === TokenKind.DEDENT
   ) {
     ctx.consume();
   }
 
-  if (ctx.peek().kind === TokenKind.RBRACKET) {
+  if (ctx.peekKind() === TokenKind.RBRACKET) {
     ctx.addAnonymousChild(node, ctx.consume());
   } else {
     node.appendChild(makeEmptyError(ctx));
@@ -487,13 +507,13 @@ function parseDictionary(ctx: ParserContext): CSTNode {
 
   // Dictionaries can span multiple lines
   while (
-    ctx.peek().kind !== TokenKind.RBRACE &&
-    ctx.peek().kind !== TokenKind.EOF
+    ctx.peekKind() !== TokenKind.RBRACE &&
+    ctx.peekKind() !== TokenKind.EOF
   ) {
     if (
-      ctx.peek().kind === TokenKind.NEWLINE ||
-      ctx.peek().kind === TokenKind.INDENT ||
-      ctx.peek().kind === TokenKind.DEDENT
+      ctx.peekKind() === TokenKind.NEWLINE ||
+      ctx.peekKind() === TokenKind.INDENT ||
+      ctx.peekKind() === TokenKind.DEDENT
     ) {
       ctx.consume();
       continue;
@@ -504,14 +524,14 @@ function parseDictionary(ctx: ParserContext): CSTNode {
     } else {
       break;
     }
-    if (ctx.peek().kind === TokenKind.COMMA) {
+    if (ctx.peekKind() === TokenKind.COMMA) {
       ctx.addAnonymousChild(node, ctx.consume());
     } else {
       break;
     }
   }
 
-  if (ctx.peek().kind === TokenKind.RBRACE) {
+  if (ctx.peekKind() === TokenKind.RBRACE) {
     ctx.addAnonymousChild(node, ctx.consume());
   } else {
     node.appendChild(makeEmptyError(ctx));
@@ -529,7 +549,7 @@ function parseDictionaryPair(ctx: ParserContext): CSTNode | null {
   const key = parseKey(ctx);
   if (key) node.appendChild(key, 'key');
 
-  if (ctx.peek().kind === TokenKind.COLON) {
+  if (ctx.peekKind() === TokenKind.COLON) {
     ctx.addAnonymousChild(node, ctx.consume());
   }
 
@@ -614,17 +634,17 @@ function parseCall(ctx: ParserContext, func: CSTNode): CSTNode {
   node.appendChild(wrapExpression(ctx, func), 'function');
   ctx.addAnonymousChild(node, ctx.consume()); // (
 
-  while (ctx.peek().kind !== TokenKind.RPAREN && !ctx.isAtSyncPoint()) {
+  while (ctx.peekKind() !== TokenKind.RPAREN && !ctx.isAtSyncPoint()) {
     const arg = parseExpression(ctx, 0);
     if (arg) {
       node.appendChild(wrapExpression(ctx, arg), 'argument');
     } else {
       break;
     }
-    if (ctx.peek().kind === TokenKind.COMMA) {
+    if (ctx.peekKind() === TokenKind.COMMA) {
       ctx.addAnonymousChild(node, ctx.consume());
       // Trailing comma: if `)` follows, insert MISSING id argument
-      if (ctx.peek().kind === TokenKind.RPAREN) {
+      if (ctx.peekKind() === TokenKind.RPAREN) {
         node.appendChild(makeMissingArgument(ctx), 'argument');
         break;
       }
@@ -633,7 +653,7 @@ function parseCall(ctx: ParserContext, func: CSTNode): CSTNode {
     }
   }
 
-  if (ctx.peek().kind === TokenKind.RPAREN) {
+  if (ctx.peekKind() === TokenKind.RPAREN) {
     ctx.addAnonymousChild(node, ctx.consume());
   } else {
     node.appendChild(makeEmptyError(ctx));
@@ -649,9 +669,9 @@ function parseMember(ctx: ParserContext, object: CSTNode): CSTNode {
   node.appendChild(wrapExpression(ctx, object));
   ctx.addAnonymousChild(node, ctx.consume()); // .
 
-  if (ctx.peek().kind === TokenKind.ID) {
+  if (ctx.peekKind() === TokenKind.ID) {
     node.appendChild(ctx.consumeNamed('id'));
-  } else if (ctx.peek().kind === TokenKind.NUMBER) {
+  } else if (ctx.peekKind() === TokenKind.NUMBER) {
     // Error 19: member access with number like @var.123
     const numNode = ctx.consumeNamed('number');
     const errNode = new CSTNode(
@@ -686,7 +706,7 @@ function parseSubscript(ctx: ParserContext, object: CSTNode): CSTNode {
     node.appendChild(wrapExpression(ctx, index));
   }
 
-  if (ctx.peek().kind === TokenKind.RBRACKET) {
+  if (ctx.peekKind() === TokenKind.RBRACKET) {
     ctx.addAnonymousChild(node, ctx.consume());
   } else {
     node.appendChild(makeEmptyError(ctx));
@@ -707,7 +727,7 @@ function parseTernary(ctx: ParserContext, consequence: CSTNode): CSTNode {
     node.appendChild(wrapExpression(ctx, condition), 'condition');
   }
 
-  if (ctx.peek().kind === TokenKind.ID && ctx.peek().text === 'else') {
+  if (ctx.peekKind() === TokenKind.ID && ctx.peek().text === 'else') {
     ctx.addAnonymousChild(node, ctx.consume()); // else
     const alt = parseExpression(ctx, 0); // right-associative: parse at 0
     if (alt) {
@@ -869,7 +889,7 @@ export function parseKey(ctx: ParserContext): CSTNode | null {
   const node = ctx.startNode('key');
 
   // First name — may be a number (digit-starting key like "3var")
-  if (ctx.peek().kind === TokenKind.NUMBER) {
+  if (ctx.peekKind() === TokenKind.NUMBER) {
     // Digit-starting key: wrap number in ERROR
     const numNode = ctx.consumeNamed('number');
     const errNode = new CSTNode(
@@ -884,10 +904,10 @@ export function parseKey(ctx: ParserContext): CSTNode | null {
     );
     node.appendChild(errNode);
     // Consume the ID part if present
-    if (ctx.peek().kind === TokenKind.ID) {
+    if (ctx.peekKind() === TokenKind.ID) {
       node.appendChild(ctx.consumeNamed('id'));
     }
-  } else if (ctx.peek().kind === TokenKind.STRING) {
+  } else if (ctx.peekKind() === TokenKind.STRING) {
     node.appendChild(parseString(ctx));
   } else {
     node.appendChild(ctx.consumeNamed('id'));
@@ -897,7 +917,7 @@ export function parseKey(ctx: ParserContext): CSTNode | null {
   // The second word must be on the same line with exactly immediate adjacency
   // (the grammar uses token.immediate(' '))
   if (
-    ctx.peek().kind === TokenKind.ID &&
+    ctx.peekKind() === TokenKind.ID &&
     !ctx.isAtSyncPoint() &&
     ctx.peek().start.row === startTok.start.row
   ) {

@@ -348,21 +348,35 @@ function getKeyRange(mappingElement: SyntaxNode): Range | null {
 }
 
 /**
- * Find a namespace symbol within a scope level's children,
- * searching through intermediate non-scoped blocks first
- * for inner-first priority.
+ * Find a namespace symbol within a scope level's children.
+ *
+ * Outer-first: direct children win over namespaces nested inside
+ * intermediate non-scoped blocks (e.g., `reasoning`). This matches
+ * `collectNamespaceMaps` in scope.ts — topic.actions definitions take
+ * precedence over topic.reasoning.actions bindings.
+ *
+ * If the outer namespace doesn't contain the target entry, the caller
+ * (see references.ts `resolveReference`) falls through to AST-based
+ * resolution which walks both outer and inner maps in order, so
+ * entries that only exist in nested maps (e.g., reasoning-only action
+ * bindings referenced from reasoning.instructions) are still found.
  */
 function findNamespaceSymbol(
   children: DocumentSymbol[],
   namespace: string
 ): DocumentSymbol | undefined {
+  // Outer first: direct child
+  const direct = children.find(c => c.name === namespace);
+  if (direct) return direct;
+
+  // Inner last: search through intermediate Namespace-kind symbols
   for (const child of children) {
     if (!child.children || child.kind !== SymbolKind.Namespace) continue;
     const found = findNamespaceSymbol(child.children, namespace);
     if (found) return found;
   }
 
-  return children.find(c => c.name === namespace);
+  return undefined;
 }
 
 /**

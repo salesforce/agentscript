@@ -24,6 +24,7 @@ import {
   TemplateText,
   TemplateInterpolation,
   Ellipsis,
+  SpreadExpression,
   NoneLiteral,
   decomposeAtMemberExpression,
 } from '@agentscript/language';
@@ -112,6 +113,9 @@ function compileExprNode(
   if (expr instanceof Ellipsis) {
     return '...';
   }
+  if (expr instanceof SpreadExpression) {
+    return `*${compileExprNode(expr.expression, ctx, opts)}`;
+  }
   if (expr instanceof NoneLiteral) {
     return 'None';
   }
@@ -186,7 +190,7 @@ function compileMemberExpression(
       case 'topic':
       case 'subagent': {
         ctx.error(
-          `@${namespace} references are not supported in expressions`,
+          `@${namespace} cannot be referenced in LLM instructions; use transitions to switch between @${namespace}`,
           expr.__cst?.range
         );
         return '';

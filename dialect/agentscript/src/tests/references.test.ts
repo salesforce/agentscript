@@ -12,6 +12,7 @@ import {
   findReferencesAtPosition,
   findAllReferences,
   resolveReference,
+  getDocumentSymbols,
   LintEngine,
   type PositionIndex,
 } from '@agentscript/language';
@@ -202,6 +203,307 @@ describe('findDefinitionAtPosition', () => {
     // Should resolve to the topic-level action definition (line 2),
     // not the reasoning action binding (line 9)
     expect(result.definition!.definitionRange.start.line).toBe(2);
+  });
+
+  describe('@actions references from reasoning.actions bindings', () => {
+    // Scenario mirrors v15.agent: a reasoning.actions binding whose value is
+    // `@actions.OriginalName`, where `OriginalName` also exists as a sibling
+    // reasoning.actions entry. The value reference must resolve to the topic-
+    // level action definition, NOT the sibling reasoning binding.
+    const source = [
+      /* 0  */ 'subagent main:',
+      /* 1  */ '    actions:',
+      /* 2  */ '        GetToken:',
+      /* 3  */ '            description: "Get token"',
+      /* 4  */ '            target: "ext://token"',
+      /* 5  */ '            inputs:',
+      /* 6  */ '                "siteId": string',
+      /* 7  */ '                    description: "Site"',
+      /* 8  */ '                    is_required: True',
+      /* 9  */ '                    is_user_input: False',
+      /* 10 */ '            outputs:',
+      /* 11 */ '                accessToken: string',
+      /* 12 */ '                    description: "Token"',
+      /* 13 */ '                    is_displayable: False',
+      /* 14 */ '                    filter_from_agent: False',
+      /* 15 */ '    reasoning:',
+      /* 16 */ '        instructions: ->',
+      /* 17 */ '            | Pick a tool',
+      /* 18 */ '        actions:',
+      /* 19 */ '            RefreshToken: @actions.GetToken',
+      /* 20 */ '                description: "Refresh the access token"',
+      /* 21 */ '                with siteId = "s"',
+      /* 22 */ '            GetToken: @actions.GetToken',
+      /* 23 */ '                with siteId = "s"',
+    ].join('\n');
+
+    test('bare path (no symbols): RefreshToken value resolves to topic.actions.GetToken', () => {
+      const ast = parse(source);
+      // First occurrence of `@actions.GetToken` — on line 19, inside
+      // RefreshToken binding.
+      const pos = findPosition(source, '@actions.GetToken');
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('GetToken');
+      // Must resolve to the topic-level definition at line 2,
+      // NOT the reasoning sibling binding at line 22.
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
+
+    test('LSP path (with symbols): RefreshToken value resolves to topic.actions.GetToken', () => {
+      const ast = parse(source);
+      const symbols = getDocumentSymbols(ast);
+      const pos = findPosition(source, '@actions.GetToken');
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx,
+        symbols
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('GetToken');
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
+
+    test('LSP path (symbols + position index): RefreshToken value resolves to topic.actions.GetToken', () => {
+      const ast = parse(source);
+      const symbols = getDocumentSymbols(ast);
+
+      const engine = new LintEngine({ passes: defaultRules() });
+      const { store } = engine.run(ast, testSchemaCtx);
+      const index = store.get('position-index' as never) as
+        | PositionIndex
+        | undefined;
+
+      const pos = findPosition(source, '@actions.GetToken');
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx,
+        symbols,
+        index
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('GetToken');
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
+
+    test('self-referencing binding: GetToken value resolves to topic.actions.GetToken (not itself)', () => {
+      const ast = parse(source);
+      // Second `@actions.GetToken` — inside the GetToken reasoning binding
+      // itself. Even though the binding has the same name, the reference
+      // must still resolve to the topic-level definition, not to itself.
+      const pos = findPosition(source, '@actions.GetToken', 1);
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('GetToken');
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
+
+    test('self-referencing binding with symbols: GetToken value resolves to topic.actions.GetToken', () => {
+      const ast = parse(source);
+      const symbols = getDocumentSymbols(ast);
+      const pos = findPosition(source, '@actions.GetToken', 1);
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx,
+        symbols
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('GetToken');
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
+
+    test('resolveReference directly with scope: resolves to topic.actions.GetToken', () => {
+      const ast = parse(source);
+      const symbols = getDocumentSymbols(ast);
+
+      // Resolution with topic scope should give us the topic-level action.
+      const resolved = resolveReference(
+        ast,
+        'actions',
+        'GetToken',
+        testSchemaCtx,
+        { subagent: 'main' },
+        symbols
+      );
+
+      expect(resolved).not.toBeNull();
+      expect(resolved!.name).toBe('GetToken');
+      expect(resolved!.definitionRange.start.line).toBe(2);
+    });
+
+    test('resolveReference without symbols uses AST path', () => {
+      const ast = parse(source);
+
+      const resolved = resolveReference(
+        ast,
+        'actions',
+        'GetToken',
+        testSchemaCtx,
+        { subagent: 'main' }
+      );
+
+      expect(resolved).not.toBeNull();
+      expect(resolved!.name).toBe('GetToken');
+      expect(resolved!.definitionRange.start.line).toBe(2);
+    });
+
+    test('reasoning binding to non-matching topic action: RefreshToken → GetToken when only GetToken exists at topic level', () => {
+      // Simpler scenario: reasoning binding value points to an action that
+      // does NOT have a sibling entry in reasoning.actions with the same
+      // name. Sanity check that the common case works.
+      const src = [
+        /* 0 */ 'subagent main:',
+        /* 1 */ '    actions:',
+        /* 2 */ '        GetToken:',
+        /* 3 */ '            description: "Get"',
+        /* 4 */ '            target: "ext://token"',
+        /* 5 */ '    reasoning:',
+        /* 6 */ '        actions:',
+        /* 7 */ '            Refresh: @actions.GetToken',
+      ].join('\n');
+
+      const ast = parse(src);
+      const pos = findPosition(src, '@actions.GetToken');
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('GetToken');
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
+
+    test('undefined reference lint does not flag a valid topic-level action from reasoning.actions', () => {
+      const ast = parse(source);
+      const engine = new LintEngine({ passes: defaultRules() });
+      const { diagnostics } = engine.run(ast, testSchemaCtx);
+      // There should be no undefined-reference diagnostics about
+      // @actions.GetToken — it exists at topic level.
+      const undef = diagnostics.filter(d =>
+        d.message.includes("'GetToken' is not defined")
+      );
+      expect(undef).toEqual([]);
+    });
+
+    test('@outputs inside a reasoning binding resolves through the topic-level colinear target', () => {
+      // Regression for v15.agent: a reasoning binding
+      // `Refresh: @actions.GetToken` has a `set @variables.x = @outputs.x`
+      // body. `@outputs` is scoped to the colinear target — here,
+      // `topic.actions.GetToken` — whose `outputs` map contains `accessToken`.
+      // The lint was incorrectly resolving the colinear target through the
+      // inner `reasoning.actions.GetToken` sibling (which has no outputs),
+      // then flagging `accessToken` as undefined.
+      const src = [
+        'subagent main:',
+        '    actions:',
+        '        GetToken:',
+        '            description: "Get"',
+        '            target: "ext://token"',
+        '            outputs:',
+        '                accessToken: string',
+        '                    description: "Token"',
+        '    reasoning:',
+        '        actions:',
+        '            Refresh: @actions.GetToken',
+        '                set @variables.token = @outputs.accessToken',
+        '            GetToken: @actions.GetToken',
+        '                set @variables.token = @outputs.accessToken',
+      ].join('\n');
+
+      const ast = parse(src);
+      const engine = new LintEngine({ passes: defaultRules() });
+      const { diagnostics } = engine.run(ast, testSchemaCtx);
+      const outputsDiag = diagnostics.filter(
+        d =>
+          d.code === 'undefined-reference' &&
+          d.message.includes("'accessToken' is not defined in outputs")
+      );
+      expect(outputsDiag).toEqual([]);
+    });
+
+    test('@outputs inside a reasoning binding: undefined output is still flagged', () => {
+      // Negative: a genuinely missing output should still be flagged.
+      const src = [
+        'subagent main:',
+        '    actions:',
+        '        GetToken:',
+        '            description: "Get"',
+        '            target: "ext://token"',
+        '            outputs:',
+        '                accessToken: string',
+        '                    description: "Token"',
+        '    reasoning:',
+        '        actions:',
+        '            Refresh: @actions.GetToken',
+        '                set @variables.token = @outputs.missingField',
+      ].join('\n');
+
+      const ast = parse(src);
+      const engine = new LintEngine({ passes: defaultRules() });
+      const { diagnostics } = engine.run(ast, testSchemaCtx);
+      const outputsDiag = diagnostics.filter(
+        d =>
+          d.code === 'undefined-reference' && d.message.includes('missingField')
+      );
+      expect(outputsDiag.length).toBeGreaterThan(0);
+    });
+
+    test('go-to-definition on self-named binding with topic-level action points to topic-level', () => {
+      // Regression: the existing `isSelfReference` path previously routed
+      // `CloseCase: @actions.CloseCase` through the lint's standard-miss
+      // path (no symbol-based resolution). With outer-first symbol lookup,
+      // go-to-definition from the colinear `@actions.CloseCase` should
+      // still land on the topic-level definition.
+      const src = [
+        /* 0 */ 'subagent main:',
+        /* 1 */ '    actions:',
+        /* 2 */ '        CloseCase:',
+        /* 3 */ '            description: "Close"',
+        /* 4 */ '            target: "ext://close"',
+        /* 5 */ '    reasoning:',
+        /* 6 */ '        actions:',
+        /* 7 */ '            CloseCase: @actions.CloseCase',
+      ].join('\n');
+
+      const ast = parse(src);
+      const symbols = getDocumentSymbols(ast);
+      const pos = findPosition(src, '@actions.CloseCase');
+      const result = findDefinitionAtPosition(
+        ast,
+        pos.line,
+        pos.character,
+        testSchemaCtx,
+        symbols
+      );
+
+      expect(result.definition).not.toBeNull();
+      expect(result.definition!.name).toBe('CloseCase');
+      expect(result.definition!.definitionRange.start.line).toBe(2);
+    });
   });
 
   test('@variables in template interpolation resolves with position index', () => {

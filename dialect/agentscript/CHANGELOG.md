@@ -1,5 +1,26 @@
 # @agentscript/agentscript-dialect
 
+## 2.5.13
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.10
+
+## 2.5.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.9
+  - @agentscript/parser@3.0.6
+
+## 2.5.11
+
+### Patch Changes
+
+- Fix `action-missing-input` lint rule to respect the `is_required: False` property on action inputs. Previously, inputs marked as explicitly optional were still flagged as missing when omitted from a reasoning action's `with` clauses.
+
 ## 2.5.10
 
 ### Patch Changes

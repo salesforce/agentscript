@@ -21,6 +21,7 @@ export {
   createSchemaContext,
   getSchemaNamespaces,
   getGlobalScopes,
+  activeScopeForNamespace,
 } from './scope.js';
 
 export type { ScopeContext, SchemaContext } from './scope.js';

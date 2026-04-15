@@ -12,6 +12,11 @@ export interface TelemetryService {
   sendExtensionActivationEvent(hrstart: [number, number]): void;
   sendExtensionDeactivationEvent(): void;
   sendException(name: string, message: string): void;
+  sendCommandEvent(
+    commandName: string,
+    duration?: number,
+    properties?: Record<string, string>
+  ): void;
   sendEventData(
     eventName: string,
     properties?: Record<string, string>,

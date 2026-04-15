@@ -18,6 +18,7 @@ import {
   collectNamespaceMaps,
   resolveNamespaceKeys,
   updateScopeContext,
+  activeScopeForNamespace,
 } from './scope.js';
 import type { ScopeContext, SchemaContext } from './scope.js';
 import {
@@ -100,11 +101,12 @@ function resolveWithReason(
   ctx: SchemaContext,
   symbols?: DocumentSymbol[]
 ): DefinitionResult {
-  const requiredScope = getScopedNamespaces(ctx).get(ref.namespace);
-  if (requiredScope && !ref.scope[requiredScope]) {
+  const scopesRequired = getScopedNamespaces(ctx).get(ref.namespace);
+  if (scopesRequired && !activeScopeForNamespace(scopesRequired, ref.scope)) {
+    const list = [...scopesRequired].join(' or ');
     return {
       definition: null,
-      reason: `'@${ref.namespace}.${ref.name}' requires ${requiredScope} scope (cursor is outside a ${requiredScope} block)`,
+      reason: `'@${ref.namespace}.${ref.name}' requires ${list} scope (cursor is outside a ${list} block)`,
     };
   }
 
@@ -184,14 +186,15 @@ export function resolveReference(
     }
   }
 
-  const requiredScope = getScopedNamespaces(ctx).get(namespace);
+  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
+  const activeScope = activeScopeForNamespace(scopesRequired, scope);
 
-  if (requiredScope && scope?.[requiredScope]) {
+  if (activeScope && scope) {
     return resolveFromScopedChild(
       ast,
       namespace,
       name,
-      requiredScope,
+      activeScope,
       scope,
       ctx
     );
@@ -216,15 +219,16 @@ export function findAllReferences(
   symbols?: DocumentSymbol[]
 ): ReferenceOccurrence[] {
   const occurrences: ReferenceOccurrence[] = [];
-  const requiredScope = getScopedNamespaces(ctx).get(namespace);
+  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
+  const activeScope = activeScopeForNamespace(scopesRequired, scope);
 
   walkAstExpressions(ast, (expr, walkCtx) => {
     const decomposed = decomposeExpression(expr, walkCtx);
     if (!decomposed) return;
     if (decomposed.namespace !== namespace || decomposed.name !== name) return;
 
-    if (requiredScope && scope?.[requiredScope]) {
-      if (walkCtx[requiredScope] !== scope[requiredScope]) return;
+    if (activeScope && scope) {
+      if (walkCtx[activeScope] !== scope[activeScope]) return;
     }
 
     occurrences.push({

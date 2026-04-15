@@ -147,6 +147,7 @@ export {
   isTemplatePartKind,
   parseTemplateParts,
   decomposeAtMemberExpression,
+  decomposeMemberExpression,
 } from './expressions.js';
 
 export type { Statement } from './statements.js';

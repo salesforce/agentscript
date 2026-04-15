@@ -56,6 +56,7 @@ try {
 const CORPUS_DIR = join(__dirname, '../../parser-tree-sitter/test/corpus');
 const OWN_CORPUS_DIR = join(__dirname, 'corpus');
 const SOT_FILE = join(__dirname, '../sot/source.agent');
+const DOGFOOD_DIR = join(__dirname, 'fixtures/dogfood-scripts/extracted');
 
 function loadCorpusFiles(dir: string): { file: string; content: string }[] {
   if (!existsSync(dir)) return [];
@@ -131,5 +132,19 @@ describe.runIf(treeSitterAvailable)(
         assertParity(readFileSync(SOT_FILE, 'utf-8'));
       });
     }
+
+    const dogfoodFiles = existsSync(DOGFOOD_DIR)
+      ? readdirSync(DOGFOOD_DIR)
+          .filter(f => f.endsWith('.agent'))
+          .sort()
+      : [];
+
+    describe.skip('dogfood scripts', () => {
+      for (const file of dogfoodFiles) {
+        it(file, () => {
+          assertParity(readFileSync(join(DOGFOOD_DIR, file), 'utf-8'));
+        });
+      }
+    });
   }
 );

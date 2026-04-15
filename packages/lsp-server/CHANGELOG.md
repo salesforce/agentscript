@@ -1,5 +1,25 @@
 # @agentscript/lsp-server
 
+## 2.2.14
+
+### Patch Changes
+
+- @agentscript/lsp@2.2.14
+
+## 2.2.13
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/lsp@2.2.13
+  - @agentscript/parser@3.0.6
+
+## 2.2.12
+
+### Patch Changes
+
+- @agentscript/lsp@2.2.12
+
 ## 2.2.11
 
 ### Patch Changes

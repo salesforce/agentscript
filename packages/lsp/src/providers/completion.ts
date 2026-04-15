@@ -104,7 +104,9 @@ export function provideCompletion(
             namespacePart,
             schemaContext,
             scope,
-            symbols
+            symbols,
+            line,
+            character
           )
         : getAvailableNamespaces(schemaContext, scope);
 

@@ -1,5 +1,11 @@
 # @agentscript/parser-ts
 
+## 2.3.6
+
+### Patch Changes
+
+- Fix `@outputs` reference and completion resolution inside nested `run @actions.X` blocks so they resolve against the nested run target rather than the enclosing reasoning action binding. Add `integer` and `long` scalar-to-ParameterDataType mappings for action parameters. Fix template literal indentation handling in the JavaScript lexer.
+
 ## 2.3.5
 
 ### Patch Changes

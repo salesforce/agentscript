@@ -200,7 +200,7 @@ topic support:
     expect(node.tools.length).toBe(0);
   });
 
-  it('should include connected-agent tools alongside transitions', () => {
+  it('should reject connected-subagent handoffs in router nodes', () => {
     const result = compileSource(
       hyperclassifierSource(
         `
@@ -230,75 +230,43 @@ connected_subagent CRM_Agent:
     expect(node).toBeDefined();
     expect(node.type).toBe('router');
 
-    // Should include 2 transitions + 1 connected-agent = 3 tools
-    // Regular action (do_search) should be filtered out
-    expect(node.tools.length).toBe(3);
+    // Should only include 2 transitions
+    // Connected-agent and regular action should be filtered out
+    expect(node.tools.length).toBe(2);
+    expect(node.tools[0].name).toBe('go_support');
+    expect(node.tools[1].name).toBe('go_self_service');
 
-    // Verify transitions
-    const goSupport = node.tools.find(t => t.name === 'go_support');
-    expect(goSupport).toBeDefined();
-    expect(goSupport!.target).toBe('support');
-    expect(goSupport!.description).toBe('Route to support');
-
-    const goSelfService = node.tools.find(t => t.name === 'go_self_service');
-    expect(goSelfService).toBeDefined();
-    expect(goSelfService!.target).toBe('self_service');
-
-    // Verify connected-agent tool
-    const callCrm = node.tools.find(t => t.name === 'call_crm');
-    expect(callCrm).toBeDefined();
-    expect(callCrm!.target).toBe('CRM_Agent');
-    expect(callCrm!.description).toBe('Delegate to CRM agent');
-
-    // Verify related-agent node was created
-    const relatedAgentNode = result.output.agent_version.nodes.find(
-      n => n.type === 'related_agent' && n.developer_name === 'CRM_Agent'
+    // Should have error for connected-agent handoff
+    const errors = result.diagnostics.filter(d => d.severity === 1);
+    const connectedAgentError = errors.find(
+      e => e.message.includes('handoff') && e.message.includes('call_crm')
     );
-    expect(relatedAgentNode).toBeDefined();
-    expect(relatedAgentNode!.label).toBe('CRM Agent');
+    expect(connectedAgentError).toBeDefined();
   });
 
-  it('should support router with only connected-agents', () => {
+  it('should reject subagent handoffs in router nodes', () => {
     const result = compileSource(
-      hyperclassifierSource(
-        `
-            call_crm: @connected_subagent.CRM_Agent
-                description: "Delegate to CRM"
-            call_support: @connected_subagent.Support_Agent
-                description: "Delegate to support"`,
-        `
-connected_subagent CRM_Agent:
-    target: "agentforce://CRM_Agent"
-    label: "CRM Agent"
-    description: "Handles CRM"
-    inputs:
-        customer_id: string
-
-connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
-    label: "Support Agent"
-    description: "Handles support"
-    inputs:
-        ticket_id: string
-`
-      )
+      hyperclassifierSource(`
+            call_helper: @subagent.HelperAgent
+                description: "Delegate to helper"
+            go_support: @utils.transition to @topic.support
+                description: "Route to support"`)
     );
 
     const node = result.output.agent_version.nodes.find(
       n => n.developer_name === 'router'
     )!;
 
-    expect(node.tools.length).toBe(2);
-    expect(node.tools[0].name).toBe('call_crm');
-    expect(node.tools[0].target).toBe('CRM_Agent');
-    expect(node.tools[1].name).toBe('call_support');
-    expect(node.tools[1].target).toBe('Support_Agent');
+    // Should only include the transition
+    expect(node.tools.length).toBe(1);
+    expect(node.tools[0].name).toBe('go_support');
 
-    // Verify both related-agent nodes exist
-    const relatedAgents = result.output.agent_version.nodes.filter(
-      n => n.type === 'related_agent'
+    // Should have error for subagent handoff
+    const errors = result.diagnostics.filter(d => d.severity === 1);
+    const subagentError = errors.find(
+      e => e.message.includes('handoff') && e.message.includes('call_helper')
     );
-    expect(relatedAgents.length).toBe(2);
+    expect(subagentError).toBeDefined();
   });
 
   it('should emit errors for disallowed action types in router nodes', () => {
@@ -400,6 +368,44 @@ connected_subagent Support_Agent:
       m.includes('Router nodes only support')
     );
     expect(genericError).toBeDefined();
+  });
+
+  it('should emit specific error for handoff actions in router nodes', () => {
+    const result = compileSource(
+      hyperclassifierSource(`
+            supervise_support: @topic.support
+                description: "Supervise support"
+            go_support: @utils.transition to @topic.support
+                description: "Route to support"
+            go_self_service: @utils.transition to @topic.self_service
+                description: "Route to self-service"`)
+    );
+
+    // Check that error was emitted specifically about handoff
+    const errors = result.diagnostics.filter(d => d.severity === 1); // Error = 1
+
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+
+    // Find the handoff error
+    const handoffError = errors.find(
+      e =>
+        e.message.includes('handoff') && e.message.includes('supervise_support')
+    );
+
+    expect(handoffError).toBeDefined();
+    expect(handoffError!.message).toContain('Router node');
+    expect(handoffError!.message).toContain('hyperclassifier');
+    expect(handoffError!.message).toContain(
+      'remove the hyper classifier config'
+    );
+
+    // Router should only have the transition tools (handoff filtered out)
+    const node = result.output.agent_version.nodes.find(
+      n => n.developer_name === 'router'
+    )!;
+    expect(node.tools.length).toBe(2);
+    expect(node.tools[0].name).toBe('go_support');
+    expect(node.tools[1].name).toBe('go_self_service');
   });
 
   it('should reject model without URI scheme', () => {

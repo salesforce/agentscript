@@ -344,7 +344,8 @@ topic complete:
   });
 });
 
-describe('mixed auto and manual transitions', () => {
+describe('adecco-style transitions', () => {
+  // Python: test_utils_transition.test_adecco_style_transition
   it('should compile mixed auto and manual transitions', () => {
     const source = `
 config:

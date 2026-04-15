@@ -1,5 +1,28 @@
 # @agentscript/agentforce-dialect
 
+## 2.7.13
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.10
+  - @agentscript/agentscript-dialect@2.5.13
+
+## 2.7.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.9
+  - @agentscript/agentscript-dialect@2.5.12
+
+## 2.7.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/agentscript-dialect@2.5.11
+
 ## 2.7.10
 
 ### Patch Changes

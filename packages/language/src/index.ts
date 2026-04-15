@@ -149,10 +149,12 @@ export {
   ListLiteral,
   DictLiteral,
   Ellipsis,
+  SpreadExpression,
   TEMPLATE_PART_KINDS,
   isTemplatePartKind,
   parseTemplateParts,
   decomposeAtMemberExpression,
+  decomposeMemberExpression,
 } from './core/expressions.js';
 
 export type { Statement } from './core/statements.js';
@@ -333,6 +335,7 @@ export {
 export { positionIndexPass } from './lint/position-index.js';
 export { unreachableCodePass } from './lint/unreachable-code.js';
 export { emptyBlockPass } from './lint/empty-block.js';
+export { spreadContextPass } from './lint/spread-context.js';
 export { unusedVariablePass } from './lint/unused-variable.js';
 export {
   expressionValidationPass,

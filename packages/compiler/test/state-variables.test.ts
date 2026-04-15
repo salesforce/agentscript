@@ -363,6 +363,69 @@ variables:
     expect(sv!.default).toBeUndefined();
   });
 
+  it('should populate default for object variable with dict literal default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    order_billing_address: mutable object = {"is_completed":False, "first_name": "", "last_name": "", "street_address": "", "postal_code": "", "city": "", "province": ""}`)
+    );
+
+    const sv = findStateVar(result, 'order_billing_address');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({
+      is_completed: false,
+      first_name: '',
+      last_name: '',
+      street_address: '',
+      postal_code: '',
+      city: '',
+      province: '',
+    });
+  });
+
+  it('should populate default for list[object] variable with dict-literal elements', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    test_list: mutable list[object] = [{"is_completed": True}]`)
+    );
+
+    const sv = findStateVar(result, 'test_list');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.is_list).toBe(true);
+    expect(sv!.default).toEqual([{ is_completed: true }]);
+  });
+
+  it('should populate default for list[string] variable with bare string elements', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    test_string_list: mutable list[string] = ["hello", "shaun"]`)
+    );
+
+    const sv = findStateVar(result, 'test_string_list');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('string');
+    expect(sv!.is_list).toBe(true);
+    // List string elements are NOT single-quoted (unlike scalar string defaults)
+    expect(sv!.default).toEqual(['hello', 'shaun']);
+  });
+
+  it('should emit empty object default for object variable with {} default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    data: mutable object = {}`)
+    );
+
+    const sv = findStateVar(result, 'data');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({});
+  });
+
   it('should omit default for object variable with None default', () => {
     const result = compileSource(
       agentSource(`
@@ -789,8 +852,8 @@ describe('state variables: context variable duplication', () => {
     // takes precedence as a context variable, and the mutable definition
     // is excluded from state_variables since the name is already claimed.
     //
-    // compileStateVariables checks `contextVarNames` and skips if the
-    // name is already there.
+    // In the TS compiler, compileStateVariables checks `contextVarNames`
+    // and skips if the name is already there.
     const result = compileSource(
       agentSource(`
 variables:
@@ -1002,7 +1065,7 @@ variables:
 });
 
 // ---------------------------------------------------------------------------
-// Name validation
+// Name validation (ported from Python Pydantic validators)
 // ---------------------------------------------------------------------------
 
 describe('state variables: name validation', () => {
@@ -1055,5 +1118,124 @@ variables:
         d.message.toLowerCase().includes('underscore')
     );
     expect(nameError).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dict and object defaults
+// ---------------------------------------------------------------------------
+
+describe('state variables: dict and object defaults', () => {
+  it('should compile variable with empty dict default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    empty_dict: mutable object = {}`)
+    );
+
+    const sv = findStateVar(result, 'empty_dict');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({});
+  });
+
+  it('should compile variable with populated dict default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    config: mutable object = {name: "test", value: 123}`)
+    );
+
+    const sv = findStateVar(result, 'config');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({ name: 'test', value: 123 });
+  });
+
+  it('should compile variable with nested dict default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    nested: mutable object = {outer: {inner: "value"}}`)
+    );
+
+    const sv = findStateVar(result, 'nested');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({ outer: { inner: 'value' } });
+  });
+
+  it('should compile variable with dict containing empty string values', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    supplier_data: mutable object = {vat_number: "", company_name: "", supplier_id: "", pec: ""}`)
+    );
+
+    const sv = findStateVar(result, 'supplier_data');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({
+      vat_number: '',
+      company_name: '',
+      supplier_id: '',
+      pec: '',
+    });
+  });
+
+  it('should compile variable with dict containing quoted keys', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    test_data: mutable object = {"var1": "", "var2": "foo"}`)
+    );
+
+    const sv = findStateVar(result, 'test_data');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.default).toEqual({
+      var1: '',
+      var2: 'foo',
+    });
+  });
+
+  it('should compile list with empty array default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    items: mutable list[object] = []`)
+    );
+
+    const sv = findStateVar(result, 'items');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('object');
+    expect(sv!.is_list).toBe(true);
+    expect(sv!.default).toEqual([]);
+  });
+
+  it('should compile list with populated array default', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    tags: mutable list[string] = ["a", "b", "c"]`)
+    );
+
+    const sv = findStateVar(result, 'tags');
+    expect(sv).toBeDefined();
+    expect(sv!.data_type).toBe('string');
+    expect(sv!.is_list).toBe(true);
+    expect(sv!.default).toEqual(['a', 'b', 'c']);
+  });
+
+  it('should still omit default for None and missing defaults', () => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    obj_none: mutable object = None
+    obj_no_default: mutable object`)
+    );
+
+    expect(findStateVar(result, 'obj_none')!.default).toBeUndefined();
+    expect(findStateVar(result, 'obj_no_default')!.default).toBeUndefined();
   });
 });

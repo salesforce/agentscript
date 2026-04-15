@@ -5,6 +5,8 @@
 
 package tree_sitter_agentscript
 
+package tree_sitter_agentscript
+
 // #cgo CFLAGS: -std=c11 -fPIC
 // #include "../../src/parser.c"
 // #if __has_include("../../src/scanner.c")

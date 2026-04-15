@@ -23,51 +23,11 @@ import {
   extractSourcedNumber,
 } from '../ast-helpers.js';
 import type { Sourceable } from '../sourced.js';
+import { supportedLocale } from '../generated/agent-dsl.js';
 import {
   extractStringSequence,
   extractSequenceBlocks,
 } from './extract-sequence.js';
-
-// Valid locales from the agent-dsl SupportedLocale enum.
-const VALID_LOCALES = new Set([
-  'ar',
-  'bg',
-  'ca',
-  'cs',
-  'da',
-  'de',
-  'el',
-  'en_GB',
-  'en_US',
-  'es',
-  'es_MX',
-  'eu',
-  'fi',
-  'fr',
-  'he',
-  'hr',
-  'hu',
-  'in',
-  'it',
-  'ja',
-  'ko',
-  'nl_NL',
-  'no',
-  'pl',
-  'pt_BR',
-  'pt_PT',
-  'ro',
-  'ru',
-  'sk',
-  'sl',
-  'sv',
-  'th',
-  'tr',
-  'uk',
-  'vi',
-  'zh_CN',
-  'zh_TW',
-]);
 
 /**
  * Compile modality parameters from the language block and modality blocks.
@@ -98,7 +58,8 @@ export function compileModalityParameters(
 
 /**
  * Compile language configuration from the language block.
- * Returns null (producing empty modality_parameters) when any locale is invalid.
+ * Returns null (producing empty modality_parameters) when any locale is invalid,
+ * matching Python compiler behavior.
  */
 function compileLanguageConfiguration(
   languageBlock: ParsedLanguage | undefined,
@@ -121,7 +82,7 @@ function compileLanguageConfiguration(
 
   let hasValidationErrors = false;
 
-  if (!VALID_LOCALES.has(defaultLocale)) {
+  if (!supportedLocale.safeParse(defaultLocale).success) {
     ctx.error(
       `Invalid default_locale '${defaultLocale}'. Must be a supported locale.`,
       languageBlock.__cst?.range,
@@ -140,7 +101,7 @@ function compileLanguageConfiguration(
     : [];
 
   for (const locale of additionalLocales) {
-    if (!VALID_LOCALES.has(locale)) {
+    if (!supportedLocale.safeParse(locale).success) {
       ctx.error(
         `Invalid additional_locale '${locale}'. Must be a supported locale.`,
         languageBlock.__cst?.range,

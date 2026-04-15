@@ -41,6 +41,8 @@ export {
   AgentScriptSchemaInfo,
   agentScriptSchemaContext,
   baseSubagentFields,
+  defaultSubagentFields,
+  customSubagentFields,
 } from './schema.js';
 
 export type { AgentScriptSchema as AgentScriptSchemaType } from './schema.js';

@@ -74,8 +74,9 @@ export function compileAgentConfiguration(
   ) as Sourceable<GlobalAgentConfiguration['agent_type']>;
   const defaultAgentUser =
     extractSourcedString(config['default_agent_user']) ?? '';
-  const templateName =
-    extractSourcedString(configField(config, 'template_name')) ?? undefined;
+  const templateName = extractSourcedString(
+    configField(config, 'agent_template')
+  );
 
   const developerNamePlain =
     extractStringValue(config['developer_name']) ??
