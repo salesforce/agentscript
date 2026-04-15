@@ -319,6 +319,79 @@ topic main:
     expect(errors).toHaveLength(0);
   });
 
+  it('allows placeholder:// target but emits warning', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    stub_action:
+      description: "Stub Action"
+      target: "placeholder://future_implementation"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'invalid-action-target');
+    expect(errors).toHaveLength(0);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'placeholder-action-target'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain('placeholder target');
+    expect(warnings[0].message).toContain('stub_action');
+    expect(warnings[0].message).toContain(
+      'Replace this with a real implementation before committing'
+    );
+  });
+
+  it('warns for multiple placeholder actions', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    stub_one:
+      description: "Stub One"
+      target: "placeholder://implementation_one"
+    stub_two:
+      description: "Stub Two"
+      target: "placeholder://implementation_two"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'placeholder-action-target'
+    );
+    expect(warnings).toHaveLength(2);
+    expect(warnings.every(w => w.severity === DiagnosticSeverity.Warning)).toBe(
+      true
+    );
+  });
+
+  it('warns for placeholder in start_agent blocks', () => {
+    const diagnostics = runSecurityLint(`
+start_agent selector:
+  label: "Selector"
+  actions:
+    stub_action:
+      description: "Stub"
+      target: "placeholder://tbd"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'placeholder-action-target'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('stub_action');
+  });
+
   it('allows slack:// target', () => {
     const diagnostics = runSecurityLint(`
 topic main:

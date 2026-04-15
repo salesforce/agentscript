@@ -70,8 +70,22 @@ function compileActionDefinition(
 
   if (targetUri) {
     const { scheme, path } = parseUri(targetUri);
-    if (scheme) invocationTargetType = scheme;
-    if (path) invocationTargetName = path;
+
+    // For placeholder actions, use "stub" as the invocation target type
+    // and keep the developer name as the target name
+    if (scheme === 'placeholder') {
+      invocationTargetType = 'stub';
+      // invocationTargetName stays as `name` (developer_name)
+
+      ctx.warning(
+        `Action '${name}' uses a placeholder target "${targetUri}". Replace this with a real implementation before committing.`,
+        getCstRange(def['target'])
+      );
+    } else {
+      // For real actions, use the scheme and path from the URI
+      if (scheme) invocationTargetType = scheme;
+      if (path) invocationTargetName = path;
+    }
   }
 
   const inputType = compileInputParameters(

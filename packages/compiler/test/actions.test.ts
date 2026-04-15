@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
 import { STATE_UPDATE_ACTION } from '../src/constants.js';
+import { DiagnosticSeverity } from '@agentscript/types';
 
 describe('action aliases: syntax', () => {
   // Python: test_action_aliases.test_action_with_alias_same_as_name
@@ -372,5 +373,117 @@ topic next:
     );
     expect(transitionTools.length).toBe(1);
     expect(transitionTools[0].name).toBe('go_next');
+  });
+});
+
+describe('placeholder actions', () => {
+  it('should emit warning for placeholder:// target during compilation', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        stub_action:
+            description: "A stub action"
+            target: "placeholder://future_implementation"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            stub: @actions.stub_action
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+
+    // Should compile successfully
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    expect(node).toBeDefined();
+
+    // Should have warning diagnostic
+    const warnings = diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Warning
+    );
+    expect(warnings.length).toBeGreaterThan(0);
+
+    const placeholderWarnings = warnings.filter(w =>
+      w.message.includes('placeholder target')
+    );
+    expect(placeholderWarnings).toHaveLength(1);
+    expect(placeholderWarnings[0].message).toContain('stub_action');
+    expect(placeholderWarnings[0].message).toContain(
+      'Replace this with a real implementation before committing'
+    );
+  });
+
+  it('should compile action definition with placeholder scheme', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        stub_action:
+            description: "A stub action"
+            target: "placeholder://tbd"
+            inputs:
+                param1: string
+            outputs:
+                result: string
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            stub: @actions.stub_action
+                with param1="test"
+`;
+    const { output } = compile(parseSource(source));
+
+    // Find the node's action definitions
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    );
+    const actions = node?.action_definitions ?? [];
+    const stubAction = actions.find(a => a.developer_name === 'stub_action');
+
+    expect(stubAction).toBeDefined();
+    // Placeholder actions compile to invocation_target_type: "stub"
+    expect(stubAction?.invocation_target_type).toBe('stub');
+    // Target name is the action's developer name
+    expect(stubAction?.invocation_target_name).toBe('stub_action');
+  });
+
+  it('should emit warnings for multiple placeholder actions', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        stub_one:
+            description: "Stub one"
+            target: "placeholder://implementation_one"
+        stub_two:
+            description: "Stub two"
+            target: "placeholder://implementation_two"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            one: @actions.stub_one
+            two: @actions.stub_two
+`;
+    const { diagnostics } = compile(parseSource(source));
+
+    const placeholderWarnings = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Warning &&
+        d.message.includes('placeholder target')
+    );
+    expect(placeholderWarnings).toHaveLength(2);
   });
 });
