@@ -16,4 +16,4 @@
 
 ## Defined in
 
-[monaco/src/theme.ts:114](https://github.com/salesforce/agentscript/blob/90ab1dbff7b10e8f9df7f9171b49e51a6d04a0d4/packages/monaco/src/theme.ts#L114)
+[monaco/src/theme.ts:114](https://github.com/salesforce/agentscript/blob/fbe864ab5fc4785e497a92e2c3f6f4575ef8510c/packages/monaco/src/theme.ts#L114)
