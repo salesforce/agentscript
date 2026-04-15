@@ -14,6 +14,7 @@ import {
 } from '@agentscript/language';
 import { agentFabricSemanticPass } from './agentfabric-semantic.js';
 import { suppressActionsNamespaceUndefinedReferencePass } from './suppress-tools-namespace-undefined-reference.js';
+import { spreadOperandTypePass } from './spread-operand-type.js';
 import type { ExpressionValidationOptions } from '@agentscript/language/lint';
 import { AgentFabricSchemaInfo } from '../../schema.js';
 
@@ -53,6 +54,7 @@ export function defaultRules(): LintPass[] {
     emptyBlockPass(),
     expressionValidationPass(expressionOptions),
     spreadContextPass(),
+    spreadOperandTypePass(),
     agentFabricSemanticPass(),
     // Validation
     undefinedReferencePass(),
