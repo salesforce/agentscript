@@ -387,6 +387,14 @@ export type Schema = Record<string, FieldType | FieldType[]>;
 export interface WildcardPrefix {
   readonly prefix: string;
   readonly fieldType: FieldType;
+  /**
+   * When true, the wildcard match is parsed as a typed declaration entry
+   * (ParameterDeclarationNode with type, defaultValue, properties) instead
+   * of delegating to fieldType.parse(). This preserves the colinear type
+   * annotation (e.g., `name: string`) that Block wildcards would otherwise
+   * drop.
+   */
+  readonly typedEntry?: boolean;
 }
 
 const WILDCARD_KEY = '__wildcardPrefixes__';
@@ -415,14 +423,17 @@ export function getWildcardPrefixes(
   );
 }
 
-/** Resolve a field name against wildcard prefixes. Returns the matching FieldType or undefined. */
-export function resolveWildcardField(
+/** Resolve a field name against wildcard prefixes. Returns the full WildcardPrefix or undefined. */
+export function resolveWildcardPrefix(
   schema: Schema | Record<string, FieldType>,
   fieldName: string
-): FieldType | undefined {
-  for (const { prefix, fieldType } of getWildcardPrefixes(schema)) {
-    if (fieldName.startsWith(prefix) && fieldName.length > prefix.length) {
-      return fieldType;
+): WildcardPrefix | undefined {
+  for (const wp of getWildcardPrefixes(schema)) {
+    if (
+      fieldName.startsWith(wp.prefix) &&
+      fieldName.length > wp.prefix.length
+    ) {
+      return wp;
     }
   }
   return undefined;

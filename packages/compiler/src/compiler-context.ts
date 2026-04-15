@@ -52,6 +52,19 @@ export class CompilerContext {
   actionReferenceMap: Map<string, string> = new Map();
 
   /**
+   * Map from @response_actions binding names to their corresponding response_formats definition names.
+   * Built per-connection: maps reasoning.response_actions names to the response_formats
+   * they reference (e.g., my_choice → messaging_choices).
+   */
+  responseFormatReferenceMap: Map<string, string> = new Map();
+
+  /**
+   * Current connection name (e.g. "service_email") for @inputs reference resolution.
+   * Set per-connection during surface compilation.
+   */
+  connectionName: string | undefined;
+
+  /**
    * Connected agent input signatures: agent developer name → set of input names.
    * Populated during connected agent node compilation for downstream validation
    * of `with` clauses on @connected_subagent.X tool invocations.

@@ -32,7 +32,7 @@ import {
   isNamedCollectionFieldType,
   isNamedMap,
   parseCommentNode as sharedParseCommentNode,
-  resolveWildcardField,
+  resolveWildcardPrefix,
 } from './types.js';
 import {
   Diagnostic,
@@ -55,7 +55,10 @@ import type { Statement } from './statements.js';
 import { statementParsers, UnknownStatement } from './statements.js';
 import { NamedMap } from './named-map.js';
 import type { BlockCore } from './named-map.js';
-import { VariableDeclarationNode } from './typed-declarations.js';
+import {
+  VariableDeclarationNode,
+  ParameterDeclarationNode,
+} from './typed-declarations.js';
 import {
   FieldChild,
   UntypedBlock,
@@ -648,8 +651,13 @@ export class Dialect {
         : rawFieldType;
 
       // Wildcard prefix fallback — accept fields matching a registered prefix
+      let isTypedEntryWildcard = false;
       if (!fieldType) {
-        fieldType = resolveWildcardField(schema, typeId);
+        const wp = resolveWildcardPrefix(schema, typeId);
+        if (wp) {
+          fieldType = wp.fieldType;
+          isTypedEntryWildcard = wp.typedEntry === true;
+        }
       }
 
       const inlineComments = this.parseInlineComments(element);
@@ -930,6 +938,19 @@ export class Dialect {
           dc.mergeAll(entryDiagnostics);
         }
       } else if (isSingularFieldType(fieldType)) {
+        // For typedEntry wildcards, extract the colinear type expression
+        // before parsing the block body — parseSingularField would otherwise
+        // lose it (Block picks blockValue over colinearValue).
+        let typedEntryDecl: Parsed<VariableDeclarationNode> | undefined;
+        if (isTypedEntryWildcard) {
+          const colinearNode =
+            element.childForFieldName('colinear_value') ??
+            element.childForFieldName('expression');
+          typedEntryDecl = colinearNode
+            ? this.parseVariableDeclaration(colinearNode)
+            : undefined;
+        }
+
         // For Block fields with a body, detect orphaned siblings that
         // parser error recovery pushed out of the block's mapping.
         // Pass them as extraElements so they're merged into the block's
@@ -967,10 +988,30 @@ export class Dialect {
           adoptedElements
         );
         if (result) {
-          fields[typeId] = result.value;
+          // For typedEntry wildcards, wrap the parsed Block value in a
+          // ParameterDeclarationNode to preserve the colinear type annotation.
+          let parsedValue = result.value;
+          if (isTypedEntryWildcard) {
+            const decl = new ParameterDeclarationNode({
+              type:
+                typedEntryDecl?.type ??
+                withCst(new Identifier('unknown'), element),
+              defaultValue: typedEntryDecl?.defaultValue,
+            });
+            const wrapped = withCst(decl, element);
+            if (parsedValue && typeof parsedValue === 'object') {
+              wrapped.properties = parsedValue as BlockCore;
+              wrapped.__children.push(
+                new FieldChild('properties', parsedValue, fieldType)
+              );
+            }
+            parsedValue = wrapped;
+          }
+
+          fields[typeId] = parsedValue;
           const singularFc = new FieldChild(
             typeId,
-            result.value,
+            parsedValue,
             fieldType,
             undefined,
             getElementKeyRange(element)

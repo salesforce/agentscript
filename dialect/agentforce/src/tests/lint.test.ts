@@ -1359,6 +1359,40 @@ connection telephony:
     expect(errors).toHaveLength(0);
   });
 
+  it('warns when messaging connection has inputs field', () => {
+    const diagnostics = runSecurityLint(`
+connection messaging:
+    outbound_route_type: OmniChannelFlow
+    outbound_route_name: "flow://Route"
+    inputs:
+        test: string
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'connection-field-not-used'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('Messaging');
+    expect(warnings[0].message).toContain('inputs');
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('warns when customer_web_client connection has inputs field', () => {
+    const diagnostics = runSecurityLint(`
+connection customer_web_client:
+    inputs:
+        test: string
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'connection-field-not-used'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('Customer Web Client');
+    expect(warnings[0].message).toContain('inputs');
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
   // -------------------------------------------------------------------------
   // empty keyword for connections
   // Python: TestEmptyKeyword

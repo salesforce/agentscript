@@ -21,6 +21,7 @@ export {
   agentforceSchemaContext,
   InboundKeywordsBlock,
   PronunciationDictEntryBlock,
+  RESPONSE_FORMAT_INPUT_KEYWORDS,
 } from './schema.js';
 
 export { COMMERCE_SHOPPER_SCHEMA } from './variants/commerce-cloud-shopper.js';

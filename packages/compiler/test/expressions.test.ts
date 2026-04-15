@@ -166,6 +166,52 @@ describe('compileExpression', () => {
     });
   });
 
+  describe('@response_formats references', () => {
+    it('should compile @response_formats.x as response_formats.x when allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_formats'),
+        'myFormat'
+      );
+      expect(
+        compileExpression(expr, ctx, { allowFormatReferences: true })
+      ).toBe('response_formats.myFormat');
+    });
+
+    it('should error for @response_formats.x when not allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_formats'),
+        'myFormat'
+      );
+      compileExpression(expr, ctx, { allowFormatReferences: false });
+      expect(
+        ctx.diagnostics.some(d => d.severity === DiagnosticSeverity.Error)
+      ).toBe(true);
+    });
+  });
+
+  describe('@response_actions references', () => {
+    it('should compile @response_actions.x as response_formats.x when allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_actions'),
+        'myFormat'
+      );
+      expect(
+        compileExpression(expr, ctx, { allowFormatReferences: true })
+      ).toBe('response_formats.myFormat');
+    });
+
+    it('should error for @response_actions.x when not allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_actions'),
+        'myFormat'
+      );
+      compileExpression(expr, ctx, { allowFormatReferences: false });
+      expect(
+        ctx.diagnostics.some(d => d.severity === DiagnosticSeverity.Error)
+      ).toBe(true);
+    });
+  });
+
   describe('@system_variables references', () => {
     it('should compile @system_variables.user_input as state.__user_input__', () => {
       const expr = new MemberExpression(

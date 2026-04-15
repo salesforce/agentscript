@@ -42,8 +42,11 @@ export function compileTemplate(
         if (opts.isSystemMessage) {
           return `{!${compiled}}`;
         }
-        // Action references (action.X) should not be wrapped in {{}}
-        if (compiled.startsWith('action.')) {
+        // Action and response_format references should not be wrapped in {{}}
+        if (
+          compiled.startsWith('action.') ||
+          compiled.startsWith('response_formats.')
+        ) {
           return compiled;
         }
         return `{{${compiled}}}`;

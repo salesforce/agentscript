@@ -129,9 +129,21 @@ export interface AdditionalParameters {
 /** A single state_updates entry: { variable_name: expression } */
 export type StateUpdate = Record<string, string>;
 
-/** Response action for surfaces (not in OpenAPI schema) */
-export interface ResponseAction {
+/** Response format for surfaces (not in OpenAPI schema) */
+export interface ResponseFormat {
   developer_name: string;
   label: string;
+  description: string;
+  source?: string;
+  invocation_target_type?: string;
+  invocation_target_name?: string;
+  input_schema?: string;
+}
+
+/** Format tool for response_formats in reasoning (not in OpenAPI schema) */
+export interface FormatTool {
+  type: 'format';
+  target: string;
+  name: string;
   description: string;
 }

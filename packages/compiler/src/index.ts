@@ -56,7 +56,7 @@ export type {
   OutputParameter,
   Surface,
   OutboundRouteConfig,
-  ResponseAction,
+  ResponseFormat,
   StateUpdate,
 } from './types.js';
 

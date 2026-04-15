@@ -172,7 +172,7 @@ function mapVisibility(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractDefaultValue(
+export function extractDefaultValue(
   defaultVal: Expression | undefined,
   dataType: string,
   isList: boolean

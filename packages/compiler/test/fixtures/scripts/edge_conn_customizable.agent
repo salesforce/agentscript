@@ -1,0 +1,190 @@
+system:
+    instructions: "You are an AI Agent"
+    messages:
+        welcome: "Hi, I'm an AI assistant. How can I help you?"
+        error: "Sorry, it looks like something has gone wrong."
+
+config:
+    developer_name: "CustomizableConnectionAgent"
+    default_agent_user: "NEW AGENT USER"
+    agent_label: "Customizable Connections"
+    description: "Agent with Customizable Connections"
+
+subagent hello:
+    description: "a topic"
+
+
+start_agent start:
+    description: "test"
+
+variables:
+    Context: mutable string = "haha"
+        source: @MessagingSession.MessagingEndUserId
+
+connection slack:
+    empty
+
+# example of a MESSAGING connection with messaging components
+connection messaging:
+    escalation_message: "Connecting you to the next available representative penguin"
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://PenguinSlide"
+
+    source: "connection://SurfaceAction__Messaging"
+
+    reasoning:
+        response_actions:
+            messaging_rich_link: @response_formats.messaging_rich_link
+            messaging_choices: @response_formats.messaging_choices
+            messaging_choices_with_images: @response_formats.messaging_choices_with_images
+            messaging_timepicker: @response_formats.messaging_timepicker
+            forms: @response_formats.forms_component
+
+    response_formats:
+        messaging_rich_link:
+            description: "here's an instruction on how to select this format."
+            source: "response_format://SurfaceAction_MessagingRichLink"
+        messaging_choices:
+            source: "response_format://SurfaceAction__MessagingChoices"
+        messaging_choices_with_images:
+            source: "response_format://SurfaceAction__MessagingChoicesWithImages"
+        messaging_timepicker:
+            source: "response_format://SurfaceAction__MessagingTimePicker"
+        forms_component:
+            description: "Use this when the user wants to create a case."
+            inputs:
+                form_component: object
+                    schema: "messaging_component://1mdSB000002Z7VJYA0"
+
+        choices_custom:
+            description: "use this when <custom>"
+            inputs: 
+                message: string
+                    description: "Extract all introductory, contextual and the final phrase that introduces the choices from the response. The message should contain all content that appears before the list of choices begins. Do not include any link url, image url and link title"
+                    is_required: True
+
+                choices: list[object]
+                    description: "An array of choices, each containing a title, subTitle, secondarySubTitle, tertiarySubTitle, an image URL, an optional image MIME type and an optional action text."
+                    is_required: True
+                    min_items: 1
+            
+                    title: object
+                        description: "The title of the choice."
+                        is_required: True
+
+                        color: string 
+                            description: "The color of the title text."
+                            enum:
+                                - "Black"                                
+                                - "Red"
+
+                    imageUrl: string
+                        description: "A URL to an image representing the choice. Should only be a URL."
+                        is_required: True
+
+                    subTitle: string
+                        description: "The provided subTitles for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
+                        is_required: True
+
+                    secondarySubTitle: string
+                        description: "The provided secondarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
+                        is_required: True
+
+                    tertiarySubTitle: string
+                        description: "The provided tertiarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
+                        is_required: True
+
+                    actionText: string
+                        description: "The action text of the choice. Optional - will use Title value if not provided."
+                        is_required: True
+
+                    imageMimeType: string
+                        description: "The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided."
+                        is_required: False
+                        enum:
+                            - "image/png"
+                            - "image/jpeg"
+                            - "image/gif"
+                            - "image/webp"
+                            - "image/svg+xml"
+
+
+# example of a SERVICE_EMAIL connection with inputs
+connection service_email:
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://PenguinSlide"
+
+    additional_system_instructions: | "You are an AI Agent"
+
+    inputs:
+        LegalDisclosure: string = "This response was generated by a penguin."
+        Signature: string = "quack"
+        MailSlotNumber: number = 1
+        PenguinSpeechify: boolean = False
+            description: "whether to translate response into penguin speech"
+
+    reasoning:
+        instructions: | "sample instruction"
+        response_actions:
+            service_email_text: @response_formats.service_email_text
+
+    response_formats:
+        service_email_text:
+            description: "Always use this format for all responses"
+            source: "response_format://SurfaceAction__ServiceEmailText"
+
+
+# example of a CUSTOM connection with custom formats
+connection penguin:
+    inputs:
+        IsHappy: boolean = False
+
+    label: "Penguin Connection"
+    description: "This connection applies to a penguin"
+
+    reasoning:
+        instructions: |
+            Always use {!@response_formats.high_frequency} when speaking to young penguins
+            When using {!@response_formats.high_frequency_response}, restrict the frequency range to between 285 hz and 590 hz.
+            If {!@inputs.IsHappy} is false, always set the main_course to Big Fish.
+
+        response_actions:
+            high_frequency: @response_formats.high_frequency_response
+
+    response_formats:
+        high_frequency_response:
+            description: "Use this format when responding to high-frequency sounds"
+            inputs:
+                frequency: number
+                    description: "Frequency in Hertz (Hz)"
+                    is_required: True
+                    minimum: 0
+                tokens: list[object]
+                    description: "A list of tokens used"
+                    is_required: False
+
+                    valid_ips: list[object]
+                        description: "valid IP address for this token"
+                        name: string
+                        address: string
+                    key: object
+                        description: "token key"
+                        is_for_auth: boolean
+                        key_alias: string
+                        key_value: string
+                    values: list[string]
+                        description: "valid values of this token"
+                        enum: 
+                            - "ea383mmfsdflapqyreiyocndgjf8"
+                            - "supersecrettokenvalue"
+                            - "10230392823942739487298374234"                          
+
+
+        food:
+            description: "Use this when the user asks for food"
+            target: "apex://cookFish"
+            inputs:
+                main_course: string
+                    is_required: True
+                dessert: string
+                    is_required: True

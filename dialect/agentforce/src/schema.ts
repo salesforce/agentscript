@@ -3,6 +3,7 @@ import {
   NamedBlock,
   CollectionBlock,
   NamedCollectionBlock,
+  TypedMap,
   SymbolKind,
   StringValue,
   NumberValue,
@@ -12,8 +13,9 @@ import {
   ExpressionSequence,
   createSchemaContext,
   ExpressionValue,
-  ProcedureValue,
   buildKindToSchemaKey,
+  AGENTSCRIPT_PRIMITIVE_TYPES,
+  InputPropertiesBlock,
 } from '@agentscript/language';
 
 import type {
@@ -83,6 +85,9 @@ const AFInputsBlock = InputsBlock.extendProperties({
     'Whether the planner can use this input.'
   ),
 });
+
+// Connection inputs - Cross-block referenceable
+const AFConnectionInputsBlock = InputsBlock.crossBlockReferenceable();
 
 const AFOutputsBlock = OutputsBlock.extendProperties({
   developer_name: StringValue.describe(
@@ -367,46 +372,223 @@ export const KnowledgeBlock = Block('KnowledgeBlock', {
     citations_enabled: True`
   );
 
-const ResponseActionsEntryBlock = NamedBlock(
-  'ResponseActionsBlock',
+// Deferred wildcard reference to support rescursive/nested structure:
+//    filled in after the block is created so that
+//    nested sub-fields at any depth are parsed with the same property keywords.
+const _inputPropsWildcard: {
+  prefix: string;
+  fieldType: FieldType;
+  typedEntry: boolean;
+} = {
+  prefix: '',
+  fieldType: undefined as unknown as FieldType, // patched below
+  typedEntry: true,
+};
+
+// Properties block for response format input fields.
+// Extends InputPropertiesBlock to inherit: label, description, is_required
+const ResponseFormatInputPropertiesBlock = InputPropertiesBlock.extend(
   {
-    description: StringValue.describe(
-      'Description of the tool provided to the LLM. Overrides the action description.'
+    schema: StringValue.describe(
+      'Schema URI for input validation (e.g., "messaging_components://FormName").'
     ),
+    enum: ExpressionSequence().describe('Allowed values for this input.'),
+    min_length: NumberValue.describe('Minimum string length.'),
+    max_length: NumberValue.describe('Maximum string length.'),
+    minimum: NumberValue.describe('Minimum numeric value.'),
+    maximum: NumberValue.describe('Maximum numeric value.'),
+    min_items: NumberValue.describe('Minimum array items.'),
+    max_items: NumberValue.describe('Maximum array items.'),
+  },
+  {
+    symbol: { kind: SymbolKind.Object, noRecurse: true },
+    // Accept nested sub-fields (e.g. `title: string` inside `choices: list[object]`)
+    //  at any depth with the same property keywords.
+    wildcardPrefixes: [_inputPropsWildcard],
+  }
+).describe('Properties for a response format input field.');
+
+/**
+ * Known property keywords on ResponseFormatInputPropertiesBlock.
+ * Derived from the Block schema so it stays in sync automatically.
+ * Used by the compiler and linter to distinguish metadata keywords
+ * from wildcard-matched sub-field declarations.
+ */
+export const RESPONSE_FORMAT_INPUT_KEYWORDS = new Set(
+  Object.keys(ResponseFormatInputPropertiesBlock.schema)
+);
+
+// Patch the deferred reference so the wildcard resolves to the block itself.
+_inputPropsWildcard.fieldType = ResponseFormatInputPropertiesBlock;
+
+// Typed map for response format inputs (supports all primitive types)
+const ResponseFormatInputsBlock = TypedMap(
+  'ResponseFormatInputsBlock',
+  ResponseFormatInputPropertiesBlock,
+  { primitiveTypes: AGENTSCRIPT_PRIMITIVE_TYPES }
+).describe('Structured input schema for response format definitions.');
+
+// Response format definition block
+const ResponseFormatBlock = NamedBlock(
+  'ResponseFormatBlock',
+  {
     label: StringValue.describe(
-      'Human-readable label for the tool. Not provided to the LLM.'
+      'Human-readable label for the format. Not provided to the LLM.'
+    ),
+    description: StringValue.describe('Description of the response format.'),
+    source: StringValue.describe(
+      'Source identifier for an existing format (e.g., "SurfaceAction__MessagingChoices").'
+    ),
+    target: StringValue.describe(
+      'Target URI for custom format (e.g., "apex://MessagingLinksButSpecial").'
+    ),
+    inputs: ResponseFormatInputsBlock.describe(
+      'Structured input schema for this response format.'
     ),
   },
   {
-    colinear: ExpressionValue,
-    body: ProcedureValue,
     symbol: { kind: SymbolKind.Method },
-    scopeAlias: 'action',
+    scopeAlias: 'response_formats',
+    capabilities: ['invocationTarget'],
   }
-).describe('Reasoning loop for connections.');
+)
+  .describe('Response format definition with schema and target.')
+  .example(
+    `    response_formats:
+        # Existing format with no changes
+        messaging_rich_link:
+            source: "response_format://SurfaceAction__MessagingRichLink"
+
+        # Existing format with description override
+        messaging_choices_penguins:
+            description: "Description of this format"
+            source: "response_format://SurfaceAction__MessagingChoices"
+
+        # Custom format with structured input schema
+        custom_messaging_choices:
+            description: "A messaging choices format"
+            target: "apex://MessagingChoicesHandler"
+            inputs:
+                message: string
+                    description: "The message text"
+                    is_required: True
+                choices: list[string]
+                    is_required: True
+                title: string
+                    description: "Heading for the options"
+                    is_required: True`
+  );
+
+// Collection of response format definitions (matches ActionsBlock structure)
+const ResponseFormatsBlock = CollectionBlock(ResponseFormatBlock).describe(
+  'Collection of response format definitions.'
+);
+
+// Available format block (reference only - no additional fields)
+const AvailableFormatBlock = NamedBlock(
+  'AvailableFormatBlock',
+  {},
+  {
+    colinear: ExpressionValue.resolvedType('invocationTarget'),
+    symbol: { kind: SymbolKind.Method },
+    scopeAlias: 'response_actions',
+  }
+)
+  .describe('Response format made available to the LLM for selection.')
+  .example(
+    `response_actions:
+            messaging_rich_link: @response_formats.messaging_rich_link
+            messaging_choices: @response_formats.messaging_choices`
+  );
+
+const AvailableFormatsBlock = CollectionBlock(AvailableFormatBlock).describe(
+  'Formats available to the LLM for non-deterministic selection.'
+);
+
+// Connection-level reasoning block
+const ConnectionReasoningBlock = Block(
+  'ConnectionReasoningBlock',
+  {
+    instructions: StringValue.describe(
+      'Connection-level instructions for the agent. Supports {!<expression>} template interpolation.'
+    ),
+    response_actions: AvailableFormatsBlock.describe(
+      'Response format tools available to the LLM for non-deterministic selection during reasoning.'
+    ),
+  },
+  { symbol: { kind: SymbolKind.Namespace } }
+).describe('Reasoning configuration for the connection.');
 
 export const ConnectionBlock = NamedBlock(
   'ConnectionBlock',
   {
+    label: StringValue.describe('Display label for the connection.').accepts([
+      'StringLiteral',
+    ]),
+    description: StringValue.describe('Description of the connection purpose.'),
+    source: StringValue.describe('Source identifier for the connection.'),
+    inputs: AFConnectionInputsBlock.describe(
+      'Parameters defined by surface owners.'
+    ),
+    additional_system_instructions: StringValue.describe(
+      'Additional system instructions that append to global system instructions. Supports {!<expression>} template interpolation.'
+    ),
+    reasoning: ConnectionReasoningBlock.describe(
+      'Reasoning configuration with instructions and available formats.'
+    ),
+    response_formats: ResponseFormatsBlock.describe(
+      'Response format definitions for this connection.'
+    ),
     adaptive_response_allowed: BooleanValue.describe(
       'Whether adaptive responses are allowed for this connection.'
     ),
-    escalation_message: StringValue.describe('Message to show for Escalation.'),
-    instructions: StringValue.describe('Instructions for the connection.'),
+    escalation_message: StringValue.describe(
+      'Message sent when escalating to a human agent.'
+    ),
     outbound_route_type: StringValue.describe(
-      'Type of outbound route. Currently gets defaulted to OmniChannelFlow'
+      'Type of outbound route (e.g., "OmniChannelFlow").'
     ),
     outbound_route_name: StringValue.describe(
-      'Name of outbound route. Example: "flow://Route_to_ELL_Agent"'
+      'Name of outbound route (e.g., "flow://Route_to_Agent").'
     ),
-    response_actions: CollectionBlock(ResponseActionsEntryBlock),
   },
-  { symbol: { kind: SymbolKind.Interface } }
+  {
+    symbol: { kind: SymbolKind.Interface },
+    scopeAlias: 'connection',
+  }
 )
   .describe('External connection configuration.')
   .example(
-    `connection messaging:
-    adaptive_response_allowed: True`
+    `connection service_email:
+    label: "Email Connection"
+    description: "Connection for email channels"
+
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route"
+
+    inputs:
+        legal_disclosure: string = "this is a disclosure"
+            description: "Legal disclosure message"
+
+    additional_system_instructions: |
+        Use recipient name if provided
+
+    reasoning:
+        instructions: |
+            Always append {!@inputs.legal_disclosure}
+            Use {!@response_actions.choices} for multiple choice responses
+
+        response_actions:
+            choices: @response_formats.email_choices
+            rich_link: @response_formats.email_rich_link
+
+    response_formats:
+        email_choices:
+            description: "Multiple choice format"
+            source: "response_format://SurfaceAction__EmailTextChoices"
+
+        email_rich_link:
+            source: "response_format://SurfaceAction__EmailTextRichLink"`
   );
 
 export const ConnectionsBlock = NamedCollectionBlock(ConnectionBlock);
