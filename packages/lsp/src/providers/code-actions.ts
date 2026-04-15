@@ -250,44 +250,6 @@ export function provideCodeActions(
         }
       }
 
-      // Quick fix for unused variable — remove the declaration
-      if (diagnostic.code === 'unused-variable') {
-        const removalRange = diagnostic.data?.removalRange as Range | undefined;
-        if (!removalRange) continue;
-
-        // Delete the full line(s) of the variable declaration
-        const lines = source.split('\n');
-        const startLine = removalRange.start.line;
-        const endLine = removalRange.end.line;
-
-        // Include the trailing newline so we don't leave a blank line
-        const deleteRange =
-          endLine + 1 < lines.length
-            ? {
-                start: { line: startLine, character: 0 },
-                end: { line: endLine + 1, character: 0 },
-              }
-            : ({
-                start: { line: startLine, character: 0 },
-                end: {
-                  line: endLine,
-                  character: lines[endLine]?.length ?? 0,
-                },
-              } satisfies Range);
-
-        actions.push({
-          title: `Remove unused variable`,
-          kind: CodeActionKind.QuickFix,
-          diagnostics: [diagnostic],
-          isPreferred: true,
-          edit: {
-            changes: {
-              [uri]: [{ range: deleteRange, newText: '' }],
-            },
-          },
-        });
-      }
-
       // Quick fix for version mismatch — offer each suggested version
       if (diagnostic.code === 'invalid-version') {
         const suggestedVersions = diagnostic.data?.suggestedVersions as
