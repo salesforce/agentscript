@@ -1,0 +1,105 @@
+# @dialect: agentforce
+
+system:
+    instructions: "You are a commerce assistant that helps shoppers find and purchase products."
+    messages:
+        welcome: "Hello! I'm your shopping assistant. How can I help you today?"
+        error: "Sorry, something went wrong. Please try again."
+
+config:
+    developer_name: "commerce_shopper_agent"
+    agent_label: "Commerce Shopper Agent"
+    description: "Assists customers in browsing products, searching catalogs, and managing carts."
+    default_agent_user: "commerce@example.com"
+    agent_type: "AgentforceServiceAgent"
+
+language:
+    default_locale: "en_US"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "MessagingEndUser Id"
+    RoutableId: linked string
+        source: @MessagingSession.Id
+        description: "MessagingSession Id"
+
+knowledge:
+    citations_enabled: False
+
+start_agent router:
+    description: "Route shopping requests to the appropriate agent"
+    reasoning:
+        instructions: ->
+            | Analyze the user's request and route to the appropriate agent.
+              Use {!@actions.go_to_browse} for product browsing.
+              Use {!@actions.go_to_shopper} for product search and cart operations.
+        actions:
+            go_to_browse: @utils.transition to @subagent.product_browse
+                description: "Handle browsing queries"
+            go_to_shopper: @utils.transition to @subagent.Shopper_Agent
+                description: "Handle shopping queries"
+
+subagent product_browse:
+    description: "Browse and search products"
+    actions:
+        Browse_Catalog:
+            description: "Browse the product catalog"
+            target: "flow://Browse_Catalog"
+            label: "Browse Catalog"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            progress_indicator_message: "Browsing the catalog..."
+            source: "CommerceGuidedShopping__BrowseCatalog"
+            inputs:
+                category: string
+                    description: "Product category to browse"
+                    is_required: True
+                    is_user_input: True
+    reasoning:
+        instructions: ->
+            | Help the user browse and search for products.
+              Use {!@actions.browse} when the user wants to explore product categories.
+        actions:
+            browse: @actions.Browse_Catalog
+                with category=...
+
+subagent Shopper_Agent:
+    schema: "node://commerce/cloud_shopper/v1"
+    description: "Commerce Cloud shopper agent for assisted buying"
+    label: "Shopper Agent"
+    parameters:
+        template:
+            auth_token: @variables.EndUserId
+    actions:
+        Search_Products:
+            description: "Search the product catalog"
+            label: "Search Products"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            source: "CommerceGuidedShoppingB2C__GetB2CUserAccessToken"
+            target: "flow://getB2cUserAccessToken"
+            inputs:
+                query: string
+                    description: "Search query text"
+                    is_required: True
+                auth_named_credential: @variables.EndUserId
+                    description: "Auth credential"
+                    is_required: True
+        Add_To_Cart:
+            description: "Add item to shopping cart"
+            target: "flow://add_to_cart"
+            label: "Add To Cart"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            source: "CommerceGuidedShoppingB2C__AddToCart"
+            inputs:
+                product_id: string
+                    description: "Product identifier"
+                    is_required: True
+                quantity: number
+                    description: "Quantity to add"
+                    is_required: True
+                auth_named_credential: @variables.EndUserId
+                    description: "Auth credential"
+                    is_required: True

@@ -22,19 +22,8 @@ import {
 import { typeMapKey } from '@agentscript/agentscript-dialect';
 import type { PassStore } from '@agentscript/language';
 import type { AstRoot } from '@agentscript/language';
-import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
-
-/** Get a diagnostic range from a declaration node. */
-function getDeclRange(decl: AstNodeLike) {
-  const cst = decl.__cst as CstMeta | undefined;
-  return (
-    cst?.range ?? {
-      start: { line: 0, character: 0 },
-      end: { line: 0, character: 0 },
-    }
-  );
-}
+import { getBlockRange as getDeclRange } from '../utils.js';
 
 class VariableValidationPass implements LintPass {
   readonly id = storeKey('variable-validation');

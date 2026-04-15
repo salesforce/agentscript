@@ -19,6 +19,7 @@ import {
 } from '@agentscript/language';
 import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
+import { getBlockRange } from '../utils.js';
 
 /** Extract a string value from a StringLiteral AST node. */
 function getStringValue(
@@ -31,17 +32,6 @@ function getStringValue(
   if (typeof obj.value !== 'string' || obj.value.trim().length === 0)
     return undefined;
   return { value: obj.value, astNode: obj as AstNodeLike };
-}
-
-/** Get the CST range for a config block (the header/key). */
-function getBlockRange(block: AstNodeLike) {
-  const cst = block.__cst as CstMeta | undefined;
-  return (
-    cst?.range ?? {
-      start: { line: 0, character: 0 },
-      end: { line: 0, character: 0 },
-    }
-  );
 }
 
 class ConfigValidationPass implements LintPass {

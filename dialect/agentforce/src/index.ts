@@ -23,6 +23,8 @@ export {
   PronunciationDictEntryBlock,
 } from './schema.js';
 
+export { COMMERCE_SHOPPER_SCHEMA } from './variants/commerce-cloud-shopper.js';
+
 export type {
   AgentforceSchema as AgentforceSchemaType,
   ParsedAgentforce,

@@ -40,6 +40,11 @@ import {
   defaultSubagentFields,
 } from '@agentscript/agentscript-dialect';
 
+import {
+  COMMERCE_SHOPPER_SCHEMA,
+  commerceShopperVariantFields,
+} from './variants/commerce-cloud-shopper.js';
+
 const AFVariablesBlock = VariablesBlock.extendProperties({
   source: ReferenceValue.describe(
     'Where the variable gets its value. Required for linked variables, not allowed for mutable variables (e.g., @MessagingSession.Id).'
@@ -101,7 +106,7 @@ const ModelConfigParamsBlock = Block('ModelConfigParamsBlock', {}).describe(
   'Model parameters as key-value pairs. Accepts arbitrary parameters that vary by model (e.g., temperature, max_tokens, top_p). Values can be strings, numbers, booleans, or arrays. Parameters are dynamically extracted at compile time.'
 );
 
-const ModelConfigBlock = Block('ModelConfigBlock', {
+export const ModelConfigBlock = Block('ModelConfigBlock', {
   model: StringValue.describe('Model identifier URI (e.g., "model://...")'),
   params: ModelConfigParamsBlock.describe(
     'Additional model parameters (e.g., temperature: 0.7, max_tokens: 2000)'
@@ -301,7 +306,19 @@ export const AFTopicBlock = NamedBlock(
 // Subagent block — uses 'actions' and 'reasoning.actions' (same as topic)
 // ---------------------------------------------------------------------------
 
-/** Subagent block — distinct __kind 'SubagentBlock', uses actions + reasoning.actions. */
+/**
+ * Pre-merge variant fields for commerce shopper subagents.
+ * Exported so the lint pass can check allowed fields before NamedBlock merges with the base.
+ */
+export const commerceShopperVariant = {
+  ...commerceShopperVariantFields,
+  actions: AFActionsBlock,
+  model_config: ModelConfigBlock.describe(
+    'Model configuration for this block.'
+  ),
+  security: SecurityBlock,
+};
+
 export const AFSubagentBlock = NamedBlock(
   'SubagentBlock',
   {
@@ -311,7 +328,8 @@ export const AFSubagentBlock = NamedBlock(
   { scopeAlias: 'subagent', ...sharedBlockOpts }
 )
   .describe('A subagent defining agent logic with actions and reasoning.')
-  .discriminant('schema');
+  .discriminant('schema')
+  .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant);
 
 // ---------------------------------------------------------------------------
 // StartAgent block

@@ -18,6 +18,7 @@ export {
 export { configValidationRule } from './config-validation.js';
 export { variableValidationRule } from './variable-validation.js';
 export { complexDataTypeWarningRule } from './complex-data-type.js';
+export { customSubagentValidationRule } from './custom-subagent-validation.js';
 
 import { actionTargetSchemeRule } from './action-target.js';
 import {
@@ -35,6 +36,7 @@ import {
 import { configValidationRule } from './config-validation.js';
 import { variableValidationRule } from './variable-validation.js';
 import { complexDataTypeWarningRule } from './complex-data-type.js';
+import { customSubagentValidationRule } from './custom-subagent-validation.js';
 
 /** All Agentforce lint rules — extends AgentScript rules with security checks. */
 export function defaultRules(): LintPass[] {
@@ -52,5 +54,6 @@ export function defaultRules(): LintPass[] {
     configValidationRule(),
     variableValidationRule(),
     complexDataTypeWarningRule(),
+    customSubagentValidationRule(),
   ];
 }

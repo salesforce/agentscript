@@ -32,6 +32,8 @@ export {
   surface as surfaceSchema,
   inputParameter as inputParameterSchema,
   outputParameter as outputParameterSchema,
+  byonNode as byonNodeSchema,
+  byoClientConfig as byoClientConfigSchema,
 } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
@@ -75,7 +77,9 @@ export type StateVariable = z.infer<typeof schema.stateVariable>;
 export type SubAgentNode = z.infer<typeof schema.subAgentNode>;
 export type RouterNode = z.infer<typeof schema.routerNode>;
 export type RelatedAgentNode = z.infer<typeof schema.relatedAgentNode>;
-export type AgentNode = SubAgentNode | RouterNode | RelatedAgentNode;
+export type BYONNode = z.infer<typeof schema.byonNode>;
+export type BYOClientConfig = z.infer<typeof schema.byoClientConfig>;
+export type AgentNode = SubAgentNode | RouterNode | RelatedAgentNode | BYONNode;
 
 // -- Actions & Tools --
 export type Action = z.infer<typeof schema.action>;

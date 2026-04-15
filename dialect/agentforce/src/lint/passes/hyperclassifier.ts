@@ -26,6 +26,7 @@ import {
 import type { LintPass, PassStore } from '@agentscript/language';
 import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
+import { extractStringValue } from '../utils.js';
 
 const HYPERCLASSIFIER_MODEL = 'model://sfdc_ai__DefaultEinsteinHyperClassifier';
 
@@ -44,13 +45,7 @@ function getModelString(block: AstNodeLike): string | undefined {
   const modelConfig = block.model_config;
   if (!modelConfig || typeof modelConfig !== 'object') return undefined;
   const model = (modelConfig as Record<string, unknown>).model;
-  if (!model) return undefined;
-  if (typeof model === 'string') return model;
-  if (typeof model === 'object' && 'value' in model) {
-    const v = (model as { value: unknown }).value;
-    if (typeof v === 'string') return v;
-  }
-  return undefined;
+  return extractStringValue(model);
 }
 
 /** Check if a before_reasoning or after_reasoning block has statements. */
