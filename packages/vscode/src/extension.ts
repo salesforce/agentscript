@@ -60,7 +60,7 @@ function trackAgentScriptFile(doc: vscode.TextDocument): void {
   if (reportedFiles.has(key)) return;
   reportedFiles.add(key);
 
-  getTelemetryService()?.sendEventData('agentScriptFile_opened', {
+  getTelemetryService()?.sendCommandEvent('agentScriptFile_opened', undefined, {
     scheme: doc.uri.scheme,
     fileName: path.basename(doc.uri.fsPath),
   });

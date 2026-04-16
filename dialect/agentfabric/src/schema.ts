@@ -501,6 +501,17 @@ export const AgentFabricSchemaInfo: SchemaInfo = {
   globalScopes: {
     request: new Set(['payload', 'interface', 'headers']),
   },
+  namespacedFunctions: {
+    a2a: new Set([
+      'task',
+      'message',
+      'textPart',
+      'parts',
+      'dataPart',
+      'filePart',
+      'artifact',
+    ]),
+  },
 };
 
 export const agentFabricSchemaContext: SchemaContext = createSchemaContext(

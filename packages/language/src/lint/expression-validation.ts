@@ -6,19 +6,19 @@
  */
 
 import type { AstNodeLike } from '../core/types.js';
-import { DiagnosticSeverity } from '../core/diagnostics.js';
-import { attachDiagnostic } from '../core/diagnostics.js';
-import { storeKey, type LintPass } from '../core/analysis/lint.js';
+import { attachDiagnostic, DiagnosticSeverity } from '../core/diagnostics.js';
+import { type LintPass, storeKey } from '../core/analysis/lint.js';
 import type { ScopeContext } from '../core/analysis/scope.js';
 import {
-  CallExpression,
   BinaryExpression,
+  CallExpression,
   Identifier,
+  MemberExpression,
 } from '../core/expressions.js';
 import {
-  lintDiagnostic,
   findSuggestion,
   formatSuggestionHint,
+  lintDiagnostic,
 } from './lint-utils.js';
 
 /**
@@ -59,6 +59,8 @@ const DEFAULT_SUPPORTED_OPERATORS: ReadonlySet<string> = new Set([
 export interface ExpressionValidationOptions {
   /** Complete set of allowed function names. Defaults to {@link BUILTIN_FUNCTIONS}. */
   functions?: ReadonlySet<string>;
+  /** Map from namespace name to the set of function names allowed under that namespace (e.g. `{ a2a: new Set(['task', 'message']) }`). Defaults to empty object. */
+  namespacedFunctions?: Record<string, ReadonlySet<string>>;
   /** Complete set of supported binary operators. Defaults to the built-in operator set. */
   supportedOperators?: ReadonlySet<string>;
 }
@@ -75,11 +77,13 @@ class ExpressionValidationPass implements LintPass {
     'Validates function calls and operators used in expressions';
 
   private readonly allowedFunctions: ReadonlySet<string>;
+  private readonly namespacedFunctions: Record<string, ReadonlySet<string>>;
   private readonly allowedFunctionsList: string[];
   private readonly supportedOperators: ReadonlySet<string>;
 
   constructor(options: ExpressionValidationOptions = {}) {
     this.allowedFunctions = options.functions ?? BUILTIN_FUNCTIONS;
+    this.namespacedFunctions = options.namespacedFunctions ?? {};
     this.supportedOperators =
       options.supportedOperators ?? DEFAULT_SUPPORTED_OPERATORS;
     this.allowedFunctionsList = [...this.allowedFunctions];
@@ -100,53 +104,118 @@ class ExpressionValidationPass implements LintPass {
     const func = expr.func;
     if (!func || typeof func !== 'object' || !('__kind' in func)) return;
 
-    // Direct function call (e.g. len(...)) — validate against allowlist
-    if (func instanceof Identifier) {
-      const funcName = func.name;
-      if (funcName.length === 0) {
-        // Identifier node missing 'name' — emit a diagnostic so this
-        // doesn't silently disappear if the AST shape changes.
+    if (func instanceof MemberExpression) {
+      const namespaceExpression = func.object;
+      if (namespaceExpression instanceof Identifier) {
+        const namespaceName = namespaceExpression.name;
+        const allowedInNamespace =
+          this.namespacedFunctions[namespaceName] ?? new Set<string>();
+        if (!(namespaceName in this.namespacedFunctions)) {
+          // Unknown namespace – report the namespace identifier as unrecognized
+          const knownNamespaces = Object.keys(this.namespacedFunctions);
+          const suggestion = findSuggestion(namespaceName, knownNamespaces);
+          const base = `'${namespaceName}' is not a recognized function. Available functions: ${[...this.allowedFunctionsList, ...knownNamespaces].join(', ')}`;
+          const message = formatSuggestionHint(base, suggestion);
+          attachDiagnostic(
+            expr,
+            lintDiagnostic(
+              cst.range,
+              message,
+              DiagnosticSeverity.Error,
+              'unknown-function',
+              { suggestion }
+            )
+          );
+        } else if (!allowedInNamespace.has(func.property)) {
+          // Known namespace but unknown function within it
+          const allowedList = [...allowedInNamespace];
+          const suggestion = findSuggestion(func.property, allowedList);
+          const base = `'${func.property}' is not a recognized function in namespace '${namespaceName}'. Available functions: ${allowedList.join(', ')}`;
+          const message = formatSuggestionHint(base, suggestion);
+          attachDiagnostic(
+            expr,
+            lintDiagnostic(
+              cst.range,
+              message,
+              DiagnosticSeverity.Error,
+              'unknown-function',
+              { suggestion }
+            )
+          );
+        }
+      } else {
+        const allNamespacedFns = Object.entries(
+          this.namespacedFunctions
+        ).flatMap(([ns, fns]) => [...fns].map(f => `${ns}.${f}`));
         attachDiagnostic(
           expr,
           lintDiagnostic(
             cst.range,
-            'Unexpected Identifier node: missing "name" property',
-            DiagnosticSeverity.Warning,
-            'malformed-ast'
-          )
-        );
-        return;
-      }
-
-      if (!this.allowedFunctions.has(funcName)) {
-        const suggestion = findSuggestion(funcName, this.allowedFunctionsList);
-        const base = `'${funcName}' is not a recognized function. Available functions: ${this.allowedFunctionsList.join(', ')}`;
-        const message = formatSuggestionHint(base, suggestion);
-
-        attachDiagnostic(
-          expr,
-          lintDiagnostic(
-            cst.range,
-            message,
+            `Namespace function calls are not permitted. Only direct namespace function calls are allowed (${allNamespacedFns.join(', ')})`,
             DiagnosticSeverity.Error,
-            'unknown-function',
-            { suggestion }
+            'namespace-function-call'
           )
         );
       }
-      return;
+    } else if (func instanceof Identifier) {
+      this.validateIdentifier(
+        func,
+        expr,
+        this.allowedFunctions,
+        this.allowedFunctionsList
+      );
+    } else {
+      // Indirect / method call (e.g. @variables.items.append(...))
+      attachDiagnostic(
+        expr,
+        lintDiagnostic(
+          cst.range,
+          `Indirect function calls are not permitted. Only direct calls to built-in functions are allowed (${this.allowedFunctionsList.join(', ')})`,
+          DiagnosticSeverity.Error,
+          'indirect-function-call'
+        )
+      );
     }
+  }
 
-    // Indirect / method call (e.g. @variables.items.append(...))
-    attachDiagnostic(
-      expr,
-      lintDiagnostic(
-        cst.range,
-        `Indirect function calls are not permitted. Only direct calls to built-in functions are allowed (${this.allowedFunctionsList.join(', ')})`,
-        DiagnosticSeverity.Error,
-        'indirect-function-call'
-      )
-    );
+  private validateIdentifier(
+    func: Identifier,
+    expr: AstNodeLike,
+    allowedFunctions: ReadonlySet<string>,
+    allowedFunctionList: string[]
+  ) {
+    const cst = expr.__cst;
+    if (!cst) return;
+
+    const funcName = func.name;
+    if (funcName.length === 0) {
+      // Identifier node missing 'name' — emit a diagnostic so this
+      // doesn't silently disappear if the AST shape changes.
+      attachDiagnostic(
+        expr,
+        lintDiagnostic(
+          cst.range,
+          'Unexpected Identifier node: missing "name" property',
+          DiagnosticSeverity.Warning,
+          'malformed-ast'
+        )
+      );
+    } else if (!allowedFunctions.has(funcName)) {
+      const suggestion = findSuggestion(funcName, allowedFunctionList);
+      const base = `'${funcName}' is not a recognized function. Available functions: ${allowedFunctionList.join(', ')}`;
+      const message = formatSuggestionHint(base, suggestion);
+
+      attachDiagnostic(
+        expr,
+        lintDiagnostic(
+          cst.range,
+          message,
+          DiagnosticSeverity.Error,
+          'unknown-function',
+          { suggestion }
+        )
+      );
+    }
   }
 
   private checkBinaryExpression(expr: AstNodeLike): void {

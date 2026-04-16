@@ -40,7 +40,7 @@ export function actionIoRule(): LintPass {
 
       if (!statements) {
         for (const [inputName, info] of sig.inputs) {
-          if (!info.hasDefault && actionRefRange) {
+          if (!info.hasDefault && info.isRequired !== false && actionRefRange) {
             attachDiagnostic(
               ra,
               lintDiagnostic(
@@ -111,6 +111,7 @@ export function actionIoRule(): LintPass {
       for (const [inputName, info] of sig.inputs) {
         if (
           !info.hasDefault &&
+          info.isRequired !== false &&
           !providedInputs.has(inputName) &&
           actionRefRange
         ) {

@@ -78,6 +78,8 @@ const SCALAR_TO_PARAMETER_DATA_TYPE: Record<string, ParameterDataType> = {
   string: 'String',
   text: 'String',
   number: 'Double',
+  integer: 'Integer',
+  long: 'Long',
   boolean: 'Boolean',
   object: 'LightningTypes',
   date: 'Date',

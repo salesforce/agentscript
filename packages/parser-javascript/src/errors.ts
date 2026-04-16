@@ -84,6 +84,25 @@ export function tokenToLeaf(
   );
 }
 
+/** Named token kinds — tokens that become named CST children. */
+const NAMED_TOKEN_KINDS: ReadonlySet<TokenKind> = new Set([
+  TokenKind.ID,
+  TokenKind.NUMBER,
+  TokenKind.STRING,
+  TokenKind.DATETIME,
+  TokenKind.COMMENT,
+  TokenKind.ELLIPSIS,
+]);
+
+/** Create a leaf CST node from a token, auto-determining isNamed from its kind. */
+export function tokenToAutoLeaf(
+  token: Token,
+  source: string,
+  offset: number
+): CSTNode {
+  return tokenToLeaf(token, source, NAMED_TOKEN_KINDS.has(token.kind), offset);
+}
+
 function tokenTypeToNodeType(token: Token): string {
   switch (token.kind) {
     case TokenKind.ID:

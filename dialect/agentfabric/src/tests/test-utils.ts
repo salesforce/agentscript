@@ -69,6 +69,17 @@ export function parseWithDiagnostics<T extends Schema>(
 }
 
 /**
+ * Cast a parsed document to Record<string, unknown> for compile().
+ *
+ * The compiler uses dynamic field access internally, so it accepts
+ * Record<string, unknown>. Parsed<InferFields<T>> has the same runtime
+ * shape but a narrower type-level signature. This centralises the cast.
+ */
+export function toRecord<T>(parsed: Parsed<T>): Record<string, unknown> {
+  return parsed as unknown as Record<string, unknown>;
+}
+
+/**
  * Parse and lint a source string using the AgentFabric dialect.
  */
 export function parseAndLintSource(source: string) {

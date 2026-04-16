@@ -417,7 +417,7 @@ subagent returns:
     expect(syntaxErrors).toHaveLength(0);
   });
 
-  // Skipped: topic deprecation diagnostics are temporarily disabled.
+  // TODO: restore once topic deprecated() is re-enabled in schema.ts
   it.skip('emits deprecated diagnostics for old-style names', () => {
     const { diagnostics } = parseWithDiagnostics(`
 topic main:

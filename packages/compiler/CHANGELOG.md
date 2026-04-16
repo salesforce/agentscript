@@ -1,5 +1,42 @@
 # @agentscript/compiler
 
+## 2.4.18
+
+### Patch Changes
+
+- Fix default value compilation for object and list state variables. Dict literal defaults now populate the `default` field with their actual entries instead of emitting an empty `{}`, list defaults preserve their elements, and dict keys parse as `StringLiteral` nodes instead of quoted `Identifier`s.
+- Updated dependencies
+  - @agentscript/language@2.4.10
+  - @agentscript/agentforce-dialect@2.7.13
+
+## 2.4.17
+
+### Patch Changes
+
+- Fix `@outputs` reference and completion resolution inside nested `run @actions.X` blocks so they resolve against the nested run target rather than the enclosing reasoning action binding. Add `integer` and `long` scalar-to-ParameterDataType mappings for action parameters. Fix template literal indentation handling in the JavaScript lexer.
+- Updated dependencies
+  - @agentscript/language@2.4.9
+  - @agentscript/agentforce-dialect@2.7.12
+  - @agentscript/parser@3.0.6
+
+## 2.4.16
+
+### Patch Changes
+
+- @agentscript/agentforce-dialect@2.7.11
+
+## 2.4.15
+
+### Patch Changes
+
+- Switch locale validation in the modality compiler to use the `supportedLocale` zod enum from the generated agent-dsl schema, replacing the hand-maintained `VALID_LOCALES` set and removing the `sync:locales` sync script.
+
+## 2.4.14
+
+### Patch Changes
+
+- Disallow supervision tools with hyper-clf
+
 ## 2.4.13
 
 ### Patch Changes

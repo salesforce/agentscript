@@ -1,5 +1,20 @@
 # @agentscript/monaco
 
+## 2.2.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.10
+
+## 2.2.10
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.9
+  - @agentscript/parser@3.0.6
+
 ## 2.2.9
 
 ### Patch Changes

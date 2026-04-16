@@ -28,6 +28,7 @@ import {
   collectNamespaceMaps,
   resolveNamespaceKeys,
   getNamespaceMetadata,
+  activeScopeForNamespace,
   type ScopeContext,
   type SchemaContext,
 } from './scope.js';
@@ -36,6 +37,7 @@ import { recurseAstChildren } from './ast-walkers.js';
 import { getSymbolNamespaceEntries, type DocumentSymbol } from './symbols.js';
 import type { PositionIndex } from './position-index.js';
 import { queryScopeAtPosition } from './position-index.js';
+import { decomposeAtMemberExpression } from '../expressions.js';
 
 /** A completion candidate returned by the dialect layer. */
 export interface CompletionCandidate {
@@ -118,13 +120,18 @@ export function getAvailableNamespaces(
   const candidates: CompletionCandidate[] = [];
 
   for (const [ns, meta] of getNamespaceMetadata(ctx)) {
-    if (meta.scopeRequired && !scope?.[meta.scopeRequired]) continue;
+    if (
+      meta.scopesRequired &&
+      !activeScopeForNamespace(meta.scopesRequired, scope)
+    ) {
+      continue;
+    }
 
     candidates.push({
       name: ns,
       kind: meta.kind,
-      detail: meta.scopeRequired
-        ? `(scoped to ${meta.scopeRequired})`
+      detail: meta.scopesRequired
+        ? `(scoped to ${[...meta.scopesRequired].join(' or ')})`
         : undefined,
     });
   }
@@ -138,16 +145,54 @@ export function getAvailableNamespaces(
  *
  * When `symbols` is provided, uses the pre-computed DocumentSymbol tree
  * to avoid re-walking the AST.
+ *
+ * When `line`/`character` are provided, applies a nested-run override for
+ * colinear-resolved scoped namespaces (e.g. `outputs`): if the cursor is
+ * inside a `set` clause of a nested `run @actions.X`, `@outputs.` resolves
+ * against `X` instead of the enclosing binding's action. `with` clauses
+ * are intentionally NOT overridden — their RHS passes inputs TO the run
+ * and references the outer scope's outputs. Mirrors the lint-side
+ * transparency rule in `undefined-reference.ts`.
  */
 export function getCompletionCandidates(
   ast: AstRoot,
   namespace: string,
   ctx: SchemaContext,
   scope?: ScopeContext,
-  symbols?: DocumentSymbol[]
+  symbols?: DocumentSymbol[],
+  line?: number,
+  character?: number
 ): CompletionCandidate[] {
+  // Nested-run override for `outputs` (and any other colinear-resolved
+  // scoped namespace). Computed before symbol lookup because the symbol
+  // path resolves via scope-chain and would otherwise find the enclosing
+  // binding's action outputs (stale) when binding name == action name.
+  let effectiveScope = scope;
+  if (
+    line !== undefined &&
+    character !== undefined &&
+    ctx.scopedNamespaces.has(namespace) &&
+    ctx.colinearResolvedScopes.has(namespace)
+  ) {
+    const scopesRequired = ctx.scopedNamespaces.get(namespace);
+    // Pick the currently-active host scope so the override key matches
+    // the cursor context. For colinear-resolved namespaces like @outputs,
+    // this is typically `action` — and colinear namespaces only ever
+    // appear under a single nested scope level, so the choice is stable.
+    const activeScope = activeScopeForNamespace(scopesRequired, scope);
+    const override = findNestedRunSetTarget(ast, line, character);
+    if (activeScope && override !== undefined) {
+      effectiveScope = { ...(scope ?? {}), [activeScope]: override };
+    }
+  }
+
   if (symbols) {
-    const entries = getSymbolNamespaceEntries(symbols, namespace, ctx, scope);
+    const entries = getSymbolNamespaceEntries(
+      symbols,
+      namespace,
+      ctx,
+      effectiveScope
+    );
     if (entries) {
       return entries.map(({ name, symbol }) => ({
         name,
@@ -157,10 +202,17 @@ export function getCompletionCandidates(
     }
   }
 
-  const requiredScope = getScopedNamespaces(ctx).get(namespace);
+  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
+  const activeScope = activeScopeForNamespace(scopesRequired, effectiveScope);
 
-  if (requiredScope && scope?.[requiredScope]) {
-    return getScopedChildCandidates(ast, namespace, requiredScope, scope, ctx);
+  if (activeScope && effectiveScope) {
+    return getScopedChildCandidates(
+      ast,
+      namespace,
+      activeScope,
+      effectiveScope,
+      ctx
+    );
   }
 
   const rootCandidates = getRootCandidates(ast, namespace, ctx);
@@ -176,6 +228,122 @@ export function getCompletionCandidates(
   }
 
   return [];
+}
+
+/**
+ * Walk the AST at `line`/`character` looking for the deepest `SetClause`
+ * containing the cursor whose enclosing frame is a `RunStatement`. If
+ * found, returns the run target's action name (e.g. `inner` for
+ * `run @actions.inner`). Otherwise returns `undefined`.
+ *
+ * Traversal tracks the current enclosing run target as it descends —
+ * entering a `RunStatement` updates it to the run's target ref, and the
+ * value is inherited by children until we hit another RunStatement or
+ * leave the chain. When we encounter a `SetClause` CST range containing
+ * the position AND we have an enclosing run target, return it.
+ *
+ * `WithClause` is NOT a trigger: its RHS passes inputs TO the run and
+ * should reference the OUTER scope's outputs, not the run target's. The
+ * walk recurses into WithClause children normally but never returns
+ * early there.
+ *
+ * Nested runs: `run @actions.A` inside `run @actions.B` inside a binding
+ * body will yield `A` when the cursor is in A's set clauses, `B` when in
+ * B's set clauses (but not inside A), and `undefined` outside any set
+ * clause of a nested run. The innermost matching frame wins because
+ * `childRunTarget` is overwritten on each RunStatement descent.
+ */
+function findNestedRunSetTarget(
+  ast: AstRoot,
+  line: number,
+  character: number
+): string | undefined {
+  return walkForNestedRunSet(ast, line, character, undefined, new Set());
+}
+
+function walkForNestedRunSet(
+  value: unknown,
+  line: number,
+  character: number,
+  enclosingRunTarget: string | undefined,
+  visited: Set<unknown>
+): string | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  if (visited.has(value)) return undefined;
+  visited.add(value);
+
+  if (isNamedMap(value)) {
+    for (const [, entry] of value) {
+      if (!isAstNodeLike(entry)) continue;
+      const cst = entry.__cst;
+      if (!cst || !isPositionInRange(line, character, cst.range)) continue;
+      const result = walkForNestedRunSet(
+        entry,
+        line,
+        character,
+        enclosingRunTarget,
+        visited
+      );
+      if (result !== undefined) return result;
+    }
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const result = walkForNestedRunSet(
+        item,
+        line,
+        character,
+        enclosingRunTarget,
+        visited
+      );
+      if (result !== undefined) return result;
+    }
+    return undefined;
+  }
+
+  if (!isAstNodeLike(value)) return undefined;
+
+  const cst = value.__cst;
+  if (cst && !isPositionInRange(line, character, cst.range)) return undefined;
+
+  // Inside a SetClause with an enclosing run: this is our override target.
+  // Checked before recursion because a SetClause's descendants are
+  // expressions, which cannot contain further SetClause/RunStatement frames.
+  if (value.__kind === 'SetClause' && enclosingRunTarget !== undefined) {
+    return enclosingRunTarget;
+  }
+
+  // Entering a RunStatement updates the enclosing-run-target for children.
+  // Decomposing `decomposeAtMemberExpression` handles both `@actions.X` and
+  // bare `actions.X` forms; it returns `{ namespace, property }` where
+  // `property` is the action name we need.
+  let childRunTarget = enclosingRunTarget;
+  if (value.__kind === 'RunStatement') {
+    const target = (value as { target?: unknown }).target;
+    if (target && typeof target === 'object') {
+      const ref = decomposeAtMemberExpression(target);
+      if (ref) {
+        childRunTarget = ref.property;
+      }
+    }
+  }
+
+  let result: string | undefined;
+  recurseAstChildren(value, (_k, child) => {
+    if (result !== undefined) return;
+    const sub = walkForNestedRunSet(
+      child,
+      line,
+      character,
+      childRunTarget,
+      visited
+    );
+    if (sub !== undefined) result = sub;
+  });
+
+  return result;
 }
 
 function getRootCandidates(

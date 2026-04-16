@@ -26,6 +26,7 @@ export default [
       '**/packages/parser-tree-sitter/bindings/**',
       '**/packages/parser-tree-sitter/build/**',
       '**/packages/parser-tree-sitter/src/**/*.c',
+      'parity_testing/**',
     ],
   },
 
@@ -48,6 +49,7 @@ export default [
             'packages/lsp-server/src/*.test.ts',
             'packages/parser-javascript/test/*.test.ts',
           ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
         },
         tsconfigRootDir: import.meta.dirname,
       },

@@ -437,6 +437,42 @@ echo done:
     ).toBe(false);
   });
 
+  it('does not accept A2A global calls with @', () => {
+    const source = `
+echo successResponse:
+  kind: "a2a:response"
+  task: @a2a.task({ state: "completed", message: @a2a.message()})
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.filter(
+        d =>
+          d.code === 'namespace-function-call' &&
+          d.message.includes('Only direct namespace function calls are allowed')
+      ).length
+    ).toBe(2);
+  });
+
+  it('allows namespaced A2A helper calls in expression fields (a2a.message, a2a.textPart, …)', () => {
+    const source = `
+echo out:
+  kind: "a2a:response"
+  message: a2a.message(a2a.textPart("hello"))
+`;
+    const result = parseAndLintSource(source);
+    expect(result.diagnostics.length).toBe(0);
+  });
+
+  it('allows namespaced A2A helper calls when assigning value to variable', () => {
+    const source = `
+executor step:
+  do: ->
+    set @variables.t = a2a.task({ state: "completed" })
+`;
+    const result = parseAndLintSource(source);
+    expect(result.diagnostics.length).toBe(0);
+  });
+
   it('accepts generator prompt in procedure form', () => {
     const source = `
 config:

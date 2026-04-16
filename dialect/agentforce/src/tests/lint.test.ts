@@ -1765,6 +1765,74 @@ topic main:
     expect(refErrors).toHaveLength(0);
   });
 
+  it('allows self-named reasoning action when subagent action with same name exists', () => {
+    // Regression for v99.agent: @actions.X inside subagent.reasoning.actions
+    // must resolve against subagent.actions. The bug was that scopedNamespaces
+    // held a single scope per namespace, so `actions` was overwritten to
+    // `topic` (last block type processed), making the scope filter in
+    // resolveInAncestors skip the enclosing subagent.
+    const diagnostics = runSecurityLint(`
+subagent GeneralFAQ:
+  description: "General FAQ"
+  actions:
+    AnswerQuestionsWithKnowledge:
+      description: "Answer questions via knowledge search"
+      target: "standardInvocableAction://streamKnowledgeSearch"
+  reasoning:
+    instructions: ->
+      | Use {!@actions.AnswerQuestionsWithKnowledge} to respond.
+    actions:
+      AnswerQuestionsWithKnowledge: @actions.AnswerQuestionsWithKnowledge
+        with query=...
+`);
+
+    const refErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.message.includes('not defined in actions')
+    );
+    expect(refErrors).toHaveLength(0);
+  });
+
+  it('allows subagent and topic blocks to each define their own actions independently', () => {
+    // Peer root scopes (`subagent` and `topic`) can both host `actions`,
+    // so references from inside either block must resolve against that
+    // block's own definitions — not get overwritten by whichever schema
+    // key was processed last.
+    const diagnostics = runSecurityLint(`
+subagent sub_main:
+  description: "Sub"
+  actions:
+    sub_action:
+      description: "Sub action"
+      target: "flow://sub"
+  reasoning:
+    instructions: ->
+      | Do it
+    actions:
+      do_sub: @actions.sub_action
+
+topic topic_main:
+  description: "Topic"
+  actions:
+    topic_action:
+      description: "Topic action"
+      target: "flow://topic"
+  reasoning:
+    instructions: ->
+      | Do it
+    actions:
+      do_topic: @actions.topic_action
+`);
+
+    const refErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.message.includes('not defined in actions')
+    );
+    expect(refErrors).toHaveLength(0);
+  });
+
   it('reports undefined reference for subagent reasoning.actions too', () => {
     const diagnostics = runSecurityLint(`
 subagent main:
@@ -1786,6 +1854,244 @@ subagent main:
         d.message.includes('not defined in actions')
     );
     expect(refErrors).toHaveLength(1);
+  });
+
+  it('resolves @outputs inside nested `run @actions.X` to the run target (regression: v17.agent)', () => {
+    // Regression for the v17.agent Preboarding Knowledge Agent script:
+    // inside a reasoning.actions binding body, a nested
+    // `run @actions.Prehire_Agent_Confidence_Check` sets
+    // `@variables.confidence_check_result = @outputs.evaluationResult`.
+    // `evaluationResult` is an output of Prehire_Agent_Confidence_Check,
+    // not of the enclosing Prehire_Knowledge_Retrieval_action (which has
+    // only `promptResponse`). Before the fix, the colinear resolver walked
+    // past the RunStatement to the outer binding and reported
+    // `evaluationResult` as undefined in @outputs.
+    const diagnostics = runSecurityLint(`
+variables:
+  knowledge_response: mutable string = ""
+  confidence_check_result: mutable string = ""
+  current_user_query: mutable string = ""
+  endUserContactId: mutable string
+  emailCaseId: mutable string
+
+topic Prehire_Information_Assistance:
+  description: "Answer prehire questions from knowledge."
+  reasoning:
+    instructions: ->
+      | Do the knowledge retrieval and then confidence check.
+    actions:
+      Prehire_Knowledge_Retrieval_action: @actions.Prehire_Knowledge_Retrieval_action
+        with "Input:contactId" = @variables.endUserContactId
+        with "Input:searchQuery" = @variables.current_user_query
+        set @variables.knowledge_response = @outputs.promptResponse
+        run @actions.Prehire_Agent_Confidence_Check
+          with agentResponse = @variables.knowledge_response
+          with userQuery = @variables.current_user_query
+          with contactId = @variables.endUserContactId
+          with emailCaseId = @variables.emailCaseId
+          set @variables.confidence_check_result = @outputs.evaluationResult
+  actions:
+    Prehire_Knowledge_Retrieval_action:
+      description: "Retrieve knowledge."
+      inputs:
+        "Input:contactId": string
+          is_required: True
+        "Input:searchQuery": string
+          is_required: True
+      outputs:
+        promptResponse: string
+      target: "generatePromptResponse://Prehire_Knowledge_Retrieval_action"
+    Prehire_Agent_Confidence_Check:
+      description: "Evaluate confidence."
+      inputs:
+        agentResponse: string
+          is_required: True
+        userQuery: string
+          is_required: True
+        contactId: string
+        emailCaseId: string
+      outputs:
+        evaluationResult: string
+      target: "apex://E2C_PrehireConfidenceEvaluator"
+`);
+
+    const outputsErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.evaluationResult'
+    );
+    expect(outputsErrors).toHaveLength(0);
+
+    // And the sibling `set @outputs.promptResponse` at the outer binding
+    // level must still resolve correctly (against the outer action).
+    const promptErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.promptResponse'
+    );
+    expect(promptErrors).toHaveLength(0);
+  });
+
+  it('resolves @outputs in `with` RHS of nested run against the OUTER binding (not run target)', () => {
+    // Semantic quirk: `with` clauses in a nested `run @actions.Inner` pass
+    // inputs TO the inner action, so their RHS can reference outputs
+    // already produced by the outer binding's action. Only `set` clauses
+    // (which capture the inner action's results) resolve against the
+    // run target.
+    //
+    // This is the v17.agent Preboarding case with a deliberate crossover:
+    //     set @variables.knowledge_response = @outputs.promptResponse   # outer
+    //     run @actions.Prehire_Agent_Confidence_Check
+    //         with emailCaseId = @outputs.promptResponse                # outer — allowed
+    //         set @variables.confidence_check_result = @outputs.evaluationResult  # inner
+    const diagnostics = runSecurityLint(`
+variables:
+  knowledge_response: mutable string = ""
+  confidence_check_result: mutable string = ""
+  current_user_query: mutable string = ""
+  endUserContactId: mutable string
+  emailCaseId: mutable string
+
+topic Prehire_Information_Assistance:
+  description: "Answer prehire questions from knowledge."
+  reasoning:
+    instructions: ->
+      | Do the knowledge retrieval and then confidence check.
+    actions:
+      Prehire_Knowledge_Retrieval_action: @actions.Prehire_Knowledge_Retrieval_action
+        with "Input:contactId" = @variables.endUserContactId
+        with "Input:searchQuery" = @variables.current_user_query
+        set @variables.knowledge_response = @outputs.promptResponse
+        run @actions.Prehire_Agent_Confidence_Check
+          with agentResponse = @variables.knowledge_response
+          with userQuery = @variables.current_user_query
+          with contactId = @variables.endUserContactId
+          with emailCaseId = @outputs.promptResponse
+          set @variables.confidence_check_result = @outputs.evaluationResult
+  actions:
+    Prehire_Knowledge_Retrieval_action:
+      description: "Retrieve knowledge."
+      inputs:
+        "Input:contactId": string
+          is_required: True
+        "Input:searchQuery": string
+          is_required: True
+      outputs:
+        promptResponse: string
+      target: "generatePromptResponse://Prehire_Knowledge_Retrieval_action"
+    Prehire_Agent_Confidence_Check:
+      description: "Evaluate confidence."
+      inputs:
+        agentResponse: string
+          is_required: True
+        userQuery: string
+          is_required: True
+        contactId: string
+        emailCaseId: string
+      outputs:
+        evaluationResult: string
+      target: "apex://E2C_PrehireConfidenceEvaluator"
+`);
+
+    // `with emailCaseId = @outputs.promptResponse` must resolve against
+    // the OUTER action — no error.
+    const promptRefErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.promptResponse'
+    );
+    expect(promptRefErrors).toHaveLength(0);
+
+    // And the `set ... = @outputs.evaluationResult` must still resolve
+    // against the INNER run target — no error.
+    const evalRefErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.evaluationResult'
+    );
+    expect(evalRefErrors).toHaveLength(0);
+  });
+
+  it('reports undefined @outputs in `with` RHS of nested run when member belongs only to run target', () => {
+    // Negative twin: a `with` RHS referencing a member that only exists
+    // on the RUN TARGET (inner) must be flagged, because `with` RHS
+    // resolves against the OUTER action.
+    const diagnostics = runSecurityLint(`
+variables:
+  x: mutable string = ""
+topic t:
+  description: "Test"
+  reasoning:
+    instructions: ->
+      | go
+    actions:
+      outer_binding: @actions.outer
+        run @actions.inner
+          with caseId = @outputs.innerResult
+          set @variables.x = @outputs.innerResult
+  actions:
+    outer:
+      description: "Outer"
+      outputs:
+        outerResult: string
+      target: "externalService://outer"
+    inner:
+      description: "Inner"
+      inputs:
+        caseId: string
+      outputs:
+        innerResult: string
+      target: "externalService://inner"
+`);
+
+    // The `with caseId = @outputs.innerResult` is invalid: `innerResult`
+    // doesn't exist on the outer action. The `set @variables.x = @outputs.innerResult`
+    // is valid — resolves against the inner run target. So exactly one error.
+    const refErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.innerResult'
+    );
+    expect(refErrors).toHaveLength(1);
+    expect(refErrors[0].data?.expected).toEqual(['outerResult']);
+  });
+
+  it('reports undefined @outputs inside nested run when member belongs only to outer (agentforce)', () => {
+    // Negative twin: `promptResponse` exists on the outer action but not
+    // on the run target. Inside the nested run body, it must resolve
+    // against the run target, so the reference should be flagged.
+    const diagnostics = runSecurityLint(`
+variables:
+  x: mutable string = ""
+topic t:
+  description: "Test"
+  reasoning:
+    instructions: ->
+      | go
+    actions:
+      outer_binding: @actions.outer
+        run @actions.inner
+          set @variables.x = @outputs.promptResponse
+  actions:
+    outer:
+      description: "Outer"
+      outputs:
+        promptResponse: string
+      target: "externalService://outer"
+    inner:
+      description: "Inner"
+      outputs:
+        innerResult: string
+      target: "externalService://inner"
+`);
+
+    const outputsErrors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@outputs.promptResponse'
+    );
+    expect(outputsErrors).toHaveLength(1);
+    expect(outputsErrors[0].data?.expected).toEqual(['innerResult']);
   });
 });
 

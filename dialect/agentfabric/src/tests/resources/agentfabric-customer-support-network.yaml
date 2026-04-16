@@ -72,11 +72,6 @@ unifiedAgentSpec:
         data-type: string
         description: ""
         default: ""
-      - name: output_response
-        label: output_response
-        data-type: string
-        description: ""
-        default: ""
     initial-node: set_context
     nodes:
       - name: general_response
@@ -86,6 +81,7 @@ unifiedAgentSpec:
         llm:
           ref: openai_gpt4
           configuration:
+            max_output_tokens: "1024"
             model: gpt-4o
         on-init: null
         system-prompt: >-
@@ -168,7 +164,7 @@ unifiedAgentSpec:
             enabled: true
         after-reasoning:
           - type: handoff
-            target: set_output_response_from_general_agent
+            target: send_response
       - name: technical_handler
         label: null
         description: Handles technical support issues using knowledge-base tools.
@@ -176,6 +172,7 @@ unifiedAgentSpec:
         llm:
           ref: openai_gpt4
           configuration:
+            max_output_tokens: "1024"
             model: gpt-4o
         on-init: null
         system-prompt: >-
@@ -200,15 +197,15 @@ unifiedAgentSpec:
             enabled: true
         after-reasoning:
           - type: handoff
-            target: set_output_response_from_technical_agent
+            target: send_response
       - name: analyze_request
         label: null
         description: null
         type: agent
         llm:
-          ref: openai_gpt4
+          ref: gemini_2_5_flash
           configuration:
-            model: gpt-4o
+            model: gemini-2.5-flash
           output-structure-ref: os_analyze_request
         on-init: null
         system-prompt: >-
@@ -231,7 +228,7 @@ unifiedAgentSpec:
           - type: action
             ref: IdentityAction
             state-updates:
-              - requestTimestamp: '"2026-03-06T10:23:24.371729+00:00"'
+              - requestTimestamp: 'now()'
               - customerMessage: state.request.payload.message
         on-init:
           - ref: IdentityAction
@@ -257,48 +254,6 @@ unifiedAgentSpec:
         on-init: null
         on-exit:
           - type: handoff
-            target: set_output_response_from_billing_agent
-        add-tool-result-to-chat-history: false
-        output-template: null
-      - name: set_output_response_from_billing_agent
-        type: action
-        label: null
-        tools:
-          - type: action
-            ref: IdentityAction
-            state-updates:
-              - output_response: state.outputs['billing_handler']
-        on-init: null
-        on-exit:
-          - type: handoff
-            target: send_response
-        add-tool-result-to-chat-history: false
-        output-template: null
-      - name: set_output_response_from_technical_agent
-        type: action
-        label: null
-        tools:
-          - type: action
-            ref: IdentityAction
-            state-updates:
-              - output_response: system.node_outputs['technical_handler']
-        on-init: null
-        on-exit:
-          - type: handoff
-            target: send_response
-        add-tool-result-to-chat-history: false
-        output-template: null
-      - name: set_output_response_from_general_agent
-        type: action
-        label: null
-        tools:
-          - type: action
-            ref: IdentityAction
-            state-updates:
-              - output_response: system.node_outputs['general_response']
-        on-init: null
-        on-exit:
-          - type: handoff
             target: send_response
         add-tool-result-to-chat-history: false
         output-template: null
@@ -311,7 +266,6 @@ unifiedAgentSpec:
             state-updates:
               - customerMessage: '""'
               - requestTimestamp: '""'
-              - output_response: '""'
         on-init: null
         on-exit: null
         add-tool-result-to-chat-history: false
@@ -324,12 +278,10 @@ unifiedAgentSpec:
         on-exit:
           - type: handoff
             target: billing_handler
-            enabled: template::{{system.node_outputs['analyze_request'].category ==
-              "billing"}}
+            enabled: "system.node_outputs['analyze_request'].category == \"billing\""
           - type: handoff
             target: technical_handler
-            enabled: template::{{system.node_outputs['analyze_request'].category ==
-              "technical"}}
+            enabled: "system.node_outputs['analyze_request'].category == \"technical\""
           - type: handoff
             target: general_response
         add-tool-result-to-chat-history: false
@@ -340,7 +292,7 @@ unifiedAgentSpec:
         tools:
           - ref: IdentityAction
             state-updates:
-              - __send_response_value: template::{"state":"completed","message":{"kind":"text","role":"agent","parts":[{"kind":"text","text":"{{state.output_response}}"}]}}
+              - __send_response_value: "a2a_task(state=\"completed\", message=a2a_message(parts=[a2a_textPart(state._node_input)]))"
               - outputs: add(state.outputs, "send_response", state.__send_response_value)
         on-init: null
         on-exit:
@@ -354,6 +306,11 @@ llmProviders:
     metadata:
       platform: openai
       connection: openai_connection
+  - name: gemini_2_5_flash
+    description: "LLM provider: gemini_2_5_flash"
+    metadata:
+      platform: gemini
+      connection: gemini_connection
 invokableClients:
   - name: search_articles-client
     type: mcp_tool

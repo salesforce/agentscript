@@ -1,5 +1,17 @@
 # @agentscript/language
 
+## 2.4.10
+
+### Patch Changes
+
+- Fix default value compilation for object and list state variables. Dict literal defaults now populate the `default` field with their actual entries instead of emitting an empty `{}`, list defaults preserve their elements, and dict keys parse as `StringLiteral` nodes instead of quoted `Identifier`s.
+
+## 2.4.9
+
+### Patch Changes
+
+- Fix `@outputs` reference and completion resolution inside nested `run @actions.X` blocks so they resolve against the nested run target rather than the enclosing reasoning action binding. Add `integer` and `long` scalar-to-ParameterDataType mappings for action parameters. Fix template literal indentation handling in the JavaScript lexer.
+
 ## 2.4.7
 
 ### Patch Changes

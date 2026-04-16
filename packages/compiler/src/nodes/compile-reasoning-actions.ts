@@ -123,7 +123,7 @@ export function compileReasoningActions(
     const actionType = resolveActionType(actionName, def);
 
     // Filter based on node type
-    if (!isActionTypeAllowed(actionType, nodeType, def)) {
+    if (!isActionTypeAllowed(actionType, nodeType)) {
       // Emit diagnostic for disallowed action types
       emitDisallowedActionDiagnostic(
         actionType,
@@ -268,6 +268,28 @@ function emitDisallowedActionDiagnostic(
   let actionDescription = '';
   let allowedTypes = '';
 
+  // Special case: handoff actions (@topic.X, @subagent.X, @connected_subagent.X)
+  if (actionType === 'supervise') {
+    const decomposed = def.value
+      ? decomposeAtMemberExpression(def.value)
+      : null;
+
+    let message = '';
+    if (decomposed?.namespace === 'connected_subagent') {
+      message =
+        `Router node cannot use connected agent handoff '${actionName}'. ` +
+        `Router nodes use hyperclassifier models for simple routing and do not support handoffs to connected agents. ` +
+        `Remove the hyper classifier config if you need to invoke connected agents.`;
+    } else {
+      message =
+        `Router node cannot use handoff action '${actionName}'. ` +
+        `Router nodes use hyperclassifier models for simple routing and do not support handoffs to subagents or topics. ` +
+        `Use transitions (@utils.transition) for routing or remove the hyper classifier config if you need to use handoff.`;
+    }
+    ctx.error(message, def.__cst?.range);
+    return;
+  }
+
   if (actionType === 'tool') {
     // Regular action reference
     const decomposed = def.value
@@ -321,29 +343,20 @@ function hasLLMInputParameters(def: ParsedTool): boolean {
  * Determines if an action type is allowed for a given node type.
  *
  * - Subagent nodes: support all action types
- * - Router nodes: only support transitions and connected-subagents
+ * - Router nodes: only support transitions
  */
 function isActionTypeAllowed(
   actionType: ActionType,
-  nodeType: 'router' | 'subagent',
-  def: ParsedTool
+  nodeType: 'router' | 'subagent'
 ): boolean {
   if (nodeType === 'subagent') {
     // Subagent nodes support all action types
     return true;
   }
 
-  // Router nodes only support transitions and connected-subagents
+  // Router nodes only support transitions
   if (actionType === 'transition') {
     return true;
-  }
-
-  // Check if this is a connected-subagent reference
-  if (actionType === 'tool' && def.value) {
-    const decomposed = decomposeAtMemberExpression(def.value);
-    if (decomposed?.namespace === 'connected_subagent') {
-      return true; // Allow connected-subagents in router nodes
-    }
   }
 
   return false;
@@ -478,6 +491,22 @@ function compileAction(
     }
 
     case 'supervise': {
+      // Check if this is a @connected_subagent.X reference
+      const decomposed = def.value
+        ? decomposeAtMemberExpression(def.value)
+        : null;
+
+      if (decomposed?.namespace === 'connected_subagent') {
+        // Connected-subagent references compile as tools, not supervision
+        const result = compileTool(actionName, def, body, ctx);
+        return {
+          tools: [result.tool],
+          postToolCalls: result.postToolCall ? [result.postToolCall] : [],
+          handOffActions: result.handOffActions,
+        };
+      }
+
+      // Regular supervision (@topic.X, @subagent.X)
       const result = compileSupervision(
         actionName,
         def,

@@ -7,6 +7,7 @@ expr: True
 expr: False
 
 ---
+
 (source_file
   (mapping
     (mapping_element
@@ -27,3 +28,182 @@ expr: False
       colinear_value: (expression_with_to
         expression: (expression
           (atom))))))
+
+===============
+Multi-line call expression with nested dictionary
+===============
+
+task: a2a.task({
+    state: "completed",
+    metadata: None
+  })
+
+---
+
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (call_expression
+            function: (expression
+              (member_expression
+                (expression
+                  (atom
+                    (id)))
+                (id)))
+            argument: (expression
+              (atom
+                (dictionary
+                  (dictionary_pair
+                    key: (key
+                      (id))
+                    value: (expression
+                      (atom
+                        (string
+                          (string_content)))))
+                  (dictionary_pair
+                    key: (key
+                      (id))
+                    value: (expression
+                      (atom))))))))))))
+
+===============
+Multi-line nested call expressions with list
+===============
+
+task: a2a.task({
+    state: "completed",
+    message: a2a.message({
+      parts: [
+        a2a.textPart("resolved")
+      ]
+    }),
+    metadata: None
+  })
+
+---
+
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (call_expression
+            function: (expression
+              (member_expression
+                (expression
+                  (atom
+                    (id)))
+                (id)))
+            argument: (expression
+              (atom
+                (dictionary
+                  (dictionary_pair
+                    key: (key
+                      (id))
+                    value: (expression
+                      (atom
+                        (string
+                          (string_content)))))
+                  (dictionary_pair
+                    key: (key
+                      (id))
+                    value: (expression
+                      (call_expression
+                        function: (expression
+                          (member_expression
+                            (expression
+                              (atom
+                                (id)))
+                            (id)))
+                        argument: (expression
+                          (atom
+                            (dictionary
+                              (dictionary_pair
+                                key: (key
+                                  (id))
+                                value: (expression
+                                  (atom
+                                    (list
+                                      (expression
+                                        (call_expression
+                                          function: (expression
+                                            (member_expression
+                                              (expression
+                                                (atom
+                                                  (id)))
+                                              (id)))
+                                          argument: (expression
+                                            (atom
+                                              (string
+                                                (string_content))))))))))))))))
+                  (dictionary_pair
+                    key: (key
+                      (id))
+                    value: (expression
+                      (atom))))))))))))
+
+===============
+Multi-line call with varied indentation inside parens
+===============
+
+task: foo(
+  bar,
+      baz
+)
+
+---
+
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (call_expression
+            function: (expression
+              (atom
+                (id)))
+            argument: (expression
+              (atom
+                (id)))
+            argument: (expression
+              (atom
+                (id)))))))))
+
+===============
+Leading dash inside parens is unary minus not sequence element
+===============
+
+result: calculate(
+    - x,
+    y
+  )
+
+---
+
+(source_file
+  (mapping
+    (mapping_element
+      key: (key
+        (id))
+      colinear_value: (expression_with_to
+        expression: (expression
+          (call_expression
+            function: (expression
+              (atom
+                (id)))
+            argument: (expression
+              (unary_expression
+                (expression
+                  (atom
+                    (id)))))
+            argument: (expression
+              (atom
+                (id)))))))))

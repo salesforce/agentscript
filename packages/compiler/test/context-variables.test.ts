@@ -324,9 +324,16 @@ start_agent main:
   });
 });
 
-// TODO: Consider adding variable name validation to the compiler.
-// Possible rules: reject leading/trailing underscores, reject consecutive
-// underscores (except __c suffix for Salesforce custom fields).
+// TODO: Consider adding Pydantic-style name validation to the TS compiler.
+// Python enforces: no leading underscore, no trailing underscore, no consecutive
+// underscores (except __c suffix for Salesforce custom fields). The TS compiler
+// currently does not validate variable names. See Python tests:
+//   - test_context_variable_name_with_double_underscores_in_middle_logs_error
+//   - test_context_variable_name_starting_with_underscore_logs_error
+//   - test_context_variable_name_ending_with_underscore_logs_error
+//   - test_variable_name_with_double_underscores_logs_error (state vars)
+//   - test_variable_name_starting_with_underscore_logs_error (state vars)
+//   - test_variable_name_ending_with_underscore_logs_error (state vars)
 
 describe.skip('context variables: name validation', () => {
   // Python: test_context_variables.test_context_variable_name_with_double_underscores_in_middle_logs_error

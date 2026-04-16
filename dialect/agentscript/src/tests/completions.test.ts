@@ -290,6 +290,141 @@ describe('getCompletionCandidates', () => {
     expect(candidates[1].detail).toBe('number');
   });
 
+  test('outputs in nested `run X` set clause completes from run target (not outer)', () => {
+    // Regression: the v17.agent Preboarding case. Inside a reasoning.actions
+    // binding body, a nested `run @actions.inner` establishes a new
+    // action-call frame for its `set` clauses. `@outputs.` completion in
+    // those set clauses must resolve against `inner`, not the outer binding.
+    //
+    // Source uses `@outputs.x` (parseable) and positions the cursor right
+    // after the dot — same position an LSP client would report when
+    // offering completion after `@outputs.`.
+    const source = [
+      'variables:',
+      '    x: mutable string',
+      'subagent main:',
+      '    actions:',
+      '        outer:',
+      '            outputs:',
+      '                outerResult: string',
+      '            target: "ext://outer"',
+      '        inner:',
+      '            outputs:',
+      '                innerResult: string',
+      '            target: "ext://inner"',
+      '    reasoning:',
+      '        instructions: ->',
+      '            | do',
+      '        actions:',
+      '            outer: @actions.outer',
+      '                run @actions.inner',
+      '                    set @variables.x=@outputs.x',
+    ].join('\n');
+    const ast = parse(source);
+    const pos = findPosition(source, '@outputs.x');
+    // cursor placed right after the dot, inside the member expression
+    const cursor = {
+      line: pos.line,
+      character: pos.character + '@outputs.'.length,
+    };
+    const candidates = getCompletionCandidates(
+      ast,
+      'outputs',
+      testSchemaCtx,
+      { subagent: 'main', action: 'outer' },
+      undefined,
+      cursor.line,
+      cursor.character
+    );
+    const names = candidates.map(c => c.name);
+    expect(names).toContain('innerResult');
+    expect(names).not.toContain('outerResult');
+  });
+
+  test('outputs in nested `run X` with clause completes from OUTER (not run target)', () => {
+    // Twin: `with` RHS of nested run references the outer scope's outputs,
+    // so completion must offer the outer action's outputs, not the run
+    // target's. (Semantic reason: `with` passes inputs TO the inner call.)
+    const source = [
+      'subagent main:',
+      '    actions:',
+      '        outer:',
+      '            outputs:',
+      '                outerResult: string',
+      '            target: "ext://outer"',
+      '        inner:',
+      '            inputs:',
+      '                arg: string',
+      '            outputs:',
+      '                innerResult: string',
+      '            target: "ext://inner"',
+      '    reasoning:',
+      '        instructions: ->',
+      '            | do',
+      '        actions:',
+      '            outer: @actions.outer',
+      '                run @actions.inner',
+      '                    with arg=@outputs.x',
+    ].join('\n');
+    const ast = parse(source);
+    const pos = findPosition(source, '@outputs.x');
+    const cursor = {
+      line: pos.line,
+      character: pos.character + '@outputs.'.length,
+    };
+    const candidates = getCompletionCandidates(
+      ast,
+      'outputs',
+      testSchemaCtx,
+      { subagent: 'main', action: 'outer' },
+      undefined,
+      cursor.line,
+      cursor.character
+    );
+    const names = candidates.map(c => c.name);
+    expect(names).toContain('outerResult');
+    expect(names).not.toContain('innerResult');
+  });
+
+  test('outputs in plain set clause (no nested run) still completes from outer', () => {
+    // Control: confirms the nested-run override doesn't regress the
+    // plain single-level case where `set @outputs.X` sits directly under
+    // the binding body.
+    const source = [
+      'variables:',
+      '    x: mutable string',
+      'subagent main:',
+      '    actions:',
+      '        outer:',
+      '            outputs:',
+      '                outerResult: string',
+      '            target: "ext://outer"',
+      '    reasoning:',
+      '        instructions: ->',
+      '            | do',
+      '        actions:',
+      '            outer: @actions.outer',
+      '                set @variables.x=@outputs.x',
+    ].join('\n');
+    const ast = parse(source);
+    const pos = findPosition(source, '@outputs.x');
+    const cursor = {
+      line: pos.line,
+      character: pos.character + '@outputs.'.length,
+    };
+    const candidates = getCompletionCandidates(
+      ast,
+      'outputs',
+      testSchemaCtx,
+      { subagent: 'main', action: 'outer' },
+      undefined,
+      cursor.line,
+      cursor.character
+    );
+    const names = candidates.map(c => c.name);
+    expect(names).toContain('outerResult');
+  });
+
   test('config namespace returns config block fields', () => {
     const source = ['config:', '    description: "My Agent"'].join('\n');
     const ast = parse(source);

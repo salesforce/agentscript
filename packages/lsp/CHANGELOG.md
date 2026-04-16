@@ -1,5 +1,36 @@
 # @agentscript/lsp
 
+## 2.2.14
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/language@2.4.10
+  - @agentscript/agentfabric-dialect@0.1.12
+  - @agentscript/agentforce-dialect@2.7.13
+  - @agentscript/agentscript-dialect@2.5.13
+
+## 2.2.13
+
+### Patch Changes
+
+- Fix `@outputs` reference and completion resolution inside nested `run @actions.X` blocks so they resolve against the nested run target rather than the enclosing reasoning action binding. Add `integer` and `long` scalar-to-ParameterDataType mappings for action parameters. Fix template literal indentation handling in the JavaScript lexer.
+- Updated dependencies
+  - @agentscript/language@2.4.9
+  - @agentscript/agentfabric-dialect@0.1.12
+  - @agentscript/agentforce-dialect@2.7.12
+  - @agentscript/agentscript-dialect@2.5.12
+  - @agentscript/parser@3.0.6
+
+## 2.2.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/agentscript-dialect@2.5.11
+  - @agentscript/agentfabric-dialect@0.1.12
+  - @agentscript/agentforce-dialect@2.7.11
+
 ## 2.2.11
 
 ### Patch Changes

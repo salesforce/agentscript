@@ -1,5 +1,4 @@
 #!/usr/bin/env tsx
-
 /*
  * Copyright (c) 2026, Salesforce, Inc.
  * All rights reserved.
@@ -48,7 +47,7 @@ const OUTPUT_FILE = path.join(
 );
 
 // Git repo base URL for source links
-const GIT_BASE = 'https://github.com/salesforce/agentscript/blob/main';
+const GIT_BASE = 'https://github.com/salesforce/agentscript/blob/master';
 
 // Directories to scan
 const SCAN_DIRS = [

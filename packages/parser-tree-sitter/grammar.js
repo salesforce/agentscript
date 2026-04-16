@@ -7,8 +7,8 @@
 
 /**
  * @file AgentScriptAwl grammar for tree-sitter
- * @author AgentScript Team
- * @license Apache-2.0
+ * @author Allen Li <allen@allen.li>
+ * @license None
  */
 
 /// <reference types="tree-sitter-cli/dsl" />
@@ -40,6 +40,9 @@ export default grammar({
     $.comment,
 
     $.error_sentinel,
+
+    $._open_paren,
+    $._close_paren,
   ],
 
   supertypes: $ => [
@@ -266,6 +269,7 @@ export default grammar({
         $.binary_expression,
         $.comparison_expression,
         $.unary_expression,
+        $.spread_expression,
         $.call_expression,
         $.member_expression,
         $.subscript_expression,
@@ -277,9 +281,9 @@ export default grammar({
         8,
         seq(
           field('function', $.expression),
-          '(',
+          $._open_paren,
           optional(commaSep1(field('argument', $.expression))),
-          ')'
+          $._close_paren
         )
       ),
 
@@ -315,6 +319,9 @@ export default grammar({
         prec(7, seq('+', $.expression)),
         prec(7, seq('-', $.expression))
       ),
+
+    spread_expression: $ =>
+      prec(7, seq('*', field('expression', $.expression))),
 
     comparison_expression: $ =>
       choice(

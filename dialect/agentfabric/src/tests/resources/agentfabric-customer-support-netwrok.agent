@@ -7,13 +7,18 @@ config:
   agent_name: "customer-support-flow"
   label: "Customer Support Workflow"
   description: "Handles customer support requests with intelligent routing."
-  default_llm: @llm.openai_gpt4
+  default_llm: @llm.gemini_2_5_flash
 
 llm:
   openai_gpt4:
     target: "llm://openai_connection"
     kind: "openai"
     model: "gpt-4o"
+    max_output_tokens: 1024
+  gemini_2_5_flash:
+    target: "llm://gemini_connection"
+    kind: "gemini"
+    model: "gemini-2.5-flash"
 
 action_definitions:
   search_articles:
@@ -33,22 +38,22 @@ action_definitions:
 variables:
   requestTimestamp: mutable string = ""
   customerMessage: mutable string = ""
-  output_response: mutable string = ""
 
 trigger customerSupportTrigger:
+  kind: "a2a"
   target: "brokers://customer-support-flow/a2a"
   on_message: ->
     transition to @executor.set_context
 
 executor set_context:
   do: ->
-    set @variables.requestTimestamp = "2026-03-06T10:23:24.371729+00:00"
+    set @variables.requestTimestamp = now()
     set @variables.customerMessage = @request.payload.message
   on_exit: ->
     transition to @generator.analyze_request
 
 generator analyze_request:
-  llm: @llm.openai_gpt4
+  llm: @llm.gemini_2_5_flash
   prompt: ->
     | Analyze the following customer support request and categorize it as one of: 'billing', 'technical', 'general'. Also extract key entities and sentiment.
     |
@@ -96,7 +101,7 @@ executor billing_handler:
     run @actions.billing_agent
       with message = @variables.customerMessage
   on_exit: ->
-    transition to @executor.set_output_response_from_billing_agent
+    transition to @echo.send_response
 
 subagent technical_handler:
   description: "Handles technical support issues using knowledge-base tools."
@@ -112,7 +117,7 @@ subagent technical_handler:
       kb_search: @actions.search_articles
       kb_get_article: @actions.get_article
   on_exit: ->
-    transition to @executor.set_output_response_from_technical_agent
+    transition to @echo.send_response
 
 orchestrator general_response:
   description: "Handles general customer support responses and routing."
@@ -129,29 +134,19 @@ orchestrator general_response:
       kb_get_article: @actions.get_article
       billing_delegate: @actions.billing_agent
   on_exit: ->
-    transition to @executor.set_output_response_from_general_agent
-
-executor set_output_response_from_billing_agent:
-  do: ->
-    set @variables.output_response = @executor.billing_handler.output
-  on_exit: ->
-    transition to @echo.send_response
-
-executor set_output_response_from_technical_agent:
-  do: ->
-    set @variables.output_response = @subagent.technical_handler.output
-  on_exit: ->
-    transition to @echo.send_response
-
-executor set_output_response_from_general_agent:
-  do: ->
-    set @variables.output_response = @orchestrator.general_response.output
-  on_exit: ->
     transition to @echo.send_response
 
 echo send_response:
   kind: "a2a:response"
-  message: "{!@variables.output_response}"
+  task: a2a.task({
+    state: "completed",
+    message: a2a.message({
+      parts: [
+        a2a.textPart(@variables.output_response)
+      ]
+    })
+  }
+  )
   on_exit: ->
     transition to @executor.cleanup
 
@@ -159,4 +154,3 @@ executor cleanup:
   do: ->
     set @variables.customerMessage = ""
     set @variables.requestTimestamp = ""
-    set @variables.output_response = ""

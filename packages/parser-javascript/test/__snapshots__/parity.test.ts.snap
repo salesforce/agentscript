@@ -1,5 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`parser parity: tree-sitter vs parser-js > comment_after_colon.txt > Comment after colon before arrow 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id) (id)) block_value: (mapping (mapping_element key: (key (id)) (comment) (ERROR (id) (string)))))))",
+  "treeSitter": "(ERROR (key (id) (id)) (key (id)) (comment) (ERROR) (key (id) (string (string_content))))",
+}
+`;
+
 exports[`parser parity: tree-sitter vs parser-js > error_recovery.txt > Error 01: Unclosed string literal should not swallow document 1`] = `
 {
   "match": false,
@@ -170,9 +178,9 @@ exports[`parser parity: tree-sitter vs parser-js > error_recovery.txt > Error 21
 
 exports[`parser parity: tree-sitter vs parser-js > error_recovery.txt > Error 22: Trailing comma should be valid syntax 1`] = `
 {
-  "match": true,
+  "match": false,
   "parserTs": "(source_file (mapping (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (call_expression function: (expression (atom (id))) argument: (expression (atom (id))) argument: (expression (atom (id))) argument: (expression (atom (MISSING id))))))) (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content))))))))",
-  "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (call_expression function: (expression (atom (id))) argument: (expression (atom (id))) argument: (expression (atom (id))) argument: (expression (atom (MISSING id))))))) (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content))))))))",
+  "treeSitter": "(ERROR (key (id)) (expression (atom (id))) (expression (atom (id))) argument: (expression (atom (id))) (ERROR (expression (atom (id)))) (expression (atom (string (string_content)))))",
 }
 `;
 
@@ -280,11 +288,51 @@ exports[`parser parity: tree-sitter vs parser-js > error_recovery.txt > Error 35
 }
 `;
 
+exports[`parser parity: tree-sitter vs parser-js > error_recovery_hardening.txt > Error 3b: Missing colon on field should recover with MISSING colon 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) (MISSING :) colinear_value: (expression_with_to expression: (expression (atom (string (string_content)))))) (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content))))))))))",
+  "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id) (string (string_content))) (ERROR (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content))))))))))",
+}
+`;
+
+exports[`parser parity: tree-sitter vs parser-js > error_recovery_hardening.txt > Error 3d: Missing to keyword should recover with MISSING to 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (transition_statement with_to_statement_list: (with_to_statement_list (to_statement (MISSING to) target: (expression (member_expression (expression (atom (at_id (id)))) (id))))))))))",
+  "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) (ERROR (atom (at_id (id)))) block_value: (atom (id)))))",
+}
+`;
+
+exports[`parser parity: tree-sitter vs parser-js > error_recovery_hardening.txt > Error 4a: Misspelled modifier should wrap in ERROR and parse declaration 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (variable_declaration (ERROR (id)) type: (expression (atom (id))) default: (expression (atom (string (string_content)))))) (mapping_element key: (key (id)) colinear_value: (variable_declaration (ERROR (id)) type: (expression (atom (id))) default: (expression (atom (number)))))))))",
+  "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) (ERROR (expression (atom (id)))) colinear_value: (assignment_expression left: (expression (atom (id))) right: (expression (atom (string (string_content)))))) (mapping_element key: (key (id)) colinear_value: (assignment_expression left: (expression (atom (id))) (ERROR (id)) right: (expression (atom (number)))))))))",
+}
+`;
+
+exports[`parser parity: tree-sitter vs parser-js > error_recovery_hardening.txt > Error 4c: Misspelled elseif should parse as elif clause with ERROR 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) block_value: (procedure (if_statement condition: (expression (member_expression (expression (atom (at_id (id)))) (id))) consequence: (procedure (run_statement target: (expression (member_expression (expression (atom (at_id (id)))) (id))))) alternative: (elif_clause (ERROR (id)) condition: (expression (member_expression (expression (atom (at_id (id)))) (id))) consequence: (procedure (run_statement target: (expression (member_expression (expression (atom (at_id (id)))) (id)))))))))))))",
+  "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) (ERROR (if_statement condition: (expression (member_expression (expression (atom (at_id (id)))) (id))) consequence: (procedure (run_statement target: (expression (member_expression (expression (atom (at_id (id)))) (id)))))) (id) (expression (member_expression (expression (atom (at_id (id)))) (id)))) colinear_value: (expression_with_to expression: (expression (member_expression (expression (atom (at_id (id)))) (id)))))))))",
+}
+`;
+
 exports[`parser parity: tree-sitter vs parser-js > errors.txt > Error: Multiple Variable Modifiers 1`] = `
 {
   "match": true,
   "parserTs": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (variable_declaration (ERROR (expression (atom (id)))) type: (expression (atom (id))) default: (expression (atom (string (string_content))))))))))",
   "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (variable_declaration (ERROR (expression (atom (id)))) type: (expression (atom (id))) default: (expression (atom (string (string_content))))))))))",
+}
+`;
+
+exports[`parser parity: tree-sitter vs parser-js > mapping_edge_cases.txt > Mapping: arrow with no body (empty procedure) 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id) (id)) block_value: (mapping (mapping_element key: (key (id)) block_value: (procedure (ERROR)))))))",
+  "treeSitter": "(ERROR (key (id) (id)) (key (id)))",
 }
 `;
 
@@ -325,5 +373,13 @@ exports[`parser parity: tree-sitter vs parser-js > missing_colon.txt > Missing c
   "match": false,
   "parserTs": "(source_file (mapping (mapping_element key: (key (id) (id)) (MISSING :) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content)))))))) (mapping_element key: (key (id) (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content))))))))))",
   "treeSitter": "(source_file (mapping (mapping_element key: (key (id) (id)) (ERROR (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content)))))) (mapping_element key: (key (id) (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (expression_with_to expression: (expression (atom (string (string_content))))))))))",
+}
+`;
+
+exports[`parser parity: tree-sitter vs parser-js > template_edge_cases.txt > Template: empty template expression {!} 1`] = `
+{
+  "match": false,
+  "parserTs": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (template (template_content) (template_expression (ERROR)) (template_content)))))))",
+  "treeSitter": "(source_file (mapping (mapping_element key: (key (id)) block_value: (mapping (mapping_element key: (key (id)) colinear_value: (template (template_content) (template_expression expression: (expression (atom (MISSING id)))) (template_content)))))))",
 }
 `;

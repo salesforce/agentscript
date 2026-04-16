@@ -5,6 +5,8 @@
 
 package tree_sitter_agentscript_test
 
+package tree_sitter_agentscript_test
+
 import (
 	"testing"
 

@@ -27,6 +27,7 @@ import {
   extractSourcedDescription,
   extractBooleanValue,
   extractNumberValue,
+  extractExpressionValue,
   getExpressionName,
   isListType,
   iterateNamedMap,
@@ -120,7 +121,7 @@ function compileStateVariable(
   }
 
   const isList = isListType(def.type);
-  const defaultValue = extractDefaultValue(def.defaultValue, dataType);
+  const defaultValue = extractDefaultValue(def.defaultValue, dataType, isList);
   const label =
     extractSourcedString(
       (def.properties as Record<string, unknown> | undefined)?.['label']
@@ -180,11 +181,35 @@ function mapVisibility(
 
 function extractDefaultValue(
   defaultVal: Expression | undefined,
-  dataType: string
-): string | number | boolean | Record<string, never> | null {
+  dataType: string,
+  isList: boolean
+): string | number | boolean | unknown[] | Record<string, unknown> | null {
   if (defaultVal === undefined || defaultVal === null) return null;
 
-  // Extract the actual value
+  // `= None` parses to a NoneLiteral AST node — Python omits default for None,
+  // so we treat it as "no default" regardless of the data type.
+  if (defaultVal instanceof NoneLiteral) {
+    return null;
+  }
+
+  // List defaults: extract the list literal elements as-is. Unlike scalar
+  // string defaults, list string elements are NOT single-quoted.
+  if (isList) {
+    if (defaultVal.__kind !== 'ListLiteral') return null;
+    const raw = extractExpressionValue(defaultVal);
+    if (!Array.isArray(raw)) return [];
+    return raw;
+  }
+
+  // Object (non-list) defaults: populate from the dict literal entries.
+  // Empty `{}` (or anything non-dict) falls back to an empty object.
+  if (dataType === 'object') {
+    if (defaultVal.__kind !== 'DictLiteral') return {};
+    const raw = extractExpressionValue(defaultVal);
+    return (raw as Record<string, unknown> | undefined) ?? {};
+  }
+
+  // Primitive scalar defaults
   const strVal = extractStringValue(defaultVal);
   if (strVal !== undefined) {
     // String types get single-quoted defaults
@@ -199,17 +224,6 @@ function extractDefaultValue(
 
   const boolVal = extractBooleanValue(defaultVal);
   if (boolVal !== undefined) return boolVal;
-
-  // `= None` parses to a NoneLiteral AST node — Python omits default for None,
-  // so we treat it as "no default" regardless of the data type.
-  if (defaultVal instanceof NoneLiteral) {
-    return null;
-  }
-
-  // Object types with empty map default → {}
-  if (dataType === 'object' && typeof defaultVal === 'object') {
-    return {} as Record<string, never>;
-  }
 
   return null;
 }

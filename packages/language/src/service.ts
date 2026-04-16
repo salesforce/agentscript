@@ -165,7 +165,9 @@ class LanguageServiceImpl implements LanguageService {
       namespace,
       this.schemaContext,
       scope,
-      this.getSymbols()
+      this.getSymbols(),
+      line,
+      char
     );
   }
 

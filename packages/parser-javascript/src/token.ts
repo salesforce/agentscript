@@ -68,11 +68,18 @@ export interface Position {
   column: number;
 }
 
-export interface Token {
-  kind: TokenKind;
+export interface Token<K extends TokenKind = TokenKind> {
+  readonly kind: K;
   text: string;
   start: Position;
   end: Position;
   /** Byte offset into the source string where this token starts. */
   startOffset: number;
+}
+
+export function isTokenKind<K extends TokenKind>(
+  token: Token,
+  kind: K
+): token is Token<K> {
+  return token.kind === kind;
 }

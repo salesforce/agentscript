@@ -100,10 +100,14 @@ export class Lexer {
   private onTemplateLine = false;
   /** Indent level of the line containing `|`. Content deeper than this is template content. */
   private templateBaseIndent = -1;
-  /** True when inside a `{!...}` template expression. */
-  private inTemplateExpr = false;
-  /** Nested brace depth inside a template expression (for `{` inside `{!...}`). */
-  private templateExprBraceDepth = 0;
+  /** Nested brace depth inside a template expression (for `{` inside `{!...}`). -1 means not inside a template expression. */
+  private templateExprBraceDepth = -1;
+
+  private get inTemplateExpr(): boolean {
+    return this.templateExprBraceDepth >= 0;
+  }
+  /** Parenthesis depth — suppresses INDENT/DEDENT/NEWLINE when > 0 to support multi-line call expressions. */
+  private bracketDepth = 0;
 
   constructor(source: string) {
     this.source = source;
@@ -122,6 +126,7 @@ export class Lexer {
     this.row = 0;
     this.col = 0;
     this.indentStack = [0];
+    this.bracketDepth = 0;
 
     while (this.hasMore) {
       this.tokenizeLine();
@@ -165,9 +170,7 @@ export class Lexer {
         const nextContentIndent = this.peekNextContentIndent();
         if (nextContentIndent < indentLength) {
           // No real content at this depth — suppress INDENT
-          if (this.tokens.length > 0) {
-            this.emitVirtual(TokenKind.NEWLINE);
-          }
+          this.emitIndentation(currentIndent);
           return this.tokenizeComment();
         }
       } else if (indentLength < currentIndent) {
@@ -181,16 +184,45 @@ export class Lexer {
           this.emitIndentation(nextContentIndent);
           return this.tokenizeComment();
         }
+      } else {
+        // Comment at same indent as current block. If next real content
+        // is deeper (i.e. the comment sits between a key and its indented
+        // body), suppress NEWLINE so the body's INDENT fires on the next
+        // iteration. Example:
+        //   a:
+        //   # comment       ← same indent as current block
+        //       body: "x"   ← should INDENT into a's body
+        const nextContentIndent = this.peekNextContentIndent();
+        if (nextContentIndent > indentLength) {
+          return this.tokenizeComment();
+        }
       }
       this.emitIndentation(indentLength);
       return this.tokenizeComment();
     }
 
-    // Normal line — emit indentation tokens
-    this.emitIndentation(indentLength);
+    // Normal line — emit indentation tokens.
+    // Template continuation lines (deeper than templateBaseIndent) should
+    // not cause INDENT/DEDENT when their indent varies relative to other
+    // template lines. The initial INDENT into the template block is needed
+    // (it establishes the template_content grammar rule), but subsequent
+    // indent variation within the template corrupts the indent stack and
+    // breaks downstream blocks. Detect "already inside template block" by
+    // checking if the indent stack top is already deeper than templateBaseIndent.
+    const currentIndent = this.indentStack[this.indentStack.length - 1]!;
+    if (
+      this.onTemplateLine &&
+      indentLength > this.templateBaseIndent &&
+      currentIndent > this.templateBaseIndent &&
+      indentLength !== currentIndent
+    ) {
+      this.emitIndentation(currentIndent);
+    } else {
+      this.emitIndentation(indentLength);
+    }
 
     // Check for "- " sequence element at start of content
-    if (c === CH_DASH) {
+    if (this.bracketDepth === 0 && c === CH_DASH) {
       const nc = this.peekCharCode(1); // NaN at EOF — won't match any CH_*
       const atEOF = this.offset + 1 >= this.source.length;
       if (nc === CH_SPACE || this.atNewline(1) || atEOF) {
@@ -233,8 +265,8 @@ export class Lexer {
         }
       }
 
-      // Comment
-      if (c === CH_HASH) {
+      // Comment (but not on template content lines where # is literal text)
+      if (c === CH_HASH && !this.onTemplateLine) {
         return this.tokenizeComment();
       }
 
@@ -243,6 +275,8 @@ export class Lexer {
   }
 
   private emitIndentation(indentLength: number): void {
+    if (this.bracketDepth > 0) return;
+
     const currentIndent = this.indentStack[this.indentStack.length - 1]!;
 
     if (indentLength > currentIndent) {
@@ -253,8 +287,7 @@ export class Lexer {
       // indentation drops to or below the template's base indent level.
       if (indentLength <= this.templateBaseIndent) {
         this.onTemplateLine = false;
-        this.inTemplateExpr = false;
-        this.templateExprBraceDepth = 0;
+        this.templateExprBraceDepth = -1;
       }
       while (
         this.indentStack.length > 1 &&
@@ -269,8 +302,7 @@ export class Lexer {
       // Leave template context only when at or below the template's base indent.
       if (indentLength <= this.templateBaseIndent) {
         this.onTemplateLine = false;
-        this.inTemplateExpr = false;
-        this.templateExprBraceDepth = 0;
+        this.templateExprBraceDepth = -1;
       }
       if (this.tokens.length > 0) {
         this.emitVirtual(TokenKind.NEWLINE);
@@ -310,7 +342,6 @@ export class Lexer {
 
     // Template expression start {!
     if (c === CH_LBRACE && this.peekCharCode(1) === CH_BANG) {
-      this.inTemplateExpr = true;
       this.templateExprBraceDepth = 0;
       this.emit(TokenKind.TEMPLATE_EXPR_START, '{!');
       return;
@@ -367,25 +398,34 @@ export class Lexer {
     const kind = c < 128 ? SINGLE_CHAR_TOKENS[c] : 0;
     if (kind) {
       this.emitSpan(kind, 1);
-      // Track template lines: `|` starts a template context for this line
-      // and continuation lines indented deeper than this level.
-      if (kind === TokenKind.PIPE) {
-        this.onTemplateLine = true;
-        this.templateBaseIndent =
-          this.indentStack[this.indentStack.length - 1]!;
-      }
-      // Track brace depth inside {!...} template expressions so that nested
-      // braces (e.g. JSON objects) don't prematurely close the expression.
-      if (this.inTemplateExpr) {
-        if (kind === TokenKind.LBRACE) {
-          this.templateExprBraceDepth++;
-        } else if (kind === TokenKind.RBRACE) {
-          if (this.templateExprBraceDepth > 0) {
-            this.templateExprBraceDepth--;
-          } else {
-            this.inTemplateExpr = false;
+      switch (kind) {
+        // Track template lines: `|` starts a template context for this line
+        // and continuation lines indented deeper than this level.
+        case TokenKind.PIPE:
+          this.onTemplateLine = true;
+          this.templateBaseIndent =
+            this.indentStack[this.indentStack.length - 1]!;
+          break;
+        // Track parenthesis depth to suppress structural tokens inside
+        // multi-line call expressions
+        case TokenKind.LPAREN:
+          this.bracketDepth++;
+          break;
+        case TokenKind.RPAREN:
+          this.bracketDepth--;
+          break;
+        // Track brace depth inside {!...} template expressions so that nested
+        // braces (e.g. JSON objects) don't prematurely close the expression.
+        case TokenKind.LBRACE:
+          if (this.inTemplateExpr) {
+            this.templateExprBraceDepth++;
           }
-        }
+          break;
+        case TokenKind.RBRACE:
+          if (this.inTemplateExpr) {
+            this.templateExprBraceDepth--;
+          }
+          break;
       }
       return;
     }
@@ -539,6 +579,11 @@ export class Lexer {
         this.advance();
       } else if (c === CH_TAB) {
         indentLength += 3;
+        this.advance();
+      } else if (c === CH_CR) {
+        // Bare \r (not followed by \n) resets indent to 0,
+        // matching tree-sitter scanner.c behavior (line 140-142)
+        indentLength = 0;
         this.advance();
       } else {
         break;

@@ -26,13 +26,25 @@ export type ScopeContext = Readonly<Record<string, string>>;
 /** Metadata for a namespace, used for bare-@ completions. */
 export interface NamespaceMeta {
   kind: SymbolKind;
-  scopeRequired?: string;
+  /**
+   * Set of scope levels that host this namespace. A namespace is "in scope"
+   * when any of these scope levels is active. Multiple entries appear when
+   * peer root-level blocks share a namespace (e.g., `actions` is defined on
+   * both `topic` and `subagent` in AgentForce).
+   */
+  scopesRequired?: ReadonlySet<string>;
 }
 
 /** Pre-computed schema-derived data. Create via `createSchemaContext(info)`. */
 export interface SchemaContext {
   readonly info: SchemaInfo;
-  readonly scopedNamespaces: ReadonlyMap<string, string>;
+  /**
+   * Maps a namespace name to the set of scope levels that host its
+   * definitions. A namespace may appear under multiple peer scopes — for
+   * example, `actions` is defined on both `topic` and `subagent` in
+   * AgentForce — so the value is a set, not a single scope.
+   */
+  readonly scopedNamespaces: ReadonlyMap<string, ReadonlySet<string>>;
   readonly scopeNavigation: ReadonlyMap<string, ScopeNavInfo>;
   readonly namespaceMetadata: ReadonlyMap<string, NamespaceMeta>;
   readonly schemaNamespaces: ReadonlySet<string>;
@@ -157,11 +169,29 @@ export interface ScopeNavInfo {
   parentScope?: string;
 }
 
-/** Maps namespace field names to the scope level they require. */
+/** Maps namespace field names to the set of scope levels that host them. */
 export function getScopedNamespaces(
   ctx: SchemaContext
-): ReadonlyMap<string, string> {
+): ReadonlyMap<string, ReadonlySet<string>> {
   return ctx.scopedNamespaces;
+}
+
+/**
+ * Given the set of scope levels that host a namespace (e.g.,
+ * `{topic, subagent}` for `@actions` in AgentForce), return whichever
+ * one is currently active in `scope`. Returns undefined when none of
+ * the hosting scopes are active. When multiple are active, the first
+ * one encountered in iteration order wins.
+ */
+export function activeScopeForNamespace(
+  scopesRequired: ReadonlySet<string> | undefined,
+  scope: ScopeContext | undefined
+): string | undefined {
+  if (!scopesRequired || !scope) return undefined;
+  for (const s of scopesRequired) {
+    if (scope[s]) return s;
+  }
+  return undefined;
 }
 
 /** Maps scope level names to their navigation info. */
@@ -209,8 +239,10 @@ function resolveFieldType(ft: FieldType | FieldType[]): FieldType {
   return Array.isArray(ft) ? ft[0] : ft;
 }
 
-function buildScopedNamespaces(schemaInfo: SchemaInfo): Map<string, string> {
-  const result = new Map<string, string>();
+function buildScopedNamespaces(
+  schemaInfo: SchemaInfo
+): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
 
   for (const [, rawFt] of Object.entries(schemaInfo.schema)) {
     const fieldType = resolveFieldType(rawFt);
@@ -228,6 +260,20 @@ function buildScopedNamespaces(schemaInfo: SchemaInfo): Map<string, string> {
   return result;
 }
 
+/** Add `scope` to the set of hosting scopes for `fieldName`. */
+function addScopedField(
+  result: Map<string, Set<string>>,
+  fieldName: string,
+  scope: string
+): void {
+  let scopes = result.get(fieldName);
+  if (!scopes) {
+    scopes = new Set<string>();
+    result.set(fieldName, scopes);
+  }
+  scopes.add(scope);
+}
+
 /**
  * Walk a block's schema registering child fields that require scope.
  * A field is scoped when it's a NamedBlock or TypedMap inside a scoped parent.
@@ -235,23 +281,23 @@ function buildScopedNamespaces(schemaInfo: SchemaInfo): Map<string, string> {
 function collectScopedFields(
   schema: Schema,
   parentScope: string,
-  result: Map<string, string>
+  result: Map<string, Set<string>>
 ): void {
   for (const [fieldName, rawFt] of Object.entries(schema)) {
     const fieldType = resolveFieldType(rawFt);
     if (fieldType.isNamed) {
-      result.set(fieldName, parentScope);
+      addScopedField(result, fieldName, parentScope);
       if (fieldType.scopeAlias && fieldType.schema) {
         collectScopedFields(fieldType.schema, fieldType.scopeAlias, result);
       }
     } else if (isCollectionField(fieldType)) {
       // CollectionBlock — treat like a NamedBlock for scope purposes
-      result.set(fieldName, parentScope);
+      addScopedField(result, fieldName, parentScope);
       if (fieldType.scopeAlias && fieldType.schema) {
         collectScopedFields(fieldType.schema, fieldType.scopeAlias, result);
       }
     } else if (isTypedMapField(fieldType)) {
-      result.set(fieldName, parentScope);
+      addScopedField(result, fieldName, parentScope);
     } else if (fieldType.schema && !fieldType.isNamed) {
       // Non-scoped Block (e.g., ReasoningBlock) -- recurse through it
       collectScopedFields(fieldType.schema, parentScope, result);
@@ -395,7 +441,7 @@ function walkSchemaForNavigation(
 
 function buildNamespaceMetadata(
   schemaInfo: SchemaInfo,
-  scopedNamespaces: ReadonlyMap<string, string>
+  scopedNamespaces: ReadonlyMap<string, ReadonlySet<string>>
 ): Map<string, NamespaceMeta> {
   const { schema, aliases } = schemaInfo;
   const result = new Map<string, NamespaceMeta>();
@@ -405,10 +451,10 @@ function buildNamespaceMetadata(
     result.set(key, { kind: SymbolKind.Namespace });
   }
 
-  for (const [ns, requiredScope] of scopedNamespaces) {
+  for (const [ns, scopesRequired] of scopedNamespaces) {
     result.set(ns, {
       kind: SymbolKind.Namespace,
-      scopeRequired: requiredScope,
+      scopesRequired,
     });
   }
 

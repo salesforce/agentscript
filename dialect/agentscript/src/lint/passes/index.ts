@@ -18,6 +18,7 @@ import {
   emptyBlockPass,
   unusedVariablePass,
   expressionValidationPass,
+  spreadContextPass,
 } from '@agentscript/language';
 import { typeMapAnalyzer } from './type-map.js';
 import { reasoningActionsAnalyzer } from './reasoning-actions.js';
@@ -59,6 +60,7 @@ export function defaultRules(): LintPass[] {
     emptyBlockPass(),
     unusedVariablePass(),
     expressionValidationPass(),
+    spreadContextPass(),
     // AgentScript analyzers
     typeMapAnalyzer(),
     reasoningActionsAnalyzer(),

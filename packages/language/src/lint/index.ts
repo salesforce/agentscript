@@ -42,6 +42,7 @@ export { constraintValidationPass } from './constraint-validation.js';
 export { positionIndexPass } from './position-index.js';
 export { unreachableCodePass } from './unreachable-code.js';
 export { emptyBlockPass } from './empty-block.js';
+export { spreadContextPass } from './spread-context.js';
 export {
   expressionValidationPass,
   BUILTIN_FUNCTIONS,

@@ -1,5 +1,40 @@
 # @agentscript/lsp-browser
 
+## 2.2.19
+
+### Patch Changes
+
+- @agentscript/agentforce@2.5.19
+- @agentscript/lsp@2.2.14
+
+## 2.2.18
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/lsp@2.2.13
+  - @agentscript/agentforce@2.5.18
+
+## 2.2.17
+
+### Patch Changes
+
+- @agentscript/lsp@2.2.12
+- @agentscript/agentforce@2.5.17
+
+## 2.2.16
+
+### Patch Changes
+
+- @agentscript/agentforce@2.5.16
+
+## 2.2.15
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentscript/agentforce@2.5.15
+
 ## 2.2.14
 
 ### Patch Changes

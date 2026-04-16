@@ -796,6 +796,11 @@ export interface SchemaInfo {
   /** Global scopes: namespaces with known members, always resolvable (e.g., @utils, @system_variables). */
   readonly globalScopes?: Readonly<Record<string, ReadonlySet<string>>>;
   /**
+   * Namespaced function definitions: namespace name → set of allowed function names.
+   * These are callable as bare `ns.func()` in expressions.
+   */
+  readonly namespacedFunctions?: Readonly<Record<string, ReadonlySet<string>>>;
+  /**
    * Extra schema keys to include when resolving a namespace.
    * E.g., `{ topic: ['start_agent'] }` makes `@topic.X` also search `start_agent` entries.
    * Unlike aliases, this doesn't affect completions — it only affects reference resolution.
