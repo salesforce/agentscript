@@ -180,11 +180,19 @@ export function getCompletionCandidates(
   }
 
   if (symbols) {
+    // When a cursor position is available, use position-based bottom-up
+    // resolution so the innermost-enclosing namespace map wins (shadowing).
+    // Without a position, fall back to scope-chain top-down resolution.
+    const position =
+      line !== undefined && character !== undefined
+        ? { line, character }
+        : undefined;
     const entries = getSymbolNamespaceEntries(
       symbols,
       namespace,
       ctx,
-      effectiveScope
+      effectiveScope,
+      position
     );
     if (entries) {
       return entries.map(({ name, symbol }) => ({

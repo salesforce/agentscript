@@ -4,6 +4,7 @@ import {
   findEnclosingScope,
   getAvailableNamespaces,
   getCompletionCandidates,
+  getDocumentSymbols,
   getFieldCompletions,
   SymbolKind,
 } from '@agentscript/language';
@@ -416,6 +417,82 @@ describe('getCompletionCandidates', () => {
     );
     const names = candidates.map(c => c.name);
     expect(names).toContain('outerResult');
+  });
+
+  test('@actions in reasoning.instructions completes from reasoning.actions only', () => {
+    // Innermost-wins (shadowing): inside reasoning.instructions, the
+    // templated `@actions.X` references the binding name from
+    // `reasoning.actions`, not the underlying `subagent.actions` definition.
+    const source = [
+      'subagent main:',
+      '    actions:',
+      '        Outer:',
+      '            description: "outer"',
+      '            target: "ext://o"',
+      '    reasoning:',
+      '        instructions: ->',
+      '            | use {!@actions.x}',
+      '        actions:',
+      '            Inner: @actions.Outer',
+      '                with foo = ...',
+    ].join('\n');
+    const ast = parse(source);
+    const pos = findPosition(source, '@actions.x');
+    const cursor = {
+      line: pos.line,
+      character: pos.character + '@actions.'.length,
+    };
+    const symbols = getDocumentSymbols(ast);
+    const candidates = getCompletionCandidates(
+      ast,
+      'actions',
+      testSchemaCtx,
+      { subagent: 'main' },
+      symbols,
+      cursor.line,
+      cursor.character
+    );
+    const names = candidates.map(c => c.name);
+    expect(names).toContain('Inner');
+    expect(names).not.toContain('Outer');
+  });
+
+  test('@actions in a reasoning.actions binding RHS completes from subagent.actions', () => {
+    // Counter-case: the cursor is inside reasoning.actions itself. The
+    // binding RHS resolves into the underlying definitions, so the walk
+    // must skip the enclosing `reasoning.actions` map and use
+    // `subagent.actions`.
+    const source = [
+      'subagent main:',
+      '    actions:',
+      '        Outer:',
+      '            description: "outer"',
+      '            target: "ext://o"',
+      '    reasoning:',
+      '        instructions: ->',
+      '            | go',
+      '        actions:',
+      '            Inner: @actions.x',
+    ].join('\n');
+    const ast = parse(source);
+    const pos = findPosition(source, '@actions.x');
+    const cursor = {
+      line: pos.line,
+      character: pos.character + '@actions.'.length,
+    };
+    const symbols = getDocumentSymbols(ast);
+    const candidates = getCompletionCandidates(
+      ast,
+      'actions',
+      testSchemaCtx,
+      { subagent: 'main' },
+      symbols,
+      cursor.line,
+      cursor.character
+    );
+    const names = candidates.map(c => c.name);
+    expect(names).toContain('Outer');
+    expect(names).not.toContain('Inner');
   });
 
   test('config namespace returns config block fields', () => {
