@@ -1594,7 +1594,9 @@ connected_subagent order_lookup:
     value: string = @variables.plain_var
 `);
 
-    const errors = diagnostics.filter(d => d.code === 'bound-input-not-linked-or-mutable');
+    const errors = diagnostics.filter(
+      d => d.code === 'bound-input-not-linked-or-mutable'
+    );
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
     expect(errors[0].message).toContain("'plain_var'");
@@ -1657,11 +1659,15 @@ connected_subagent order_lookup:
     unmodified_var_input: string = @variables.plain_var
 `);
 
-    const unboundErrors = diagnostics.filter(d => d.code === 'bound-input-required');
+    const unboundErrors = diagnostics.filter(
+      d => d.code === 'bound-input-required'
+    );
     expect(unboundErrors).toHaveLength(1);
     expect(unboundErrors[0].message).toContain("'unbound_input'");
 
-    const notVarErrors = diagnostics.filter(d => d.code === 'bound-input-not-variable');
+    const notVarErrors = diagnostics.filter(
+      d => d.code === 'bound-input-not-variable'
+    );
     expect(notVarErrors).toHaveLength(1);
     expect(notVarErrors[0].message).toContain('simple variable reference');
 

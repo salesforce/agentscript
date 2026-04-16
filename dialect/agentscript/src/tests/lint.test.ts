@@ -1382,6 +1382,199 @@ subagent main:
     expect(outputsErrors).toHaveLength(0);
   });
 
+  // ============================================================================
+  // Duplicate clause detection (duplicate-clause code on the duplicate-key pass)
+  // ============================================================================
+
+  it('flags duplicate `with` param inside a nested run body', () => {
+    // Regression: the v17.agent Preboarding case had two `with emailCaseId`
+    // clauses inside a single nested `run @actions.Prehire_Agent_Confidence_Check`
+    // body. The second silently overwrites the first at runtime — flag it.
+    const diagnostics = runLint(`
+variables:
+  id: mutable string
+  case: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    outer:
+      description: "Outer"
+      outputs:
+        outerResult: string
+      target: "ext://outer"
+    inner:
+      description: "Inner"
+      inputs:
+        arg: string
+        dup: string
+      target: "ext://inner"
+  reasoning:
+    instructions: ->
+      | do
+    actions:
+      binding: @actions.outer
+        run @actions.inner
+          with arg=@variables.id
+          with dup=@variables.case
+          with dup=@variables.id
+`);
+
+    const dupErrors = diagnostics.filter(d => d.code === 'duplicate-clause');
+    expect(dupErrors).toHaveLength(1);
+    expect(dupErrors[0].message).toContain('with dup');
+  });
+
+  it('flags duplicate `with` param directly under a reasoning action binding', () => {
+    const diagnostics = runLint(`
+variables:
+  id: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    fetch:
+      description: "Fetch"
+      inputs:
+        id: string
+      target: "ext://fetch"
+  reasoning:
+    instructions: ->
+      | do
+    actions:
+      binding: @actions.fetch
+        with id=@variables.id
+        with id=@variables.id
+`);
+
+    const dupErrors = diagnostics.filter(d => d.code === 'duplicate-clause');
+    expect(dupErrors).toHaveLength(1);
+    expect(dupErrors[0].message).toContain('with id');
+  });
+
+  it('does not flag distinct `with` params as duplicates', () => {
+    const diagnostics = runLint(`
+variables:
+  a: mutable string
+  b: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    fetch:
+      description: "Fetch"
+      inputs:
+        a: string
+        b: string
+      target: "ext://fetch"
+  reasoning:
+    instructions: ->
+      | do
+    actions:
+      binding: @actions.fetch
+        with a=@variables.a
+        with b=@variables.b
+`);
+
+    const dupErrors = diagnostics.filter(d => d.code === 'duplicate-clause');
+    expect(dupErrors).toHaveLength(0);
+  });
+
+  it('does not conflate `with` params across sibling run bodies', () => {
+    // Two nested runs each taking a `with arg=...` — each run body is its
+    // own container, so the param name repeating across them is fine.
+    const diagnostics = runLint(`
+variables:
+  id: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    outer:
+      description: "Outer"
+      target: "ext://outer"
+    a:
+      description: "A"
+      inputs:
+        arg: string
+      target: "ext://a"
+    b:
+      description: "B"
+      inputs:
+        arg: string
+      target: "ext://b"
+  reasoning:
+    instructions: ->
+      | do
+    actions:
+      binding: @actions.outer
+        run @actions.a
+          with arg=@variables.id
+        run @actions.b
+          with arg=@variables.id
+`);
+
+    const dupErrors = diagnostics.filter(d => d.code === 'duplicate-clause');
+    expect(dupErrors).toHaveLength(0);
+  });
+
+  it('flags duplicate `set` target inside a reasoning action binding', () => {
+    const diagnostics = runLint(`
+variables:
+  result: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    fetch:
+      description: "Fetch"
+      outputs:
+        result: string
+      target: "ext://fetch"
+  reasoning:
+    instructions: ->
+      | do
+    actions:
+      binding: @actions.fetch
+        set @variables.result=@outputs.result
+        set @variables.result=@outputs.result
+`);
+
+    const dupErrors = diagnostics.filter(d => d.code === 'duplicate-clause');
+    expect(dupErrors).toHaveLength(1);
+    expect(dupErrors[0].message).toContain('set @variables.result');
+  });
+
+  it('does not flag a `set` with the same var in separate run bodies', () => {
+    const diagnostics = runLint(`
+variables:
+  result: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    outer:
+      description: "Outer"
+      target: "ext://outer"
+    a:
+      description: "A"
+      outputs:
+        out: string
+      target: "ext://a"
+    b:
+      description: "B"
+      outputs:
+        out: string
+      target: "ext://b"
+  reasoning:
+    instructions: ->
+      | do
+    actions:
+      binding: @actions.outer
+        run @actions.a
+          set @variables.result=@outputs.out
+        run @actions.b
+          set @variables.result=@outputs.out
+`);
+
+    const dupErrors = diagnostics.filter(d => d.code === 'duplicate-clause');
+    expect(dupErrors).toHaveLength(0);
+  });
+
   it('reports unknown namespace as error', () => {
     const diagnostics = runLint(`
 subagent main:

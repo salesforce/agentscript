@@ -82,7 +82,11 @@ export function boundInputsRule(): LintPass {
           }
 
           const varInfo = typeMap.variables.get(varName);
-          if (varInfo && varInfo.modifier !== 'linked' && varInfo.modifier !== 'mutable') {
+          if (
+            varInfo &&
+            varInfo.modifier !== 'linked' &&
+            varInfo.modifier !== 'mutable'
+          ) {
             attachDiagnostic(
               inputInfo.decl,
               lintDiagnostic(
