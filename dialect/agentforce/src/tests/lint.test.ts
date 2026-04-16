@@ -1601,7 +1601,7 @@ connected_subagent order_lookup:
     expect(errors[0].message).toContain('unmodified');
   });
 
-  it('allows input without a default value', () => {
+  it('reports error for input without a default value', () => {
     const diagnostics = runSecurityLint(`
 connected_subagent order_lookup:
   label: "Order Lookup"
@@ -1610,13 +1610,66 @@ connected_subagent order_lookup:
     customer_id: string
 `);
 
-    const boundErrors = diagnostics.filter(
-      d =>
-        d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked' ||
-        d.code === 'bound-input-not-linked-or-mutable'
+    const errors = diagnostics.filter(d => d.code === 'bound-input-required');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'customer_id'");
+    expect(errors[0].message).toContain('must be bound to a variable');
+  });
+
+  it('reports errors for multiple unbound inputs', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  user_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "User ID"
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    customer_id: string = @variables.user_id
+    unbound_param: string
+    another_unbound: number
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'bound-input-required');
+    expect(errors).toHaveLength(2);
+    expect(errors[0].message).toContain("'unbound_param'");
+    expect(errors[1].message).toContain("'another_unbound'");
+  });
+
+  it('reports different error types for mixed input issues', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  user_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "User ID"
+  plain_var: string
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    good_input: string = @variables.user_id
+    unbound_input: string
+    computed_input: string = @variables.user_id + "_suffix"
+    unmodified_var_input: string = @variables.plain_var
+`);
+
+    const unboundErrors = diagnostics.filter(d => d.code === 'bound-input-required');
+    expect(unboundErrors).toHaveLength(1);
+    expect(unboundErrors[0].message).toContain("'unbound_input'");
+
+    const notVarErrors = diagnostics.filter(d => d.code === 'bound-input-not-variable');
+    expect(notVarErrors).toHaveLength(1);
+    expect(notVarErrors[0].message).toContain('simple variable reference');
+
+    const notLinkedOrMutableErrors = diagnostics.filter(
+      d => d.code === 'bound-input-not-linked-or-mutable'
     );
-    expect(boundErrors).toHaveLength(0);
+    expect(notLinkedOrMutableErrors).toHaveLength(1);
+    expect(notLinkedOrMutableErrors[0].message).toContain("'plain_var'");
   });
 
   it('reports error for computed expression but allows mutable variable', () => {
