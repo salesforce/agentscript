@@ -1503,7 +1503,8 @@ connected_subagent order_lookup:
     const boundErrors = diagnostics.filter(
       d =>
         d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked'
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
     );
     expect(boundErrors).toHaveLength(0);
   });
@@ -1530,7 +1531,7 @@ connected_subagent order_lookup:
     expect(errors[0].message).toContain('simple variable reference');
   });
 
-  it('reports error when default references a mutable variable', () => {
+  it('allows input with simple @variables.X reference to mutable var', () => {
     const diagnostics = runSecurityLint(`
 variables:
   counter: mutable number
@@ -1542,11 +1543,62 @@ connected_subagent order_lookup:
     count: number = @variables.counter
 `);
 
-    const errors = diagnostics.filter(d => d.code === 'bound-input-not-linked');
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
+  it('allows connected_subagent with both linked and mutable variable inputs', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  user_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "User contact ID"
+  session_count: mutable number
+    description: "Number of sessions"
+  user_name: mutable string = "Guest"
+    description: "User display name"
+
+connected_subagent support_agent:
+  target: "agentforce://Support_Agent"
+  label: "Support Agent"
+  description: "Handles customer support requests"
+  inputs:
+    contact_id: string = @variables.user_id
+    session_num: number = @variables.session_count
+    display_name: string = @variables.user_name
+`);
+
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
+  it('reports error when default references an unmodified variable', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  plain_var: string
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    value: string = @variables.plain_var
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'bound-input-not-linked-or-mutable');
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain("'counter'");
-    expect(errors[0].message).toContain('mutable');
+    expect(errors[0].message).toContain("'plain_var'");
+    expect(errors[0].message).toContain('unmodified');
   });
 
   it('allows input without a default value', () => {
@@ -1561,12 +1613,13 @@ connected_subagent order_lookup:
     const boundErrors = diagnostics.filter(
       d =>
         d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked'
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
     );
     expect(boundErrors).toHaveLength(0);
   });
 
-  it('reports errors for multiple invalid inputs', () => {
+  it('reports error for computed expression but allows mutable variable', () => {
     const diagnostics = runSecurityLint(`
 variables:
   counter: mutable number
@@ -1582,13 +1635,16 @@ connected_subagent order_lookup:
     ref: string = @variables.session_id + "_suffix"
 `);
 
-    const notLinked = diagnostics.filter(
-      d => d.code === 'bound-input-not-linked'
+    // counter is mutable, so it should be allowed (no error)
+    const notLinkedOrMutable = diagnostics.filter(
+      d => d.code === 'bound-input-not-linked-or-mutable'
     );
+    expect(notLinkedOrMutable).toHaveLength(0);
+
+    // The computed expression should still error
     const notVar = diagnostics.filter(
       d => d.code === 'bound-input-not-variable'
     );
-    expect(notLinked).toHaveLength(1);
     expect(notVar).toHaveLength(1);
   });
 
@@ -1602,7 +1658,8 @@ connected_subagent order_lookup:
     const boundErrors = diagnostics.filter(
       d =>
         d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked'
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
     );
     expect(boundErrors).toHaveLength(0);
   });

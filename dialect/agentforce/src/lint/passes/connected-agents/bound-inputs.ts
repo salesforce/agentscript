@@ -1,15 +1,15 @@
 /**
- * Validates that connected agent input bindings are simple linked variable references.
+ * Validates that connected agent input bindings are simple variable references.
  *
  * Default values on connected agent inputs (e.g. `foo: string = @variables.bar`)
- * must be a bare `@variables.X` reference to a linked (context) variable — no
- * computed expressions. This mirrors the runtime constraint that connected agent
- * invocations can only bind context variables as inputs.
+ * must be a bare `@variables.X` reference to a linked or mutable variable — no
+ * computed expressions. This allows both context variables (linked) and agent
+ * state variables (mutable) to be passed to connected agents.
  *
  * The core check (`isSimpleVariableReference`) is intentionally reusable for
  * future tool-call `with` clause validation.
  *
- * Diagnostics: bound-input-not-variable, bound-input-not-linked
+ * Diagnostics: bound-input-not-variable, bound-input-not-linked-or-mutable
  */
 
 import type { AstNodeLike } from '@agentscript/language';
@@ -41,7 +41,7 @@ export function boundInputsRule(): LintPass {
   return defineRule({
     id: 'connected-agent/bound-inputs',
     description:
-      'Connected agent input bindings must be simple linked variable references',
+      'Connected agent input bindings must be simple linked or mutable variable references',
     deps: { typeMap: typeMapKey },
 
     run({ typeMap }) {
@@ -65,14 +65,14 @@ export function boundInputsRule(): LintPass {
           }
 
           const varInfo = typeMap.variables.get(varName);
-          if (varInfo && varInfo.modifier !== 'linked') {
+          if (varInfo && varInfo.modifier !== 'linked' && varInfo.modifier !== 'mutable') {
             attachDiagnostic(
               inputInfo.decl,
               lintDiagnostic(
                 inputInfo.defaultValueCst.range,
-                `Bound input must reference a linked variable — '${varName}' is ${varInfo.modifier ?? 'unmodified'}.`,
+                `Bound input must reference a linked or mutable variable — '${varName}' is ${varInfo.modifier ?? 'unmodified'}.`,
                 DiagnosticSeverity.Error,
-                'bound-input-not-linked'
+                'bound-input-not-linked-or-mutable'
               )
             );
           }
