@@ -17,7 +17,7 @@ export {
   LLMEntryBlock,
   LLMBlock,
   ActionDefBlock,
-  ActionDefinitionsBlock,
+  ActionsBlock,
   TriggerBlock,
   TriggersBlock,
   OutputPropertyBlock,

@@ -15,7 +15,7 @@ llm:
     kind: "openai"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   lookup:
     target: "mcp://knowledge"
     kind: "mcp:tool"
@@ -56,7 +56,7 @@ llm:
     kind: "openai"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   t1:
     target: "connection://tools"
     kind: "mcp:tool"
@@ -76,7 +76,7 @@ action_definitions:
 config:
   agent_name: "mcp-no-name"
 
-action_definitions:
+actions:
   bad:
     target: "mcp://knowledge"
     kind: "mcp:tool"
@@ -92,12 +92,12 @@ action_definitions:
     ).toBe(true);
   });
 
-  it('reports unknown-variant for invalid action_definitions kind', () => {
+  it('reports unknown-variant for invalid actions kind', () => {
     const source = `
 config:
   agent_name: "bad-action-kind"
 
-action_definitions:
+actions:
   bad:
     target: "mcp://knowledge"
     kind: "mcp:unknown"
@@ -108,12 +108,12 @@ action_definitions:
     );
   });
 
-  it('rejects tool_name on a2a:send_message action_definitions', () => {
+  it('rejects tool_name on a2a:send_message actions', () => {
     const source = `
 config:
   agent_name: "a2a-extra-field"
 
-action_definitions:
+actions:
   bad:
     target: "a2a://agent"
     kind: "a2a:send_message"
@@ -284,7 +284,7 @@ echo done:
 config:
   agent_name: "tools-ns"
 
-action_definitions:
+actions:
   notify:
     target: "a2a://notify"
     kind: "a2a:send_message"
@@ -320,7 +320,7 @@ llm:
     kind: "openai"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   search_articles:
     target: "mcp://knowledge"
     kind: "mcp:tool"
@@ -371,7 +371,7 @@ llm:
     kind: "openAI"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   hr_agent:
     target: "a2a://hr_agent_connection"
     kind: "a2a:send_message"

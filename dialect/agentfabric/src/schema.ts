@@ -123,7 +123,7 @@ export const LLMBlock = CollectionBlock(LLMEntryBlock).describe(
   'Named LLM configurations referenced by agentic nodes.'
 );
 
-// ── Action Definitions ──────────────────────────────────────────────
+// ── Actions ─────────────────────────────────────────────────────────
 
 // Intentionally empty marker block: loose bindable parameter keys (typed InputsBlock deferred).
 export const ActionDefInputBlock = NamedBlock(
@@ -167,7 +167,7 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
   .variant('a2a:send_message', {})
   .describe('Action definition (A2A or MCP).');
 
-export const ActionDefinitionsBlock = CollectionBlock(ActionDefBlock).describe(
+export const ActionsBlock = CollectionBlock(ActionDefBlock).describe(
   'Named action definitions available to nodes.'
 );
 
@@ -273,7 +273,7 @@ export const OutputStructureBlock = Block('OutputStructureBlock', {
 const DialectReasoningActionBlock = ReasoningActionBlock.extend(
   {},
   { colinear: ExpressionValue.resolvedType('invocationTarget') }
-).describe('Action reference within a node, referencing an action_definition.');
+).describe('Action reference within a node, referencing an action definition.');
 
 export const NodeActionsBlock = CollectionBlock(
   DialectReasoningActionBlock
@@ -368,7 +368,7 @@ export const ExecutorBlock = NamedBlock(
     description: StringValue.describe('Description of what this node does.'),
     label: StringValue.describe('Human-readable display name.'),
     do: ProcedureValue.describe(
-      'Deterministic steps: `set @variables.<name> = <expr>` and/or `run @actions.<action_def>` with `with` inputs and optional `set` lines that read `@outputs.<field>` from the action result. For prior graph node results use `@<node_type>.<node_name>.output` (for example `@generate.summary.output`). Use @request.* for trigger payload and @variables.* for declared variables.'
+      'Deterministic steps: `set @variables.<name> = <expr>` and/or `run @actions.<action_name>` with `with` inputs and optional `set` lines that read `@outputs.<field>` from the action result. For prior graph node results use `@<node_type>.<node_name>.output` (for example `@generate.summary.output`). Use @request.* for trigger payload and @variables.* for declared variables.'
     ).required(),
     on_exit: ProcedureValue.describe(
       'Procedure executed when node completes. Optional for terminal execute nodes; when present, should contain a transition to statement.'
@@ -472,7 +472,7 @@ export const AgentFabricSchema = {
   config: AFConfigBlock,
   variables: VariablesBlock,
   llm: LLMBlock,
-  action_definitions: ActionDefinitionsBlock,
+  actions: ActionsBlock,
   trigger: NamedCollectionBlock(TriggerBlock),
   orchestrator: NamedCollectionBlock(OrchestratorBlock),
   subagent: NamedCollectionBlock(SubagentBlock),

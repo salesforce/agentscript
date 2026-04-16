@@ -38,21 +38,21 @@ llm:
     expect(doc.llm).toBeDefined();
   });
 
-  it('parses action_definitions block', () => {
+  it('parses actions block', () => {
     const source = `
-action_definitions:
+actions:
   my_tool:
     target: "mcp://some_connection"
     kind: "mcp:tool"
     tool_name: "do-something"
 `;
     const doc = parseDocument(source);
-    expect(doc.action_definitions).toBeDefined();
+    expect(doc.actions).toBeDefined();
   });
 
-  it('parses action_definitions http_headers map', () => {
+  it('parses actions http_headers map', () => {
     const source = `
-action_definitions:
+actions:
   my_tool:
     target: "mcp://some_connection"
     kind: "mcp:tool"
@@ -62,7 +62,7 @@ action_definitions:
       x-request-id: "abc-123"
 `;
     const doc = parseDocument(source);
-    expect(doc.action_definitions).toBeDefined();
+    expect(doc.actions).toBeDefined();
   });
 
   it('parses trigger block', () => {
@@ -154,7 +154,7 @@ llm:
     kind: "openai"
     model: "gpt-4"
 
-action_definitions:
+actions:
   search:
     target: "mcp://search_mcp"
     kind: "mcp:tool"
@@ -179,7 +179,7 @@ echo done:
     const doc = parseDocument(source);
     expect(doc.config).toBeDefined();
     expect(doc.llm).toBeDefined();
-    expect(doc.action_definitions).toBeDefined();
+    expect(doc.actions).toBeDefined();
     expect(doc.trigger).toBeDefined();
     expect(doc.orchestrator).toBeDefined();
     expect(doc.echo).toBeDefined();
