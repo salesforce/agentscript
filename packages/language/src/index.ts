@@ -335,6 +335,7 @@ export { positionIndexPass } from './lint/position-index.js';
 export { unreachableCodePass } from './lint/unreachable-code.js';
 export { emptyBlockPass } from './lint/empty-block.js';
 export { spreadContextPass } from './lint/spread-context.js';
+export { unusedVariablePass } from './lint/unused-variable.js';
 export {
   expressionValidationPass,
   BUILTIN_FUNCTIONS,
