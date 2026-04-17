@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { generateFieldSnippet, escapeSnippetText } from './snippet-gen.js';
 import { StringValue, BooleanValue, NumberValue } from '../primitives.js';
 import { Block } from '../block.js';
+import { NamedBlock } from '../named-block-factory.js';
+import {
+  CollectionBlock,
+  NamedCollectionBlock,
+} from '../collection-block-factory.js';
 
 describe('generateFieldSnippet', () => {
   describe('leaf primitives return undefined', () => {
@@ -134,6 +139,156 @@ describe('generateFieldSnippet', () => {
       expect(snippet).toBeDefined();
       const lines = snippet!.split('\n');
       expect(lines[1]).toMatch(/^ {2}name:/);
+    });
+  });
+
+  describe('Collection snippets', () => {
+    const EntryBlock = NamedBlock('EntryBlock', {
+      target: StringValue.describe('URI').required(),
+    });
+
+    it('generates sibling-pattern snippet for NamedCollectionBlock', () => {
+      const collection = NamedCollectionBlock(EntryBlock);
+      const snippet = generateFieldSnippet('subagent', collection);
+      expect(snippet).toBeDefined();
+      const lines = snippet!.split('\n');
+      expect(lines[0]).toMatch(/^subagent \$\{\d+:Name\}:$/);
+      expect(lines[1]).toMatch(/^ {4}target:/);
+      expect(snippet!.endsWith('$0')).toBe(true);
+    });
+
+    it('generates nested-pattern snippet for CollectionBlock', () => {
+      const collection = CollectionBlock(EntryBlock);
+      const snippet = generateFieldSnippet('actions', collection);
+      expect(snippet).toBeDefined();
+      const lines = snippet!.split('\n');
+      expect(lines[0]).toBe('actions:');
+      expect(lines[1]).toMatch(/^ {4}\$\{\d+:Name\}:$/);
+      expect(lines[2]).toMatch(/^ {8}target:/);
+      expect(snippet!.endsWith('$0')).toBe(true);
+    });
+
+    it('CollectionBlock respects custom tabSize', () => {
+      const collection = CollectionBlock(EntryBlock);
+      const snippet = generateFieldSnippet('actions', collection, {
+        tabSize: 2,
+      });
+      expect(snippet).toBeDefined();
+      const lines = snippet!.split('\n');
+      expect(lines[0]).toBe('actions:');
+      expect(lines[1]).toMatch(/^ {2}\$\{\d+:Name\}:$/);
+      expect(lines[2]).toMatch(/^ {4}target:/);
+    });
+
+    it('CollectionBlock tab stops are sequential', () => {
+      const collection = CollectionBlock(EntryBlock);
+      const snippet = generateFieldSnippet('actions', collection);
+      expect(snippet).toBeDefined();
+      expect(snippet).toContain('${1:Name}');
+      expect(snippet).toContain('${2:');
+    });
+
+    it('CollectionBlock with empty-schema entry uses nested fallback', () => {
+      const EmptyEntry = NamedBlock('EmptyEntry', {});
+      const collection = CollectionBlock(EmptyEntry);
+      const snippet = generateFieldSnippet('inputs', collection);
+      expect(snippet).toBeDefined();
+      const lines = snippet!.split('\n');
+      // Nested pattern: container header, then indented name, then cursor with $0
+      expect(lines[0]).toBe('inputs:');
+      expect(lines[1]).toMatch(/^ {4}\$\{\d+:Name\}:$/);
+      expect(lines[2]).toMatch(/^ {8}\$\{\d+\}\$0$/);
+    });
+
+    it('NamedCollectionBlock with empty-schema entry uses sibling fallback', () => {
+      const EmptyEntry = NamedBlock('EmptyEntry', {});
+      const collection = NamedCollectionBlock(EmptyEntry);
+      const snippet = generateFieldSnippet('item', collection);
+      expect(snippet).toBeDefined();
+      const lines = snippet!.split('\n');
+      expect(lines[0]).toMatch(/^item \$\{\d+:Name\}:$/);
+      expect(lines[1]).toMatch(/^ {4}\$\{\d+\}\$0$/);
+    });
+  });
+
+  describe('enum value snippets', () => {
+    it('generates choice snippet for StringValue with .enum()', () => {
+      const TestBlock = Block('TestBlock', {
+        kind: StringValue.enum(['OpenAI', 'Gemini']),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toMatch(/kind: "\$\{\d+\|OpenAI,Gemini\|\}"/);
+    });
+
+    it('generates choice snippet for single enum value', () => {
+      const TestBlock = Block('TestBlock', {
+        kind: StringValue.enum(['only_value']),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toMatch(/kind: "\$\{\d+\|only_value\|\}"/);
+    });
+
+    it('non-enum StringValue still uses colon-placeholder syntax', () => {
+      const TestBlock = Block('TestBlock', {
+        name: StringValue.describe('The name'),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toMatch(/name: "\$\{\d+:The name\}"/);
+    });
+
+    it('escapes special characters in enum values', () => {
+      const TestBlock = Block('TestBlock', {
+        op: StringValue.enum(['a$b', 'c}d', 'e|f', 'g,h']),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toContain('a\\$b');
+      expect(snippet).toContain('c\\}d');
+      expect(snippet).toContain('e\\|f');
+      expect(snippet).toContain('g\\,h');
+    });
+
+    it('enum takes precedence over description for placeholder', () => {
+      const TestBlock = Block('TestBlock', {
+        kind: StringValue.describe('Some description').enum(['A', 'B']),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toMatch(/kind: "\$\{\d+\|A,B\|\}"/);
+      expect(snippet).not.toContain('Some description');
+    });
+  });
+
+  describe('example-based placeholders', () => {
+    it('uses .example() as placeholder when set', () => {
+      const TestBlock = Block('TestBlock', {
+        target: StringValue.example('llm://connection_name'),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toMatch(/target: "\$\{\d+:llm:\/\/connection_name\}"/);
+    });
+
+    it('.example() takes precedence over .describe()', () => {
+      const TestBlock = Block('TestBlock', {
+        target: StringValue.describe('A URI').example('llm://foo'),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toContain('llm://foo');
+      expect(snippet).not.toContain('A URI');
+    });
+
+    it('.describe() is used when no .example()', () => {
+      const TestBlock = Block('TestBlock', {
+        target: StringValue.describe('The connection name'),
+      });
+      const snippet = generateFieldSnippet('config', TestBlock);
+      expect(snippet).toBeDefined();
+      expect(snippet).toContain('The connection name');
     });
   });
 });

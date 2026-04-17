@@ -566,6 +566,7 @@ interface FieldTypeBase<V = any, F = V> {
   // Declared here so FieldType structurally satisfies SchemaFieldInfo.
   readonly __isCollection?: boolean;
   readonly __isTypedMap?: boolean;
+  readonly __isNamedCollection?: boolean;
   propertiesSchema?: Schema;
   __modifiers?: readonly KeywordInfo[];
   __primitiveTypes?: readonly KeywordInfo[];
