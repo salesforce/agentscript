@@ -12,7 +12,7 @@ config:
 llm:
   default_llm:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 actions:
@@ -53,7 +53,7 @@ config:
 llm:
   x:
     target: "connection://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 actions:
@@ -148,7 +148,7 @@ config:
 llm:
   x:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
     thinking_level: "HIGH"
 `;
@@ -248,7 +248,7 @@ config:
 llm:
   g:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 trigger t:
@@ -317,7 +317,7 @@ config:
 llm:
   g:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 actions:
@@ -368,7 +368,7 @@ config:
 llm:
   main:
     target: "llm://openai"
-    kind: "openAI"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 actions:
@@ -474,7 +474,7 @@ config:
 llm:
   g:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 trigger t:

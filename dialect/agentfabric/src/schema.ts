@@ -53,11 +53,19 @@ export const AFConfigBlock = Block('AFConfigBlock', {
 
 // ── LLM ─────────────────────────────────────────────────────────────
 
+const OPENAI_KIND = 'OpenAI';
+const GEMINI_KIND = 'Gemini';
+
 const llmBaseFields: Schema = {
   target: StringValue.describe(
-    'Connection URI (llm://<name>) referencing an LLM connection.'
-  ).required(),
-  kind: StringValue.describe('LLM provider discriminator.').required(),
+    'Connection URI (llm://connection_name) referencing an LLM connection.'
+  )
+    .pattern(/^llm:\/\/([a-zA-Z0-9\-._~%!$&'()*+,;=:@\/]+)$/)
+    .example('llm://connection_name')
+    .required(),
+  kind: StringValue.describe('LLM provider discriminator.')
+    .required()
+    .enum([OPENAI_KIND, GEMINI_KIND]),
   model: StringValue.describe('The model name to use.').required(),
   temperature: NumberValue.describe('Controls randomness in output.'),
   top_p: NumberValue.describe('Nucleus sampling parameter.'),
@@ -94,26 +102,10 @@ const geminiLlmVariantFields: Schema = {
   ),
 };
 
-/** Prescan uses exact string values; these casings match prior case-insensitive llm lint. */
-const OPENAI_LLM_KIND_KEYS = ['openai', 'OpenAI', 'openAI', 'OPENAI'] as const;
-const GEMINI_LLM_KIND_KEYS = ['gemini', 'Gemini', 'GEMINI'] as const;
-
-let LLMEntryBlockFactory = NamedBlock(
-  'LLMEntryBlock',
-  llmBaseFields
-).discriminant('kind');
-for (const k of OPENAI_LLM_KIND_KEYS) {
-  LLMEntryBlockFactory = LLMEntryBlockFactory.variant(
-    k,
-    openaiLlmVariantFields
-  );
-}
-for (const k of GEMINI_LLM_KIND_KEYS) {
-  LLMEntryBlockFactory = LLMEntryBlockFactory.variant(
-    k,
-    geminiLlmVariantFields
-  );
-}
+const LLMEntryBlockFactory = NamedBlock('LLMEntryBlock', llmBaseFields)
+  .discriminant('kind')
+  .variant(OPENAI_KIND, openaiLlmVariantFields)
+  .variant(GEMINI_KIND, geminiLlmVariantFields);
 
 export const LLMEntryBlock = LLMEntryBlockFactory.describe(
   'LLM configuration entry.'
@@ -140,8 +132,11 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
   .extend(
     {
       target: StringValue.describe(
-        'Connection URI using protocol-specific schemes: a2a://<name> or mcp://<name>.'
-      ).required(),
+        'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name.'
+      )
+        .pattern(/^(?:a2a|mcp):\/\/([a-zA-Z0-9\-._~%!$&'()*+,;=:@\/]+)$/)
+        .example('a2a://connection_name')
+        .required(),
       kind: StringValue.describe(
         'Action type discriminator: "a2a:send_message" or "mcp:tool".'
       ).required(),

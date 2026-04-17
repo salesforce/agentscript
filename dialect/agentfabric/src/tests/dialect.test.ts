@@ -18,7 +18,7 @@ config:
 llm:
   my_llm:
     target: "llm://my_connection"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4"
 `;
     const doc = parseDocument(source);
@@ -30,7 +30,7 @@ llm:
 llm:
   g:
     target: "llm://gem"
-    kind: "gemini"
+    kind: "Gemini"
     model: "gemini-2.0-flash"
     thinking_level: "HIGH"
 `;
@@ -151,7 +151,7 @@ config:
 llm:
   test_llm:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4"
 
 actions:
