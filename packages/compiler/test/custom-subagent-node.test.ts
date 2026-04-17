@@ -1,7 +1,7 @@
 /**
  * Custom subagent compilation tests for the Commerce Cloud Shopper variant.
  *
- * Tests that subagent blocks with `schema: "node://commerce/cloud_shopper/v1"`
+ * Tests that subagent blocks with `schema: "node://commerce/shopper_agent/v1"`
  * compile into BYONNode with type "byon" and hardcoded byo_client configuration.
  */
 import { describe, it, expect } from 'vitest';
@@ -34,7 +34,7 @@ start_agent Main:
 
 const baseShopperSubagent = `
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
 `;
 
@@ -64,7 +64,7 @@ describe('Custom subagent node compilation', () => {
     const source = `
 ${baseConfig}
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     label: "Shopper Agent"
 `;
@@ -87,7 +87,7 @@ variables:
         source: @MessagingSession.MessagingEndUserId
 
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     parameters:
         template:
@@ -119,7 +119,7 @@ subagent Shopper_Agent:
     const source = `
 ${baseConfig}
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     actions:
         Search_Products:
@@ -150,7 +150,7 @@ variables:
         source: @MessagingSession.MessagingEndUserId
 
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     actions:
         Search_Products:
@@ -196,7 +196,7 @@ variables:
         source: @MessagingSession.Id
 
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     actions:
         Get_Auth:
@@ -227,7 +227,7 @@ variables:
         source: @MessagingSession.MessagingEndUserId
 
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     actions:
         Get_Auth:
@@ -256,7 +256,7 @@ subagent Shopper_Agent:
     const source = `
 ${baseConfig}
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     actions:
         Search_Products:
@@ -294,7 +294,7 @@ subagent Order_Management:
             | Handle orders
 
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
 `;
     const { output } = compile(parseSource(source));
@@ -338,7 +338,7 @@ start_agent router:
             | Route requests
 
 subagent Shopper_Agent:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent for assisted buying"
     label: "Shopper Agent"
     parameters:

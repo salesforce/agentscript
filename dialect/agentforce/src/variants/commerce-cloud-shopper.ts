@@ -4,7 +4,7 @@ import { customSubagentFields } from '@agentscript/agentscript-dialect';
 /**
  * Schema discriminant value for the Commerce Cloud Shopper subagent variant.
  */
-export const COMMERCE_SHOPPER_SCHEMA = 'node://commerce/cloud_shopper/v1';
+export const COMMERCE_SHOPPER_SCHEMA = 'node://commerce/shopper_agent/v1';
 
 const CommerceShopperParametersBlock = Block('ParametersBlock', {
   template: InputsBlock.describe(

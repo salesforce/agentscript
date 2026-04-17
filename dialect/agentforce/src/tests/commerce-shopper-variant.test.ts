@@ -60,7 +60,7 @@ describe('Commerce Cloud Shopper variant parsing', () => {
   it('parses a basic commerce shopper subagent', () => {
     const value = parseDocument(`
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
 `);
     expect(value.subagent).toBeDefined();
@@ -74,7 +74,7 @@ variables:
         source: @MessagingSession.MessagingEndUserId
 
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     parameters:
         template:
@@ -90,7 +90,7 @@ subagent Commerce_Shopper:
   it('parses commerce shopper with actions', () => {
     const value = parseDocument(`
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     actions:
         Search_Products:
@@ -113,7 +113,7 @@ subagent Commerce_Shopper:
   it('produces no parse errors for a valid commerce shopper subagent', () => {
     const { diagnostics } = parseWithDiagnostics(`
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     parameters:
         template:
@@ -138,7 +138,7 @@ subagent Order_Management:
             | Handle orders
 
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
 `);
     expect(value.start_agent).toBeDefined();
@@ -152,7 +152,7 @@ describe('Commerce Cloud Shopper lint: custom-subagent-validation', () => {
   it('reports error when reasoning is present on custom subagent', () => {
     const diagnostics = runLint(`
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     reasoning:
         instructions: ->
@@ -167,7 +167,7 @@ subagent Commerce_Shopper:
   it('reports error when before_reasoning is present on custom subagent', () => {
     const diagnostics = runLint(`
 subagent Commerce_Shopper:
-    schema: "node://commerce/cloud_shopper/v1"
+    schema: "node://commerce/shopper_agent/v1"
     description: "Commerce Cloud shopper agent"
     before_reasoning:
         set @variables.x = 1

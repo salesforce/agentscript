@@ -44,7 +44,7 @@ export const COMMERCE_SHOPPER_BYO_CLIENT: BYOClientConfig = {
  *
  * The byo_client configuration is determined by the schema discriminant value.
  * Currently supports:
- *   - node://commerce/cloud_shopper/v1 → icr-commerce-shopper / commerce_cloud_shopper
+ *   - node://commerce/shopper_agent/v1 → icr-commerce-shopper / commerce_cloud_shopper
  */
 export function compileCustomSubagentNode(
   name: string,
