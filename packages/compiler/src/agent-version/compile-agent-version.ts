@@ -94,7 +94,13 @@ export function compileAgentVersion(
     const schemaValue = extractStringValue(block.schema);
     if (schemaValue === COMMERCE_SHOPPER_SCHEMA) {
       nodes.push(
-        compileCustomSubagentNode(name, block, COMMERCE_SHOPPER_BYO_CLIENT, ctx)
+        compileCustomSubagentNode(
+          name,
+          block,
+          COMMERCE_SHOPPER_BYO_CLIENT,
+          topicDescriptions,
+          ctx
+        )
       );
     } else {
       const node = compileNode(

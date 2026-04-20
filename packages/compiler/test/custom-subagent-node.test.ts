@@ -273,6 +273,95 @@ subagent Shopper_Agent:
   });
 
   // ---------------------------------------------------------------------------
+  // reasoning.actions → tools
+  // ---------------------------------------------------------------------------
+
+  it('should compile reasoning.actions into tools', () => {
+    const source = `
+${baseConfig}
+subagent Shopper_Agent:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+    actions:
+        Search_Products:
+            description: "Search products"
+            target: "flow://search_products"
+            inputs:
+                query: string
+                    description: "Search query"
+    reasoning:
+        actions:
+            search: @actions.Search_Products
+                with query=...
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Shopper_Agent') as BYONNode;
+
+    expect(node).toBeDefined();
+    expect(node.tools).toBeDefined();
+    expect(node.tools!.length).toBeGreaterThanOrEqual(1);
+
+    const searchTool = node.tools!.find(
+      (t: Record<string, unknown>) => t.name === 'search'
+    ) as Record<string, unknown>;
+    expect(searchTool).toBeDefined();
+    expect(searchTool.type).toBe('action');
+    expect(searchTool.target).toBe('Search_Products');
+  });
+
+  it('should merge reasoning.actions tools with bound_input tools', () => {
+    const source = `
+${baseConfig}
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+
+subagent Shopper_Agent:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+    actions:
+        Search_Products:
+            description: "Search products"
+            target: "flow://search_products"
+            inputs:
+                query: string
+                    description: "Search query"
+                auth_named_credential: @variables.EndUserId
+                    description: "Auth credential"
+                    is_required: True
+    reasoning:
+        actions:
+            search: @actions.Search_Products
+                with query=...
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Shopper_Agent') as BYONNode;
+
+    expect(node).toBeDefined();
+    expect(node.tools).toBeDefined();
+
+    // Should have both the bound_input tool and the reasoning action tool
+    const boundInputTool = node.tools!.find(
+      (t: Record<string, unknown>) =>
+        t.name === 'Search_Products' && t.bound_inputs != null
+    );
+    const reasoningTool = node.tools!.find(
+      (t: Record<string, unknown>) => t.name === 'search'
+    );
+
+    expect(boundInputTool).toBeDefined();
+    expect(reasoningTool).toBeDefined();
+  });
+
+  it('should not produce reasoning tools when reasoning block is absent', () => {
+    const source = `${baseConfig}${baseShopperSubagent}`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Shopper_Agent') as BYONNode;
+
+    expect(node.tools).toBeUndefined();
+  });
+
+  // ---------------------------------------------------------------------------
   // Coexistence
   // ---------------------------------------------------------------------------
 

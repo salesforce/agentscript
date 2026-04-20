@@ -37,6 +37,7 @@ describe('Commerce Cloud Shopper variant schema', () => {
 
     // Custom subagent fields
     expect(variantSchema).toHaveProperty('parameters');
+    expect(variantSchema).toHaveProperty('reasoning');
     expect(variantSchema).toHaveProperty('on_init');
     expect(variantSchema).toHaveProperty('on_exit');
 
@@ -149,7 +150,29 @@ subagent Commerce_Shopper:
 });
 
 describe('Commerce Cloud Shopper lint: custom-subagent-validation', () => {
-  it('reports error when reasoning is present on custom subagent', () => {
+  it('allows reasoning.actions on custom subagent', () => {
+    const diagnostics = runLint(`
+subagent Commerce_Shopper:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+    actions:
+        Search_Products:
+            description: "Search products"
+            target: "flow://search_products"
+            inputs:
+                query: string
+    reasoning:
+        actions:
+            search: @actions.Search_Products
+                with query=...
+`);
+    const errors = diagnostics.filter(
+      d => d.code === 'custom-subagent-validation'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports error when reasoning.instructions is present on custom subagent', () => {
     const diagnostics = runLint(`
 subagent Commerce_Shopper:
     schema: "node://commerce/shopper_agent/v1"
@@ -158,10 +181,11 @@ subagent Commerce_Shopper:
         instructions: ->
             | This should not be here
 `);
-    const errors = diagnostics.filter(
-      d => d.code === 'custom-subagent-validation'
+    // reasoning.instructions is not in the BYON reasoning schema (only actions is)
+    expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+    expect(diagnostics.some(d => d.message.includes('instructions'))).toBe(
+      true
     );
-    expect(errors.length).toBeGreaterThanOrEqual(1);
   });
 
   it('reports error when before_reasoning is present on custom subagent', () => {

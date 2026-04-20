@@ -16,18 +16,21 @@ describe('customSubagentFields', () => {
     expect(customSubagentFields).toHaveProperty('parameters');
   });
 
-  test('does not include reasoning fields', () => {
+  test('does not include before_reasoning or after_reasoning', () => {
     expect(customSubagentFields).not.toHaveProperty('before_reasoning');
     expect(customSubagentFields).not.toHaveProperty('after_reasoning');
-    expect(customSubagentFields).not.toHaveProperty('reasoning');
+  });
+
+  test('includes reasoning field (actions only, no instructions)', () => {
+    expect(customSubagentFields).toHaveProperty('reasoning');
   });
 
   test('has correct field count', () => {
     const customKeys = Object.keys(customSubagentFields);
     const baseKeys = Object.keys(baseSubagentFields);
 
-    // customSubagentFields = baseSubagentFields + parameters + on_init + on_exit
-    expect(customKeys.length).toBe(baseKeys.length + 3);
+    // customSubagentFields = baseSubagentFields + parameters + reasoning + on_init + on_exit
+    expect(customKeys.length).toBe(baseKeys.length + 4);
   });
 
   test('parameters field has correct structure', () => {

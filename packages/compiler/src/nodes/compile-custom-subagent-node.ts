@@ -6,12 +6,13 @@ import {
 } from '@agentscript/language';
 import type { ProcedureValue } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
-import type { BYONNode, BYOClientConfig } from '../types.js';
+import type { BYONNode, BYOClientConfig, Tool } from '../types.js';
 import type { ParsedTopicLike } from '../parsed-types.js';
 import { extractStringValue, iterateNamedMap } from '../ast-helpers.js';
 import { normalizeDeveloperName } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
 import { compileDeterministicDirectives } from './compile-directives.js';
+import { compileReasoningActions } from './compile-reasoning-actions.js';
 import { extractStatements } from './compile-subagent-node.js';
 
 /**
@@ -50,6 +51,7 @@ export function compileCustomSubagentNode(
   name: string,
   block: ParsedTopicLike,
   byoClient: BYOClientConfig,
+  topicDescriptions: Record<string, string>,
   ctx: CompilerContext
 ): BYONNode {
   const description = extractStringValue(block.description) ?? '';
@@ -68,7 +70,26 @@ export function compileCustomSubagentNode(
   const actionDefinitions = compileActionDefinitions(actionsBlock, ctx);
 
   // Derive tools from action inputs with @variables.X bindings
-  const tools = compileTools(actionsBlock);
+  const boundInputTools = compileTools(actionsBlock);
+
+  // Compile reasoning.actions into tools
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- compiler handles both topic and subagent reasoning shapes generically
+  const reasoning = block.reasoning as Record<string, any> | undefined;
+  const reasoningResult = compileReasoningActions(
+    reasoning,
+    {
+      nodeType: 'subagent',
+      topicName: name,
+      topicDescriptions,
+    },
+    ctx
+  );
+
+  // Merge bound-input tools with reasoning action tools
+  const allTools: BYONNode['tools'] = [
+    ...boundInputTools,
+    ...(reasoningResult.tools as Tool[]),
+  ];
 
   // Compile on_init / on_exit lifecycle hooks (same as before_reasoning/after_reasoning)
   const onInitStmts = extractStatements(
@@ -107,8 +128,8 @@ export function compileCustomSubagentNode(
     node.action_definitions = actionDefinitions;
   }
 
-  if (tools.length > 0) {
-    node.tools = tools as BYONNode['tools'];
+  if (allTools.length > 0) {
+    node.tools = allTools;
   }
 
   if (onInit && onInit.length > 0) {
