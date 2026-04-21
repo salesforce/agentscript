@@ -60,7 +60,7 @@ const llmBaseFields: Schema = {
   target: StringValue.describe(
     'Connection URI (llm://connection_name) referencing an LLM connection.'
   )
-    .pattern(/^llm:\/\/([a-zA-Z0-9\-._~%!$&'()*+,;=:@\/]+)$/)
+    .pattern(/^llm:\/\/([a-zA-Z0-9\-._]+)$/)
     .example('llm://connection_name')
     .required(),
   kind: StringValue.describe('LLM provider discriminator.')
@@ -134,7 +134,7 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
       target: StringValue.describe(
         'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name.'
       )
-        .pattern(/^(?:a2a|mcp):\/\/([a-zA-Z0-9\-._~%!$&'()*+,;=:@\/]+)$/)
+        .pattern(/^(?:a2a|mcp):\/\/([a-zA-Z0-9\-._]+)$/)
         .example('a2a://connection_name')
         .required(),
       kind: StringValue.describe(
@@ -171,10 +171,15 @@ export const ActionsBlock = CollectionBlock(ActionDefBlock).describe(
 export const TriggerBlock = NamedBlock('TriggerBlock', {
   kind: StringValue.describe(
     'Trigger protocol discriminator. Currently only "a2a" is supported.'
-  ).required(),
+  )
+    .enum(['a2a'])
+    .required(),
   target: StringValue.describe(
-    'Broker reference URI (brokers://<broker-name>/<interface>).'
-  ).required(),
+    'Broker reference URI (brokers://broker_name/interface).'
+  )
+    .pattern(/^brokers?:\/\/(?:[a-zA-Z0-9\-._]+)\/(?:[a-zA-Z0-9\-._]+)$/)
+    .example('brokers://broker_name/interface')
+    .required(),
   on_message: ProcedureValue.describe(
     'Procedure executed when a message is received. Must contain a transition to the initial node.'
   ).required(),

@@ -489,6 +489,167 @@ describe('Completion Provider', () => {
       expect(result!.items).toEqual([]);
     });
   });
+
+  // ── `with` parameter name completions ─────────────────────────
+
+  describe('with parameter name completions', () => {
+    test('suggests action input params for reasoning action binding', () => {
+      const source = [
+        'start_agent greeting:',
+        '  actions:',
+        '    Lookup_Order:',
+        '      description: "Retrieve order details"',
+        '      inputs:',
+        '        order_number: string',
+        '          description: "The order number"',
+        '        customer_id: string',
+        '      outputs:',
+        '        status: string',
+        '      target: "flow://Lookup_Order"',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      lookup: @actions.Lookup_Order',
+        '        with ',
+      ].join('\n');
+      const state = createState(source);
+      // Cursor at end of the `with ` line
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('order_number');
+      expect(labels).toContain('customer_id');
+    });
+
+    test('suggests action input params for run statement', () => {
+      const source = [
+        'start_agent greeting:',
+        '  actions:',
+        '    Check_Hours:',
+        '      description: "Check hours"',
+        '      inputs:',
+        '        query: string',
+        '        timezone: string',
+        '      target: "flow://Check_Hours"',
+        '  before_reasoning:',
+        '    run @actions.Check_Hours',
+        '      with ',
+      ].join('\n');
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('query');
+      expect(labels).toContain('timezone');
+    });
+
+    test('excludes already-bound with params', () => {
+      const source = [
+        'start_agent greeting:',
+        '  actions:',
+        '    Lookup_Order:',
+        '      inputs:',
+        '        order_number: string',
+        '        customer_id: string',
+        '      target: "flow://Lookup_Order"',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      lookup: @actions.Lookup_Order',
+        '        with order_number = @variables.order_num',
+        '        with ',
+      ].join('\n');
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('customer_id');
+      expect(labels).not.toContain('order_number'); // already bound
+    });
+
+    test('returns empty when action has no inputs', () => {
+      const source = [
+        'start_agent greeting:',
+        '  actions:',
+        '    NoInput:',
+        '      description: "No inputs"',
+        '      target: "flow://NoInput"',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      ni: @actions.NoInput',
+        '        with ',
+      ].join('\n');
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      // Should return empty since the action has no inputs
+      const labels = result!.items.map(i => i.label);
+      expect(labels).not.toContain('order_number');
+    });
+
+    test('returns empty when not on a with line', () => {
+      const source = [
+        'start_agent greeting:',
+        '  actions:',
+        '    Lookup_Order:',
+        '      inputs:',
+        '        order_number: string',
+        '      target: "flow://Lookup_Order"',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      lookup: @actions.Lookup_Order',
+        '        set ',
+      ].join('\n');
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      // set lines should NOT trigger with-param completions
+      const labels = result!.items.map(i => i.label);
+      expect(labels).not.toContain('order_number');
+    });
+  });
 });
 
 describe('adjustSnippetIndentation (via provideCompletion)', () => {

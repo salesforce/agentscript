@@ -11,6 +11,7 @@ import {
   getCompletionCandidates,
   getFieldCompletions,
   getValueCompletions,
+  getWithCompletions,
   positionIndexKey,
   SymbolKind,
   symbolTableKey,
@@ -79,7 +80,14 @@ export function provideCompletion(
 
     const index = store.get(positionIndexKey);
     const schemaContext = service.schemaContext;
-    const scope = findEnclosingScope(ast, line, character, index);
+    const scope = findEnclosingScope(
+      ast,
+      line,
+      character,
+      index,
+      state.source,
+      schemaContext
+    );
     const symbols = store.get(symbolTableKey);
 
     let items: CompletionItem[] = [];
@@ -157,40 +165,100 @@ export function provideCompletion(
         }));
       }
     } else {
-      // Field/block keyword completions
-      const partial = textBeforeCursor.trim();
-      const indentLength = textBeforeCursor.length - partial.length;
-      const candidates = getFieldCompletions(
+      // ── `with` parameter name completions ──────────────────────────
+      //
+      // When the cursor is on a `with` keyword line inside a reasoning
+      // action binding or a `run` statement, suggest the input parameter
+      // names defined on the referenced action.
+      //
+      // Example — the user is editing inside a reasoning actions block:
+      //
+      //   actions:
+      //     escalate_ticket: @actions.escalate_ticket
+      //       with |          <-- cursor here, suggest input params
+      //
+      // `getWithCompletions` (from @agentscript/language) resolves the
+      // enclosing `@actions.escalate_ticket` reference, finds its action
+      // definition (which declares `inputs:`), and returns the input
+      // parameter names as CompletionCandidate[].
+      //
+      // If the cursor is NOT on a `with` line, or if the referenced
+      // action has no inputs, `getWithCompletions` returns an empty array
+      // and we fall through to the normal field/block keyword completions.
+      const withCandidates = getWithCompletions(
         ast,
         line,
         character,
         schemaContext,
         state.source
       );
-      items = candidates.map((candidate, idx) => {
-        const hasSnippet = !!candidate.snippet;
-        const newText = hasSnippet
-          ? adjustSnippetIndentation(candidate.snippet!, indentLength)
-          : candidate.name + ': ';
-        return {
+
+      if (withCandidates.length > 0) {
+        // Extract the partial parameter name the user has already typed
+        // after `with `, so the text edit replaces only that partial.
+        //
+        // For `"        with ord"`, partial = "with ord", inputPartial = "ord".
+        // The text edit range starts at (character - "ord".length) so that
+        // the editor replaces "ord" with the full parameter name like
+        // "order_number".
+        const partial = textBeforeCursor.trim();
+        const withMatch = partial.match(/^with\s+(\w*)$/);
+        const inputPartial = withMatch?.[1] ?? '';
+        const inputStart = character - inputPartial.length;
+
+        // Convert each CompletionCandidate into an LSP CompletionItem
+        // with a textEdit that replaces the partial input name.
+        items = withCandidates.map((candidate, idx) => ({
           label: candidate.name,
           kind: toCompletionItemKind(candidate.kind),
           detail: candidate.detail,
           documentation: candidate.documentation,
-          insertText: newText,
-          insertTextFormat: hasSnippet
-            ? InsertTextFormat.Snippet
-            : InsertTextFormat.PlainText,
+          insertText: candidate.name,
           textEdit: {
             range: {
-              start: { line, character: indentLength },
+              start: { line, character: inputStart },
               end: { line, character },
             },
-            newText,
+            newText: candidate.name,
           },
           sortText: String(idx).padStart(4, '0'),
-        };
-      });
+        }));
+      } else {
+        // Field/block keyword completions
+        const partial = textBeforeCursor.trim();
+        const indentLength = textBeforeCursor.length - partial.length;
+        const candidates = getFieldCompletions(
+          ast,
+          line,
+          character,
+          schemaContext,
+          state.source
+        );
+        items = candidates.map((candidate, idx) => {
+          const hasSnippet = !!candidate.snippet;
+          const newText = hasSnippet
+            ? adjustSnippetIndentation(candidate.snippet!, indentLength)
+            : candidate.name + ': ';
+          return {
+            label: candidate.name,
+            kind: toCompletionItemKind(candidate.kind),
+            detail: candidate.detail,
+            documentation: candidate.documentation,
+            insertText: newText,
+            insertTextFormat: hasSnippet
+              ? InsertTextFormat.Snippet
+              : InsertTextFormat.PlainText,
+            textEdit: {
+              range: {
+                start: { line, character: indentLength },
+                end: { line, character },
+              },
+              newText,
+            },
+            sortText: String(idx).padStart(4, '0'),
+          };
+        });
+      }
     }
 
     return {

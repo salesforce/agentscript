@@ -258,6 +258,7 @@ export {
   findEnclosingScope,
   getFieldCompletions,
   getValueCompletions,
+  getWithCompletions,
 } from './core/analysis/completions.js';
 
 export type { CompletionCandidate } from './core/analysis/completions.js';

@@ -7,9 +7,8 @@ import {
 } from './symbols.js';
 import {
   getScopedNamespaces,
-  findScopeBlock,
-  collectNamespaceMaps,
   resolveNamespaceKeys,
+  resolveEntryInScope,
   updateScopeContext,
   activeScopeForNamespace,
 } from './scope.js';
@@ -183,14 +182,7 @@ export function resolveReference(
   const activeScope = activeScopeForNamespace(scopesRequired, scope);
 
   if (activeScope && scope) {
-    return resolveFromScopedChild(
-      ast,
-      namespace,
-      name,
-      activeScope,
-      scope,
-      ctx
-    );
+    return resolveFromScopedChild(ast, namespace, name, scope, ctx);
   }
 
   return resolveFromRoot(ast, namespace, name, ctx);
@@ -453,19 +445,11 @@ function resolveFromScopedChild(
   ast: AstRoot,
   namespace: string,
   name: string,
-  targetScope: string,
   scope: ScopeContext,
   ctx: SchemaContext
 ): ResolvedReference | null {
-  const scopeBlock = findScopeBlock(ast, targetScope, scope, ctx);
-  if (!scopeBlock) return null;
-
-  for (const map of collectNamespaceMaps(scopeBlock, namespace)) {
-    const entry = findMapEntry(map, name, namespace);
-    if (entry) return entry;
-  }
-
-  return null;
+  const entry = resolveEntryInScope(ast, namespace, name, ctx, scope);
+  return entry ? toMapResolvedReference(entry, namespace, name) : null;
 }
 
 function findMapEntry(
@@ -474,17 +458,21 @@ function findMapEntry(
   namespace: string
 ): ResolvedReference | null {
   if (!isNamedMap(container)) return null;
-
   const entry = container.get(name);
   if (!isAstNodeLike(entry)) return null;
+  return toMapResolvedReference(entry, namespace, name);
+}
 
+/** Build a ResolvedReference from a NamedMap entry node. */
+function toMapResolvedReference(
+  entry: AstNodeLike,
+  namespace: string,
+  name: string
+): ResolvedReference | null {
   const cst = entry.__cst;
   if (!cst) return null;
-
-  const sym = entry.__symbol;
-  const symbolKind = sym?.kind ?? SymbolKind.Property;
+  const symbolKind = entry.__symbol?.kind ?? SymbolKind.Property;
   const { range, selectionRange } = computeRanges(cst);
-
   return {
     namespace,
     name,
