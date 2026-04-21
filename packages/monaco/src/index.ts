@@ -30,7 +30,6 @@ export {
   darkThemeColors,
   lightThemeColors,
   buildMonacoRules,
-  buildVscodeRules,
 } from './theme';
 export type { ThemeColors, TokenStyle } from './theme';
 
