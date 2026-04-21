@@ -810,12 +810,7 @@ export const AgentforceSchema = {
             lookup_order: @actions.Lookup_Order
                 with order_number=...`
     )
-  ),
-  // TODO: restore deprecated() call once migration is complete
-  // .deprecated(
-  //   'Replace topic with subagent, actions with tool_definitions and reasoning.actions with reasoning.tools.',
-  //   { replacement: 'subagent' }
-  // ),
+  ).deprecated('Replace topic with subagent.', { replacement: 'subagent' }),
 } satisfies Record<string, FieldType>;
 
 export type AgentforceSchema = typeof AgentforceSchema;
