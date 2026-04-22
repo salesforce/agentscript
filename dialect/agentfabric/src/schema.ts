@@ -67,8 +67,10 @@ const llmBaseFields: Schema = {
     .required()
     .enum([OPENAI_KIND, GEMINI_KIND]),
   model: StringValue.describe('The model name to use.').required(),
-  temperature: NumberValue.describe('Controls randomness in output.'),
-  top_p: NumberValue.describe('Nucleus sampling parameter.'),
+  temperature: NumberValue.describe('Controls randomness in output.')
+    .min(0)
+    .max(2),
+  top_p: NumberValue.describe('Nucleus sampling parameter.').min(0).max(1),
   max_output_tokens: NumberValue.describe(
     'Maximum number of tokens to generate.'
   ),
@@ -289,6 +291,15 @@ export const NodeReasoningSectionBlock = AgentScriptReasoningBlock.pick([
   .extend({
     actions: NodeActionsBlock.describe('Available actions for this node.'),
     outputs: OutputStructureBlock.describe('Schema for structured output.'),
+    max_number_of_loops: NumberValue.describe(
+      'Maximum reasoning loop iterations.'
+    ).min(1),
+    max_consecutive_errors: NumberValue.describe(
+      'Maximum consecutive errors before stopping.'
+    ).min(1),
+    task_timeout_secs: NumberValue.describe(
+      'Timeout in seconds for total node execution.'
+    ),
   })
   .describe('Node reasoning section.');
 
@@ -307,15 +318,6 @@ export const SubagentBlock = AgentScriptSubagentBlock.omit(
       reasoning: NodeReasoningSectionBlock.describe(
         'Node-level reasoning configuration.'
       ).required(),
-      max_number_of_loops: NumberValue.describe(
-        'Maximum reasoning loop iterations.'
-      ),
-      max_consecutive_errors: NumberValue.describe(
-        'Maximum consecutive errors before stopping.'
-      ),
-      task_timeout_secs: NumberValue.describe(
-        'Timeout in seconds for total node execution.'
-      ),
       on_exit: ProcedureValue.describe(
         'Procedure executed when node completes. Must contain a transition to statement.'
       ).required(),
