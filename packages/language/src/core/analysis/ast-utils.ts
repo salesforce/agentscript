@@ -2,7 +2,15 @@ import type { Range, CstMeta, SyntaxNode, AstNodeLike } from '../types.js';
 import { isAstNodeLike } from '../types.js';
 import { StringLiteral } from '../expressions.js';
 
-/** Check if a 0-based line/character position falls within a Range (start inclusive, end exclusive). */
+/**
+ * Check if a 0-based line/character position falls within a Range.
+ *
+ * Both the start and end boundaries are **inclusive**. This means a cursor
+ * positioned at the very last character of a token (character === end.character)
+ * is considered "in range", matching the expected behaviour for hover,
+ * definition, rename, and reference lookups where the cursor just after a
+ * token should still resolve to that token.
+ */
 export function isPositionInRange(
   line: number,
   character: number,
@@ -11,7 +19,7 @@ export function isPositionInRange(
   if (line < range.start.line || line > range.end.line) return false;
   if (line === range.start.line && character < range.start.character)
     return false;
-  if (line === range.end.line && character >= range.end.character) return false;
+  if (line === range.end.line && character > range.end.character) return false;
   return true;
 }
 
