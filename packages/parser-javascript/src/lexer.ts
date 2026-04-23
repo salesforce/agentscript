@@ -400,12 +400,15 @@ export class Lexer {
             this.indentStack[this.indentStack.length - 1]!;
           break;
         // Track parenthesis depth to suppress structural tokens inside
-        // multi-line call expressions
+        // multi-line call expressions.  Skip when inside a template line —
+        // parens in template content are literal text and must not suppress
+        // INDENT/DEDENT emission (unmatched parens would eat the rest of
+        // the file).
         case TokenKind.LPAREN:
-          this.bracketDepth++;
+          if (!this.onTemplateLine) this.bracketDepth++;
           break;
         case TokenKind.RPAREN:
-          this.bracketDepth--;
+          if (!this.onTemplateLine) this.bracketDepth--;
           break;
         // Track brace depth inside {!...} template expressions so that nested
         // braces (e.g. JSON objects) don't prematurely close the expression.
