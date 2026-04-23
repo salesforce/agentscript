@@ -240,6 +240,285 @@ echo done:
     ).toBe(true);
   });
 
+  it('rejects MemberExpression in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-member"
+
+trigger t:
+  target: "brokers://router-when-member/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classifySeverity
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+    );
+  });
+
+  it('rejects StringLiteral in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-string"
+
+trigger t:
+  target: "brokers://router-when-string/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: "high"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+    );
+  });
+
+  it('rejects arithmetic BinaryExpression in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-arith"
+
+trigger t:
+  target: "brokers://router-when-arith/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.a + @subagent.x.output.b
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+    );
+  });
+
+  it('accepts ComparisonExpression (==) in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-cmp"
+
+trigger t:
+  target: "brokers://router-when-cmp/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classifySeverity.output.level == "high"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts ComparisonExpression (!=) in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-neq"
+
+trigger t:
+  target: "brokers://router-when-neq/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.status != "done"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts BooleanLiteral in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-bool"
+
+trigger t:
+  target: "brokers://router-when-bool/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: True
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts logical and in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-and"
+
+trigger t:
+  target: "brokers://router-when-and/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.a == "1" and @subagent.x.output.b == "2"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts logical or in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-or"
+
+trigger t:
+  target: "brokers://router-when-or/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.a == "1" or @subagent.x.output.b == "2"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts unary not in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-not"
+
+trigger t:
+  target: "brokers://router-when-not/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: not @subagent.x.output.done
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts CallExpression in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-call"
+
+trigger t:
+  target: "brokers://router-when-call/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: contains(@subagent.x.output.tags, "urgent")
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
   it('requires reasoning.instructions for orchestrator and subagent', () => {
     const source = `
 config:
