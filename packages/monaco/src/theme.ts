@@ -99,3 +99,38 @@ export function buildMonacoRules(
   return rules;
 }
 
+/**
+ * Build VS Code semanticTokenColorCustomizations rules from color definitions.
+ * Returns an object suitable for package.json configurationDefaults.
+ */
+type VscodeRule =
+  | string
+  | { foreground?: string; bold?: boolean; italic?: boolean };
+
+export function buildVscodeRules(
+  colors: ThemeColors
+): Record<string, VscodeRule> {
+  const rules: Record<string, VscodeRule> = {};
+
+  for (const [token, style] of Object.entries(colors)) {
+    if (token === 'default') continue;
+
+    const key = `${token}:agentscript`;
+    const hasExplicitFontStyle =
+      style.bold !== undefined || style.italic !== undefined;
+
+    if (hasExplicitFontStyle) {
+      rules[key] = {
+        ...(style.foreground
+          ? { foreground: `#${style.foreground.toUpperCase()}` }
+          : {}),
+        ...(style.bold !== undefined ? { bold: style.bold } : {}),
+        ...(style.italic !== undefined ? { italic: style.italic } : {}),
+      };
+    } else if (style.foreground) {
+      rules[key] = `#${style.foreground.toUpperCase()}`;
+    }
+  }
+
+  return rules;
+}
