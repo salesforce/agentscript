@@ -491,6 +491,18 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
             }
           }
 
+          if (name && instance.has(name)) {
+            const keyRange = keyNode ?? element;
+            dc.add(
+              createDiagnostic(
+                keyRange,
+                `'${name}' is already defined in ${blockLabel}`,
+                DiagnosticSeverity.Error,
+                'duplicate-name'
+              )
+            );
+          }
+
           // SAFETY: parsed is TypedDeclarationBase at runtime, matching T
           instance.set(name, parsed as Parsed<T>);
           lastParsed = parsed;
@@ -524,6 +536,18 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
             ];
             if (declComments.length > 0) {
               parsed.__comments = declComments;
+            }
+
+            if (instance.has(name)) {
+              const keyRange = keyNode ?? element;
+              dc.add(
+                createDiagnostic(
+                  keyRange,
+                  `'${name}' is already defined in ${blockLabel}`,
+                  DiagnosticSeverity.Error,
+                  'duplicate-name'
+                )
+              );
             }
 
             instance.set(name, parsed as Parsed<T>);
