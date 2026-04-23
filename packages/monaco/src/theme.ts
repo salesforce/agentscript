@@ -8,12 +8,8 @@
 /**
  * AgentScript theme color definitions — SINGLE SOURCE OF TRUTH.
  *
- * All syntax highlighting colors for both Monaco and VS Code are defined here.
- * Monaco imports these directly. VS Code's package.json is synced via:
- *
- *   pnpm sync-theme
- *
- * Run that command after changing any colors here.
+ * All syntax highlighting colors for Monaco are defined here.
+ * Monaco imports these directly.
  */
 
 export interface TokenStyle {

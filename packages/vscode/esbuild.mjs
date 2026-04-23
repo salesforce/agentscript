@@ -97,7 +97,6 @@ function stageForPackaging() {
   cpSync(join(__dirname, 'icons'), join(stagingDir, 'icons'), {
     recursive: true,
   });
-
   for (const file of [
     'LICENSE.txt',
     'CHANGELOG.md',
