@@ -275,6 +275,33 @@ start_agent main:
     expect(customVar!.field_mapping).toBe('MessagingSession.WelcomeMessage__c');
     expect(customVar!.description).toBe('Custom field welcome message');
   });
+
+  it('should compile linked variable with VoiceCall source', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    voice_call_id: linked string
+        source: @VoiceCall.Id
+        description: "This variable may also be referred to as Voice Call Id"
+
+start_agent main:
+    description: "desc"
+`;
+    const { output } = compile(parseSource(source));
+    const contextVars = output.global_configuration.context_variables;
+
+    const voiceCallVar = contextVars.find(
+      v => v.developer_name === 'voice_call_id'
+    );
+    expect(voiceCallVar).toBeDefined();
+    expect(voiceCallVar!.data_type).toBe('string');
+    expect(voiceCallVar!.field_mapping).toBe('VoiceCall.Id');
+    expect(voiceCallVar!.description).toBe(
+      'This variable may also be referred to as Voice Call Id'
+    );
+  });
 });
 
 describe('context variables: unsupported type diagnostics', () => {

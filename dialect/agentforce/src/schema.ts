@@ -50,7 +50,7 @@ import {
 const AFVariablesBlock = VariablesBlock.extendProperties({
   source: ReferenceValue.describe(
     'Where the variable gets its value. Required for linked variables, not allowed for mutable variables (e.g., @MessagingSession.Id).'
-  ).allowedNamespaces(['MessagingSession', 'MessagingEndUser']),
+  ).allowedNamespaces(['MessagingSession', 'MessagingEndUser', 'VoiceCall']),
   visibility: StringValue.describe('Visibility level for the variable.').enum([
     'Internal',
     'External',
@@ -835,6 +835,7 @@ export const AgentforceSchemaInfo: SchemaInfo = {
     ...AgentScriptSchemaInfo.globalScopes,
     MessagingSession: new Set(['MessagingEndUserId', 'Id', 'EndUserLanguage']),
     MessagingEndUser: new Set(['ContactId']),
+    VoiceCall: new Set(['Id']),
   },
   // start_agent blocks are reachable via both @topic.X and @subagent.X
   extraNamespaceKeys: {

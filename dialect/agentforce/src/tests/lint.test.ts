@@ -730,6 +730,8 @@ variables:
     source: @MessagingSession.Id
   contact_id: string
     source: @MessagingEndUser.ContactId
+  voice_call_id: string
+    source: @VoiceCall.Id
 `);
 
     const nsErrors = diagnostics.filter(
@@ -752,6 +754,7 @@ variables:
     expect(nsErrors[0].message).toContain('@session');
     expect(nsErrors[0].message).toContain('@MessagingSession');
     expect(nsErrors[0].message).toContain('@MessagingEndUser');
+    expect(nsErrors[0].message).toContain('@VoiceCall');
   });
 });
 
