@@ -1612,7 +1612,12 @@ subagent main:
     expect(utilsErrors[0].data?.suggestion).toBe('transition');
     expect(utilsErrors[0].message).toContain("Did you mean 'transition'?");
     expect(utilsErrors[0].data?.expected).toEqual(
-      expect.arrayContaining(['transition', 'setVariables', 'escalate'])
+      expect.arrayContaining([
+        'transition',
+        'setVariables',
+        'escalate',
+        'end_session',
+      ])
     );
   });
 

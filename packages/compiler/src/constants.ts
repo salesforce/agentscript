@@ -19,6 +19,9 @@ export const NEXT_TOPIC_EMPTY_CONDITION = `state.${NEXT_TOPIC_VARIABLE}=="${EMPT
 export const EMPTY_ESCALATION_NODE_VALUE = "'__human__'";
 export const ESCALATION_TARGET = '__human__';
 
+export const END_SESSION_NODE_VALUE = "'end_session'";
+export const END_SESSION_TARGET = '__end_session_action__';
+
 // ---------------------------------------------------------------------------
 // Transition target namespaces
 // ---------------------------------------------------------------------------

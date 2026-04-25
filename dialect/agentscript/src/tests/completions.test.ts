@@ -541,7 +541,8 @@ describe('getCompletionCandidates', () => {
     expect(names).toContain('transition');
     expect(names).toContain('setVariables');
     expect(names).toContain('escalate');
-    expect(candidates).toHaveLength(3);
+    expect(names).toContain('end_session');
+    expect(candidates).toHaveLength(4);
   });
 
   test('system_variables global scope returns known members', () => {

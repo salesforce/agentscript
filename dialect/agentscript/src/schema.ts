@@ -422,7 +422,7 @@ export const AgentScriptSchemaInfo: SchemaInfo = {
   // no arguments. These need to be promoted to typed declarations so they participate
   // in resolvedType validation instead of being silently skipped.
   globalScopes: {
-    utils: new Set(['transition', 'setVariables', 'escalate']),
+    utils: new Set(['transition', 'setVariables', 'escalate', 'end_session']),
     system_variables: new Set(['user_input']),
   },
 };
