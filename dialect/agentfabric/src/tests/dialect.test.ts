@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseDocument } from './test-utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('AgentFabric Dialect — Schema Parsing', () => {
   it('parses a minimal config block', () => {
@@ -181,6 +187,26 @@ echo done:
     expect(doc.llm).toBeDefined();
     expect(doc.actions).toBeDefined();
     expect(doc.trigger).toBeDefined();
+    expect(doc.orchestrator).toBeDefined();
+    expect(doc.echo).toBeDefined();
+  });
+
+  it('parses it-help-investigation fixture with all block types', () => {
+    const agentPath = resolve(
+      __dirname,
+      './resources/it-help-investigation.agent'
+    );
+    const source = readFileSync(agentPath, 'utf8');
+    const doc = parseDocument(source);
+
+    expect(doc.system).toBeDefined();
+    expect(doc.config).toBeDefined();
+    expect(doc.llm).toBeDefined();
+    expect(doc.actions).toBeDefined();
+    expect(doc.trigger).toBeDefined();
+    expect(doc.generator).toBeDefined();
+    expect(doc.router).toBeDefined();
+    expect(doc.executor).toBeDefined();
     expect(doc.orchestrator).toBeDefined();
     expect(doc.echo).toBeDefined();
   });

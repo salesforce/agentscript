@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseAndLintSource } from './test-utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('AgentFabric Lint', () => {
   it('reports no diagnostics for valid strict syntax', () => {
@@ -774,5 +780,18 @@ echo done:
     expect(
       result.diagnostics.some(d => d.code === 'generator-prompt-required')
     ).toBe(false);
+  });
+
+  it('reports no lint errors for it-help-investigation fixture', () => {
+    const agentPath = resolve(
+      __dirname,
+      './resources/it-help-investigation.agent'
+    );
+    const source = readFileSync(agentPath, 'utf8');
+    const result = parseAndLintSource(source);
+    const lintErrors = result.diagnostics.filter(
+      d => d.severity === 1 && d.source !== 'parser'
+    );
+    expect(lintErrors).toHaveLength(0);
   });
 });
