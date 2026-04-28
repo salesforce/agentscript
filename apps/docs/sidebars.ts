@@ -66,6 +66,7 @@ const sidebars: SidebarsConfig = {
             'dialects/agentforce/ascript-lang',
             'dialects/agentforce/ascript-blocks',
             'dialects/agentforce/ascript-flow',
+            'dialects/agentforce/ascript-deep-dive-flow',
             'dialects/agentforce/ascript-manage',
             {
               type: 'category',
