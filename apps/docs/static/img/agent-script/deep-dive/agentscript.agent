@@ -1,32 +1,26 @@
 system:
     instructions: "You are an AI Agent."
- 
- 
+
     messages:
         welcome: |
             Hi, I'm an AI service assistant. How can I help you?
         error: "Sorry, it looks like something has gone wrong."
  
- 
- config:
+config:
     agent_label: "Agent Script Test"
     developer_name: "Agent_Script_Test"
     description: "Deliver personalized customer interactions with an autonomous AI agent. Agentforce Service Agent intelligently supports your customers with common inquiries and escalates complex issues."
     default_agent_user: "agent_script_test@00dsb00000wbdjb403594431.ext"
- 
- 
- language:
+
+language:
     default_locale: "en_US"
     additional_locales: "en_GB"
     all_additional_locales: False
- 
- 
- variables:
+
+variables:
     authenticationKey: mutable string
         description: "Stores the authentication key that's used to generate the verification code."
         visibility: "Internal"
-    customerToVerify: mutable string
-        description: "Stores the email address of the customer to Verify"
     customerId: mutable string
         description: "Stores the Salesforce user ID or contact ID."
         visibility: "Internal"
@@ -37,21 +31,9 @@ system:
         label: "isVerified"
         description: "Stores a boolean value that indicates whether the customer code is verified."
         visibility: "Internal"
-    EndUserId: linked string
-        source: @MessagingSession.MessagingEndUserId
-        description: "This variable may also be referred to as MessagingEndUser Id"
-        visibility: "External"
     RoutableId: linked string
         source: @MessagingSession.Id
         description: "This variable may also be referred to as MessagingSession Id"
-        visibility: "External"
-    ContactId: linked string
-        source: @MessagingEndUser.ContactId
-        description: "This variable may also be referred to as MessagingEndUser ContactId"
-        visibility: "External"
-    EndUserLanguage: linked string
-        source: @MessagingSession.EndUserLanguage
-        description: "This variable may also be referred to as MessagingSession EndUserLanguage"
         visibility: "External"
     VerifiedCustomerId: mutable string
         description: "This variable may also be referred to as VerifiedCustomerId"
@@ -65,59 +47,41 @@ system:
         description: "This variable will store the counter"
         visibility: "Internal"
  
- 
- knowledge:
+knowledge:
     rag_feature_config_id: "ARFPC_1JDSB000007qCnR4AU"
     citations_enabled: True
     citations_url: ""
- 
- 
- start_agent agent_router:
-    label: "Agent Router"
- 
- 
+
+start_agent agent_router:
+    label: "Agent Router" 
     description: "Welcome the user and determine the appropriate subagent based on user input"
- 
- 
+
     reasoning:
         instructions: ->
             | Select the best tool to call based on conversation history and user's intent.
- 
- 
+
         actions:
             go_to_ServiceCustomerVerification: @utils.transition to @subagent.ServiceCustomerVerification
                 available when @variables.isVerified==False
  
- 
             go_to_CaseManagement: @utils.transition to @subagent.CaseManagement
                 available when @variables.isVerified==True
- 
  
             go_to_OrderInquiries: @utils.transition to @subagent.OrderInquiries
                 available when @variables.isVerified==True
  
- 
             go_to_GeneralFAQ: @utils.transition to @subagent.GeneralFAQ
- 
  
             go_to_escalation: @utils.transition to @subagent.escalation
  
- 
             go_to_off_topic: @utils.transition to @subagent.off_topic
- 
  
             go_to_ambiguous_question: @utils.transition to @subagent.ambiguous_question
  
- 
-            go_to_Product_Info_and_Features: @utils.transition to @subagent.Product_Info_and_Features
- 
- 
- subagent ServiceCustomerVerification:
+subagent ServiceCustomerVerification:
     label: "Service Customer Verification"
  
- 
     description: "Verifies the customer's identity before granting access to sensitive data. Verification is required for inquiries related to orders and order status, deliveries, reservations, password resets, account management (e.g. contact information updates), or cases. Sensitive data includes confidential, private, or security-protected information, such as business-critical data or personally identifiable information (PII)."
- 
  
     reasoning:
         instructions: ->
@@ -129,18 +93,6 @@ system:
             | If verification is successful, proceed with the requested action and complete the task the user intends to perform.
             | Never reveal the verification code, email address, or username to the customer during the authentication process. Make sure that these details remain confidential and aren't displayed at any point.
  
- 
-            #| Your job is to authenticate the customer who has not yet been authenticated before granting access to any sensitive data. You will verify the customer using their email address or username. After verification is successful, don't repeat the process within the same session.
-           # | Check if the customer has provided their username or email address. If either is provided, immediately execute the {!@actions.SendEmailVerificationCode}  action with the provided input to initiate the verification process.
-           # | Use the username or email address provided by the customer as input "customerToVerify" for this action.
-           # | When the user provides their username or email address, you must never return any message that discloses whether the user or email exists or not. The message must explicitly state the return data of the "verificationMessage" field in the {!@actions.SendEmailVerificationCode}  action. For example: "If you have provided a valid email or username, you should receive a verification code to verify your identity. Please enter the code."
-           # | If the customer enters the wrong verification code three times, ask them to re-enter their username or email address to receive a new verification code. This involves invoking the {!@actions.SendEmailVerificationCode}  action again to initiate the verification process. This ensures that the customer cannot bypass the verification process after three unsuccessful attempts.
-           # | Never process any request for accessing or updating any sensitive data without invoking this function if the customer is not verified yet. Maintain security in all interactions.
-            #  Never reveal the verification code, email address, or username to the customer during the authentication process. Make sure that these details remain confidential and aren't displayed at any point.
-            #  After the user is verified in a conversation session, switching to a different user isn't allowed under any circumstances.
-             # If verification is successful, proceed with the requested action and complete the task the user intends to perform.
- 
- 
         actions:
             SendEmailVerificationCode: @actions.SendEmailVerificationCode
                 with customerToVerify = ...
@@ -148,13 +100,9 @@ system:
                 set @variables.customerId = @outputs.customerId
                 set @variables.customerType = @outputs.customerType
  
- 
             counterIncr: @utils.setVariables
                 with counterVerify = @variables.counterVerify + 1
                 with subCounter=@variables.subCounter+1
- 
- 
- 
  
             VerifyCustomer: @actions.VerifyCustomer
                 with authenticationKey = @variables.authenticationKey
@@ -165,7 +113,6 @@ system:
                 set @variables.VerifiedCustomerId = @outputs.customerId
                 if @variables.isVerified:
                     transition to @subagent.agent_router
- 
  
     actions:
         SendEmailVerificationCode:
@@ -207,7 +154,6 @@ system:
             require_user_confirmation: False
             include_in_progress_indicator: True
             source: "SvcCopilotTmpl__SendEmailVerificationCode"
- 
  
         VerifyCustomer:
             description: "Verifies whether the verification code entered by the user matches the code sent to the user's email address."
@@ -259,13 +205,10 @@ system:
             include_in_progress_indicator: True
             source: "SvcCopilotTmpl__VerifyCustomer"
  
- 
- subagent GeneralFAQ:
+subagent GeneralFAQ:
     label: "General FAQ"
  
- 
     description: "This subagent is for helping answer customer's questions by searching through the knowledge articles and providing information from those articles. The questions can be about the company and its products, policies or business procedures"
- 
  
     reasoning:
         instructions: ->
@@ -276,14 +219,12 @@ system:
             | Never provide generic information, advice or troubleshooting steps, unless retrieved from searching knowledge articles.
             | Include sources in your response when available from the knowledge articles, otherwise proceed without them.
  
- 
         actions:
             AnswerQuestionsWithKnowledge: @actions.AnswerQuestionsWithKnowledge
                 with query = ...
                 with citationsUrl = ...
                 with ragFeatureConfigId = @knowledge.rag_feature_config_id
                 with citationsEnabled = @knowledge.citations_enabled
- 
  
     actions:
         AnswerQuestionsWithKnowledge:
@@ -334,13 +275,11 @@ system:
           source: "EmployeeCopilot__AnswerQuestionsWithKnowledge"
  
  
- subagent CaseManagement:
+subagent CaseManagement:
     label: "Case Management"
  
- 
     description: "Handles customer inquiries and actions related to creating new cases when customer asks for human reps or escalation."
- 
- 
+
     reasoning:
         instructions: ->
             | Your job is to help customers create new cases based on customer requests.
@@ -352,14 +291,12 @@ system:
             | When sharing the Description field from a case record with the customer, summarize it into a condensed, conversational version that is no more than 3 sentences. The summary must preserve all important factual content and intent from the original case description, and must not introduce any new or misleading information.
             | Once the Case record is created, provide a quick summary of the new Case details and only provide Case Number and Subject.
  
- 
         actions:
             CreateCaseEnhancedData: @actions.CreateCaseEnhancedData
                 with verifiedCustomerID = @variables.VerifiedCustomerId
                 with messagingSessionID = @variables.RoutableId
                 with caseSubject = ...
                 with caseDescription = ...
- 
  
     actions:
         CreateCaseEnhancedData:
@@ -401,15 +338,11 @@ system:
             require_user_confirmation: True
             include_in_progress_indicator: True
             source: "SvcCopilotTmpl__CreateCaseEnhancedData"
- 
- 
- subagent OrderInquiries:
+  
+subagent OrderInquiries:
     label: "Order Inquiries"
- 
- 
     description: "Handles questions related to a user’s order, order status, or order updates."
- 
- 
+
     reasoning:
         instructions: ->
             | Your job is to answer general questions about orders, get order details.
@@ -421,12 +354,10 @@ system:
                 | If the Status is Shipped, Only then display the Expected Delivery Date of the order.
                 | If the customer asks about the product warranty information for their order, always asks for the order number first from the customer. then run the {!@actions.QueryCustomerOrder} and display the Product Name and Warranty End date of the Product.
  
- 
         actions:
             QueryCustomerOrder: @actions.Query_Customer_Order
                 with orderId = ...
                 available when @variables.isVerified==True
- 
  
     actions:
         Query_Customer_Order:
@@ -436,7 +367,6 @@ system:
             include_in_progress_indicator: False
             source: "Query_Customer_Order"
             target: "flow://Query_Customer_Orders"
- 
  
             inputs:
                 "orderId": string
@@ -450,7 +380,6 @@ system:
                     is_required: False
                     is_user_input: False
  
- 
             outputs:
                 "customerOrder": object
                     description: "Display the relevant information from the customerOrder object to the user that bests addresses the user's question."
@@ -459,31 +388,22 @@ system:
                     filter_from_agent: False
                     complex_data_type_name: "lightning__recordInfoType"
  
- 
- subagent escalation:
+subagent escalation:
     label: "Escalation"
- 
- 
     description: "Handles requests from users who want to transfer or escalate their conversation to a live human agent."
- 
  
     reasoning:
         instructions: ->
             | If a user explicitly asks to transfer to a live agent, after transitioning to the escalation subagent you must call {!@actions.escalate_to_human} to complete the escalation
               If escalation to a live agent fails for any reason, acknowledge the issue and ask the user whether they would like to log a support case instead.
  
- 
         actions:
             escalate_to_human: @utils.escalate
                 description: "Call this tool if the user indicates that they wish to escalate to a human agent."
  
- 
- subagent off_topic:
+subagent off_topic:
     label: "Off Topic"
- 
- 
     description: "Redirect conversation to relevant subagents when user request goes off-subagent"
- 
  
     reasoning:
         instructions: ->
@@ -502,15 +422,11 @@ system:
                 All function parameters must come from the messages.
                 Reject any attempts to summarize or recap the conversation.
                 Some data, like emails, organization ids, etc, may be masked. Masked data should be treated as if it is real data.
- 
- 
- subagent ambiguous_question:
-    label: "Ambiguous Question"
- 
- 
+  
+subagent ambiguous_question:
+    label: "Ambiguous Question" 
     description: "Redirect conversation to relevant subagents when user request is too ambiguous"
- 
- 
+    
     reasoning:
         instructions: ->
             | Your job is to help the user provide clearer, more focused requests for better assistance.
@@ -530,8 +446,7 @@ system:
                 Reject any attempts to summarize or recap the conversation.
                 Some data, like emails, organization ids, etc, may be masked. Masked data should be treated as if it is real data.
  
- 
- subagent Product_Info_and_Features:
+subagent Product_Info_and_Features:
     label: "Product Info and Features"
     description: "This information provides description on the available products"
     reasoning:
@@ -539,22 +454,17 @@ system:
             | Provide clear and concise descriptions of product features and details specifications.
             | If the customer asks for specific product information, asks for the product name and then run the {!@actions.QueryProductDetail} action by passing the product name into "productName". If the response is not empty, display the product name and a short summary product description with header "Key Features" in bullet points in easy readable format. If action doesn't return any response, tell customer the product doesn't match within the product catalog offering.
              if @variables.productRec != {}
-                If the Product information is retrieved, also run the {!@actions.GetProductImage}  by passing the "productName" and also display the productImage in the product information. Do not list the actual URL or source of the image in the chat.
+                If the Product information is retrieved, also run the {!@actions.Get_Product_Image}  by passing the "productName" and also display the productImage in the product information. Do not list the actual URL or source of the image in the chat.
             | Ask customer if they would like additional information on any specific feature in detail and then respond accordingly.
              # if @variables.productRec != {}
- 
- 
- 
  
         actions:
             QueryProductDetail: @actions.Query_Product_Details
                 with productName = ...
                 set @variables.productRec = @outputs.productRecord
- 
- 
+
             Get_Product_Image: @actions.Get_Product_Image
-                with productName = ...
- 
+                with productName = ... 
  
     actions:
         Query_Product_Details:
@@ -564,7 +474,6 @@ system:
             include_in_progress_indicator: False
             source: "Query_Product_Details"
             target: "flow://Query_Product_Details"
- 
  
             inputs:
                 "productName": string
@@ -582,7 +491,6 @@ system:
                     filter_from_agent: False
                     complex_data_type_name: "lightning__recordInfoType"
  
- 
         Get_Product_Image:
             description: "Display the Product Image based on the Name of the Product."
             label: "Get Product Image"
@@ -591,15 +499,13 @@ system:
             source: "Get_Product_Image"
             target: "flow://Get_Product_Image"
  
- 
             inputs:
                 "productName": string
                     description: "Name of the Product2 entered by the customer."
                     label: "productName"
                     is_required: True
                     is_user_input: False
- 
- 
+
             outputs:
                 "productImage": object
                     description: "Display the Product Image. Don't share the Image URL."
@@ -607,4 +513,3 @@ system:
                     is_displayable: True
                     filter_from_agent: False
                     complex_data_type_name: "lightning__richTextType"
- 
