@@ -7,6 +7,7 @@ import { parse } from '@agentscript/parser';
 import { Dialect } from '@agentscript/language';
 import { AgentforceSchema } from '@agentscript/agentforce-dialect';
 import type { ParsedAgentforce } from '../src/parsed-types.js';
+import { agentDslAuthoring } from '../src/types.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,3 +83,74 @@ export function readExpectedYaml(yamlName: string): string {
 export const FIXTURES_DIR = path.resolve(__dirname, 'fixtures');
 export const SCRIPTS_DIR = path.resolve(FIXTURES_DIR, 'scripts');
 export const EXPECTED_DIR = path.resolve(FIXTURES_DIR, 'expected');
+
+/**
+ * Find fields in `original` that were stripped by Zod schema parsing.
+ *
+ * The generated Zod schema uses plain `z.object()`, which silently strips
+ * unknown keys during `parse()`/`safeParse()`. By comparing the original
+ * object against the Zod-parsed result, we detect any compiled fields
+ * that the schema doesn't define.
+ */
+export function findExtraFields(
+  original: unknown,
+  stripped: unknown,
+  prefix: string
+): string[] {
+  if (
+    original === null ||
+    original === undefined ||
+    stripped === null ||
+    stripped === undefined
+  ) {
+    return [];
+  }
+
+  if (Array.isArray(original) && Array.isArray(stripped)) {
+    const extras: string[] = [];
+    for (let i = 0; i < Math.min(original.length, stripped.length); i++) {
+      extras.push(
+        ...findExtraFields(original[i], stripped[i], `${prefix}[${i}]`)
+      );
+    }
+    return extras;
+  }
+
+  if (typeof original === 'object' && typeof stripped === 'object') {
+    const extras: string[] = [];
+    const strippedKeys = new Set(
+      Object.keys(stripped as Record<string, unknown>)
+    );
+
+    for (const key of Object.keys(original as Record<string, unknown>)) {
+      const fieldPath = prefix ? `${prefix}.${key}` : key;
+      if (!strippedKeys.has(key)) {
+        extras.push(fieldPath);
+      } else {
+        extras.push(
+          ...findExtraFields(
+            (original as Record<string, unknown>)[key],
+            (stripped as Record<string, unknown>)[key],
+            fieldPath
+          )
+        );
+      }
+    }
+    return extras;
+  }
+
+  return [];
+}
+
+/**
+ * Check that a compiled output object contains no fields beyond what
+ * the AgentDSLAuthoring Zod schema defines. Returns paths of extra fields.
+ *
+ * Use after a YAML round-trip (to strip Sourced<T> wrappers) so the
+ * comparison only sees serializable data.
+ */
+export function checkSchemaConformance(output: unknown): string[] {
+  const result = agentDslAuthoring.safeParse(output);
+  if (!result.success) return []; // structural errors are caught elsewhere
+  return findExtraFields(output, result.data, '');
+}
