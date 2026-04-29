@@ -35,7 +35,7 @@ start_agent current:
         instructions: ->
             | Handle requests
         actions:
-            get_specialist_help: @utils.supervise to @topic.specialist
+            get_specialist_help: @topic.specialist
                 description: "Get help from specialist"
 
 topic specialist:
@@ -76,7 +76,7 @@ start_agent current:
         instructions: ->
             | Handle requests
         actions:
-            get_specialist_help: @utils.supervise to @topic.specialist
+            get_specialist_help: @topic.specialist
                 description: "Get help from specialist"
                 available when @variables.complexity_level > 5
 
@@ -111,7 +111,7 @@ start_agent current:
         instructions: ->
             | Handle requests
         actions:
-            get_specialist_help: @utils.supervise to @topic.specialist
+            get_specialist_help: @topic.specialist
 
 topic specialist:
     description: "Expert topic for complex problems"
@@ -146,7 +146,7 @@ start_agent current:
         instructions: ->
             | Handle requests
         actions:
-            get_specialist_help: @utils.supervise to @topic.specialist
+            get_specialist_help: @topic.specialist
                 description: "Explicit description"
 
 topic specialist:
@@ -179,9 +179,9 @@ start_agent current:
         instructions: ->
             | Handle requests
         actions:
-            get_specialist_help: @utils.supervise to @topic.specialist
+            get_specialist_help: @topic.specialist
                 description: "Get help from specialist"
-            escalate_to_manager: @utils.supervise to @topic.manager
+            escalate_to_manager: @topic.manager
                 description: "Escalate to manager"
 
 topic specialist:
@@ -225,7 +225,7 @@ start_agent current:
         instructions: ->
             | Handle complex requests
         actions:
-            get_specialist_help: @utils.supervise to @topic.specialist
+            get_specialist_help: @topic.specialist
                 description: "Get help from specialist"
             proceed: @utils.transition to @topic.next_step
                 description: "Move to next step"

@@ -13,7 +13,7 @@ import type {
   SchemaInfo,
 } from '../types.js';
 import type { NamedMap } from '../block.js';
-import { SymbolKind, isNamedMap, isAstNodeLike } from '../types.js';
+import { SymbolKind, astField, isNamedMap, isAstNodeLike } from '../types.js';
 
 /**
  * Enclosing block scope for a position in the AST.
@@ -579,4 +579,63 @@ export function collectNamespaceMaps(
   }
 
   return result;
+}
+
+/**
+ * Look up a NamedMap entry by name at the document root, honouring schema
+ * aliases (e.g., `start_agent` ≡ `subagent`). Returns the first match or
+ * `null`.
+ */
+export function resolveEntryAtRoot(
+  ast: AstRoot,
+  namespace: string,
+  name: string,
+  ctx: SchemaContext
+): AstNodeLike | null {
+  for (const key of resolveNamespaceKeys(namespace, ctx)) {
+    const container = astField(ast, key);
+    if (isNamedMap(container)) {
+      const entry = container.get(name);
+      if (isAstNodeLike(entry)) return entry;
+    }
+  }
+  return null;
+}
+
+/**
+ * Look up a NamedMap entry by name within the scope chain. Returns `null`
+ * when the namespace doesn't require a scope, when the required scope is
+ * not active in `scope`, or when no entry is found. Outer (direct) maps
+ * win over nested bindings reachable through non-scoped intermediates.
+ *
+ * Alias-aware: iterates `resolveNamespaceKeys(namespace, ctx)` for both
+ * the scope-requirement lookup and the namespace-map lookup, so aliased
+ * namespaces resolve correctly (symmetric with `resolveEntryAtRoot`).
+ */
+export function resolveEntryInScope(
+  ast: AstRoot,
+  namespace: string,
+  name: string,
+  ctx: SchemaContext,
+  scope: ScopeContext | undefined
+): AstNodeLike | null {
+  if (!scope) return null;
+
+  const scopedNamespaces = getScopedNamespaces(ctx);
+  const namespaceKeys = resolveNamespaceKeys(namespace, ctx);
+
+  for (const key of namespaceKeys) {
+    const scopesRequired = scopedNamespaces.get(key);
+    const activeScope = activeScopeForNamespace(scopesRequired, scope);
+    if (!activeScope) continue;
+
+    const scopeBlock = findScopeBlock(ast, activeScope, scope, ctx);
+    if (!scopeBlock) continue;
+
+    for (const map of collectNamespaceMaps(scopeBlock, key)) {
+      const entry = map.get(name);
+      if (isAstNodeLike(entry)) return entry;
+    }
+  }
+  return null;
 }

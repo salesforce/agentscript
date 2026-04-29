@@ -16,6 +16,7 @@ import type {
 import { withCst, createNode, AstNodeBase, emitIndent } from './types.js';
 import type { Diagnostic } from './diagnostics.js';
 import { createDiagnostic, DiagnosticSeverity } from './diagnostics.js';
+import { interpretEscape, escapeStringValue } from './string-escapes.js';
 
 export interface Expression {
   readonly __kind: string;
@@ -57,13 +58,7 @@ export class StringLiteral extends AstNodeBase implements Expression {
       // Unclosed string — fall through to clean emit
     }
 
-    const escaped = this.value
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-      .replace(/\t/g, '\\t')
-      .replace(/\r/g, '\\r');
-    return `"${escaped}"`;
+    return `"${escapeStringValue(this.value)}"`;
   }
 
   static parse(node: SyntaxNode): Parsed<StringLiteral> {
@@ -72,12 +67,10 @@ export class StringLiteral extends AstNodeBase implements Expression {
       if (child.type === 'string_content') {
         value += child.text;
       } else if (child.type === 'escape_sequence') {
-        if (child.text === '\\"') value += '"';
-        else if (child.text === "\\'") value += "'";
-        else if (child.text === '\\\\') value += '\\';
-        else if (child.text === '\\n') value += '\n';
-        else if (child.text === '\\t') value += '\t';
-        else if (child.text === '\\r') value += '\r';
+        const interpreted = interpretEscape(child.text[1]!);
+        if (interpreted !== undefined) {
+          value += interpreted;
+        }
       }
     }
     const parsed = withCst(new StringLiteral(value), node);

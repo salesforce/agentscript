@@ -28,7 +28,7 @@ export function checkOnExitRules(root: Record<string, unknown>): void {
       if (invalid) {
         attachError(
           entry as AstLike,
-          "on_exit may only contain 'transition ...' statements.",
+          "on_exit may only contain a 'transition ...' statement.",
           'on-exit-transition-only'
         );
       }

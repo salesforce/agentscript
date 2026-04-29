@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026, Salesforce, Inc.
- * All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
- */
-
 import type { AstNodeLike, AstRoot } from '../core/types.js';
 import { isNamedMap, isAstNodeLike } from '../core/types.js';
 import {
@@ -53,7 +46,7 @@ class UnusedVariablePass implements LintPass {
       attachDiagnostic(node, {
         range: fullRange,
         message: `Variable '${name}' is declared but never used`,
-        severity: DiagnosticSeverity.Warning,
+        severity: DiagnosticSeverity.Information,
         code: 'unused-variable',
         source: LINT_SOURCE,
         tags: [DiagnosticTag.Unnecessary],

@@ -39,6 +39,8 @@ export {
   surface as surfaceSchema,
   inputParameter as inputParameterSchema,
   outputParameter as outputParameterSchema,
+  byonNode as byonNodeSchema,
+  byoClientConfig as byoClientConfigSchema,
 } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
@@ -82,7 +84,9 @@ export type StateVariable = z.infer<typeof schema.stateVariable>;
 export type SubAgentNode = z.infer<typeof schema.subAgentNode>;
 export type RouterNode = z.infer<typeof schema.routerNode>;
 export type RelatedAgentNode = z.infer<typeof schema.relatedAgentNode>;
-export type AgentNode = SubAgentNode | RouterNode | RelatedAgentNode;
+export type BYONNode = z.infer<typeof schema.byonNode>;
+export type BYOClientConfig = z.infer<typeof schema.byoClientConfig>;
+export type AgentNode = SubAgentNode | RouterNode | RelatedAgentNode | BYONNode;
 
 // -- Actions & Tools --
 export type Action = z.infer<typeof schema.action>;
@@ -132,9 +136,28 @@ export interface AdditionalParameters {
 /** A single state_updates entry: { variable_name: expression } */
 export type StateUpdate = Record<string, string>;
 
-/** Response action for surfaces (not in OpenAPI schema) */
+/** Response action for surfaces */
 export interface ResponseAction {
   developer_name: string;
   label: string;
+  description: string;
+}
+
+/** Response format for surfaces (not in OpenAPI schema) */
+export interface ResponseFormat {
+  developer_name: string;
+  label: string;
+  description: string;
+  source?: string;
+  invocation_target_type?: string;
+  invocation_target_name?: string;
+  input_schema?: string;
+}
+
+/** Format tool for response_formats in reasoning (not in OpenAPI schema) */
+export interface FormatTool {
+  type: 'format';
+  target: string;
+  name: string;
   description: string;
 }

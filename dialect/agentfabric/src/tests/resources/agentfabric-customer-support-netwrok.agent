@@ -12,15 +12,15 @@ config:
 llm:
   openai_gpt4:
     target: "llm://openai_connection"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o"
     max_output_tokens: 1024
   gemini_2_5_flash:
     target: "llm://gemini_connection"
-    kind: "gemini"
+    kind: "Gemini"
     model: "gemini-2.5-flash"
 
-action_definitions:
+actions:
   search_articles:
     target: "mcp://knowledge_base_connection"
     kind: "mcp:tool"
@@ -54,6 +54,9 @@ executor set_context:
 
 generator analyze_request:
   llm: @llm.gemini_2_5_flash
+  system:
+    instructions: |
+      Classify the incoming employee support request into one of the available domains.
   prompt: ->
     | Analyze the following customer support request and categorize it as one of: 'billing', 'technical', 'general'. Also extract key entities and sentiment.
     |
@@ -116,6 +119,9 @@ subagent technical_handler:
     actions:
       kb_search: @actions.search_articles
       kb_get_article: @actions.get_article
+    max_consecutive_errors: 20
+    task_timeout_secs: 10
+    max_number_of_loops: 5
   on_exit: ->
     transition to @echo.send_response
 

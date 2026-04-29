@@ -15,6 +15,7 @@ export type ActionType =
   | 'transition'
   | 'setVariables'
   | 'escalate'
+  | 'end_session'
   | 'supervise'
   | 'tool';
 
@@ -33,7 +34,7 @@ export function resolveActionType(name: string, def: ParsedTool): ActionType {
         if (utilName === 'transition') return 'transition';
         if (utilName === 'setVariables') return 'setVariables';
         if (utilName === 'escalate') return 'escalate';
-        if (utilName === 'supervise') return 'supervise';
+        if (utilName === 'end_session') return 'end_session';
       }
       // @topic.XXX and @subagent.XXX references are supervision actions
       if (

@@ -27,6 +27,7 @@ import {
 } from '@agentscript/language';
 import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
+import { getBlockRange as getDeclRange } from '../utils.js';
 
 /** Get type text from a declaration's `type` field via CST source. */
 function getTypeText(decl: Record<string, unknown>): string | null {
@@ -39,17 +40,6 @@ function getTypeText(decl: Record<string, unknown>): string | null {
 /** Check if a type string represents an object type. */
 function isObjectType(typeText: string): boolean {
   return typeText === 'object' || typeText === 'list[object]';
-}
-
-/** Get the range from a declaration node. */
-function getDeclRange(decl: AstNodeLike) {
-  const cst = decl.__cst as CstMeta | undefined;
-  return (
-    cst?.range ?? {
-      start: { line: 0, character: 0 },
-      end: { line: 0, character: 0 },
-    }
-  );
 }
 
 /** Check if a field has a non-empty string value. */

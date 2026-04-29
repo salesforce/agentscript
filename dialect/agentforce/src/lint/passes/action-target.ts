@@ -31,8 +31,9 @@
  *   - expressionSet://           — Expression Set
  *   - runExpressionSet://        — Run Expression Set
  *   - retriever://               — Knowledge Retriever
+ *   - placeholder://             — Placeholder stub action (emits warning)
  *
- * Diagnostic: invalid-action-target
+ * Diagnostics: invalid-action-target, placeholder-action-target
  */
 
 import type { LintPass } from '@agentscript/language';
@@ -65,6 +66,7 @@ const VALID_SCHEMES = [
   'integrationProcedureAction',
   'mcpTool',
   'namedQuery',
+  'placeholder',
   'prompt',
   'quickAction',
   'retriever',
@@ -140,6 +142,21 @@ export function actionTargetSchemeRule(): LintPass {
               `Supported schemes: ${VALID_SCHEMES.join(', ')}.`,
             DiagnosticSeverity.Error,
             'invalid-action-target'
+          )
+        );
+        return;
+      }
+
+      // Warn about placeholder actions
+      if (scheme === 'placeholder') {
+        attachDiagnostic(
+          target.node,
+          lintDiagnostic(
+            target.keyRange,
+            `Action '${actionName}' uses a placeholder target "${target.value}". ` +
+              `Replace this with a real implementation before committing.`,
+            DiagnosticSeverity.Warning,
+            'placeholder-action-target'
           )
         );
       }
