@@ -28,9 +28,21 @@ export interface Expression {
   __describe(): string;
 }
 
-export class StringLiteral extends AstNodeBase implements Expression {
+/**
+ * Base class for expression nodes. Provides the default `__describe()` that
+ * most compound expressions use (`expression <emit>`); leaf literals override.
+ */
+export abstract class ExpressionBase extends AstNodeBase implements Expression {
+  abstract readonly __kind: string;
+  abstract __emit(ctx: EmitContext): string;
+
+  __describe(): string {
+    return `expression ${this.__emit({ indent: 0 })}`;
+  }
+}
+
+export class StringLiteral extends ExpressionBase {
   static readonly kind = 'StringLiteral' as const;
-  static readonly kindLabel = 'a string';
   readonly __kind = StringLiteral.kind;
 
   constructor(public value: string) {
@@ -93,7 +105,6 @@ export class StringLiteral extends AstNodeBase implements Expression {
 /** A plain text segment within a template. */
 export class TemplateText extends AstNodeBase {
   static readonly kind = 'TemplateText' as const;
-  static readonly kindLabel = 'template text';
   readonly __kind = TemplateText.kind;
 
   constructor(public value: string) {
@@ -113,7 +124,6 @@ export class TemplateText extends AstNodeBase {
 /** An interpolated expression `{!expr}` within a template. */
 export class TemplateInterpolation extends AstNodeBase {
   static readonly kind = 'TemplateInterpolation' as const;
-  static readonly kindLabel = 'template interpolation';
   readonly __kind = TemplateInterpolation.kind;
 
   constructor(public expression: Expression) {
@@ -381,9 +391,8 @@ function trimTrailingTextWhitespace(parts: TemplatePart[]): void {
   }
 }
 
-export class TemplateExpression extends AstNodeBase implements Expression {
+export class TemplateExpression extends ExpressionBase {
   static readonly kind = 'TemplateExpression' as const;
-  static readonly kindLabel = 'a template';
   readonly __kind = TemplateExpression.kind;
 
   /**
@@ -471,9 +480,8 @@ export class TemplateExpression extends AstNodeBase implements Expression {
   }
 }
 
-export class NumberLiteral extends AstNodeBase implements Expression {
+export class NumberLiteral extends ExpressionBase {
   static readonly kind = 'NumberLiteral' as const;
-  static readonly kindLabel = 'a number';
   readonly __kind = NumberLiteral.kind;
 
   constructor(public value: number) {
@@ -497,9 +505,8 @@ export class NumberLiteral extends AstNodeBase implements Expression {
   }
 }
 
-export class BooleanLiteral extends AstNodeBase implements Expression {
+export class BooleanLiteral extends ExpressionBase {
   static readonly kind = 'BooleanLiteral' as const;
-  static readonly kindLabel = 'True or False';
   readonly __kind = BooleanLiteral.kind;
 
   constructor(public value: boolean) {
@@ -519,9 +526,8 @@ export class BooleanLiteral extends AstNodeBase implements Expression {
   }
 }
 
-export class NoneLiteral extends AstNodeBase implements Expression {
+export class NoneLiteral extends ExpressionBase {
   static readonly kind = 'NoneLiteral' as const;
-  static readonly kindLabel = 'None';
   readonly __kind = NoneLiteral.kind;
 
   __describe(): string {
@@ -537,9 +543,8 @@ export class NoneLiteral extends AstNodeBase implements Expression {
   }
 }
 
-export class Identifier extends AstNodeBase implements Expression {
+export class Identifier extends ExpressionBase {
   static readonly kind = 'Identifier' as const;
-  static readonly kindLabel = 'an identifier';
   readonly __kind = Identifier.kind;
 
   constructor(public name: string) {
@@ -563,9 +568,8 @@ export class Identifier extends AstNodeBase implements Expression {
  * Placeholder expression for values that failed to parse.
  * Preserves the raw source text for faithful round-trip emission.
  */
-export class ErrorValue extends AstNodeBase implements Expression {
+export class ErrorValue extends ExpressionBase {
   static readonly kind = 'ErrorValue' as const;
-  static readonly kindLabel = 'an error value';
   readonly __kind = ErrorValue.kind;
 
   constructor(public rawText: string) {
@@ -581,9 +585,8 @@ export class ErrorValue extends AstNodeBase implements Expression {
   }
 }
 
-export class AtIdentifier extends AstNodeBase implements Expression {
+export class AtIdentifier extends ExpressionBase {
   static readonly kind = 'AtIdentifier' as const;
-  static readonly kindLabel = 'a reference (e.g., @Foo)';
   readonly __kind = AtIdentifier.kind;
 
   constructor(public name: string) {
@@ -605,9 +608,8 @@ export class AtIdentifier extends AstNodeBase implements Expression {
   }
 }
 
-export class MemberExpression extends AstNodeBase implements Expression {
+export class MemberExpression extends ExpressionBase {
   static readonly kind = 'MemberExpression' as const;
-  static readonly kindLabel = 'a reference (e.g., @Foo.Bar)';
   readonly __kind = MemberExpression.kind;
 
   constructor(
@@ -615,10 +617,6 @@ export class MemberExpression extends AstNodeBase implements Expression {
     public property: string
   ) {
     super();
-  }
-
-  __describe(): string {
-    return `expression ${this.__emit({ indent: 0 })}`;
   }
 
   __emit(ctx: EmitContext): string {
@@ -640,9 +638,8 @@ export class MemberExpression extends AstNodeBase implements Expression {
   }
 }
 
-export class SubscriptExpression extends AstNodeBase implements Expression {
+export class SubscriptExpression extends ExpressionBase {
   static readonly kind = 'SubscriptExpression' as const;
-  static readonly kindLabel = 'a subscript expression';
   readonly __kind = SubscriptExpression.kind;
 
   constructor(
@@ -650,10 +647,6 @@ export class SubscriptExpression extends AstNodeBase implements Expression {
     public index: Expression
   ) {
     super();
-  }
-
-  __describe(): string {
-    return `expression ${this.__emit({ indent: 0 })}`;
   }
 
   __emit(ctx: EmitContext): string {
@@ -674,9 +667,8 @@ export class SubscriptExpression extends AstNodeBase implements Expression {
 
 export type BinaryOperator = '+' | '-' | '*' | '/' | 'and' | 'or';
 
-export class BinaryExpression extends AstNodeBase implements Expression {
+export class BinaryExpression extends ExpressionBase {
   static readonly kind = 'BinaryExpression' as const;
-  static readonly kindLabel = 'a binary expression';
   readonly __kind = BinaryExpression.kind;
 
   constructor(
@@ -685,10 +677,6 @@ export class BinaryExpression extends AstNodeBase implements Expression {
     public right: Expression
   ) {
     super();
-  }
-
-  __describe(): string {
-    return `expression ${this.__emit({ indent: 0 })}`;
   }
 
   __emit(ctx: EmitContext): string {
@@ -720,9 +708,8 @@ export class BinaryExpression extends AstNodeBase implements Expression {
 
 export type UnaryOperator = 'not' | '+' | '-';
 
-export class UnaryExpression extends AstNodeBase implements Expression {
+export class UnaryExpression extends ExpressionBase {
   static readonly kind = 'UnaryExpression' as const;
-  static readonly kindLabel = 'a unary expression';
   readonly __kind = UnaryExpression.kind;
 
   constructor(
@@ -730,10 +717,6 @@ export class UnaryExpression extends AstNodeBase implements Expression {
     public operand: Expression
   ) {
     super();
-  }
-
-  __describe(): string {
-    return `expression ${this.__emit({ indent: 0 })}`;
   }
 
   __emit(ctx: EmitContext): string {
@@ -769,9 +752,8 @@ export type ComparisonOperator =
   | 'is'
   | 'is not';
 
-export class ComparisonExpression extends AstNodeBase implements Expression {
+export class ComparisonExpression extends ExpressionBase {
   static readonly kind = 'ComparisonExpression' as const;
-  static readonly kindLabel = 'a comparison';
   readonly __kind = ComparisonExpression.kind;
 
   constructor(
@@ -780,10 +762,6 @@ export class ComparisonExpression extends AstNodeBase implements Expression {
     public right: Expression
   ) {
     super();
-  }
-
-  __describe(): string {
-    return `expression ${this.__emit({ indent: 0 })}`;
   }
 
   __emit(ctx: EmitContext): string {
@@ -821,9 +799,8 @@ export class ComparisonExpression extends AstNodeBase implements Expression {
   }
 }
 
-export class ListLiteral extends AstNodeBase implements Expression {
+export class ListLiteral extends ExpressionBase {
   static readonly kind = 'ListLiteral' as const;
-  static readonly kindLabel = 'a list';
   readonly __kind = ListLiteral.kind;
 
   constructor(public elements: Expression[]) {
@@ -851,9 +828,8 @@ export class ListLiteral extends AstNodeBase implements Expression {
   }
 }
 
-export class DictLiteral extends AstNodeBase implements Expression {
+export class DictLiteral extends ExpressionBase {
   static readonly kind = 'DictLiteral' as const;
-  static readonly kindLabel = 'a dictionary';
   readonly __kind = DictLiteral.kind;
 
   constructor(
@@ -905,9 +881,8 @@ export class DictLiteral extends AstNodeBase implements Expression {
 /**
  * A function call expression, e.g. len(x)
  */
-export class CallExpression extends AstNodeBase implements Expression {
+export class CallExpression extends ExpressionBase {
   static readonly kind = 'CallExpression' as const;
-  static readonly kindLabel = 'a function call';
   readonly __kind = CallExpression.kind;
 
   constructor(
@@ -944,9 +919,8 @@ export class CallExpression extends AstNodeBase implements Expression {
 /**
  * Python-style ternary: consequence if condition else alternative
  */
-export class TernaryExpression extends AstNodeBase implements Expression {
+export class TernaryExpression extends ExpressionBase {
   static readonly kind = 'TernaryExpression' as const;
-  static readonly kindLabel = 'a ternary expression';
   readonly __kind = TernaryExpression.kind;
 
   constructor(
@@ -955,10 +929,6 @@ export class TernaryExpression extends AstNodeBase implements Expression {
     public alternative: Expression
   ) {
     super();
-  }
-
-  __describe(): string {
-    return `expression ${this.__emit({ indent: 0 })}`;
   }
 
   __emit(ctx: EmitContext): string {
@@ -990,9 +960,8 @@ export class TernaryExpression extends AstNodeBase implements Expression {
   }
 }
 
-export class Ellipsis extends AstNodeBase implements Expression {
+export class Ellipsis extends ExpressionBase {
   static readonly kind = 'Ellipsis' as const;
-  static readonly kindLabel = 'an ellipsis (...)';
   readonly __kind = Ellipsis.kind;
 
   __describe(): string {
@@ -1012,9 +981,8 @@ export class Ellipsis extends AstNodeBase implements Expression {
  * A spread/unpack expression, e.g. *items or *@variables.artifacts
  * Python-style iterable unpacking in function calls and list literals.
  */
-export class SpreadExpression extends AstNodeBase implements Expression {
+export class SpreadExpression extends ExpressionBase {
   static readonly kind = 'SpreadExpression' as const;
-  static readonly kindLabel = 'a spread expression';
   readonly __kind = SpreadExpression.kind;
 
   constructor(public expression: Expression) {
@@ -1103,8 +1071,9 @@ export function decomposeAtMemberExpression(
 }
 
 /**
- * All expression classes -- single source of truth for kinds and labels.
- * ExpressionKind, EXPRESSION_KINDS, and KIND_LABELS are derived automatically.
+ * All expression classes -- single source of truth for kinds.
+ * ExpressionKind and EXPRESSION_KINDS are derived automatically; user-facing
+ * labels are declared separately in {@link KIND_LABELS} below.
  */
 const ALL_EXPRESSION_CLASSES = [
   StringLiteral,
@@ -1133,9 +1102,30 @@ export const EXPRESSION_KINDS: ReadonlySet<ExpressionKind> = new Set(
   ALL_EXPRESSION_CLASSES.map(C => C.kind)
 );
 
-export const KIND_LABELS: ReadonlyMap<ExpressionKind, string> = new Map(
-  ALL_EXPRESSION_CLASSES.map(C => [C.kind, C.kindLabel])
-);
+/**
+ * User-facing labels for each expression kind. Consumed by primitives.ts
+ * when formatting type-mismatch errors (e.g., "Expected a number, got ...").
+ */
+export const KIND_LABELS: ReadonlyMap<ExpressionKind, string> = new Map([
+  [StringLiteral.kind, 'a string'],
+  [TemplateExpression.kind, 'a template'],
+  [NumberLiteral.kind, 'a number'],
+  [BooleanLiteral.kind, 'True or False'],
+  [NoneLiteral.kind, 'None'],
+  [Identifier.kind, 'an identifier'],
+  [AtIdentifier.kind, 'a reference (e.g., @Foo)'],
+  [MemberExpression.kind, 'a reference (e.g., @Foo.Bar)'],
+  [SubscriptExpression.kind, 'a subscript expression'],
+  [BinaryExpression.kind, 'a binary expression'],
+  [UnaryExpression.kind, 'a unary expression'],
+  [ComparisonExpression.kind, 'a comparison'],
+  [TernaryExpression.kind, 'a ternary expression'],
+  [CallExpression.kind, 'a function call'],
+  [ListLiteral.kind, 'a list'],
+  [DictLiteral.kind, 'a dictionary'],
+  [Ellipsis.kind, 'an ellipsis (...)'],
+  [SpreadExpression.kind, 'a spread expression'],
+]);
 
 const EXPRESSION_KIND_STRINGS: ReadonlySet<string> = EXPRESSION_KINDS;
 export function isExpressionKind(kind: string): kind is ExpressionKind {
