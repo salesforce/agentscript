@@ -34,8 +34,7 @@ const MIME_TYPES = {
 };
 
 // Single merged directory: UI dist + docs copied into dist/docs/
-const STATIC_DIR = join(__dirname, 'apps', 'ui', 'dist');
-const STATIC_ROOT = resolve(STATIC_DIR);
+const STATIC_ROOT = resolve(__dirname, 'apps', 'ui', 'dist');
 
 // Boundary check used to mitigate CWE-22 path traversal.
 // The WHATWG URL parser does not normalize `..` segments when the slash is
