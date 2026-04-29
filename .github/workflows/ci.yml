@@ -101,6 +101,21 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+  server-security-test:
+    name: Server Path Traversal Regression
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Run path traversal regression suite
+        run: node scripts/test-path-traversal.mjs
+
   validate-docs:
     name: Validate Documentation
     runs-on: ubuntu-latest
@@ -127,7 +142,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test, validate-docs]
+    needs: [lint-and-typecheck, test, server-security-test, validate-docs]
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
