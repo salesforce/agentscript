@@ -7,7 +7,7 @@
 
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { join, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -35,6 +35,17 @@ const MIME_TYPES = {
 
 // Single merged directory: UI dist + docs copied into dist/docs/
 const STATIC_DIR = join(__dirname, 'apps', 'ui', 'dist');
+const STATIC_ROOT = resolve(STATIC_DIR);
+
+// Boundary check used to mitigate CWE-22 path traversal.
+// The WHATWG URL parser does not normalize `..` segments when the slash is
+// percent-encoded (e.g. `..%2f..%2f` or `%2e%2e%2f`), so once we run the
+// pathname through decodeURIComponent the `..` segments can survive. We
+// must therefore re-resolve the joined path and confirm it is still
+// confined to STATIC_ROOT before touching the filesystem.
+function isInsideStaticRoot(absPath) {
+  return absPath === STATIC_ROOT || absPath.startsWith(STATIC_ROOT + sep);
+}
 
 async function serveFile(res, filePath) {
   try {
@@ -70,7 +81,23 @@ async function exists(filePath) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
-  const filePath = join(STATIC_DIR, pathname);
+
+  // Defense in depth: refuse decoded paths containing NUL bytes or
+  // backslashes. These never appear in legitimate static asset URLs and
+  // are common ingredients in path-confusion attacks.
+  if (pathname.includes('\0') || pathname.includes('\\')) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Bad Request');
+    return;
+  }
+
+  // Resolve to an absolute, normalized path and confine to STATIC_ROOT.
+  const filePath = resolve(STATIC_ROOT, '.' + pathname);
+  if (!isInsideStaticRoot(filePath)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Forbidden');
+    return;
+  }
 
   // Try exact file
   if (await exists(filePath)) {
@@ -87,7 +114,7 @@ const server = createServer(async (req, res) => {
 
   // For /docs/* paths, serve the docs 404 page
   if (pathname.startsWith('/docs')) {
-    const docs404 = join(STATIC_DIR, 'docs', '404.html');
+    const docs404 = join(STATIC_ROOT, 'docs', '404.html');
     if (await exists(docs404)) {
       const data = await readFile(docs404, 'utf-8');
       res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -97,7 +124,7 @@ const server = createServer(async (req, res) => {
   }
 
   // SPA fallback for UI routes
-  await serveFile(res, join(STATIC_DIR, 'index.html'));
+  await serveFile(res, join(STATIC_ROOT, 'index.html'));
 });
 
 server.listen(PORT, () => {
