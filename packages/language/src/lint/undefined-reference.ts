@@ -26,7 +26,7 @@ import {
   type Diagnostic,
 } from '../core/diagnostics.js';
 import { decomposeAtMemberExpression } from '../core/expressions.js';
-import { symbolTableKey } from './symbol-table.js';
+import { symbolTableKey } from '../core/analysis/symbol-table.js';
 import { constraintValidationKey } from './constraint-validation.js';
 import { findSuggestion } from './lint-utils.js';
 
