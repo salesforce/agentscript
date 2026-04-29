@@ -10,7 +10,7 @@ After you configure the registry and other elements of your agent network projec
 
 ## Agent Script Structure
 
-The following explains settings and configurations specific to MuleSoft agent network projects. To learn more about Agent Script, see the [Agent Script documentation](https://developer.salesforce.com/docs/ai/agentforce/guide/agent-script.html). 
+The following explains settings and configurations specific to MuleSoft agent network projects. To learn more about Agent Script, see the [Agent Script documentation](https://developer.salesforce.com/docs/ai/agentforce/guide/agent-script.html).
 
 ### Dialect Referencing and Versioning
 
@@ -24,7 +24,7 @@ The dialect header specifies that the script is strictly bound to a specific ver
 **Example**
 
 ```agentscript
-# @dialect: AGENTFABRIC=1.1
+# @dialect: AGENTFABRIC=1.0-BETA
 ```
 
 ### System Section
@@ -76,12 +76,12 @@ The `llm` element is where you define the LLMs to use for reasoning and generati
 llm:
   open-api-llm:
     target: "llm://open_ai_connection"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt5-mini"
     reasoning_effort: "LOW"
   gemini-llm:
     target: "llm://gemini_connection"
-    kind: "gemini"
+    kind: "Gemini"
     model: "gemini-3-flash-preview"
     thinking_level: "HIGH"
     top_p: 0.3
@@ -94,7 +94,7 @@ The OpenAI configuration has these properties.
 | Parameter | Description | Type | Required |
 | :---- | :---- | :---- | :---- |
 | `target` | Governed LLM connection as a URI; must use the `llm://` scheme | URI (`llm://…`) | Yes |
-| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `openai` | Yes |
+| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `OpenAI` | Yes |
 | `model` | The name of the model to use | String | Yes |
 | `reasoning_effort` | Constrains effort on reasoning for reasoning models. gpt-5.1 defaults to NONE, previous ones default to MEDIUM | enum\['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH'\] | No |
 | `temperature` | Controls randomness in the output | number | No |
@@ -107,8 +107,8 @@ The OpenAI configuration has these properties.
 ```agentscript
 llm:
   open-api-llm:
-    target: "connection://open_ai_connection"
-    kind: "openai"
+    target: "llm://open_ai_connection"
+    kind: "OpenAI"
     model: "gpt5-mini"
     reasoning_effort: "LOW"
 ```
@@ -120,7 +120,7 @@ The Gemini configuration has these properties.
 | Parameter | Description | Type | Required |
 | :---- | :---- | :---- | :---- |
 | `target` | Governed LLM connection as a URI; must use the `llm://` scheme | URI (`llm://…`) | Yes |
-| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `gemini` | Yes |
+| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `Gemini` | Yes |
 | `model` | The name of the model to use | String | Yes |
 | `thinking_level` | The level of thoughts tokens that the model should generate | Enum\['LOW', 'HIGH'\] | No |
 | `thinking_budget` | Indicates the thinking budget in tokens. 0 is DISABLED. \-1 is AUTOMATIC. The default values and allowed ranges are model dependent | Number | No |
@@ -134,8 +134,8 @@ The Gemini configuration has these properties.
 ```agentscript
 llm:
   gemini-llm:
-    target: "connection://gemini_connection"
-    kind: "gemini"
+    target: "llm://gemini_connection"
+    kind: "Gemini"
     model: "gemini-3-flash-preview"
     thinking_level: "HIGH"
     top_p: 0.3
@@ -143,7 +143,7 @@ llm:
 
 ### Action Definitions
 
-You define A2A and MCP actions in Agent Script under the top-level `action_definitions` block. Each action `target` uses a URI whose scheme is the underlying protocol (for example `a2a://` or `mcp://`), so the runtime can route the connection correctly.
+You define A2A and MCP actions in Agent Script under the top-level `actions` block. Each action `target` uses a URI whose scheme is the underlying protocol (for example `a2a://` or `mcp://`), so the runtime can route the connection correctly.
 
 #### A2A Actions
 
@@ -152,7 +152,7 @@ A2A actions execute the `message/send` A2A method and do not specify inputs or o
 **Example**
 
 ```agentscript
-action_definitions:
+actions:
   hr_agent:
     target: "a2a://hr_agent_connection"
     kind: "a2a:send_message"
@@ -172,7 +172,7 @@ MCP actions invoke Model Context Protocol actions with optional input binding.
 **Example**
 
 ```agentscript
-action_definitions:
+actions:
   send_slack_message:
     target: "mcp://slack_mcp_connection"
     kind: "mcp:tool"
@@ -241,41 +241,42 @@ subagent profile-extractor:
     instructions: -> 
       Extract the following information from the user's message: {!@request.payload.message.parts[0].text}
     outputs:
-      name:
-        type: "string"
-        description: "Full name of the person"
-        minLength: 1
-      email:
-        type: "string"
-        description: "Email address"
-        pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-      age:
-        type: "integer"
-        description: "Person's age"
-        minimum: 0
-        maximum: 150
-      preferences:
-        type: "object"
-        description: "User preferences"
-        properties:
-          newsletter:
-            type: "boolean"
-            description: "Whether user wants newsletter"
-            default: "false"
-          category:
-            type: "string"
-            description: "Preferred category"
-            enum:
-              - "tech"
-              - "business"
-              - "sports"
-      tags:
-        type: "array"
-        description: "Interest tags"
-        items:
+      properties:
+        name:
           type: "string"
-        minItems: 1
-        maxItems: 10
+          description: "Full name of the person"
+          minLength: 1
+        email:
+          type: "string"
+          description: "Email address"
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        age:
+          type: "integer"
+          description: "Person's age"
+          minimum: 0
+          maximum: 150
+        preferences:
+          type: "object"
+          description: "User preferences"
+          properties:
+            newsletter:
+              type: "boolean"
+              description: "Whether user wants newsletter"
+              default: "false"
+            category:
+              type: "string"
+              description: "Preferred category"
+              enum:
+                - "tech"
+                - "business"
+                - "sports"
+        tags:
+          type: "array"
+          description: "Interest tags"
+          items:
+            type: "string"
+          minItems: 1
+          maxItems: 10
   on_exit: -> transition to @orchestrator.process_profile
 ```
 
@@ -293,13 +294,11 @@ The subagent node has these properties.
 | `reasoning.actions` | The available actions | Array\[actions\] | No |
 | `reasoning.outputs` | Schema definition describing the expected structure of the agent's output | Outputs See [Node Outputs](#node-outputs) | No |
 | `reasoning.max_number_of_loops` | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25 | Integer | No |
-| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed. Default: 3 | Integer | No |
-| `reasoning.task_timeout_secs` | A timeout (in seconds) for the total node execution. Default: 60 | Integer | No |
-| `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | Yes |
+| `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
 
 ### Orchestrator Node
 
-The orchestrator node is a specialization of the reasoning node used for orchestrating multiple agents and MCP servers to achieve a specified goal. It is optimized for multi-agent orchestration. Use this node type for workflows that need to call multiple external agents or actions to achieve a goal.
+The orchestrator node is a specialization of the subagent node used for orchestrating multiple agents and MCP servers to achieve a specified goal. It is optimized for multi-agent orchestration. Use this node type for workflows that need to call multiple external agents or actions to achieve a goal.
 
 **Example**
 
@@ -324,7 +323,7 @@ orchestrator flight-booking-agent:
       get-flight-info: @actions.get-flight-info
       
       concur: @actions.concur-agent
-        with http_headers = {"Authorization": @request.headers['Authorization']}
+        with http_headers = {"Authorization": @request.headers["Authorization"]}
   outputs:
     properties:
       flightNumber:
@@ -354,8 +353,6 @@ The orchestrator node has these properties.
 | `reasoning.actions` | The available actions | Array\[actions\] | No |
 | `reasoning.outputs` | Schema definition describing the expected structure of the agent's output | Outputs See [Node Outputs](#node-outputs) | No |
 | `reasoning.max_number_of_loops` | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25 | Integer | No |
-| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed. Default: 3 | Integer | No |
-| `reasoning.task_timeout_secs` | A timeout (in seconds) for the total node execution. Default: 60 | Integer | No |
 | `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
 
 ### Generator Node
@@ -380,8 +377,8 @@ The generator node has these properties.
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
 | `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
-| `llm` | A reference to the LLM connection. | LLM Configuration objectSee [LLM Configuration: OpenAI](#llm-configuration:-openai) or [LLM Configuration: Gemini](#llm-configuration:-gemini) | No |
-| `system_instructions` | A foundational instruction set defining the agent's persona, operational boundaries, and behavioral logic to ensure consistent task execution. | String | No |
+| `llm` | A reference to the LLM connection. | @llm reference See [LLM Section](#llm-section) | No |
+| `system.instructions` | Overrides the global `system.instructions` at the file root level for this generator node. | String | No |
 | `prompt` | Session-specific query or instructions for this particular node, typically containing user provided or user related context. | String | Yes |
 | `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
 
@@ -438,8 +435,8 @@ The router node has these properties.
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
 | `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
-| `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: target, when, and optional label. | Array | Yes |
-| `otherwise` | Defines a default transition when no route condition matches. Contains: target. | Object | Yes with `routes` |
+| `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: `target`, `when`, and optional `label`. | Array | Yes |
+| `otherwise` | Defines a default transition when no route condition matches. Contains: `target`. | Object | Yes with `routes` |
 
 ### Echo Node
 
@@ -450,17 +447,18 @@ The echo node sends a response back to the client. The number of responses depen
 ```agentscript
 echo a2a_response:
   kind: "a2a:response"
-  task: @a2a.task({
+  task: a2a.task({
     state: "completed",
-    message: @a2a.message({
-      messageId: uuid(),
-      parts:[
-        @a2a.textPart("You have been onboarded! your employee ID is {!@orchestrator.hrSystemOnboard.output.employeeId}")
-      ]
-    }),
-    artifacts: @a2a.parts(*@variables.artifacts),
+    message: a2a.message(
+          {
+            messageId: uuid(),
+            parts:[
+              a2a.textPart("You have been onboarded!your employee ID is" +@orchestrator.hrSystemOnboard.output.employeeId)
+            ]
+          }),
+    artifacts: a2a.parts(*@variables.artifacts),
     metadata:None
-  })
+    })
 ```
 
 | Parameter | Description | Type | Required |
@@ -474,9 +472,7 @@ echo a2a_response:
 
 ### A2A Namespace Functions
 
-The `a2a` namespace provides a set of functions that support A2A Task object creation.
-
-### 
+The `a2a` namespace provides a set of functions that support A2A Task object creation. Do not prefix these functions with `@` as it's reserved for references such as `@variables`, `@actions`, `@request`, and `@orchestrator.<nodeId>`.
 
 | Function | Description | Input Arguments | Output | Example |
 | :---- | :---- | :---- | :---- | :---- |
@@ -488,22 +484,38 @@ The `a2a` namespace provides a set of functions that support A2A Task object cre
 | `a2a.artifact` | Builds an A2A Artifact object with auto-generated ID | `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`)  `artifact_id: str` (optional, auto-generated)  `name: str` (optional)  `description: str` (optional) `metadata: dict` (optional) | `dict` (Artifact) | `` a2a.artifact([a2a.dataPart(...)], name="Results", description="Analysis results") `a2a.artifact([a2a.filePart(...)], artifact_id="custom-id")` `` |
 | `a2a.parts` | Collects multiple items into a list for composing parts/artifacts arrays | `*args: Any` (variable arguments) | `list` | `` a2a.parts(*@variables.artifacts) `a2a.parts(a2a.textPart("Part 1"), a2a.dataPart({key: "value"}))` `` |
 
-### 
+Usage notes:
 
-Usage Notes:
-
-* Functions are designed to be composed: `a2a.task` accepts `messag`e created by `a2a.message`, which accepts `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`  
+* Functions are designed to be composed: `a2a.task` accepts `messages` created by `a2a.message`, which accepts `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
 * `a2a.filePart` requires either `uri` OR `bytes` (base64-encoded), but not both  
-* `a2a.artifact` auto-generates `artifactId` if not provided  
-* Use `a2a.parts` with the `*` operator to unpack arrays: `a2a.parts(*@variables.artifacts)`  
+* `a2a.artifact` auto-generates `artifactId` if it's not provided.  
+* Use `a2a.parts` with the `*` operator to unpack arrays, for example, `a2a.parts(*@variables.artifacts)`.
 * All `metadata` parameters are optional and accept arbitrary dictionaries  
 * For tasks, it's not necessary to define the `id`, `contextId` and `history` attributes, those are automatically populated by the trigger.
+
+## Built-in Functions {#built-in-functions}
+
+Use these functions in expressions alongside references and interpolations. They include time and ID helpers (`now`, `uuid`), string utilities (`strip`, `startswith`, and `endswith`), JSON parsing (`parse_json`), and common numeric helpers (`abs`, `round`, and `sum`) for deterministic math-style logic without calling external tools.
+
+| Function | Description | Input arguments | Output | Example |
+| :---- | :---- | :---- | :---- | :---- |
+| `now` | Current UTC time in ISO 8601 format | None | String (ISO 8601\) | `now()` |
+| `uuid` | Random UUID v4 | None | String (UUID) | `uuid()` |
+| `strip` | Removes leading/trailing characters from a string | String, optional chars (default: whitespace) | String | `strip(" hello ") → "hello"` |
+| `startswith` | Whether a string starts with a prefix | String, prefix | Boolean | `startswith("hello world", "hello")` |
+| `endswith` | Whether a string ends with a suffix | String, suffix | Boolean | `endswith("report.pdf", ".pdf")` |
+| `abs` | Absolute value | Number | Number | `abs(-42)` |
+| `round` | Round to optional digit count | Number, optional `ndigits` | Number | `round(3.14159, 2)` |
+| `sum` | Sum of a numeric list | List | Number | `sum([10, 20, 30])` |
+| `parse_json` | Parse a JSON string | String (valid JSON) | Object or array | `parse_json('{"key": "value"}')` |
 
 ## Node Outputs {#node-outputs}
 
 Use the `outputs` field to define the expected shape of the agent's response using a schema notation similar to a JSON schema. When provided, the agent produces output matching the defined structure for downstream parsing and processing.
 
 Each property maps to a field in the agent's output. The following types are supported.
+
+**Note:** Advanced JSON schema features are not supported, so do not copy patterns from generic JSON Schema tutorials unless they match what is documented here.
 
 | Type | Description |
 | :---- | :---- |
@@ -519,6 +531,13 @@ Each property definition can include:
 * `description`: A human-readable explanation of the property's purpose.  
 * `default`: A default value if the property is omitted.
 
+The `outputs` definition does not support the following:
+
+* `additionalProperties` or similar JSON Schema extensibility flags  
+* Combinators such as `anyOf`, `oneOf`, or `allOf`  
+* References or shared definitions (`$ref`, `$defs`)  
+* Composition beyond nested `object` / `array` structures as described above
+
 ## Node Expressions and References
 
 Nodes access data from other parts of the workflow using expressions.
@@ -528,9 +547,9 @@ The following references are used.
 | Prefix | Reference | Example |
 | :---- | :---- | :---- |
 | `@llm.` | LLM definitions | `@llm.open-api-llm` |
-| `@actions.` | Tool definitions | `@actions.hr_agent` |
+| `@actions.` | action definitions | `@actions.hr_agent` |
 | `@request.` | Trigger request data | `@request.payload`, `@request.interface` |
-| `@request.headers.` | HTTP headers (case-insensitive) | `@request.headers['Authorization']` |
+| `@request.headers` | HTTP headers (case-insensitive) | `@request.headers["Authorization"]` |
 | `@variables.` | Workflow variables | `@variables.companyId` |
 | `@<nodeType>.<nodeId>.` | Node references | `@orchestrator.hrOnboard.output` |
 
@@ -568,7 +587,7 @@ For this, both the MCP and A2A actions automatically get an implicit optional `h
 ```agentscript
 actions:
   my_hr_agent: @actions.hr_agent
-    with http_headers = {"Authorization": @request.headers['Authorization'], "X-CorrelationId": @variables.conversationId}
+    with http_headers = {"Authorization": @request.headers["Authorization"], "X-CorrelationId": @variables.conversationId}
 ```
 
 ### String Interpolation
@@ -613,4 +632,3 @@ actions:
     with message = @variables.calculatedMessage
     with channel = @variables.channelId
 ```
-
