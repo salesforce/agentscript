@@ -1,0 +1,274 @@
+# @dialect: AGENTFABRIC=0.1-BETA
+
+system:
+  instructions: "You are an IT Help Desk agent. You triage incoming support tickets, classify their severity, and either escalate, investigate, or request more information."
+
+config:
+  agent_name: "it-help-investigation-new"
+  default_llm: @llm.gemini_flash
+
+
+llm:
+  gemini_pro:
+    target: "llm://geminiConnection"
+    kind: "Gemini"
+    model: "gemini-2.5-pro"
+
+  gemini_flash:
+    target: "llm://geminiConnection"
+    kind: "Gemini"
+    model: "gemini-2.5-flash"
+
+
+# -- ACTION DEFINITIONS -------------------------------------------------------
+
+actions:
+  help_center_agent:
+    target: "a2a://helpCenterAgentTestConnectionNew"
+    kind: "a2a:send_message"
+
+  license_procurement_agent:
+    target: "a2a://licenseProcurementAgentTestConnectionNew"
+    kind: "a2a:send_message"
+
+  escalate:
+    target: "mcp://escalationMcpTestConnectionNew"
+    kind: "mcp:tool"
+    tool_name: "escalate"
+    inputs:
+      ticket_id: string
+      severity: string
+      reason: string
+      description: string
+
+  updateIssue:
+    target: "mcp://jiraMcpTestConnectionNew"
+    kind: "mcp:tool"
+    tool_name: "updateIssue"
+    inputs:
+      ticket_id: string
+      status: string
+      comment: string
+
+
+
+# -- TRIGGER -------------------------------------------------------------------
+
+trigger ticketTrigger:
+  kind: "a2a"
+  target: "brokers://it-help-investigation-new/a2a"
+  on_message: ->
+    transition to @generator.classifySeverity
+
+
+# -- SEVERITY CLASSIFICATION ---------------------------------------------------
+
+generator classifySeverity:
+  description: "Classifies the severity of the support ticket."
+  label: "Classify Severity"
+  llm: @llm.gemini_pro
+  system:
+    instructions: |
+      Classify the severity of the incoming IT support ticket and extract the Jira ticket ID.
+
+      Classify as HIGH:
+      - System outages affecting multiple users (e.g. "VPN is down for the entire office", "Nobody in Building 3 can connect")
+      - Security incidents involving unauthorized access or suspicious activity (e.g. "unauthorized login attempts from an IP in another country")
+      - Any blocking issue impacting a team, building, or department
+
+      Classify as LOW:
+      - Password resets or connectivity help (e.g. "I forgot my VPN password")
+      - Software license or access requests (e.g. "rate limited on my Figma MCP server", "I need access to Tableau")
+      - Single-user issues with a clear description
+
+      The ticket_id must always be a string value.
+      If no Jira ticket ID is provided in the input, default ticket_id to "JIRA001".
+  prompt: ->
+    | {!@request.payload.message.parts[0].text}
+  outputs:
+    properties:
+      ticket_id:
+        type: "string"
+        description: "The Jira ticket ID extracted from the input (e.g. '001' from 'Jira ticket ID 001')"
+      severity:
+        type: "string"
+        description: "The severity level"
+        enum:
+          - "high"
+          - "low"
+      reason:
+        type: "string"
+        description: "Brief explanation of the classification, if the reasoning is generic then by default give the severity as low and ticket_id should be JIRA001"
+  on_exit: ->
+    transition to @router.severityRouter
+
+
+# -- SEVERITY ROUTING ----------------------------------------------------------
+
+router severityRouter:
+  description: "Routes based on the classified severity."
+  routes:
+    - target: @executor.escalateTicket
+      when: @generator.classifySeverity.output.severity == "high"
+      label: "High"
+  otherwise:
+    target: @orchestrator.crossPlatformTriage
+
+
+# -- HIGH: ESCALATION ---------------------------------------------------------
+
+executor escalateTicket:
+  description: "Escalates the ticket using the Escalation MCP tool."
+  do: ->
+    run @actions.escalate
+      with ticket_id = @generator.classifySeverity.output.ticket_id
+      with severity = "high"
+      with reason = @generator.classifySeverity.output.reason
+      with description = @request.payload.message.parts[0].text
+  on_exit: ->
+    transition to @echo.escalationResponse
+
+echo escalationResponse:
+  kind: "a2a:response"
+  task: a2a.task({
+    state: "completed",
+    message: a2a.message({
+      messageId: uuid(),
+      parts: [
+        a2a.textPart("Ticket " + @generator.classifySeverity.output.ticket_id + " has been escalated to the on-call team due to high severity: " + @generator.classifySeverity.output.reason)
+      ]
+    }),
+    metadata: None
+  })
+
+
+# -- LOW: CROSS-PLATFORM TRIAGE -----------------------------------------------
+
+orchestrator crossPlatformTriage:
+  description: "Investigates the ticket using Help Center and License Procurement agents."
+  label: "Cross-Platform Triage"
+  llm: @llm.gemini_pro
+  system:
+    instructions: |
+      Investigate this low-severity IT support ticket.
+      Step 1: Search the Help Center agent for relevant articles or known solutions.
+      Step 2: If the issue involves software licensing, check with the License Procurement agent.
+      Step 3: Update the Jira ticket with your findings and resolution.
+      If you found an answer from the Help Center, set resolution to "help_given".
+      If you resolved a licensing issue, set resolution to "license_given".
+      If you could not find a solution or the issue requires human intervention, set resolution to "unresolved".
+      Always update the Jira ticket with resolution notes.
+  reasoning:
+    instructions: ->
+      | {!@request.payload.message.parts[0].text}
+    actions:
+      search_help: @actions.help_center_agent
+      check_license: @actions.license_procurement_agent
+      update_ticket: @actions.updateIssue
+        with ticket_id = @generator.classifySeverity.output.ticket_id
+    outputs:
+      properties:
+        resolution:
+          type: "string"
+          description: "The resolution type"
+          enum:
+            - "help_given"
+            - "license_given"
+            - "unresolved"
+        summary:
+          type: "string"
+          description: "Summary of the resolution and actions taken"
+  on_exit: ->
+    transition to @router.resolutionRouter
+
+
+# -- RESOLUTION ROUTING --------------------------------------------------------
+
+router resolutionRouter:
+  description: "Routes based on the resolution type from triage."
+  routes:
+    - target: @generator.licenseSummary
+      when: @orchestrator.crossPlatformTriage.output.resolution == "license_given"
+      label: "License Given"
+    - target: @executor.escalateUnresolved
+      when: @orchestrator.crossPlatformTriage.output.resolution == "unresolved"
+      label: "Unresolved"
+  otherwise:
+    target: @generator.helpSummary
+
+
+# -- HELP GIVEN PATH ----------------------------------------------------------
+
+generator helpSummary:
+  description: "Generates a summary of the help resolution."
+  system:
+    instructions: "You generate clear, friendly summaries of IT help desk resolutions."
+  prompt: ->
+    | Generate a resolution summary for the user. Original request: {!@request.payload.message.parts[0].text}. Resolution and actions taken: {!@orchestrator.crossPlatformTriage.output.summary}
+  on_exit: ->
+    transition to @echo.helpResponse
+
+echo helpResponse:
+  kind: "a2a:response"
+  task: a2a.task({
+    state: "completed",
+    message: a2a.message({
+      messageId: uuid(),
+      parts: [
+        a2a.textPart(generator.helpSummary.output)
+      ]
+    }),
+    metadata: None
+  })
+
+
+# -- LICENSE GIVEN PATH --------------------------------------------------------
+
+generator licenseSummary:
+  description: "Generates a summary of the license provisioning."
+  system:
+    instructions: "You generate clear, friendly summaries of license provisioning actions."
+  prompt: ->
+    | Generate a license provisioning summary for the user. Original request: {!@request.payload.message.parts[0].text}. Resolution and actions taken: {!@orchestrator.crossPlatformTriage.output.summary}
+  on_exit: ->
+    transition to @echo.licenseResponse
+
+echo licenseResponse:
+  kind: "a2a:response"
+  task: a2a.task({
+    state: "completed",
+    message: a2a.message({
+      messageId: uuid(),
+      parts: [
+        a2a.textPart(@generator.licenseSummary.output)
+      ]
+    }),
+    metadata: None
+  })
+
+
+# -- UNRESOLVED PATH -----------------------------------------------------------
+
+executor escalateUnresolved:
+  description: "Escalates an unresolved low-severity ticket to a human agent."
+  do: ->
+    run @actions.escalate
+      with ticket_id = @generator.classifySeverity.output.ticket_id
+      with severity = "low"
+      with reason = @orchestrator.crossPlatformTriage.output.summary
+      with description = @request.payload.message.parts[0].text
+  on_exit: ->
+    transition to @echo.unresolvedResponse
+
+echo unresolvedResponse:
+  kind: "a2a:response"
+  task: a2a.task({
+    state: "completed",
+    message: a2a.message({
+      messageId: uuid(),
+      parts: [
+        a2a.textPart("Ticket " + @generator.classifySeverity.output.ticket_id + " could not be resolved automatically and has been escalated to a human agent. Summary: " + @orchestrator.crossPlatformTriage.output.summary)
+      ]
+    }),
+    metadata: None
+  })

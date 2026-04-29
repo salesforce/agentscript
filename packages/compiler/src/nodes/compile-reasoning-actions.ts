@@ -42,6 +42,7 @@ import { compileTransition } from './compile-transition.js';
 import { compileSetVariables } from './compile-set-variables.js';
 import { compileSupervision } from './compile-supervision.js';
 import { compileEscalate } from './compile-escalate.js';
+import { compileEndSession } from './compile-end-session.js';
 import { compileTool } from './compile-tool.js';
 import { warnIfConnectedAgentTransition } from './compile-utils.js';
 import { TRANSITION_TARGET_NAMESPACES } from '../constants.js';
@@ -523,6 +524,15 @@ function compileAction(
         tools: [result.tool],
         postToolCalls: [],
         handOffActions: [result.handOffAction],
+      };
+    }
+
+    case 'end_session': {
+      const result = compileEndSession(actionName, def, body, ctx);
+      return {
+        tools: [result.tool],
+        postToolCalls: [],
+        handOffActions: [],
       };
     }
 

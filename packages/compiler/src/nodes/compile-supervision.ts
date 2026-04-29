@@ -25,7 +25,7 @@ import { compileExpression } from '../expressions/compile-expression.js';
 import { warnIfConnectedAgentTransition } from './compile-utils.js';
 
 /**
- * Compile a @utils.supervise reasoning action.
+ * Compile a supervision reasoning action (e.g. @topic.X or @subagent.X).
  *
  * Supervision creates a tool with type: supervision that directly targets
  * a topic node, without a corresponding handoff action.

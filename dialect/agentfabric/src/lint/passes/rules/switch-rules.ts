@@ -14,6 +14,7 @@ import {
   collectStatementKinds,
   extractSwitchTarget,
   extractWhenString,
+  isBooleanLikeExpression,
   type AstLike,
 } from './shared.js';
 
@@ -67,6 +68,12 @@ function validateSwitchRoutes(
         switchEntry as AstLike,
         `router '${normalizedName}' has a route missing non-empty 'when'.`,
         'switch-route-when'
+      );
+    } else if (!isBooleanLikeExpression(r.when)) {
+      attachError(
+        r.when as AstLike,
+        `router '${normalizedName}' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal).`,
+        'switch-route-when-not-boolean'
       );
     }
   }

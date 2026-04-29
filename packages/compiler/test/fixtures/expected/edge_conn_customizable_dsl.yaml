@@ -1,0 +1,199 @@
+schema_version: "2.0"
+global_configuration:
+  developer_name: CustomizableConnectionAgent
+  label: Customizable Connections
+  description: Agent with Customizable Connections
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables: []
+  default_agent_user: NEW AGENT USER
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hi, I'm an AI assistant. How can I help you?
+      message_type: Welcome
+    - message: Sorry, it looks like something has gone wrong.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+    - developer_name: Context
+      label: Context
+      description: Context
+      data_type: string
+      is_list: false
+      visibility: Internal
+      default: "'haha'"
+  initial_node: start
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: test
+      tools: []
+      developer_name: start
+      label: Start
+      action_definitions: []
+      instructions: You are an AI Agent
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: a topic
+      tools: []
+      developer_name: hello
+      label: Hello
+      action_definitions: []
+      instructions: You are an AI Agent
+  surfaces:
+    - surface_type: slack
+      outbound_route_configs: []
+    - surface_type: messaging
+      source: SurfaceAction__Messaging
+      outbound_route_configs:
+        - outbound_route_type: OmniChannelFlow
+          outbound_route_name: flow://PenguinSlide
+          escalation_message: Connecting you to the next available representative penguin
+      format_definitions:
+        - developer_name: messaging_rich_link
+          label: Messaging Rich Link
+          description: here's an instruction on how to select this format.
+          source: SurfaceAction_MessagingRichLink
+        - developer_name: messaging_choices
+          label: Messaging Choices
+          description: ""
+          source: SurfaceAction__MessagingChoices
+        - developer_name: messaging_choices_with_images
+          label: Messaging Choices With Images
+          description: ""
+          source: SurfaceAction__MessagingChoicesWithImages
+        - developer_name: messaging_timepicker
+          label: Messaging Timepicker
+          description: ""
+          source: SurfaceAction__MessagingTimePicker
+        - developer_name: forms_component
+          label: Forms Component
+          description: Use this when the user wants to create a case.
+          input_schema: '{"type":"object","properties":{"form_component":{"isMessagingComponent":true,"messagingDefinitionNameOrId":"1mdSB000002Z7VJYA0"}}}'
+        - developer_name: choices_custom
+          label: Choices Custom
+          description: use this when <custom>
+          input_schema: "{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"Extract all introductory, contextual and the final phrase that introduces the choices from the response. The message should contain all content that appears before the list of choices begins. Do not include any link url, image url and link title\"},\"choices\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"object\",\"properties\":{\"color\":{\"type\":\"string\",\"description\":\"The color of the title text.\",\"enum\":[\"Black\",\"Red\"]}},\"description\":\"The title of the choice.\"},\"imageUrl\":{\"type\":\"string\",\"description\":\"A URL to an image representing the choice. Should only be a URL.\"},\"subTitle\":{\"type\":\"string\",\"description\":\"The provided subTitles for the choice. Use verbatim if exists. If no such field exists, the value MUST be \\\"empty\\\".\"},\"secondarySubTitle\":{\"type\":\"string\",\"description\":\"The provided secondarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \\\"empty\\\".\"},\"tertiarySubTitle\":{\"type\":\"string\",\"description\":\"The provided tertiarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \\\"empty\\\".\"},\"actionText\":{\"type\":\"string\",\"description\":\"The action text of the choice. Optional - will use Title value if not provided.\"},\"imageMimeType\":{\"type\":\"string\",\"description\":\"The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided.\",\"enum\":[\"image/png\",\"image/jpeg\",\"image/gif\",\"image/webp\",\"image/svg+xml\"]}},\"required\":[\"title\",\"imageUrl\",\"subTitle\",\"secondarySubTitle\",\"tertiarySubTitle\",\"actionText\"]},\"description\":\"An array of choices, each containing a title, subTitle, secondarySubTitle, tertiarySubTitle, an image URL, an optional image MIME type and an optional action text.\",\"minItems\":1}},\"required\":[\"message\",\"choices\"]}"
+      tools:
+        - type: format
+          target: messaging_rich_link
+          name: messaging_rich_link
+          description: Messaging Rich Link
+        - type: format
+          target: messaging_choices
+          name: messaging_choices
+          description: Messaging Choices
+        - type: format
+          target: messaging_choices_with_images
+          name: messaging_choices_with_images
+          description: Messaging Choices With Images
+        - type: format
+          target: messaging_timepicker
+          name: messaging_timepicker
+          description: Messaging Timepicker
+        - type: format
+          target: forms_component
+          name: forms
+          description: Forms
+    - surface_type: service_email
+      instructions: '"sample instruction"'
+      additional_system_instructions: '"You are an AI Agent"'
+      outbound_route_configs:
+        - outbound_route_type: OmniChannelFlow
+          outbound_route_name: flow://PenguinSlide
+      inputs:
+        - developer_name: LegalDisclosure
+          label: Legal Disclosure
+          description: Legal Disclosure
+          data_type: string
+          is_list: false
+          visibility: Internal
+          default: "'This response was generated by a penguin.'"
+        - developer_name: Signature
+          label: Signature
+          description: Signature
+          data_type: string
+          is_list: false
+          visibility: Internal
+          default: "'quack'"
+        - developer_name: MailSlotNumber
+          label: Mail Slot Number
+          description: Mail Slot Number
+          data_type: number
+          is_list: false
+          visibility: Internal
+          default: 1
+        - developer_name: PenguinSpeechify
+          label: Penguin Speechify
+          description: whether to translate response into penguin speech
+          data_type: boolean
+          is_list: false
+          visibility: Internal
+          default: false
+      format_definitions:
+        - developer_name: service_email_text
+          label: Service Email Text
+          description: Always use this format for all responses
+          source: SurfaceAction__ServiceEmailText
+      tools:
+        - type: format
+          target: service_email_text
+          name: service_email_text
+          description: Service Email Text
+    - surface_type: custom
+      name: penguin
+      label: Penguin Connection
+      description: This connection applies to a penguin
+      instructions: |-
+        Always use response_formats.high_frequency_response when speaking to young penguins
+        When using response_formats.high_frequency_response, restrict the frequency range to between 285 hz and 590 hz.
+        If {{connection.penguin.inputs.IsHappy}} is false, always set the main_course to Big Fish.
+      outbound_route_configs: []
+      inputs:
+        - developer_name: IsHappy
+          label: Is Happy
+          description: Is Happy
+          data_type: boolean
+          is_list: false
+          visibility: Internal
+          default: false
+      format_definitions:
+        - developer_name: high_frequency_response
+          label: High Frequency Response
+          description: Use this format when responding to high-frequency sounds
+          input_schema: '{"type":"object","properties":{"frequency":{"type":"number","description":"Frequency in Hertz (Hz)","minimum":0},"tokens":{"type":"array","items":{"type":"object","properties":{"valid_ips":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"address":{"type":"string"}}},"description":"valid IP address for this token"},"key":{"type":"object","properties":{"is_for_auth":{"type":"boolean"},"key_alias":{"type":"string"},"key_value":{"type":"string"}},"description":"token key"},"values":{"type":"array","items":{"type":"string","enum":["ea383mmfsdflapqyreiyocndgjf8","supersecrettokenvalue","10230392823942739487298374234"]},"description":"valid values of this token"}}},"description":"A list of tokens used"}},"required":["frequency"]}'
+        - developer_name: food
+          label: Food
+          description: Use this when the user asks for food
+          invocation_target_type: apex
+          invocation_target_name: cookFish
+          input_schema: '{"type":"object","properties":{"main_course":{"type":"string"},"dessert":{"type":"string"}},"required":["main_course","dessert"]}'
+      tools:
+        - type: format
+          target: high_frequency_response
+          name: high_frequency
+          description: High Frequency
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: "[{\"message\": \"Hi, I'm an AI assistant. How can I help you?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, it looks like something has gone wrong.\", \"messageType\": \"Error\"}]"

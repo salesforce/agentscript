@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseAndLintSource } from './test-utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('AgentFabric Lint', () => {
   it('reports no diagnostics for valid strict syntax', () => {
@@ -19,10 +25,10 @@ config:
 llm:
   default_llm:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   lookup:
     target: "mcp://knowledge"
     kind: "mcp:tool"
@@ -60,10 +66,10 @@ config:
 llm:
   x:
     target: "connection://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   t1:
     target: "connection://tools"
     kind: "mcp:tool"
@@ -83,7 +89,7 @@ action_definitions:
 config:
   agent_name: "mcp-no-name"
 
-action_definitions:
+actions:
   bad:
     target: "mcp://knowledge"
     kind: "mcp:tool"
@@ -99,12 +105,12 @@ action_definitions:
     ).toBe(true);
   });
 
-  it('reports unknown-variant for invalid action_definitions kind', () => {
+  it('reports unknown-variant for invalid actions kind', () => {
     const source = `
 config:
   agent_name: "bad-action-kind"
 
-action_definitions:
+actions:
   bad:
     target: "mcp://knowledge"
     kind: "mcp:unknown"
@@ -115,12 +121,12 @@ action_definitions:
     );
   });
 
-  it('rejects tool_name on a2a:send_message action_definitions', () => {
+  it('rejects tool_name on a2a:send_message actions', () => {
     const source = `
 config:
   agent_name: "a2a-extra-field"
 
-action_definitions:
+actions:
   bad:
     target: "a2a://agent"
     kind: "a2a:send_message"
@@ -155,7 +161,7 @@ config:
 llm:
   x:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
     thinking_level: "HIGH"
 `;
@@ -247,6 +253,285 @@ echo done:
     ).toBe(true);
   });
 
+  it('rejects MemberExpression in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-member"
+
+trigger t:
+  target: "brokers://router-when-member/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classifySeverity
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+    );
+  });
+
+  it('rejects StringLiteral in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-string"
+
+trigger t:
+  target: "brokers://router-when-string/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: "high"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+    );
+  });
+
+  it('rejects arithmetic BinaryExpression in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-arith"
+
+trigger t:
+  target: "brokers://router-when-arith/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.a + @subagent.x.output.b
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+    );
+  });
+
+  it('accepts ComparisonExpression (==) in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-cmp"
+
+trigger t:
+  target: "brokers://router-when-cmp/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classifySeverity.output.level == "high"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts ComparisonExpression (!=) in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-neq"
+
+trigger t:
+  target: "brokers://router-when-neq/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.status != "done"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts BooleanLiteral in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-bool"
+
+trigger t:
+  target: "brokers://router-when-bool/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: True
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts logical and in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-and"
+
+trigger t:
+  target: "brokers://router-when-and/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.a == "1" and @subagent.x.output.b == "2"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts logical or in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-or"
+
+trigger t:
+  target: "brokers://router-when-or/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.x.output.a == "1" or @subagent.x.output.b == "2"
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts unary not in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-not"
+
+trigger t:
+  target: "brokers://router-when-not/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: not @subagent.x.output.done
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts CallExpression in router when', () => {
+    const source = `
+config:
+  agent_name: "router-when-call"
+
+trigger t:
+  target: "brokers://router-when-call/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: contains(@subagent.x.output.tags, "urgent")
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-not-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
   it('requires reasoning.instructions for orchestrator and subagent', () => {
     const source = `
 config:
@@ -255,7 +540,7 @@ config:
 llm:
   g:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 trigger t:
@@ -291,7 +576,7 @@ echo done:
 config:
   agent_name: "tools-ns"
 
-action_definitions:
+actions:
   notify:
     target: "a2a://notify"
     kind: "a2a:send_message"
@@ -324,10 +609,10 @@ config:
 llm:
   g:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   search_articles:
     target: "mcp://knowledge"
     kind: "mcp:tool"
@@ -375,10 +660,10 @@ config:
 llm:
   main:
     target: "llm://openai"
-    kind: "openAI"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
-action_definitions:
+actions:
   hr_agent:
     target: "a2a://hr_agent_connection"
     kind: "a2a:send_message"
@@ -481,7 +766,7 @@ config:
 llm:
   g:
     target: "llm://openai"
-    kind: "openai"
+    kind: "OpenAI"
     model: "gpt-4o-mini"
 
 trigger t:
@@ -502,5 +787,18 @@ echo done:
     expect(
       result.diagnostics.some(d => d.code === 'generator-prompt-required')
     ).toBe(false);
+  });
+
+  it('reports no lint errors for it-help-investigation fixture', () => {
+    const agentPath = resolve(
+      __dirname,
+      './resources/it-help-investigation.agent'
+    );
+    const source = readFileSync(agentPath, 'utf8');
+    const result = parseAndLintSource(source);
+    const lintErrors = result.diagnostics.filter(
+      d => d.severity === 1 && d.source !== 'parser'
+    );
+    expect(lintErrors).toHaveLength(0);
   });
 });

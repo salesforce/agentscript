@@ -7,12 +7,23 @@
 
 import {
   attachDiagnostic,
+  BinaryExpression,
+  BooleanLiteral,
+  CallExpression,
+  ComparisonExpression,
   decomposeAtMemberExpression,
+  TernaryExpression,
+  UnaryExpression,
 } from '@agentscript/language';
 import { normalizeId } from '../../utils.js';
 
 const AGENTFABRIC_LINT_SOURCE = 'agentfabric-lint';
 const ERROR_SEVERITY = 1;
+
+interface ExpressionLike {
+  __kind?: string;
+  operator?: string;
+}
 
 interface StatementLike {
   __kind?: string;
@@ -177,4 +188,33 @@ export function configHasDefaultLlm(root: Record<string, unknown>): boolean {
   const config = root.config;
   if (config == null || typeof config !== 'object') return false;
   return hasOwnNonNull(config as Record<string, unknown>, 'default_llm');
+}
+
+export function isBooleanLikeExpression(
+  value: unknown
+): value is
+  | ComparisonExpression
+  | BooleanLiteral
+  | CallExpression
+  | TernaryExpression
+  | BinaryExpression
+  | UnaryExpression {
+  if (value == null || typeof value !== 'object') return false;
+  const expr = value as ExpressionLike;
+  const kind = expr.__kind;
+  if (typeof kind !== 'string') return false;
+
+  switch (kind) {
+    case ComparisonExpression.kind:
+    case BooleanLiteral.kind:
+    case CallExpression.kind:
+    case TernaryExpression.kind:
+      return true;
+    case BinaryExpression.kind:
+      return expr.operator === 'and' || expr.operator === 'or';
+    case UnaryExpression.kind:
+      return expr.operator === 'not';
+    default:
+      return false;
+  }
 }

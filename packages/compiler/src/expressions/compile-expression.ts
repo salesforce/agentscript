@@ -27,6 +27,7 @@ import {
   SpreadExpression,
   NoneLiteral,
   decomposeAtMemberExpression,
+  escapeStringValue,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 
@@ -59,6 +60,7 @@ export function compileExpression(
 
 export interface CompileExpressionOptions {
   allowActionReferences?: boolean;
+  allowFormatReferences?: boolean;
   isSystemMessage?: boolean;
   /** Label for the current expression context, used in error messages (e.g. "'set' clause", "'with' clause") */
   expressionContext?: string;
@@ -94,9 +96,7 @@ function compileExprNode(
     return compileCallExpression(expr, ctx, opts);
   }
   if (expr instanceof StringLiteral) {
-    // Escape double quotes in the string value and wrap in double quotes to match agent-dsl
-    const escaped = expr.value.replace(/"/g, '\\"');
-    return `"${escaped}"`;
+    return `"${escapeStringValue(expr.value)}"`;
   }
   if (expr instanceof NumberLiteral) {
     return String(expr.value);
@@ -151,7 +151,21 @@ function compileMemberExpression(
       case 'outputs':
         return `result.${property}`;
 
-      case 'actions': {
+      case 'inputs': {
+        const connName = ctx.connectionName;
+        if (connName) {
+          return `connection.${connName}.inputs.${property}`;
+        }
+        ctx.warning(
+          `Connection input '${property}' not in a connection context, defaulting to empty namespace`,
+          expr.__cst?.range
+        );
+        return `inputs.${property}`;
+      }
+
+      case 'actions':
+      case 'tool_definitions':
+      case 'tools': {
         if (!opts.allowActionReferences) {
           const where = opts.expressionContext
             ? ` in a ${opts.expressionContext}`
@@ -164,6 +178,23 @@ function compileMemberExpression(
         // Resolve to the tool key name if a mapping exists
         const toolKey = ctx.actionReferenceMap.get(property) ?? property;
         return `action.${toolKey}`;
+      }
+
+      case 'response_formats':
+      case 'response_actions': {
+        if (!opts.allowFormatReferences) {
+          const where = opts.expressionContext
+            ? ` in a ${opts.expressionContext}`
+            : '';
+          ctx.error(
+            `@${namespace}.${property} cannot be used${where}. Use @${namespace} references inside instruction templates instead (e.g. | text {!@${namespace}.${property}}).`,
+            expr.__cst?.range
+          );
+        }
+        // Resolve to the response format tool name if a mapping exists
+        const formatKey =
+          ctx.responseFormatReferenceMap.get(property) ?? property;
+        return `response_formats.${formatKey}`;
       }
 
       case 'system_variables': {
