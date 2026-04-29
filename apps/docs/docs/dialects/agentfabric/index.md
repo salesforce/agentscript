@@ -434,7 +434,6 @@ The router node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
 | `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: `target`, `when`, and optional `label`. | Array | Yes |
 | `otherwise` | Defines a default transition when no route condition matches. Contains: `target`. | Object | Yes with `routes` |
 
@@ -466,7 +465,7 @@ echo a2a_response:
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
 | `kind` | Discriminator for the response type. Must be "a2a:response". | String | Yes |
 | `task` | A Task object as defined in the A2A specification. The `id`, `contextId` and `history` attributes are automatically populated by the trigger | Task object | Yes |
 
