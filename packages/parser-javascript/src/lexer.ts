@@ -106,8 +106,6 @@ export class Lexer {
   private get inTemplateExpr(): boolean {
     return this.templateExprBraceDepth >= 0;
   }
-  /** Parenthesis depth — suppresses INDENT/DEDENT/NEWLINE when > 0 to support multi-line call expressions. */
-  private bracketDepth = 0;
 
   constructor(source: string) {
     this.source = source;
@@ -126,7 +124,6 @@ export class Lexer {
     this.row = 0;
     this.col = 0;
     this.indentStack = [0];
-    this.bracketDepth = 0;
 
     while (this.hasMore) {
       this.tokenizeLine();
@@ -223,7 +220,12 @@ export class Lexer {
 
     // Check for "- " sequence element at start of content.
     // Not on template lines — dashes there are literal content.
-    if (!this.onTemplateLine && this.bracketDepth === 0 && c === CH_DASH) {
+    // Inside bracketed expressions, a leading dash is unary minus — the
+    // parser handles that by skipping virtual indent tokens, so we don't
+    // need to suppress DASH_SPACE emission here.  A bare `- ` at line start
+    // only matters at statement level anyway; the parser ignores it
+    // otherwise.
+    if (!this.onTemplateLine && c === CH_DASH) {
       const nc = this.peekCharCode(1); // NaN at EOF — won't match any CH_*
       const atEOF = this.offset + 1 >= this.source.length;
       if (nc === CH_SPACE || this.atNewline(1) || atEOF) {
@@ -237,8 +239,7 @@ export class Lexer {
       // line is literal text — consumed atomically as a single TEMPLATE_CONTENT
       // token (mirroring scanner.c's TEMPLATE_CONTENT handling). Characters
       // inside template content never reach tokenizeToken(), so parens, braces,
-      // hashes, and quotes can't accidentally perturb bracketDepth, open
-      // strings, or start comments.
+      // hashes, and quotes can't accidentally open strings or start comments.
       if (this.onTemplateLine && !this.inTemplateExpr) {
         if (this.tokenizeTemplateContent()) return;
         continue;
@@ -288,8 +289,6 @@ export class Lexer {
   }
 
   private emitIndentation(indentLength: number): void {
-    if (this.bracketDepth > 0) return;
-
     const currentIndent = this.indentStack[this.indentStack.length - 1]!;
 
     if (indentLength > currentIndent) {
@@ -416,16 +415,6 @@ export class Lexer {
           this.onTemplateLine = true;
           this.templateBaseIndent =
             this.indentStack[this.indentStack.length - 1]!;
-          break;
-        // Track parenthesis depth to suppress structural tokens inside
-        // multi-line call expressions. Template content is consumed as
-        // TEMPLATE_CONTENT before reaching this switch, so parens here are
-        // always code — no guard needed.
-        case TokenKind.LPAREN:
-          this.bracketDepth++;
-          break;
-        case TokenKind.RPAREN:
-          this.bracketDepth--;
           break;
         // Track brace depth inside {!...} template expressions so that nested
         // braces (e.g. JSON objects) don't prematurely close the expression.
@@ -592,8 +581,8 @@ export class Lexer {
    * (we just emitted a TEMPLATE_EXPR_START and need to switch to code mode).
    *
    * Parens, braces, hashes, and quotes inside template text never reach
-   * tokenizeToken(), so they can't perturb bracketDepth, open strings, or
-   * start comments.
+   * tokenizeToken(), so they can't accidentally open strings or start
+   * comments.
    */
   private tokenizeTemplateContent(): boolean {
     const start = this.position;

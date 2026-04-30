@@ -24,6 +24,7 @@
 import { TokenKind } from './token.js';
 import { CSTNode } from './cst-node.js';
 import type { ParserContext } from './parser.js';
+import { skipVirtualTokens } from './recovery.js';
 
 // Hoisted constants — avoid per-call allocation
 // Must match ESCAPE_TABLE in @agentscript/language (packages/language/src/core/string-escapes.ts)
@@ -132,6 +133,15 @@ function parsePrefix(ctx: ParserContext): CSTNode | null {
     return parseUnary(ctx, op, 7);
   }
 
+  // DASH_SPACE ("- ") at expression position is unary minus, not a sequence
+  // marker. This only occurs inside bracketed expressions — at statement
+  // level, sequence-element dispatchers consume DASH_SPACE before calling
+  // parseExpression, so we're guaranteed to be in a `(…)` / `[…]` / `{…}`
+  // context where `- x` means "unary minus x".
+  if (tok.kind === TokenKind.DASH_SPACE) {
+    return parseUnary(ctx, '-', 7);
+  }
+
   // Spread *expr (precedence 7)
   if (tok.kind === TokenKind.STAR) {
     return parseSpread(ctx);
@@ -183,6 +193,8 @@ function parseParenthesized(ctx: ParserContext): CSTNode | null {
   const node = ctx.startNode('parenthesized_expression');
   ctx.addAnonymousChild(node, ctx.consume()); // (
 
+  skipVirtualTokens(ctx);
+
   const expr = parseExpression(ctx, 0);
   if (expr) {
     node.appendChild(wrapExpression(ctx, expr), 'expression');
@@ -190,6 +202,8 @@ function parseParenthesized(ctx: ParserContext): CSTNode | null {
     // Empty parens () → insert MISSING id
     node.appendChild(makeMissingArgument(ctx), 'expression');
   }
+
+  skipVirtualTokens(ctx);
 
   if (ctx.peekKind() === TokenKind.RPAREN) {
     ctx.addAnonymousChild(node, ctx.consume()); // )
@@ -449,25 +463,16 @@ function parseList(ctx: ParserContext): CSTNode {
   const node = ctx.startNode('list');
   ctx.addAnonymousChild(node, ctx.consume()); // [
 
-  // Lists can span multiple lines — skip whitespace tokens inside [...]
-  let _listIndentDepth = 0;
   while (
     ctx.peekKind() !== TokenKind.RBRACKET &&
     ctx.peekKind() !== TokenKind.EOF
   ) {
-    if (ctx.peekKind() === TokenKind.NEWLINE) {
-      ctx.consume();
-      continue;
-    }
-    if (ctx.peekKind() === TokenKind.INDENT) {
-      _listIndentDepth++;
-      ctx.consume();
-      continue;
-    }
-    if (ctx.peekKind() === TokenKind.DEDENT) {
-      _listIndentDepth--;
-      ctx.consume();
-      continue;
+    skipVirtualTokens(ctx);
+    if (
+      ctx.peekKind() === TokenKind.RBRACKET ||
+      ctx.peekKind() === TokenKind.EOF
+    ) {
+      break;
     }
     const expr = parseExpression(ctx, 0);
     if (expr) {
@@ -475,6 +480,7 @@ function parseList(ctx: ParserContext): CSTNode {
     } else {
       break;
     }
+    skipVirtualTokens(ctx);
     if (ctx.peekKind() === TokenKind.COMMA) {
       ctx.addAnonymousChild(node, ctx.consume());
     } else {
@@ -482,14 +488,7 @@ function parseList(ctx: ParserContext): CSTNode {
     }
   }
 
-  // Skip whitespace tokens to find the closing ]
-  while (
-    ctx.peekKind() === TokenKind.NEWLINE ||
-    ctx.peekKind() === TokenKind.INDENT ||
-    ctx.peekKind() === TokenKind.DEDENT
-  ) {
-    ctx.consume();
-  }
+  skipVirtualTokens(ctx);
 
   if (ctx.peekKind() === TokenKind.RBRACKET) {
     ctx.addAnonymousChild(node, ctx.consume());
@@ -506,18 +505,16 @@ function parseDictionary(ctx: ParserContext): CSTNode {
   const node = ctx.startNode('dictionary');
   ctx.addAnonymousChild(node, ctx.consume()); // {
 
-  // Dictionaries can span multiple lines
   while (
     ctx.peekKind() !== TokenKind.RBRACE &&
     ctx.peekKind() !== TokenKind.EOF
   ) {
+    skipVirtualTokens(ctx);
     if (
-      ctx.peekKind() === TokenKind.NEWLINE ||
-      ctx.peekKind() === TokenKind.INDENT ||
-      ctx.peekKind() === TokenKind.DEDENT
+      ctx.peekKind() === TokenKind.RBRACE ||
+      ctx.peekKind() === TokenKind.EOF
     ) {
-      ctx.consume();
-      continue;
+      break;
     }
     const pair = parseDictionaryPair(ctx);
     if (pair) {
@@ -525,12 +522,15 @@ function parseDictionary(ctx: ParserContext): CSTNode {
     } else {
       break;
     }
+    skipVirtualTokens(ctx);
     if (ctx.peekKind() === TokenKind.COMMA) {
       ctx.addAnonymousChild(node, ctx.consume());
     } else {
       break;
     }
   }
+
+  skipVirtualTokens(ctx);
 
   if (ctx.peekKind() === TokenKind.RBRACE) {
     ctx.addAnonymousChild(node, ctx.consume());
@@ -635,15 +635,31 @@ function parseCall(ctx: ParserContext, func: CSTNode): CSTNode {
   node.appendChild(wrapExpression(ctx, func), 'function');
   ctx.addAnonymousChild(node, ctx.consume()); // (
 
-  while (ctx.peekKind() !== TokenKind.RPAREN && !ctx.isAtSyncPoint()) {
+  // Inside `()`, the lexer emits NEWLINE/INDENT/DEDENT normally — we skip
+  // them at the parser level (mirrors parseList/parseDictionary).  Loop
+  // exits on RPAREN or EOF; NEWLINE/DEDENT aren't treated as sync points
+  // here because we're inside brackets.
+  while (
+    ctx.peekKind() !== TokenKind.RPAREN &&
+    ctx.peekKind() !== TokenKind.EOF
+  ) {
+    skipVirtualTokens(ctx);
+    if (
+      ctx.peekKind() === TokenKind.RPAREN ||
+      ctx.peekKind() === TokenKind.EOF
+    ) {
+      break;
+    }
     const arg = parseExpression(ctx, 0);
     if (arg) {
       node.appendChild(wrapExpression(ctx, arg), 'argument');
     } else {
       break;
     }
+    skipVirtualTokens(ctx);
     if (ctx.peekKind() === TokenKind.COMMA) {
       ctx.addAnonymousChild(node, ctx.consume());
+      skipVirtualTokens(ctx);
       // Trailing comma: if `)` follows, insert MISSING id argument
       if (ctx.peekKind() === TokenKind.RPAREN) {
         node.appendChild(makeMissingArgument(ctx), 'argument');
@@ -702,10 +718,14 @@ function parseSubscript(ctx: ParserContext, object: CSTNode): CSTNode {
   node.appendChild(wrapExpression(ctx, object));
   ctx.addAnonymousChild(node, ctx.consume()); // [
 
+  skipVirtualTokens(ctx);
+
   const index = parseExpression(ctx, 0);
   if (index) {
     node.appendChild(wrapExpression(ctx, index));
   }
+
+  skipVirtualTokens(ctx);
 
   if (ctx.peekKind() === TokenKind.RBRACKET) {
     ctx.addAnonymousChild(node, ctx.consume());
