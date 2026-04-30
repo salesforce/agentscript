@@ -221,8 +221,9 @@ export class Lexer {
       this.emitIndentation(indentLength);
     }
 
-    // Check for "- " sequence element at start of content
-    if (this.bracketDepth === 0 && c === CH_DASH) {
+    // Check for "- " sequence element at start of content.
+    // Not on template lines — dashes there are literal content.
+    if (!this.onTemplateLine && this.bracketDepth === 0 && c === CH_DASH) {
       const nc = this.peekCharCode(1); // NaN at EOF — won't match any CH_*
       const atEOF = this.offset + 1 >= this.source.length;
       if (nc === CH_SPACE || this.atNewline(1) || atEOF) {
@@ -232,6 +233,17 @@ export class Lexer {
 
     // Tokenize the rest of the line
     while (this.hasMore) {
+      // On template lines outside a {!...} expression, the remainder of the
+      // line is literal text — consumed atomically as a single TEMPLATE_CONTENT
+      // token (mirroring scanner.c's TEMPLATE_CONTENT handling). Characters
+      // inside template content never reach tokenizeToken(), so parens, braces,
+      // hashes, and quotes can't accidentally perturb bracketDepth, open
+      // strings, or start comments.
+      if (this.onTemplateLine && !this.inTemplateExpr) {
+        if (this.tokenizeTemplateContent()) return;
+        continue;
+      }
+
       const c = this.peekCharCode();
 
       // Newline ends the line
@@ -265,8 +277,9 @@ export class Lexer {
         }
       }
 
-      // Comment (but not on template content lines where # is literal text)
-      if (c === CH_HASH && !this.onTemplateLine) {
+      // Comment — in code mode only. Template content lines never reach here
+      // because they're handled above as TEMPLATE_CONTENT.
+      if (c === CH_HASH) {
         return this.tokenizeComment();
       }
 
@@ -330,14 +343,12 @@ export class Lexer {
       return;
     }
 
-    // String (double-quoted always, single-quoted only if not a contraction)
-    // Inside template lines (after |), quotes are literal characters — don't
-    // start string tokenization unless we're inside a {!...} expression.
-    if (!this.onTemplateLine || this.inTemplateExpr) {
-      if (c === CH_DQUOTE) {
-        this.tokenizeString();
-        return;
-      }
+    // String (double-quoted). Template content never reaches tokenizeToken()
+    // because it's consumed atomically as TEMPLATE_CONTENT in tokenizeLine,
+    // so no onTemplateLine guard is needed here.
+    if (c === CH_DQUOTE) {
+      this.tokenizeString();
+      return;
     }
 
     // Template expression start {!
@@ -407,15 +418,14 @@ export class Lexer {
             this.indentStack[this.indentStack.length - 1]!;
           break;
         // Track parenthesis depth to suppress structural tokens inside
-        // multi-line call expressions.  Skip when inside a template line —
-        // parens in template content are literal text and must not suppress
-        // INDENT/DEDENT emission (unmatched parens would eat the rest of
-        // the file).
+        // multi-line call expressions. Template content is consumed as
+        // TEMPLATE_CONTENT before reaching this switch, so parens here are
+        // always code — no guard needed.
         case TokenKind.LPAREN:
-          if (!this.onTemplateLine) this.bracketDepth++;
+          this.bracketDepth++;
           break;
         case TokenKind.RPAREN:
-          if (!this.onTemplateLine) this.bracketDepth--;
+          this.bracketDepth--;
           break;
         // Track brace depth inside {!...} template expressions so that nested
         // braces (e.g. JSON objects) don't prematurely close the expression.
@@ -571,6 +581,67 @@ export class Lexer {
       this.makeToken(TokenKind.COMMENT, text, start, this.position, startOffset)
     );
     this.consumeNewline();
+  }
+
+  /**
+   * Consume template content as a single TEMPLATE_CONTENT token — the
+   * Python-tokenizer-style atomic-text pattern, mirroring scanner.c's
+   * TEMPLATE_CONTENT handler. Breaks at `{!` (opens a template expression)
+   * or end of line. Returns true when the caller's line is done (newline
+   * consumed or EOF); false to loop back through tokenizeLine's inner loop
+   * (we just emitted a TEMPLATE_EXPR_START and need to switch to code mode).
+   *
+   * Parens, braces, hashes, and quotes inside template text never reach
+   * tokenizeToken(), so they can't perturb bracketDepth, open strings, or
+   * start comments.
+   */
+  private tokenizeTemplateContent(): boolean {
+    const start = this.position;
+    const startOffset = this.offset;
+
+    while (this.hasMore) {
+      const c = this.peekCharCode();
+
+      // Newline ends the template content line. Emit the accumulated
+      // content (if any) as a TEMPLATE_CONTENT token, then let tokenizeLine
+      // consume the newline on the next iteration.
+      if (this.atNewline() || c === CH_CR) {
+        this.flushTemplateContent(startOffset, start);
+        // Consume newline (or bare CR) so tokenizeLine's outer loop advances.
+        if (!this.consumeNewline()) this.advance();
+        return true;
+      }
+
+      // {! opens a template expression. Flush accumulated content,
+      // emit the TEMPLATE_EXPR_START, then return to let tokenizeLine's
+      // inner loop tokenize the expression in code mode.
+      if (c === CH_LBRACE && this.peekCharCode(1) === CH_BANG) {
+        this.flushTemplateContent(startOffset, start);
+        this.templateExprBraceDepth = 0;
+        this.emit(TokenKind.TEMPLATE_EXPR_START, '{!');
+        return false;
+      }
+
+      this.advance();
+    }
+
+    // EOF mid-template
+    this.flushTemplateContent(startOffset, start);
+    return true;
+  }
+
+  private flushTemplateContent(startOffset: number, start: Position): void {
+    if (this.offset <= startOffset) return;
+    const text = this.source.slice(startOffset, this.offset);
+    this.tokens.push(
+      this.makeToken(
+        TokenKind.TEMPLATE_CONTENT,
+        text,
+        start,
+        this.position,
+        startOffset
+      )
+    );
   }
 
   private consumeIndentation(): number {
