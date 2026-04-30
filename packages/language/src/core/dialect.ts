@@ -9,7 +9,6 @@ import type {
   Schema,
   FieldType,
   SyntaxNode,
-  EmitContext,
   ParseResult,
   Parsed,
   InferFields,
@@ -20,14 +19,6 @@ import type {
   Range,
   CollectionFieldType,
 } from './types.js';
-
-/** A comment that has source-location range info (i.e. was parsed from source). */
-type RangedComment = Comment & { range: Range };
-
-/** Type guard: narrows a Comment to RangedComment when `range` is present. */
-function hasRange(c: Comment): c is RangedComment {
-  return c.range !== undefined;
-}
 import {
   withCst,
   toRange,
@@ -37,7 +28,6 @@ import {
   parseResult,
   isSingularFieldType,
   isNamedCollectionFieldType,
-  isNamedMap,
   parseCommentNode as sharedParseCommentNode,
   resolveWildcardPrefix,
 } from './types.js';
@@ -74,68 +64,28 @@ import {
   ErrorBlock,
   StatementChild,
   attachElementText,
-  isEmittable,
 } from './children.js';
 import type { BlockChild } from './children.js';
-import { CommentAttacher, attach } from './comment-attacher.js';
+import {
+  CommentAttacher,
+  attach,
+  parseInlineComments,
+  parseElementComments,
+  splitContainerComments,
+  attachToFirstTypedMapEntry,
+  attachToFirstProcedureStatement,
+  attachToLastProcedureStatement,
+} from './comment-attacher.js';
 import { errorBlockFromNode } from './error-recovery.js';
 import { findSuggestion, formatSuggestionHint } from '../lint/lint-utils.js';
+import type { DiscriminantConfig } from './discriminant.js';
+import { prescanDiscriminantValue } from './discriminant.js';
+import {
+  collectAllCstDiagnostics,
+  missingNodeRange,
+} from './cst-diagnostics.js';
 
-// ---------------------------------------------------------------------------
-// Discriminant Config — enables field-value-based schema variant resolution
-// ---------------------------------------------------------------------------
-
-/**
- * Configuration for discriminant-based schema variant resolution.
- * When provided to `parseMappingElements`, a pre-scan extracts the
- * discriminant field value and selects the corresponding variant schema.
- */
-export interface DiscriminantConfig {
-  /** The field name whose value selects the variant (e.g., "kind") */
-  field: string;
-  /** Variant schemas keyed by discriminant value, already merged with base schema */
-  variants: Record<string, Record<string, FieldType>>;
-  /** Valid variant names for error messages */
-  validValues: string[];
-}
-
-/**
- * Pre-scan mapping elements for a discriminant field and extract its string value.
- * Returns the value and the CST node of the value (for diagnostics), or undefined
- * if the field is not found.
- */
-function prescanDiscriminantValue(
-  elements: SyntaxNode[],
-  fieldName: string
-): { value: string; cstNode: SyntaxNode } | undefined {
-  for (const element of elements) {
-    if (element.type !== 'mapping_element') continue;
-    const keyNode = element.childForFieldName('key');
-    if (!keyNode) continue;
-    if (getKeyText(keyNode) !== fieldName) continue;
-
-    // Found the discriminant element — extract its colinear string value
-    const { colinearValue } = getValueNodes(element);
-    if (!colinearValue) continue;
-
-    // Navigate to the actual expression node
-    const exprNode =
-      colinearValue.childForFieldName('expression') ?? colinearValue;
-    const text = exprNode.text?.trim();
-    if (!text) continue;
-
-    // Handle quoted strings — strip quotes
-    if (
-      (text.startsWith('"') && text.endsWith('"')) ||
-      (text.startsWith("'") && text.endsWith("'"))
-    ) {
-      return { value: text.slice(1, -1), cstNode: exprNode };
-    }
-    // Unquoted identifier
-    return { value: text, cstNode: exprNode };
-  }
-  return undefined;
-}
+export type { DiscriminantConfig };
 
 /**
  * Scan forward from `startIndex` in `elements` and collect contiguous siblings
@@ -172,18 +122,6 @@ function collectAdoptedSiblings(
   return undefined;
 }
 
-/** Type guard for values with a `statements` array (e.g., ProcedureValueNode). */
-function hasProcedureStatements(
-  value: unknown
-): value is { statements: Statement[] } {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    'statements' in value &&
-    Array.isArray((value as { statements: unknown }).statements)
-  );
-}
-
 /** Extract the key's source range from a mapping_element CST node. */
 function getElementKeyRange(element: SyntaxNode): Range | undefined {
   const keyNode = element.childForFieldName('key');
@@ -191,85 +129,6 @@ function getElementKeyRange(element: SyntaxNode): Range | undefined {
   if (keyChild) return toRange(keyChild);
   if (keyNode) return toRange(keyNode);
   return undefined;
-}
-
-/**
- * Collect diagnostics for ERROR and MISSING direct children of a CST node.
- *
- * Called at each AST parse boundary (mapping elements, expressions,
- * statements, root) so that diagnostics are attached to the AST node
- * that owns that CST region — consistent with how all other diagnostics
- * flow through `__diagnostics` → `collectDiagnostics()`.
- *
- * Checks ALL children (named + anonymous) since MISSING nodes for
- * punctuation tokens (`:`, `=`, quotes) are anonymous.
- */
-function collectAllCstDiagnostics(root: SyntaxNode): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  collectCstDiagnosticsInner(root, diagnostics);
-  return diagnostics;
-}
-
-/**
- * Compute a diagnostic range for a MISSING CST node.
- *
- * MISSING nodes are zero-width and sit where the parser gave up, which is
- * often the start of the *next* line (after consuming the newline). Anchor
- * the range to the previous sibling's end so the squiggly appears on the
- * line where the token was actually expected.
- */
-function missingNodeRange(node: SyntaxNode): Range {
-  const range = toRange(node);
-  const prev = node.previousSibling;
-  if (
-    prev &&
-    range.start.line === range.end.line &&
-    range.start.character === range.end.character &&
-    prev.endPosition.row < node.startPosition.row
-  ) {
-    const end = prev.endPosition;
-    return {
-      start: { line: end.row, character: end.column },
-      end: { line: end.row, character: end.column },
-    };
-  }
-  return range;
-}
-
-function collectCstDiagnosticsInner(
-  node: SyntaxNode,
-  diagnostics: Diagnostic[]
-): void {
-  for (const child of node.children) {
-    if (child.isMissing) {
-      diagnostics.push(
-        createParserDiagnostic(
-          missingNodeRange(child),
-          `Missing ${child.type}`,
-          'missing-token'
-        )
-      );
-    } else if (child.isError) {
-      // Skip ERROR nodes inside run_statement — RunStatement.parse
-      // produces a more specific diagnostic for `with ...` errors.
-      if (node.type !== 'run_statement') {
-        const text = child.text?.trim();
-        diagnostics.push(
-          createParserDiagnostic(
-            child,
-            text
-              ? `Syntax error: unexpected \`${text.length > 40 ? text.slice(0, 40) + '…' : text}\``
-              : 'Syntax error',
-            'syntax-error'
-          )
-        );
-      }
-      // Recurse into ERROR children to catch nested MISSING/ERROR nodes
-      collectCstDiagnosticsInner(child, diagnostics);
-    } else {
-      collectCstDiagnosticsInner(child, diagnostics);
-    }
-  }
 }
 
 export class Dialect {
@@ -667,8 +526,8 @@ export class Dialect {
         }
       }
 
-      const inlineComments = this.parseInlineComments(element);
-      const elementComments = this.parseElementComments(element);
+      const inlineComments = parseInlineComments(element);
+      const elementComments = parseElementComments(element);
 
       if (!fieldType) {
         if (!insideError) {
@@ -1116,7 +975,7 @@ export class Dialect {
       const containerOnlyComments = elementComments.filter(
         c => c.range?.start.line !== element.startRow
       );
-      const { beforeBody, afterBody } = this.splitContainerComments(
+      const { beforeBody, afterBody } = splitContainerComments(
         containerOnlyComments,
         valueNode
       );
@@ -1124,9 +983,9 @@ export class Dialect {
         singularField.__fieldKind === 'TypedMap' ||
         singularField.__fieldKind === 'Collection'
       ) {
-        this.attachToFirstTypedMapEntry(result.value, beforeBody);
+        attachToFirstTypedMapEntry(result.value, beforeBody);
       } else if (singularField.__fieldKind === 'Primitive') {
-        this.attachToFirstProcedureStatement(result.value, beforeBody);
+        attachToFirstProcedureStatement(result.value, beforeBody);
       } else if (
         singularField.__fieldKind === 'Block' &&
         beforeBody.length > 0
@@ -1153,7 +1012,7 @@ export class Dialect {
         const dedentedAfterBody = afterBody.filter(
           c => c.range.start.character <= element.startCol
         );
-        const attachedToLastStmt = this.attachToLastProcedureStatement(
+        const attachedToLastStmt = attachToLastProcedureStatement(
           result.value,
           nestedAfterBody
         );
@@ -1225,106 +1084,6 @@ export class Dialect {
     }
 
     return null;
-  }
-
-  /** Extract comments on the same line as an element (inline comments). */
-  private parseInlineComments(element: SyntaxNode): Comment[] {
-    return element.children
-      .filter(c => c.type === 'comment' && c.startRow === element.startRow)
-      .map(c => this.parseComment(c, 'inline'));
-  }
-
-  /** Extract all comment children from an element. */
-  private parseElementComments(element: SyntaxNode): Comment[] {
-    return element.children
-      .filter(c => c.type === 'comment')
-      .map(c => this.parseComment(c));
-  }
-
-  /**
-   * Split comments into those before and after a value node's range.
-   *
-   * Comments without source range info (programmatic comments) are always
-   * placed in `beforeBody`. The `afterBody` array is guaranteed to contain
-   * only comments with range info, since only comments whose source line
-   * falls after the value node can land there.
-   */
-  private splitContainerComments(
-    comments: Comment[],
-    valueNode: SyntaxNode | null
-  ): { beforeBody: Comment[]; afterBody: RangedComment[] } {
-    if (!valueNode) {
-      return { beforeBody: comments, afterBody: [] };
-    }
-
-    const beforeBody: Comment[] = [];
-    const afterBody: RangedComment[] = [];
-    for (const c of comments) {
-      const line = c.range?.start.line;
-      if (line === undefined) {
-        // No source location — treat as before-body (programmatic comment).
-        beforeBody.push(c);
-        continue;
-      }
-      if (line < valueNode.startRow) {
-        beforeBody.push(c);
-        continue;
-      }
-      if (line > valueNode.endRow) {
-        const trailing = { ...c, attachment: 'trailing' as const };
-        if (hasRange(trailing)) {
-          afterBody.push(trailing);
-        }
-        continue;
-      }
-      // Comments inside the body range are treated as before-body container comments.
-      beforeBody.push(c);
-    }
-    return { beforeBody, afterBody };
-  }
-
-  /** Attach comments to the first entry of a TypedMap-like value. */
-  private attachToFirstTypedMapEntry(
-    value: unknown,
-    comments: Comment[]
-  ): void {
-    if (comments.length === 0) return;
-    if (!isNamedMap(value)) return;
-
-    const iterator = value.entries() as IterableIterator<
-      [string, CommentTarget]
-    >;
-    const first = iterator.next();
-    if (first.done) return;
-
-    attach(first.value[1], comments);
-  }
-
-  /** Attach comments to the first statement in a procedure-like value. */
-  private attachToFirstProcedureStatement(
-    value: unknown,
-    comments: Comment[]
-  ): void {
-    if (comments.length === 0) return;
-    if (!hasProcedureStatements(value)) return;
-    attach(value.statements[0], comments);
-  }
-
-  /** Attach comments as trailing to the last statement in a procedure-like value. */
-  private attachToLastProcedureStatement(
-    value: unknown,
-    comments: Comment[]
-  ): boolean {
-    if (comments.length === 0) return false;
-    if (!hasProcedureStatements(value)) return false;
-
-    const lastStmt = value.statements[value.statements.length - 1];
-    const tagged = comments.map(c => ({
-      ...c,
-      attachment: 'trailing' as CommentAttachment,
-    }));
-    attach(lastStmt, tagged);
-    return true;
   }
 
   private parseNamedEntry(
@@ -1662,33 +1421,5 @@ export class Dialect {
       }),
       node
     );
-  }
-
-  emit(value: unknown, indent: number = 0): string {
-    const ctx: EmitContext = { indent };
-
-    if (isEmittable(value)) {
-      return value.__emit(ctx);
-    }
-
-    if (typeof value === 'string') {
-      const escaped = value
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\t/g, '\\t')
-        .replace(/\r/g, '\\r');
-      return `"${escaped}"`;
-    }
-
-    if (typeof value === 'number') {
-      return String(value);
-    }
-
-    if (typeof value === 'boolean') {
-      return value ? 'True' : 'False';
-    }
-
-    return String(value);
   }
 }
