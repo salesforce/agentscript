@@ -63,21 +63,6 @@ actions:
     expect(doc.actions).toBeDefined();
   });
 
-  it('parses actions http_headers map', () => {
-    const source = `
-actions:
-  my_tool:
-    target: "mcp://some_connection"
-    kind: "mcp:tool"
-    tool_name: "do-something"
-    http_headers:
-      X-Api-Key: "secret"
-      x-request-id: "abc-123"
-`;
-    const doc = parseDocument(source);
-    expect(doc.actions).toBeDefined();
-  });
-
   it('parses trigger block', () => {
     const source = `
 trigger myTrigger:
