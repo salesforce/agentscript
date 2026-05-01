@@ -4,7 +4,7 @@ Agent Script is a flexible language that can be adapted to different platforms a
 
 This documentation covers two official dialects:
 
-- **[Agentforce](agentforce/agent-script)** - Designed for building conversational AI agents on the Salesforce Agentforce platform
+- **[Agentforce](agentforce/)** - Designed for building conversational AI agents on the Salesforce Agentforce platform
 - **[MuleSoft Agent Fabric](agentfabric/)** - Designed for building integration-focused agent orchestration with guided determinism on the MuleSoft Agent Fabric platform
 
 ---
@@ -20,7 +20,7 @@ The Agentforce dialect is designed for building conversational AI agents on the 
 
 The Agentforce dialect is ideal for enterprise agents that need to work with CRM data, business processes, and Salesforce workflows.
 
-[Explore Agentforce dialect documentation →](agentforce/agent-script)
+[Explore Agentforce dialect documentation →](agentforce/)
 
 ## MuleSoft Agent Fabric
 
