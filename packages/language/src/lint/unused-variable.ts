@@ -9,7 +9,7 @@ import {
   storeKey,
   type LintPass,
   type PassStore,
-} from '../core/analysis/lint.js';
+} from '../core/analysis/lint-engine.js';
 import type { ScopeContext } from '../core/analysis/scope.js';
 import { extractVariableRef, LINT_SOURCE } from './lint-utils.js';
 

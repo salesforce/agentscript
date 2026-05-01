@@ -6,7 +6,7 @@
  */
 
 import type { SchemaInfo } from './core/types.js';
-import type { LintPass } from './core/analysis/lint.js';
+import type { LintPass } from './core/analysis/lint-engine.js';
 
 /**
  * Configuration for a dialect. After implementing this interface, register

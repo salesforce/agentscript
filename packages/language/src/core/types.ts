@@ -577,8 +577,15 @@ interface FieldTypeBase<V = any, F = V> {
   propertiesSchema?: Schema;
   __modifiers?: readonly KeywordInfo[];
   __primitiveTypes?: readonly KeywordInfo[];
+}
 
-  // Discriminant API — populated via defineProperty on Block/NamedBlock factories.
+/**
+ * Discriminant API members — factories populate these via defineProperty to
+ * support field-based polymorphic schema resolution. Extended by every type
+ * that may carry a discriminant (FieldTypeBase, NamedBlockEntryType, and the
+ * factory interfaces in factory-types.ts).
+ */
+export interface MaybeDiscriminant {
   /** The discriminant field name, if using field-based discrimination. */
   readonly discriminantField?: string;
   /** Resolve variant schema by discriminant field value. */
@@ -586,10 +593,7 @@ interface FieldTypeBase<V = any, F = V> {
 }
 
 /** Structural shape of a type that supports discriminant-based polymorphic schema resolution. */
-export interface DiscriminantProvider {
-  readonly discriminantField: string;
-  resolveSchemaForDiscriminant(value: string): Record<string, FieldType>;
-}
+export type DiscriminantProvider = Required<MaybeDiscriminant>;
 
 /** Narrows to a type that has both discriminantField and resolveSchemaForDiscriminant. */
 export function hasDiscriminant(value: {
@@ -601,7 +605,8 @@ export function hasDiscriminant(value: {
 
 /** All field types: parse(node, dialect). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface SingularFieldType<V = any, F = V> extends FieldTypeBase<V, F> {
+export interface SingularFieldType<V = any, F = V>
+  extends FieldTypeBase<V, F>, MaybeDiscriminant {
   isNamed?: false;
   parse: (
     node: SyntaxNode,
@@ -723,7 +728,7 @@ export function isSingularFieldType(_ft: FieldType): _ft is SingularFieldType {
  * Shape of a NamedBlock entry factory as seen by CollectionBlock at runtime.
  * NamedBlock is NOT a FieldType — it's the entry type inside a CollectionBlock.
  */
-export interface NamedBlockEntryType {
+export interface NamedBlockEntryType extends MaybeDiscriminant {
   readonly isNamed: true;
   readonly allowAnonymous: boolean;
   readonly kind: string;
@@ -735,10 +740,6 @@ export interface NamedBlockEntryType {
     adoptedSiblings?: SyntaxNode[]
   ) => ParseResult<unknown>;
   resolveSchemaForName(name: string): Record<string, FieldType>;
-  /** The discriminant field name, if using field-based discrimination. */
-  readonly discriminantField?: string;
-  /** Resolve variant schema by discriminant field value. */
-  resolveSchemaForDiscriminant?(value: string): Record<string, FieldType>;
 }
 
 /** Structural interface for CollectionBlock field types detected at runtime. */

@@ -5,7 +5,7 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import type { AstRoot, FieldType, AstNodeLike, Schema } from '../core/types.js';
+import type { AstRoot, FieldType, AstNodeLike, Schema } from '../types.js';
 import {
   astField,
   isNamedMap,
@@ -13,8 +13,8 @@ import {
   isCollectionFieldType,
   extractDiscriminantValue,
   hasDiscriminant,
-} from '../core/types.js';
-import { SequenceNode } from '../core/sequence.js';
+} from '../types.js';
+import { SequenceNode } from '../sequence.js';
 
 export interface SchemaFieldVisitor {
   /** Called for each schema field within a block instance. `value` is undefined when the field is absent. */
