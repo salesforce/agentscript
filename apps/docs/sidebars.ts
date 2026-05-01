@@ -60,9 +60,9 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Agentforce',
-          link: { type: 'doc', id: 'dialects/agentforce/agent-script' },
+          link: { type: 'doc', id: 'dialects/agentforce/index' },
           items: [
-            'dialects/agentforce/agent-script',
+            'dialects/agentforce/index',
             'dialects/agentforce/ascript-lang',
             'dialects/agentforce/ascript-blocks',
             'dialects/agentforce/ascript-flow',
