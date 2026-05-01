@@ -6,7 +6,7 @@
  */
 
 import { DiagnosticSeverity, attachDiagnostic } from '../core/diagnostics.js';
-import { storeKey, type LintPass } from '../core/analysis/lint.js';
+import { storeKey, type LintPass } from '../core/analysis/lint-engine.js';
 import type { AstNodeLike } from '../core/types.js';
 import {
   CallExpression,

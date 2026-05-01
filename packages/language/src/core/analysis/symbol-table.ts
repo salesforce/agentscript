@@ -5,14 +5,9 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import type { AstRoot } from '../core/types.js';
-import {
-  storeKey,
-  type LintPass,
-  type PassStore,
-  getDocumentSymbols,
-  type DocumentSymbol,
-} from '../core/analysis/index.js';
+import type { AstRoot } from '../types.js';
+import { storeKey, type LintPass, type PassStore } from './lint-engine.js';
+import { getDocumentSymbols, type DocumentSymbol } from './symbols.js';
 
 export const symbolTableKey = storeKey<DocumentSymbol[]>('symbol-table');
 

@@ -529,7 +529,11 @@ export function NamedBlock<T extends Schema>(
 
   // SAFETY: NamedBlock is not a FieldType (it's an entry type for CollectionBlock),
   // but addBuilderMethods only needs the structural shape to add .describe()/.required()/etc.
-  const base = addBuilderMethods(NamedBlockNode as unknown as FieldType);
+  const base = addBuilderMethods(
+    NamedBlockNode as unknown as FieldType,
+    undefined,
+    { factory: true }
+  );
   const dp = (key: string, value: unknown) =>
     Object.defineProperty(base, key, {
       value,

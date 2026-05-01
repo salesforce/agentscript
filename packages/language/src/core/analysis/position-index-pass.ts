@@ -5,18 +5,18 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import type { AstRoot, AstNodeLike } from '../core/types.js';
-import { isNamedMap, isAstNodeLike } from '../core/types.js';
-import type { ScopeContext } from '../core/analysis/scope.js';
-import type { LintPass, PassStore } from '../core/analysis/lint.js';
-import { walkDefinitionKeys } from '../core/analysis/references.js';
-import { recurseAstChildren } from '../core/analysis/ast-walkers.js';
+import type { AstRoot, AstNodeLike } from '../types.js';
+import { isNamedMap, isAstNodeLike } from '../types.js';
+import type { ScopeContext } from './scope.js';
+import type { LintPass, PassStore } from './lint-engine.js';
+import { walkDefinitionKeys } from './references.js';
+import { recurseAstChildren } from './ast-walkers.js';
 import {
   positionIndexKey,
   type ExpressionEntry,
   type DefinitionEntry,
   type ScopeEntry,
-} from '../core/analysis/position-index.js';
+} from './position-index.js';
 
 class PositionIndexPass implements LintPass {
   readonly id = positionIndexKey;
