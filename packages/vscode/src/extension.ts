@@ -20,6 +20,7 @@ import type {
   ServerOptions,
 } from 'vscode-languageclient/node.js';
 import { getCoreExtension } from './coreExtensionUtils';
+import { registerFlowPreviewCommands } from './previewFlow';
 import { setTelemetryService, getTelemetryService } from './telemetry';
 
 const DIALECT_PATTERN = /^#\s*@dialect:/;
@@ -136,6 +137,8 @@ let restartGeneration = 0;
 
 export function activate(context: vscode.ExtensionContext): void {
   const extensionHRStart = process.hrtime();
+
+  context.subscriptions.push(registerFlowPreviewCommands(context));
 
   // Register document listeners before auto-detect so the re-open
   // triggered by setTextDocumentLanguage is caught for untitled files.
