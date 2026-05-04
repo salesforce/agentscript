@@ -95,6 +95,24 @@ export function FlowApp() {
 
   const handleBack = useCallback(() => setTopicId(undefined), []);
 
+  const handleNodeClick = useCallback(
+    (payload: { data: { sourceRange?: unknown } }) => {
+      const range = payload.data.sourceRange;
+      if (!range) return;
+      api?.postMessage({ type: 'goto-source', range });
+    },
+    [api]
+  );
+
+  const handleActionClick = useCallback(
+    (payload: { sourceRange?: unknown }) => {
+      const range = payload.sourceRange;
+      if (!range) return;
+      api?.postMessage({ type: 'goto-source', range });
+    },
+    [api]
+  );
+
   return (
     <div
       className={`relative h-full w-full overflow-hidden ${theme === 'dark' ? 'dark bg-zinc-950 text-white' : 'bg-white text-gray-900'}`}
@@ -104,6 +122,8 @@ export function FlowApp() {
         topicId={topicId}
         theme={theme}
         onTopicOpen={handleTopicOpen}
+        onNodeClick={handleNodeClick}
+        onActionClick={handleActionClick}
       />
 
       {topicId ? (

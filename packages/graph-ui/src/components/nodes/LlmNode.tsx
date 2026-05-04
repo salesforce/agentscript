@@ -7,12 +7,15 @@
 
 import type { NodeProps } from '@xyflow/react';
 import { Sparkles, Play } from 'lucide-react';
-import type { GraphNode } from '../../ast/ast-to-graph';
+import type { GraphNode, SourceRange } from '../../ast/ast-to-graph';
 import { NodeHandles, LLM_SIDES } from './NodeHandles';
 import { useGraphContext } from '../../context/GraphContext';
 
 export function LlmNode({ data }: NodeProps<GraphNode>) {
   const actionNames = data.actionNames as string[] | undefined;
+  const actionRanges = data.actionRanges as
+    | Array<SourceRange | undefined>
+    | undefined;
   const hasActions = actionNames && actionNames.length > 0;
   const { onActionClick } = useGraphContext();
 
@@ -26,6 +29,7 @@ export function LlmNode({ data }: NodeProps<GraphNode>) {
       actionDisplayName: actionName,
       actionIndex: index,
       topicName: data.topicName as string | undefined,
+      sourceRange: actionRanges?.[index],
     });
   };
 

@@ -11,6 +11,7 @@ export interface ActionClickPayload {
   actionDisplayName: string;
   actionIndex: number;
   topicName: string | undefined;
+  sourceRange?: import('../ast/ast-to-graph').SourceRange;
 }
 
 export interface ConditionalClickPayload {

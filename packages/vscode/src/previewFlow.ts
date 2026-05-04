@@ -150,6 +150,34 @@ class FlowPanelManager {
       } catch {
         // file may have been deleted
       }
+      return;
+    }
+    if (msg.type === 'goto-source') {
+      const range = msg.range as
+        | {
+            startLine: number;
+            startCol: number;
+            endLine: number;
+            endCol: number;
+          }
+        | undefined;
+      if (!range) return;
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const selection = new vscode.Range(
+          range.startLine,
+          range.startCol,
+          range.endLine,
+          range.endCol
+        );
+        await vscode.window.showTextDocument(doc, {
+          viewColumn: vscode.ViewColumn.One,
+          preserveFocus: false,
+          selection,
+        });
+      } catch {
+        // file may have been deleted
+      }
     }
   }
 

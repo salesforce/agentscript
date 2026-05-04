@@ -52,6 +52,38 @@ export type PhaseType =
   | 'after_reasoning'
   | 'before_reasoning_iteration';
 
+/** Zero-based line/column range into the source file. */
+export interface SourceRange {
+  startLine: number;
+  startCol: number;
+  endLine: number;
+  endCol: number;
+}
+
+/**
+ * Read the CST range attached to a parsed AST block or statement.
+ * Returns undefined on synthetic nodes that lack a backing CST node.
+ */
+export function getSourceRange(block: unknown): SourceRange | undefined {
+  if (!block || typeof block !== 'object') return undefined;
+  const cst = (block as { __cst?: unknown }).__cst as
+    | {
+        range?: {
+          start?: { line?: number; character?: number };
+          end?: { line?: number; character?: number };
+        };
+      }
+    | undefined;
+  const range = cst?.range;
+  if (!range?.start || !range?.end) return undefined;
+  return {
+    startLine: range.start.line ?? 0,
+    startCol: range.start.character ?? 0,
+    endLine: range.end.line ?? 0,
+    endCol: range.end.character ?? 0,
+  };
+}
+
 /** Well-known group container IDs for post-layout positioning. */
 export const GROUP_IDS = {
   beforeReasoning: 'group-before-reasoning',
@@ -74,6 +106,8 @@ export interface GraphNodeData extends Record<string, unknown> {
   actionNames?: string[];
   /** Raw action map keys (parallel to actionNames) for AST lookup. */
   actionKeys?: string[];
+  /** Source ranges for each action, parallel to actionNames/actionKeys. */
+  actionRanges?: Array<SourceRange | undefined>;
   diagnostics?: Diagnostic[];
   /** Phase type for phase/phase-label nodes */
   phaseType?: PhaseType;
@@ -89,6 +123,8 @@ export interface GraphNodeData extends Record<string, unknown> {
   connectedHandles?: ReadonlySet<string>;
   /** Horizontal offset from container left edge to spine center (for group handle positioning). */
   spineOffsetX?: number;
+  /** Source range for jump-to-code (vscode webview). */
+  sourceRange?: SourceRange;
 }
 
 /** Data attached to conditional edges for the drawer. */
@@ -502,6 +538,7 @@ export function astToOverviewGraph(ast: AgentScriptAST): {
           isStartAgent: true,
           topicName: name,
           diagnostics: blockDiagnostics,
+          sourceRange: getSourceRange(block),
         },
       });
 
@@ -534,6 +571,7 @@ export function astToOverviewGraph(ast: AgentScriptAST): {
           blockType: 'topic',
           topicName: name,
           diagnostics: blockDiagnostics,
+          sourceRange: getSourceRange(block),
         },
       });
 
@@ -658,6 +696,7 @@ export function astToTopicDetailGraph(
       phaseType: 'topic-header',
       topicName,
       diagnostics: topicDiagnostics,
+      sourceRange: getSourceRange(topicBlock),
     },
   });
   connectPipeline(headerId);
@@ -678,6 +717,7 @@ export function astToTopicDetailGraph(
       label: 'Before Reasoning',
       blockType: 'topic',
       isEmpty: beforeEmpty,
+      sourceRange: getSourceRange(topicBlock.before_reasoning),
     },
   });
 
@@ -696,6 +736,7 @@ export function astToTopicDetailGraph(
       groupId: GROUP_IDS.beforeReasoning,
       topicName,
       isEmpty: beforeEmpty,
+      sourceRange: getSourceRange(topicBlock.before_reasoning),
     },
   });
   // Route spine through the before-reasoning group handles:
@@ -767,6 +808,7 @@ export function astToTopicDetailGraph(
         nodeType: 'reasoning-group',
         label: 'Reasoning Loop',
         blockType: 'topic',
+        sourceRange: getSourceRange(reasoning),
       },
     });
 
@@ -794,6 +836,7 @@ export function astToTopicDetailGraph(
         blockType: 'topic',
         phaseType: 'before_reasoning_iteration',
         groupId: GROUP_IDS.reasoningLoop,
+        sourceRange: getSourceRange(reasoning?.before_reasoning_iteration),
       },
     });
 
@@ -853,6 +896,7 @@ export function astToTopicDetailGraph(
         label: 'Build Instructions',
         blockType: 'topic',
         groupId: GROUP_IDS.reasoningLoop,
+        sourceRange: getSourceRange(reasoning?.instructions),
       },
     });
     // Tag as spine for layout positioning but no edge from iteration
@@ -885,6 +929,7 @@ export function astToTopicDetailGraph(
       | undefined;
     const actionDisplayNames: string[] = [];
     const actionKeyNames: string[] = [];
+    const actionRanges: Array<SourceRange | undefined> = [];
     if (isNamedMap(reasoningActions)) {
       for (const [actionName, actionBlock] of reasoningActions) {
         const actionLabel =
@@ -892,6 +937,7 @@ export function astToTopicDetailGraph(
           toDisplayLabel(actionName);
         actionDisplayNames.push(actionLabel);
         actionKeyNames.push(actionName);
+        actionRanges.push(getSourceRange(actionBlock));
       }
     }
 
@@ -908,7 +954,10 @@ export function astToTopicDetailGraph(
         groupId: GROUP_IDS.reasoningLoop,
         actionNames: actionDisplayNames,
         actionKeys: actionKeyNames,
+        actionRanges,
         topicName,
+        sourceRange:
+          getSourceRange(reasoning?.actions) ?? getSourceRange(reasoning),
       },
     });
     connectPipeline(llmId);
@@ -971,6 +1020,7 @@ export function astToTopicDetailGraph(
       label: 'After Reasoning',
       blockType: 'topic',
       isEmpty: afterEmpty,
+      sourceRange: getSourceRange(topicBlock.after_reasoning),
     },
   });
 
@@ -987,6 +1037,7 @@ export function astToTopicDetailGraph(
       blockType: 'topic',
       phaseType: 'after_reasoning',
       groupId: GROUP_IDS.afterReasoning,
+      sourceRange: getSourceRange(topicBlock.after_reasoning),
     },
   });
   // Route spine through the after-reasoning group handles:
@@ -1117,6 +1168,7 @@ function buildDetailNodes(
                 blockType: 'topic',
                 transitionTarget: target,
                 groupId,
+                sourceRange: getSourceRange(stmt),
               },
             });
             edges.push({
@@ -1152,6 +1204,7 @@ function buildDetailNodes(
           conditionText: condText,
           conditionLabel: abbreviateCondition(condText),
           groupId,
+          sourceRange: getSourceRange(stmt),
         },
       });
 
@@ -1205,6 +1258,7 @@ function buildDetailNodes(
             subtitle: `@${decomposed.namespace}`,
             blockType: 'actions',
             groupId,
+            sourceRange: getSourceRange(stmt),
           },
         });
         edges.push({
@@ -1253,6 +1307,7 @@ function buildDetailNodes(
             subtitle: valueText,
             blockType: 'set',
             groupId,
+            sourceRange: getSourceRange(stmt),
           },
         });
         edges.push({
@@ -1299,6 +1354,7 @@ function buildDetailNodes(
             label: templateText,
             blockType: 'template',
             groupId,
+            sourceRange: getSourceRange(stmt),
           },
         });
         edges.push({
@@ -1389,6 +1445,7 @@ function buildDetailNodesFromReasoningAction(
                 blockType: 'topic',
                 transitionTarget: target,
                 groupId,
+                sourceRange: getSourceRange(stmt),
               },
             });
             edges.push({

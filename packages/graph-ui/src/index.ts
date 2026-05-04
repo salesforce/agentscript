@@ -21,6 +21,8 @@ export {
   type ActionDrawerData,
   type NodeDrawerData,
   type GraphDrawerPayload,
+  type SourceRange,
+  getSourceRange,
 } from './ast/ast-to-graph';
 export {
   applyDagreOverviewLayout,
