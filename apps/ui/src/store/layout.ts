@@ -5,7 +5,10 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import type { ActionDrawerData, GraphDrawerPayload } from '~/lib/ast-to-graph';
+import type {
+  ActionDrawerData,
+  GraphDrawerPayload,
+} from '@agentscript/graph-ui';
 
 // Layout state slice
 export interface LayoutState {

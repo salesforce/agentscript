@@ -28,7 +28,7 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
-import type { NodeDrawerData, PhaseType } from '~/lib/ast-to-graph';
+import type { NodeDrawerData, PhaseType } from '@agentscript/graph-ui';
 import { useAppStore } from '~/store';
 
 interface NodeDrawerContentProps {
