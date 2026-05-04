@@ -80,15 +80,12 @@ function compileLanguageConfiguration(
     return null;
   }
 
-  let hasValidationErrors = false;
-
   if (!supportedLocale.safeParse(defaultLocale).success) {
-    ctx.error(
+    ctx.warning(
       `Invalid default_locale '${defaultLocale}'. Must be a supported locale.`,
       languageBlock.__cst?.range,
       'schema-validation'
     );
-    hasValidationErrors = true;
   }
 
   const additionalLocalesStr =
@@ -102,18 +99,12 @@ function compileLanguageConfiguration(
 
   for (const locale of additionalLocales) {
     if (!supportedLocale.safeParse(locale).success) {
-      ctx.error(
+      ctx.warning(
         `Invalid additional_locale '${locale}'. Must be a supported locale.`,
         languageBlock.__cst?.range,
         'schema-validation'
       );
-      hasValidationErrors = true;
     }
-  }
-
-  // Match Python: return null when any locale is invalid to prevent downstream errors
-  if (hasValidationErrors) {
-    return null;
   }
 
   const allAdditionalLocales =

@@ -45,11 +45,24 @@ export function validateOutput(
 
   for (const issue of leafIssues) {
     const path = issue.path as (string | number)[];
+
+    // Locale validation is handled by compile-modality.ts — skip here to
+    // avoid duplicate diagnostics.
+    if (isLocaleField(path)) continue;
+
     const location = resolveLocation(output, path, ctx);
     const found = resolveInputValue(output, path);
 
     ctx.diagnostics.push(issueToDiagnostic(issue, location, found));
   }
+}
+
+const LOCALE_FIELDS = new Set(['default_locale', 'additional_locales']);
+
+function isLocaleField(path: (string | number)[]): boolean {
+  return path.some(
+    segment => typeof segment === 'string' && LOCALE_FIELDS.has(segment)
+  );
 }
 
 /**
