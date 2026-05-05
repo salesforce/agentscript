@@ -15,6 +15,15 @@
       "variables": {
         "has_scanner": "<!(node -p \"fs.existsSync('src/scanner.c')\")"
       },
+      "cflags_cc": ["-std=c++20"],
+      "xcode_settings": {
+        "OTHER_CPLUSPLUSFLAGS": ["-std=c++20", "-stdlib=libc++"],
+      },
+      "msvs_settings": {
+        "VCCLCompilerTool": {
+          "AdditionalOptions": ["/std:c++20"],
+        },
+      },
       "conditions": [
         ["has_scanner=='true'", {
           "sources+": ["src/scanner.c"],

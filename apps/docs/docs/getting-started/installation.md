@@ -101,6 +101,41 @@ nvm use 18.20.8
 
 - **Pre-commit hooks** are configured via Husky and lint-staged. They run automatically on staged files when you commit.
 
+## Troubleshooting
+
+### Build fails on Node.js 24 with "C++20 or later required"
+
+Node.js 24 upgraded its V8 headers to require C++20. If you see errors like:
+
+```
+error: C++20 or later required.
+error: unknown type name 'concept'
+```
+
+This was caused by `binding.gyp` not specifying the C++ standard for the native tree-sitter binding. It is fixed in the current codebase. If you encounter it, make sure you are on the latest `main` branch:
+
+```bash
+git pull origin main
+pnpm install
+pnpm build
+```
+
+As a temporary workaround on older checkouts:
+
+```bash
+CXXFLAGS="-std=c++20" pnpm install
+```
+
+### `@agentscript/agentforce` not found on npm
+
+The package is published as part of the monorepo build. If you see "package not found" errors during install, run a full build first:
+
+```bash
+pnpm build
+```
+
+If you are trying to use the package as a consumer (outside this repo), check the [npm registry](https://www.npmjs.com/search?q=%40agentscript) for the latest published version — publishing cadence may lag behind `main`.
+
 ## Next Steps
 
 - [Quickstart](/getting-started/quickstart) -- Build the project and explore the structure.
