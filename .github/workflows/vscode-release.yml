@@ -127,7 +127,7 @@ jobs:
           echo "lsp-server now:             $LSP_VERSION_NOW"
           echo "vscode version now:         $LAST_VERSION"
 
-          export TODAY LAST_VERSION LSP_VERSION_AT_RELEASE LSP_VERSION_NOW
+          export TODAY LAST_VERSION LAST_RELEASE_COMMIT LSP_VERSION_AT_RELEASE LSP_VERSION_NOW
 
           # Compute proposed vscode version based on lsp-server diff (even-minor = stable)
           PROPOSED_VERSION=$(node -e "
@@ -208,8 +208,9 @@ jobs:
               }
 
               try {
+                const releaseCommit = process.env.LAST_RELEASE_COMMIT;
                 const pkgJsonAtRelease = require('child_process')
-                  .execSync('git show \${LAST_RELEASE_COMMIT}:' + pkgJsonPath, { encoding: 'utf8' });
+                  .execSync('git show ' + releaseCommit + ':' + pkgJsonPath, { encoding: 'utf8' });
                 versionAtRelease = JSON.parse(pkgJsonAtRelease).version;
               } catch {
                 continue; // package didn't exist at last release, skip
