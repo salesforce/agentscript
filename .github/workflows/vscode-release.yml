@@ -155,13 +155,11 @@ jobs:
           echo "Proposed vscode version: $PROPOSED_VERSION"
           export PROPOSED_VERSION
 
-          # Collect changelog entries from each package's CHANGELOG.md between
-          # the version at the last release commit and the current version.
-          # This is more reliable than git log since packages use changeset and
-          # squash-merge, so individual commits are not visible on the default branch.
+          # Collect new changelog entries by diffing each package's CHANGELOG.md
+          # between the last release commit and HEAD. Lines added since the release
+          # commit are the new entries — this works regardless of version numbers.
           CHANGELOG_ENTRIES=$(node -e "
-            const fs = require('fs');
-            const path = require('path');
+            const { execSync } = require('child_process');
 
             const packages = [
               'packages/lsp-server',
@@ -178,95 +176,49 @@ jobs:
               'dialect/agentfabric',
             ];
 
-            function parseVersion(v) {
-              return v.split('.').map(Number);
-            }
-
-            function versionGt(a, b) {
-              const pa = parseVersion(a), pb = parseVersion(b);
-              for (let i = 0; i < 3; i++) {
-                if (pa[i] > pb[i]) return true;
-                if (pa[i] < pb[i]) return false;
-              }
-              return false;
-            }
-
-            // For each package, read the version it was at the last release commit
-            // and collect all CHANGELOG entries for versions newer than that.
+            const releaseCommit = process.env.LAST_RELEASE_COMMIT;
             const allEntries = [];
 
             for (const pkg of packages) {
               const changelogPath = pkg + '/CHANGELOG.md';
-              const pkgJsonPath = pkg + '/package.json';
 
-              let changelogNow, versionAtRelease;
+              let diff;
               try {
-                changelogNow = fs.readFileSync(changelogPath, 'utf8');
+                diff = execSync(
+                  'git diff ' + releaseCommit + '..HEAD -- ' + changelogPath,
+                  { encoding: 'utf8' }
+                );
               } catch {
-                continue; // package has no changelog, skip
+                continue;
               }
 
-              try {
-                const releaseCommit = process.env.LAST_RELEASE_COMMIT;
-                const pkgJsonAtRelease = require('child_process')
-                  .execSync('git show ' + releaseCommit + ':' + pkgJsonPath, { encoding: 'utf8' });
-                versionAtRelease = JSON.parse(pkgJsonAtRelease).version;
-              } catch {
-                continue; // package didn't exist at last release, skip
-              }
+              if (!diff.trim()) continue;
 
-              // Parse versioned sections from CHANGELOG.md
-              // Each section starts with '## X.Y.Z' (no brackets, changeset format)
-              const sectionRe = /^## (\d+\.\d+\.\d+)/m;
-              const lines = changelogNow.split('\n');
-              let currentVersion = null;
-              let currentLines = [];
-              const sections = [];
+              // Extract added lines from the diff (lines starting with '+' but not '+++')
+              const addedLines = diff
+                .split('\n')
+                .filter(l => l.startsWith('+') && !l.startsWith('+++'))
+                .map(l => l.slice(1)); // strip the leading '+'
 
-              for (const line of lines) {
-                const m = line.match(/^## (\d+\.\d+\.\d+)/);
-                if (m) {
-                  if (currentVersion) sections.push({ version: currentVersion, lines: currentLines });
-                  currentVersion = m[1];
-                  currentLines = [];
-                } else if (currentVersion) {
-                  currentLines.push(line);
-                }
-              }
-              if (currentVersion) sections.push({ version: currentVersion, lines: currentLines });
+              // Remove changeset boilerplate headings and dependency-only lines
+              const meaningful = addedLines
+                .filter(l => {
+                  if (!l.trim()) return false;
+                  if (l.match(/^### (Patch|Minor|Major) Changes/)) return false;
+                  if (l.match(/^-\s+@agentscript\//)) return false;
+                  if (l.match(/^## \d+\.\d+\.\d+/)) return false;
+                  if (l.match(/^# @agentscript\//)) return false;
+                  return true;
+                });
 
-              // Collect sections whose version is strictly newer than versionAtRelease
-              for (const section of sections) {
-                if (versionGt(section.version, versionAtRelease)) {
-                  // Extract non-empty, non-dependency-only content lines
-                  const content = section.lines
-                    .join('\n')
-                    .replace(/^### Patch Changes\s*/m, '')
-                    .replace(/^### Minor Changes\s*/m, '')
-                    .replace(/^### Major Changes\s*/m, '')
-                    .trim();
-
-                  // Skip sections that only contain dependency updates
-                  const meaningful = content
-                    .split('\n')
-                    .filter(l => l.trim() && !l.match(/^-\s+@agentscript\//))
-                    .join('\n')
-                    .trim();
-
-                  if (meaningful) {
-                    allEntries.push('<!-- ' + pkg + '@' + section.version + ' -->');
-                    allEntries.push(meaningful);
-                    allEntries.push('');
-                  }
-                }
+              if (meaningful.length > 0) {
+                allEntries.push('<!-- ' + pkg + ' -->');
+                allEntries.push(...meaningful);
+                allEntries.push('');
               }
             }
 
-            if (allEntries.length === 0) {
-              process.stdout.write('');
-            } else {
-              process.stdout.write(allEntries.join('\n'));
-            }
+            process.stdout.write(allEntries.join('\n'));
           ")
 
           if [ -z "$CHANGELOG_ENTRIES" ]; then
