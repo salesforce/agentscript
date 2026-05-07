@@ -155,9 +155,9 @@ jobs:
           echo "Proposed vscode version: $PROPOSED_VERSION"
           export PROPOSED_VERSION
 
-          # Collect new changelog entries by diffing each package's CHANGELOG.md
-          # between the last release commit and HEAD. Lines added since the release
-          # commit are the new entries — this works regardless of version numbers.
+          # Collect new changelog entries from two sources and combine them:
+          # 1. Package CHANGELOG.md diffs — captures changeset entries (rich prose)
+          # 2. Git log commits — catches direct commits not covered by changesets
           CHANGELOG_ENTRIES=$(node -e "
             const { execSync } = require('child_process');
 
@@ -179,6 +179,7 @@ jobs:
             const releaseCommit = process.env.LAST_RELEASE_COMMIT;
             const allEntries = [];
 
+            // Source 1: added lines in each package's CHANGELOG.md since the release commit
             for (const pkg of packages) {
               const changelogPath = pkg + '/CHANGELOG.md';
 
@@ -194,28 +195,47 @@ jobs:
 
               if (!diff.trim()) continue;
 
-              // Extract added lines from the diff (lines starting with '+' but not '+++')
               const addedLines = diff
                 .split('\n')
                 .filter(l => l.startsWith('+') && !l.startsWith('+++'))
-                .map(l => l.slice(1)); // strip the leading '+'
+                .map(l => l.slice(1));
 
-              // Remove changeset boilerplate headings and dependency-only lines
-              const meaningful = addedLines
-                .filter(l => {
-                  if (!l.trim()) return false;
-                  if (l.match(/^### (Patch|Minor|Major) Changes/)) return false;
-                  if (l.match(/^-\s+@agentscript\//)) return false;
-                  if (l.match(/^## \d+\.\d+\.\d+/)) return false;
-                  if (l.match(/^# @agentscript\//)) return false;
-                  return true;
-                });
+              const meaningful = addedLines.filter(l => {
+                if (!l.trim()) return false;
+                if (l.match(/^### (Patch|Minor|Major) Changes/)) return false;
+                if (l.match(/^-\s+@agentscript\//)) return false;
+                if (l.match(/^## \d+\.\d+\.\d+/)) return false;
+                if (l.match(/^# @agentscript\//)) return false;
+                return true;
+              });
 
               if (meaningful.length > 0) {
-                allEntries.push('<!-- ' + pkg + ' -->');
+                allEntries.push('<!-- ' + pkg + ' (changelog) -->');
                 allEntries.push(...meaningful);
                 allEntries.push('');
               }
+            }
+
+            // Source 2: git log commits on the bundle closure since the release commit
+            let commits;
+            try {
+              commits = execSync(
+                'git log ' + releaseCommit + '..HEAD --oneline --no-merges -- ' +
+                packages.join(' '),
+                { encoding: 'utf8' }
+              ).trim();
+            } catch {
+              commits = '';
+            }
+
+            const meaningfulCommits = commits
+              .split('\n')
+              .filter(l => l.trim() && !l.match(/bump version/i));
+
+            if (meaningfulCommits.length > 0) {
+              allEntries.push('<!-- git commits -->');
+              allEntries.push(...meaningfulCommits.map(l => '- ' + l));
+              allEntries.push('');
             }
 
             process.stdout.write(allEntries.join('\n'));
@@ -226,7 +246,7 @@ jobs:
             exit 0
           fi
 
-          echo "Changelog entries collected from packages."
+          echo "Changelog entries collected."
           export CHANGELOG_ENTRIES
 
           # Build CHANGELOG draft and insert it before the first versioned section
