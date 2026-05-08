@@ -100,6 +100,19 @@ export type {
   ProtocolEdge,
 } from './graph/index.js';
 
+// ── Graph re-exports ─────────────────────────────────────────────────
+
+export { extractGraph, getGraph } from './graph/index.js';
+export type {
+  GraphNode,
+  GraphEdge,
+  ExtractedGraph,
+  EdgeProvenance,
+  Graph,
+  ProtocolNode,
+  ProtocolEdge,
+} from './graph/index.js';
+
 // ── Dialect config ──────────────────────────────────────────────────
 
 export const agentfabricDialect: DialectConfig = {

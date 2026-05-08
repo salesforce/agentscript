@@ -8,13 +8,9 @@
 /**
  * Default dialect registry for AgentScript LSP servers.
  *
- * Both the Node.js and browser LSP entry points import from here so there
- * is exactly one place to add a new dialect.
- *
- * To add a dialect:
- * 1. Create your dialect package (see `dialect/` directory for examples)
- * 2. Import and add it to the array below
- * 3. All LSP servers and the UI will pick it up automatically
+ * Both the Node.js and browser LSP entry points import from here. Consumers
+ * that need additional dialects (e.g. agentfabric in apps/ui) compose their
+ * own list by spreading `defaultDialects` and appending the extra dialect.
  */
 
 import type { DialectConfig } from '@agentscript/language';
