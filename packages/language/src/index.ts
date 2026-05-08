@@ -303,7 +303,7 @@ export {
   each,
   defineRule,
   schemaContextKey,
-} from './core/analysis/lint.js';
+} from './core/analysis/lint-engine.js';
 
 export type {
   LintPass,
@@ -311,7 +311,7 @@ export type {
   EachDep,
   Dep,
   ResolveDeps,
-} from './core/analysis/lint.js';
+} from './core/analysis/lint-engine.js';
 
 export {
   positionIndexKey,
@@ -330,7 +330,10 @@ export {
   forEachExpressionChild,
 } from './core/analysis/ast-walkers.js';
 
-export { symbolTableAnalyzer, symbolTableKey } from './lint/symbol-table.js';
+export {
+  symbolTableAnalyzer,
+  symbolTableKey,
+} from './core/analysis/symbol-table.js';
 export { undefinedReferencePass } from './lint/undefined-reference.js';
 export { duplicateKeyPass } from './lint/duplicate-keys.js';
 export { requiredFieldPass } from './lint/required-fields.js';
@@ -339,7 +342,7 @@ export {
   constraintValidationPass,
   constraintValidationKey,
 } from './lint/constraint-validation.js';
-export { positionIndexPass } from './lint/position-index.js';
+export { positionIndexPass } from './core/analysis/position-index-pass.js';
 export { unreachableCodePass } from './lint/unreachable-code.js';
 export { emptyBlockPass } from './lint/empty-block.js';
 export { spreadContextPass } from './lint/spread-context.js';

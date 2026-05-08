@@ -13,7 +13,7 @@ export {
   each,
   defineRule,
   schemaContextKey,
-} from '../core/analysis/lint.js';
+} from '../core/analysis/lint-engine.js';
 
 export type {
   LintPass,
@@ -21,7 +21,7 @@ export type {
   EachDep,
   Dep,
   ResolveDeps,
-} from '../core/analysis/lint.js';
+} from '../core/analysis/lint-engine.js';
 
 export {
   collectDiagnostics,
@@ -31,15 +31,18 @@ export {
   forEachExpressionChild,
 } from '../core/analysis/ast-walkers.js';
 
-export { walkSchema } from './schema-walker.js';
-export type { SchemaFieldVisitor } from './schema-walker.js';
+export { walkSchema } from '../core/analysis/schema-walker.js';
+export type { SchemaFieldVisitor } from '../core/analysis/schema-walker.js';
 
-export { symbolTableAnalyzer, symbolTableKey } from './symbol-table.js';
+export {
+  symbolTableAnalyzer,
+  symbolTableKey,
+} from '../core/analysis/symbol-table.js';
 export { undefinedReferencePass } from './undefined-reference.js';
 export { duplicateKeyPass } from './duplicate-keys.js';
 export { requiredFieldPass } from './required-fields.js';
 export { constraintValidationPass } from './constraint-validation.js';
-export { positionIndexPass } from './position-index.js';
+export { positionIndexPass } from '../core/analysis/position-index-pass.js';
 export { unreachableCodePass } from './unreachable-code.js';
 export { emptyBlockPass } from './empty-block.js';
 export { spreadContextPass } from './spread-context.js';

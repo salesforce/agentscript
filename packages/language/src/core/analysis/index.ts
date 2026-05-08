@@ -13,9 +13,15 @@ export {
   each,
   defineRule,
   schemaContextKey,
-} from './lint.js';
+} from './lint-engine.js';
 
-export type { LintPass, StoreKey, EachDep, Dep, ResolveDeps } from './lint.js';
+export type {
+  LintPass,
+  StoreKey,
+  EachDep,
+  Dep,
+  ResolveDeps,
+} from './lint-engine.js';
 
 export {
   createSchemaContext,
@@ -32,7 +38,13 @@ export type { DocumentSymbol } from './symbols.js';
 
 export { resolveReference, walkDefinitionKeys } from './references.js';
 
-export { collectDiagnostics } from './ast-walkers.js';
+export {
+  collectDiagnostics,
+  recurseAstChildren,
+  walkAstExpressions,
+  dispatchAstChildren,
+  forEachExpressionChild,
+} from './ast-walkers.js';
 
 export {
   resolveSchemaField,
@@ -53,3 +65,19 @@ export type {
   KeywordHover,
   HoverResult,
 } from './hover-resolver.js';
+
+export {
+  positionIndexKey,
+  queryExpressionAtPosition,
+  queryDefinitionAtPosition,
+  queryScopeAtPosition,
+} from './position-index.js';
+
+export type { PositionIndex } from './position-index.js';
+
+export { positionIndexPass } from './position-index-pass.js';
+
+export { symbolTableAnalyzer, symbolTableKey } from './symbol-table.js';
+
+export { walkSchema } from './schema-walker.js';
+export type { SchemaFieldVisitor } from './schema-walker.js';

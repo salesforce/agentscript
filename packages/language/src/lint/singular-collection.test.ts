@@ -10,7 +10,7 @@ import { parse } from '@agentscript/parser';
 import { Dialect } from '../core/dialect.js';
 import { NamedBlock, NamedCollectionBlock } from '../core/block.js';
 import { StringValue } from '../core/primitives.js';
-import { LintEngine } from '../core/analysis/lint.js';
+import { LintEngine } from '../core/analysis/lint-engine.js';
 import { createSchemaContext } from '../core/analysis/scope.js';
 import { singularCollectionPass } from './singular-collection.js';
 

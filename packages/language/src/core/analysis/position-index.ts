@@ -16,7 +16,7 @@
 import type { Range, AstNodeLike } from '../types.js';
 import type { ScopeContext } from './scope.js';
 import { isPositionInRange, rangeSize } from './ast-utils.js';
-import { storeKey } from './lint.js';
+import { storeKey } from './lint-engine.js';
 
 export interface ExpressionEntry {
   expr: AstNodeLike;

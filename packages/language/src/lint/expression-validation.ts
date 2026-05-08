@@ -7,7 +7,7 @@
 
 import type { AstNodeLike } from '../core/types.js';
 import { attachDiagnostic, DiagnosticSeverity } from '../core/diagnostics.js';
-import { type LintPass, storeKey } from '../core/analysis/lint.js';
+import { type LintPass, storeKey } from '../core/analysis/lint-engine.js';
 import type { ScopeContext } from '../core/analysis/scope.js';
 import {
   BinaryExpression,
