@@ -106,11 +106,12 @@ jobs:
 
           # Find the commit where packages/vscode/package.json was set to LAST_VERSION.
           # Uses git pickaxe (-S) to jump directly to the commit without iterating history.
+          # The `|| true` prevents SIGPIPE (exit 141) when head -1 closes the pipe early.
           LAST_RELEASE_COMMIT=$(git log -S "\"version\": \"${LAST_VERSION}\"" \
             --oneline \
             -- packages/vscode/package.json \
             | head -1 \
-            | awk '{print $1}')
+            | awk '{print $1}' || true)
 
           echo "Commit where vscode was last set to $LAST_VERSION: $LAST_RELEASE_COMMIT"
 
