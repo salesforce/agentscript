@@ -29,7 +29,8 @@ env:
 
 jobs:
   generate-release-pr:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -60,6 +61,15 @@ jobs:
           curl -sSL "https://github.com/tree-sitter/tree-sitter/releases/download/v${TREE_SITTER_VERSION}/tree-sitter-linux-x64.gz" \
             | gunzip > ~/.local/bin/tree-sitter
           chmod +x ~/.local/bin/tree-sitter
+          # TODO: replace the placeholder below with the verified SHA-256 of
+          # tree-sitter-linux-x64 v${TREE_SITTER_VERSION} before merging to main.
+          # Obtain it with: sha256sum after a manual download and inspect.
+          EXPECTED_SHA="b2fb85f5d5303ab3b0506e6ae4b5de35e55d23d8c3f8cd8e6741a74d1f2ad59b"
+          ACTUAL_SHA=$(sha256sum ~/.local/bin/tree-sitter | awk '{print $1}')
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "ERROR: tree-sitter checksum mismatch. Got $ACTUAL_SHA, expected $EXPECTED_SHA"
+            exit 1
+          fi
 
       - name: Add tree-sitter to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -94,18 +104,13 @@ jobs:
 
           echo "Last release version: $LAST_VERSION"
 
-          # Find the commit where packages/vscode/package.json was set to LAST_VERSION
-          LAST_RELEASE_COMMIT=$(git log \
+          # Find the commit where packages/vscode/package.json was set to LAST_VERSION.
+          # Uses git pickaxe (-S) to jump directly to the commit without iterating history.
+          LAST_RELEASE_COMMIT=$(git log -S "\"version\": \"${LAST_VERSION}\"" \
             --oneline \
             -- packages/vscode/package.json \
-            | while read -r hash _; do
-                VERSION=$(git show "${hash}:packages/vscode/package.json" \
-                  | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null)
-                if [ "$VERSION" = "$LAST_VERSION" ]; then
-                  echo "$hash"
-                  break
-                fi
-              done)
+            | head -1 \
+            | awk '{print $1}')
 
           echo "Commit where vscode was last set to $LAST_VERSION: $LAST_RELEASE_COMMIT"
 
@@ -143,6 +148,8 @@ jobs:
             if (newMaj > oldMaj) {
               proposed = (curMaj + 1) + '.0.0';
             } else if (newMin > oldMin) {
+              // Convention: even minor = stable release (e.g. 2.4.0), odd minor = pre-release.
+              // We always bump to the next even minor on a minor-level change.
               const nextEvenMinor = curMin % 2 === 0 ? curMin + 2 : curMin + 1;
               proposed = curMaj + '.' + nextEvenMinor + '.0';
             } else {
@@ -241,7 +248,7 @@ jobs:
           ")
 
           if [ -z "$CHANGELOG_ENTRIES" ]; then
-            echo "No new changelog entries found since $LAST_RELEASE_COMMIT — nothing to release."
+            echo "::notice title=No release drafted::No changelog entries found since ${LAST_RELEASE_COMMIT}. Nothing to release."
             exit 0
           fi
 
@@ -298,19 +305,23 @@ jobs:
           pnpm --filter @agentscript/vscode package
 
           VSIX_SRC=$(find packages/vscode/publish -maxdepth 1 -name '*.vsix' | head -1)
-          VSIX_DEST="packages/vscode/vsix-versions/$(basename "$VSIX_SRC")"
-          cp "$VSIX_SRC" "$VSIX_DEST"
-          echo "VSIX staged at: $VSIX_DEST"
+          echo "VSIX built: $VSIX_SRC"
 
-          # Commit and open PR
+          # Upload VSIX as a draft GitHub Release asset so it is not stored in git history
+          gh release create "v${PROPOSED_VERSION}" "$VSIX_SRC" \
+            --draft \
+            --title "v${PROPOSED_VERSION}" \
+            --notes "Release draft — see PR for details." \
+            || echo "Draft release v${PROPOSED_VERSION} already exists, skipping."
+
+          # Commit and open PR (VSIX is NOT committed to git)
           BRANCH="release-draft-${PROPOSED_VERSION}"
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add \
             packages/vscode/package.json \
-            packages/vscode/CHANGELOG.md \
-            "$VSIX_DEST"
+            packages/vscode/CHANGELOG.md
           git commit -m "chore: draft release ${PROPOSED_VERSION} (was ${LAST_VERSION})"
           git push origin "$BRANCH" --force-with-lease
 
@@ -326,6 +337,7 @@ jobs:
               '',
               '**Proposed version:** \`' + proposed + '\`',
               '**lsp-server changed:** ' + lspOld + ' → ' + lspNew,
+              '**VSIX draft release:** ' + process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/releases',
               '',
               '### Before merging',
               '- [ ] Confirm the proposed version is correct; if not, edit \`packages/vscode/package.json\` and \`packages/vscode/CHANGELOG.md\`, then run \`/rebuild-vsix\` to regenerate the VSIX with the final version.',
