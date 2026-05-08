@@ -41,6 +41,7 @@ export { requiredFieldPass } from './required-fields.js';
 export { constraintValidationPass } from './constraint-validation.js';
 export { positionIndexPass } from './position-index.js';
 export { unreachableCodePass } from './unreachable-code.js';
+export { unsupportedConditionalsPass } from './unsupported-conditionals.js';
 export { emptyBlockPass } from './empty-block.js';
 export { spreadContextPass } from './spread-context.js';
 export {
