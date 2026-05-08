@@ -305,23 +305,19 @@ jobs:
           pnpm --filter @agentscript/vscode package
 
           VSIX_SRC=$(find packages/vscode/publish -maxdepth 1 -name '*.vsix' | head -1)
-          echo "VSIX built: $VSIX_SRC"
+          VSIX_DEST="packages/vscode/vsix-versions/$(basename "$VSIX_SRC")"
+          cp "$VSIX_SRC" "$VSIX_DEST"
+          echo "VSIX staged at: $VSIX_DEST"
 
-          # Upload VSIX as a draft GitHub Release asset so it is not stored in git history
-          gh release create "v${PROPOSED_VERSION}" "$VSIX_SRC" \
-            --draft \
-            --title "v${PROPOSED_VERSION}" \
-            --notes "Release draft — see PR for details." \
-            || echo "Draft release v${PROPOSED_VERSION} already exists, skipping."
-
-          # Commit and open PR (VSIX is NOT committed to git)
+          # Commit and open PR
           BRANCH="release-draft-${PROPOSED_VERSION}"
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add \
             packages/vscode/package.json \
-            packages/vscode/CHANGELOG.md
+            packages/vscode/CHANGELOG.md \
+            "$VSIX_DEST"
           git commit -m "chore: draft release ${PROPOSED_VERSION} (was ${LAST_VERSION})"
           git push origin "$BRANCH" --force-with-lease
 
@@ -337,7 +333,6 @@ jobs:
               '',
               '**Proposed version:** \`' + proposed + '\`',
               '**lsp-server changed:** ' + lspOld + ' → ' + lspNew,
-              '**VSIX draft release:** ' + process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/releases',
               '',
               '### Before merging',
               '- [ ] Confirm the proposed version is correct; if not, edit \`packages/vscode/package.json\` and \`packages/vscode/CHANGELOG.md\`, then run \`/rebuild-vsix\` to regenerate the VSIX with the final version.',
