@@ -1,0 +1,74 @@
+# Copyright (c) 2026, Salesforce, Inc.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+
+name: Publish
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  TREE_SITTER_VERSION: '0.25.3'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Cache tree-sitter CLI
+        id: cache-tree-sitter
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.local/bin/tree-sitter
+          key: tree-sitter-${{ env.TREE_SITTER_VERSION }}-linux-x64
+
+      - name: Install tree-sitter CLI
+        if: steps.cache-tree-sitter.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin
+          curl -sSL "https://github.com/tree-sitter/tree-sitter/releases/download/v${TREE_SITTER_VERSION}/tree-sitter-linux-x64.gz" \
+            | gunzip > ~/.local/bin/tree-sitter
+          chmod +x ~/.local/bin/tree-sitter
+
+      - name: Add tree-sitter to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@c8bada60c408975afd1a20b3db81d6eee6789308 # v1
+        with:
+          publish: node scripts/publish.mjs
+          version: pnpm changeset version
+          title: 'chore: version packages'
+          commit: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
