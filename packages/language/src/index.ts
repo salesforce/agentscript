@@ -344,6 +344,7 @@ export {
 } from './lint/constraint-validation.js';
 export { positionIndexPass } from './core/analysis/position-index-pass.js';
 export { unreachableCodePass } from './lint/unreachable-code.js';
+export { unsupportedConditionalsPass } from './lint/unsupported-conditionals.js';
 export { emptyBlockPass } from './lint/empty-block.js';
 export { spreadContextPass } from './lint/spread-context.js';
 export { unusedVariablePass } from './lint/unused-variable.js';
