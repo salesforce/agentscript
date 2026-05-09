@@ -12,7 +12,7 @@ import {
   storeKey,
   type LintPass,
   type PassStore,
-} from '../core/analysis/lint.js';
+} from '../core/analysis/lint-engine.js';
 import { lintDiagnostic } from './lint-utils.js';
 import {
   type Statement,

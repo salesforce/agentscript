@@ -10,7 +10,7 @@ import { parse } from '@agentscript/parser';
 import { Dialect } from '../core/dialect.js';
 import { NamedBlock, NamedCollectionBlock } from '../core/block.js';
 import { StringValue, ProcedureValue } from '../core/primitives.js';
-import { LintEngine } from '../core/analysis/lint.js';
+import { LintEngine } from '../core/analysis/lint-engine.js';
 import { createSchemaContext } from '../core/analysis/scope.js';
 import { unsupportedConditionalsPass } from './unsupported-conditionals.js';
 
