@@ -59,12 +59,14 @@ Opens the AgentScript playground at `http://localhost:27002`.
 
 ### Use as a Library
 
+> Packages are published to npm under the `@sf-agentscript/*` scope. The `@agentscript/*` names used elsewhere in this repo are the internal monorepo names — see [`scripts/publish.mjs`](scripts/publish.mjs).
+
 ```bash
-pnpm add @agentscript/agentforce
+pnpm add @sf-agentscript/agentforce
 ```
 
 ```typescript
-import { parse } from '@agentscript/agentforce';
+import { parse } from '@sf-agentscript/agentforce';
 
 const doc = parse(`
 system:
