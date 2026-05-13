@@ -418,7 +418,7 @@ export const stateVariableType = z.enum([
  *
  * Supported locale codes for Planner Service.
  *
- * Each locale must be listed in the sfdc-i18n package:
+ * Each locale must be listed in the sfdc-i18n package.
  */
 export const supportedLocale = z.enum([
   'en_US',
