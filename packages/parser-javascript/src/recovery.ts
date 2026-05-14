@@ -254,6 +254,29 @@ export function skipNewlines(ctx: ParserContext): void {
   }
 }
 
+/**
+ * Skip NEWLINE/INDENT/DEDENT tokens. Called by bracketed-expression parsers
+ * (parseCall, parseParenthesized, parseSubscript, parseList,
+ * parseDictionary) to consume virtual indent tokens that carry no syntactic
+ * meaning inside `(…)`, `[…]`, or `{…}`.
+ *
+ * Mirrors tree-sitter-python's approach, adapted to recursive descent:
+ * whereas the LR scanner reads `valid_symbols[CLOSE_*]` from the parser's
+ * item set to detect bracketed context, our recursive-descent parser knows
+ * it's inside brackets because it's on a call stack frame between the open
+ * and close. Either way, virtual tokens get skipped at the point of use
+ * rather than suppressed at the lexer.
+ */
+export function skipVirtualTokens(ctx: ParserContext): void {
+  while (
+    ctx.peekKind() === TokenKind.NEWLINE ||
+    ctx.peekKind() === TokenKind.INDENT ||
+    ctx.peekKind() === TokenKind.DEDENT
+  ) {
+    ctx.consume();
+  }
+}
+
 /** Consume comment and newline tokens and attach to parent node. */
 export function consumeCommentsAndSkipNewlines(
   ctx: ParserContext,

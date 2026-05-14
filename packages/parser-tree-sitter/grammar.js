@@ -41,8 +41,18 @@ export default grammar({
 
     $.error_sentinel,
 
-    $._open_paren,
-    $._close_paren,
+    // Closing brackets are declared as externals so the scanner can read
+    // `valid_symbols[close_*]` to detect whether the parser is currently
+    // inside a bracketed expression — without tracking any bracket-depth
+    // state of its own. When inside, the scanner suppresses NEWLINE,
+    // INDENT, and DEDENT, enabling multi-line call/list/dict literals.
+    // The scanner never actually produces these tokens — the LR parser
+    // consumes the matching literal '(', '[', or '{' and its item set
+    // surfaces the close expectation via valid_symbols. Mirrors the
+    // design of tree-sitter-python.
+    ')',
+    ']',
+    '}',
   ],
 
   supertypes: $ => [
@@ -281,9 +291,9 @@ export default grammar({
         8,
         seq(
           field('function', $.expression),
-          $._open_paren,
+          '(',
           optional(commaSep1(field('argument', $.expression))),
-          $._close_paren
+          ')'
         )
       ),
 
