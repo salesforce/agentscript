@@ -47,6 +47,7 @@ export default [
             'packages/lsp/src/adapters/*.test.ts',
             'packages/lsp/src/providers/*.test.ts',
             'packages/lsp-server/src/*.test.ts',
+            'packages/parser/test/*.test.ts',
             'packages/parser-javascript/test/*.test.ts',
           ],
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
