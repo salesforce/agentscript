@@ -365,6 +365,35 @@ subagent Shopper_Agent:
   // Coexistence
   // ---------------------------------------------------------------------------
 
+  it('should compile an agent whose only node is a BYON start_agent', () => {
+    const source = `
+config:
+    agent_name: "ShopperOnly"
+
+start_agent Shopper_Agent:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const version = getVersion(output);
+
+    expect(version.nodes).toHaveLength(1);
+    const node = version.nodes[0] as BYONNode;
+    expect(node.type).toBe('byon');
+    expect(node.developer_name).toBe('Shopper_Agent');
+    expect(node.byo_client.client_ref).toBe('icr-default');
+    expect(node.byo_client.configuration).toEqual({
+      node_type_id: 'commerce_shopper_agent',
+      node_namespace: 'commerceshopperagent',
+    });
+    expect(version.initial_node).toBe('Shopper_Agent');
+
+    const blockingErrors = diagnostics.filter(
+      d => d.code === 'schema-validation' || d.code === 'unknown-variant'
+    );
+    expect(blockingErrors).toHaveLength(0);
+  });
+
   it('should compile custom subagent node alongside regular subagents and start_agent', () => {
     const source = `
 config:

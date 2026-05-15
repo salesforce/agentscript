@@ -73,17 +73,20 @@ class CustomSubagentValidationPass implements LintPass {
     'Validates custom subagent variants against their schema';
 
   run(_store: PassStore, root: AstRoot): void {
-    const collection = (root as Record<string, unknown>)['subagent'];
-    if (!collection || !isNamedMap(collection)) return;
+    for (const key of ['subagent', 'start_agent'] as const) {
+      const collection = (root as Record<string, unknown>)[key];
+      if (!collection || !isNamedMap(collection)) continue;
 
-    for (const [name, block] of collection as NamedMap<unknown>) {
-      if (!block || typeof block !== 'object') continue;
+      for (const [name, block] of collection as NamedMap<unknown>) {
+        if (!block || typeof block !== 'object') continue;
 
-      const rec = block as Record<string, unknown>;
-      const schemaValue = extractStringValue(rec['schema']);
-      if (!schemaValue || !schemaValue.startsWith(NODE_SCHEMA_PREFIX)) continue;
+        const rec = block as Record<string, unknown>;
+        const schemaValue = extractStringValue(rec['schema']);
+        if (!schemaValue || !schemaValue.startsWith(NODE_SCHEMA_PREFIX))
+          continue;
 
-      validateBlock(name, rec, schemaValue);
+        validateBlock(name, rec, schemaValue);
+      }
     }
   }
 }

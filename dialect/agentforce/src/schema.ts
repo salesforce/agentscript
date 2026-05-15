@@ -358,7 +358,9 @@ export const AFStartAgentBlock = StartAgentBlock.extend(
     security: SecurityBlock,
   },
   { scopeAlias: 'topic' }
-).discriminant('schema');
+)
+  .discriminant('schema')
+  .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant);
 
 export const KnowledgeBlock = Block('KnowledgeBlock', {
   citations_url: StringValue.describe('URL prefix for citation links.'),

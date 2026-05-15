@@ -215,4 +215,31 @@ subagent Order_Management:
     );
     expect(errors).toHaveLength(0);
   });
+
+  it('allows a BYON start_agent as the only node', () => {
+    const diagnostics = runLint(`
+start_agent Commerce_Shopper:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+`);
+    const blocking = diagnostics.filter(
+      d =>
+        d.code === 'custom-subagent-validation' || d.code === 'unknown-variant'
+    );
+    expect(blocking).toHaveLength(0);
+  });
+
+  it('reports error when before_reasoning is present on a BYON start_agent', () => {
+    const diagnostics = runLint(`
+start_agent Commerce_Shopper:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+    before_reasoning:
+        set @variables.x = 1
+`);
+    const errors = diagnostics.filter(
+      d => d.code === 'custom-subagent-validation'
+    );
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+  });
 });
