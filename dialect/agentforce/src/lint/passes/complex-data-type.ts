@@ -6,13 +6,16 @@
  */
 
 /**
- * Complex data type warning rule for Agentforce.
+ * Complex data type rule for Agentforce.
  *
- * Warns when object-type action inputs/outputs lack schema information:
- * - Inputs: should have complex_data_type_name or schema
- * - Outputs: should have complex_data_type_name
+ * Only `object` and `list[object]` declarations support a `complex_data_type_name`.
  *
- * Diagnostic: object-type-missing-schema
+ * - When a whitelisted type (`object` / `list[object]`) lacks schema info:
+ *   - Inputs: should have `complex_data_type_name` or `schema` (warning)
+ *   - Outputs: should have `complex_data_type_name` (warning)
+ * - When a non-whitelisted (primitive) type has `complex_data_type_name`: error.
+ *
+ * Diagnostics: object-type-missing-schema, complex-data-type-on-primitive
  */
 
 import type { AstNodeLike, AstRoot, NamedMap } from '@agentscript/language';
@@ -37,9 +40,14 @@ function getTypeText(decl: Record<string, unknown>): string | null {
   return cst?.node?.text?.trim() ?? null;
 }
 
-/** Check if a type string represents an object type. */
-function isObjectType(typeText: string): boolean {
-  return typeText === 'object' || typeText === 'list[object]';
+/**
+ * These required complex data types creates a warning without `complex_data_type_name` field.
+ * Anything outside this set is treated as a primitive and does not need a `complex_data_type_name`.
+ */
+const REQURIED_COMPLEX_DATA_TYPE = new Set<string>(['object', 'list[object]']);
+
+function isComplexType(typeText: string): boolean {
+  return REQURIED_COMPLEX_DATA_TYPE.has(typeText);
 }
 
 /** Check if a field has a non-empty string value. */
@@ -86,60 +94,66 @@ class ComplexDataTypePass implements LintPass {
           if (!actBlock || typeof actBlock !== 'object') continue;
           const act = actBlock as Record<string, unknown>;
 
-          this.checkInputs(act.inputs, actionName);
-          this.checkOutputs(act.outputs, actionName);
+          this.checkDecls(act.inputs, actionName, 'input');
+          this.checkDecls(act.outputs, actionName, 'output');
         }
       }
     }
   }
 
-  private checkInputs(inputs: unknown, actionName: string): void {
-    if (!inputs || !isNamedMap(inputs)) return;
+  private checkDecls(
+    decls: unknown,
+    actionName: string,
+    kind: 'input' | 'output'
+  ): void {
+    if (!decls || !isNamedMap(decls)) return;
 
-    for (const [paramName, decl] of inputs as NamedMap<unknown>) {
+    for (const [paramName, decl] of decls as NamedMap<unknown>) {
       if (!decl || typeof decl !== 'object') continue;
       const obj = decl as AstNodeLike;
       const typeText = getTypeText(obj as Record<string, unknown>);
-      if (!typeText || !isObjectType(typeText)) continue;
+      if (!typeText) continue;
 
       const props = (obj as Record<string, unknown>).properties as
         | Record<string, unknown>
         | undefined;
-      if (
-        !hasStringField(props, 'complex_data_type_name') &&
-        !hasStringField(props, 'schema')
-      ) {
-        attachDiagnostic(
-          obj,
-          lintDiagnostic(
-            getDeclRange(obj),
-            `Action input '${paramName}' in '${actionName}' has type '${typeText}' but lacks 'complex_data_type_name' or 'schema'. Consider specifying the object schema for better type validation.`,
-            DiagnosticSeverity.Warning,
-            'object-type-missing-schema'
-          )
-        );
+      const hasComplexDataTypeField = hasStringField(
+        props,
+        'complex_data_type_name'
+      );
+
+      if (!isComplexType(typeText)) {
+        // Primitive types must NOT declare complex_data_type_name.
+        if (hasComplexDataTypeField) {
+          attachDiagnostic(
+            obj,
+            lintDiagnostic(
+              getDeclRange(obj),
+              `Action ${kind} '${paramName}' in '${actionName}' has primitive type '${typeText}' and must not specify 'complex_data_type_name'. Only 'object' and 'list[object]' types support 'complex_data_type_name'.`,
+              DiagnosticSeverity.Error,
+              'complex-data-type-on-primitive'
+            )
+          );
+        }
+        continue;
       }
-    }
-  }
 
-  private checkOutputs(outputs: unknown, actionName: string): void {
-    if (!outputs || !isNamedMap(outputs)) return;
-
-    for (const [outputName, decl] of outputs as NamedMap<unknown>) {
-      if (!decl || typeof decl !== 'object') continue;
-      const obj = decl as AstNodeLike;
-      const typeText = getTypeText(obj as Record<string, unknown>);
-      if (!typeText || !isObjectType(typeText)) continue;
-
-      const props = (obj as Record<string, unknown>).properties as
-        | Record<string, unknown>
-        | undefined;
-      if (!hasStringField(props, 'complex_data_type_name')) {
+      // Complex types should declare schema info.
+      // Inputs may use `schema` as an alternative to `complex_data_type_name`.
+      const hasSchema =
+        hasComplexDataTypeField ||
+        (kind === 'input' && hasStringField(props, 'schema'));
+      console.log('Schema: ', hasSchema);
+      if (!hasSchema) {
+        const required =
+          kind === 'input'
+            ? `'complex_data_type_name' or 'schema'`
+            : `'complex_data_type_name'`;
         attachDiagnostic(
           obj,
           lintDiagnostic(
             getDeclRange(obj),
-            `Action output '${outputName}' in '${actionName}' has type '${typeText}' but lacks 'complex_data_type_name'. Consider specifying the object schema for better type validation.`,
+            `Action ${kind} '${paramName}' in '${actionName}' has type '${typeText}' but lacks ${required}. Consider specifying the object schema for better type validation.`,
             DiagnosticSeverity.Warning,
             'object-type-missing-schema'
           )
