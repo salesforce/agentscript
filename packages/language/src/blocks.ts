@@ -118,7 +118,7 @@ export const ActionBlock = NamedBlock(
     label: StringValue.describe('Display label shown in the UI.'),
     inputs: InputsBlock,
     outputs: OutputsBlock,
-    target: StringValue.describe(
+    target: StringValue.required().describe(
       'External implementation target URI (e.g., "flow://Action_Name").'
     ),
     source: StringValue.describe(
