@@ -2344,3 +2344,169 @@ subagent Order_Management:
   );
   expect(warnings.length).toBeGreaterThan(0);
 });
+
+describe('complex data type rule', () => {
+  const wrap = (inputs: string, outputs: string): string => `
+subagent S:
+  description: "S"
+  actions:
+    A:
+      description: "A"
+      inputs:
+${inputs}
+      outputs:
+${outputs}
+  reasoning:
+    instructions: ->
+      |Do it
+`;
+
+  it('errors when a primitive input has complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'amount'");
+    expect(errors[0].message).toContain("'A'");
+    expect(errors[0].message).toContain("'number'");
+  });
+
+  it('does not flag primitive inputs without complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          description: "an amount"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(d => d.code === 'complex-data-type-on-primitive')
+    ).toHaveLength(0);
+  });
+
+  it('errors when a primitive output has complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        in_ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        message: string\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'message'");
+    expect(errors[0].message).toContain("'string'");
+  });
+
+  it.each([
+    ['boolean'],
+    ['integer'],
+    ['id'],
+    ['date'],
+    ['datetime'],
+    ['time'],
+    ['timestamp'],
+    ['currency'],
+    ['long'],
+  ])('errors when primitive type %s has complex_data_type_name', primitive => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        v: ${primitive}\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain(`'${primitive}'`);
+  });
+
+  it('does not flag object input with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        order: object\n          complex_data_type_name: "OrderRecord"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('does not flag object input that uses schema:', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        order: object\n          schema: "schema://order_schema"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('does not flag list[object] output with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        items: list[object]\n          complex_data_type_name: "OrderRecord"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('errors on list[string] input with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        tags: list[string]\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'list[string]'");
+  });
+
+  it('reports both error and warning for mixed declarations', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        result: object\n          description: "bare object output"\n`
+      )
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'object-type-missing-schema'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'amount'");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain("'result'");
+  });
+});
