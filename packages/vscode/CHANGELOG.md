@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-05-18
+
+> :pencil: Review and rewrite the entries below into user-facing language before merging.
+
+### Added
+
+### Fixed
+
+### Changed
+
+<!-- git commits -->
+- 67542bc fix(lint): require target on ActionBlock (#38)
+- f1fddb2 Balanced parens (#20)
+- 4670b96 fix(lint): update import path after lint-engine rename (#32)
+- d9c4e3a feat(lint): flag elif and nested if as unsupported (#31)
+- 3beb2d0 refactor language/src/core (#19)
+- 1e6091f chore: add npm publish workflow with @sf-agentscript scope proxy (#30)
+
+---
+_lsp-server: 2.2.25 → 2.2.25 (basis for version bump)_
+
 ## [2.4.0] - 2026-5-1
 
 ### Added
