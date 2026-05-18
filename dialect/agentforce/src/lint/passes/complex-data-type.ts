@@ -129,8 +129,8 @@ class ComplexDataTypePass implements LintPass {
             obj,
             lintDiagnostic(
               getDeclRange(obj),
-              `Action ${kind} '${paramName}' in '${actionName}' has primitive type '${typeText}' and must not specify 'complex_data_type_name'. Only 'object' and 'list[object]' types support 'complex_data_type_name'.`,
-              DiagnosticSeverity.Error,
+              `Action ${kind} '${paramName}' in '${actionName}' has primitive type '${typeText}' and does not require 'complex_data_type_name'. Only 'object' and 'list[object]' types require 'complex_data_type_name'.`,
+              DiagnosticSeverity.Warning,
               'complex-data-type-on-primitive'
             )
           );
