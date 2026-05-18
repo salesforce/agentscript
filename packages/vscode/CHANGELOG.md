@@ -8,24 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [2.4.1] - 2026-05-18
 
-> :pencil: Review and rewrite the entries below into user-facing language before merging.
-
 ### Added
+
+- Validation for `elif` and nested `if` statements, which are not currently supported in Agent Script syntax.
 
 ### Fixed
 
-### Changed
-
-<!-- git commits -->
-- 67542bc fix(lint): require target on ActionBlock (#38)
-- f1fddb2 Balanced parens (#20)
-- 4670b96 fix(lint): update import path after lint-engine rename (#32)
-- d9c4e3a feat(lint): flag elif and nested if as unsupported (#31)
-- 3beb2d0 refactor language/src/core (#19)
-- 1e6091f chore: add npm publish workflow with @sf-agentscript scope proxy (#30)
-
----
-_lsp-server: 2.2.25 → 2.2.25 (basis for version bump)_
+- The lint rule for `ActionBlock` now correctly enforces that a `target` property is specified.
+- Fixed incorrect parsing when parentheses are unbalanced in expressions.
 
 ## [2.4.0] - 2026-5-1
 
