@@ -2361,21 +2361,21 @@ ${outputs}
       |Do it
 `;
 
-  it('errors when a primitive input has complex_data_type_name', () => {
+  it('warns when a primitive input has complex_data_type_name', () => {
     const diagnostics = runSecurityLint(
       wrap(
         `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
         `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
       )
     );
-    const errors = diagnostics.filter(
+    const warnings = diagnostics.filter(
       d => d.code === 'complex-data-type-on-primitive'
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain("'amount'");
-    expect(errors[0].message).toContain("'A'");
-    expect(errors[0].message).toContain("'number'");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'amount'");
+    expect(warnings[0].message).toContain("'A'");
+    expect(warnings[0].message).toContain("'number'");
   });
 
   it('does not flag primitive inputs without complex_data_type_name', () => {
@@ -2390,19 +2390,20 @@ ${outputs}
     ).toHaveLength(0);
   });
 
-  it('errors when a primitive output has complex_data_type_name', () => {
+  it('warns when a primitive output has complex_data_type_name', () => {
     const diagnostics = runSecurityLint(
       wrap(
         `        in_ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
         `        message: string\n          complex_data_type_name: "lightning__objectType"\n`
       )
     );
-    const errors = diagnostics.filter(
+    const warnings = diagnostics.filter(
       d => d.code === 'complex-data-type-on-primitive'
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'message'");
-    expect(errors[0].message).toContain("'string'");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'message'");
+    expect(warnings[0].message).toContain("'string'");
   });
 
   it.each([
@@ -2415,18 +2416,19 @@ ${outputs}
     ['timestamp'],
     ['currency'],
     ['long'],
-  ])('errors when primitive type %s has complex_data_type_name', primitive => {
+  ])('warns when primitive type %s has complex_data_type_name', primitive => {
     const diagnostics = runSecurityLint(
       wrap(
         `        v: ${primitive}\n          complex_data_type_name: "lightning__objectType"\n`,
         `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
       )
     );
-    const errors = diagnostics.filter(
+    const warnings = diagnostics.filter(
       d => d.code === 'complex-data-type-on-primitive'
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain(`'${primitive}'`);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain(`'${primitive}'`);
   });
 
   it('does not flag object input with complex_data_type_name', () => {
@@ -2477,36 +2479,38 @@ ${outputs}
     ).toHaveLength(0);
   });
 
-  it('errors on list[string] input with complex_data_type_name', () => {
+  it('warns on list[string] input with complex_data_type_name', () => {
     const diagnostics = runSecurityLint(
       wrap(
         `        tags: list[string]\n          complex_data_type_name: "lightning__objectType"\n`,
         `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
       )
     );
-    const errors = diagnostics.filter(
+    const warnings = diagnostics.filter(
       d => d.code === 'complex-data-type-on-primitive'
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'list[string]'");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'list[string]'");
   });
 
-  it('reports both error and warning for mixed declarations', () => {
+  it('reports both warnings for mixed declarations', () => {
     const diagnostics = runSecurityLint(
       wrap(
         `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
         `        result: object\n          description: "bare object output"\n`
       )
     );
-    const errors = diagnostics.filter(
+    const primitiveWarnings = diagnostics.filter(
       d => d.code === 'complex-data-type-on-primitive'
     );
-    const warnings = diagnostics.filter(
+    const missingSchemaWarnings = diagnostics.filter(
       d => d.code === 'object-type-missing-schema'
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'amount'");
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].message).toContain("'result'");
+    expect(primitiveWarnings).toHaveLength(1);
+    expect(primitiveWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(primitiveWarnings[0].message).toContain("'amount'");
+    expect(missingSchemaWarnings).toHaveLength(1);
+    expect(missingSchemaWarnings[0].message).toContain("'result'");
   });
 });
