@@ -20,6 +20,7 @@ export {
   ConnectionsBlock,
   SecurityBlock,
   AFActionsBlock,
+  ModelConfigBlock,
   ContextBlock,
   AgentforceSchema,
   AgentforceKindToSchemaKey,
