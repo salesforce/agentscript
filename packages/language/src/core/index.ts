@@ -181,6 +181,12 @@ export {
 
 export { Dialect } from './dialect.js';
 
+export {
+  ESCAPE_TABLE,
+  interpretEscape,
+  escapeStringValue,
+} from './string-escapes.js';
+
 export { FieldBuilder, addBuilderMethods } from './field-builder.js';
 export type { FieldMetadata, BuilderMethods } from './field-builder.js';
 export type { DocumentationMetadata, KeywordInfo } from './types.js';

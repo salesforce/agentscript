@@ -237,6 +237,13 @@ export const defaultSubagentFields = {
 };
 
 /**
+ * Reasoning block for custom subagent (BYON) variants.
+ * Only includes actions — no instructions, since BYON nodes execute
+ * custom reasoning logic on remote compute rather than using the LLM loop.
+ */
+const BYONReasoningBlock = ReasoningBlock.pick(['actions']);
+
+/**
  * Custom subagent fields for schema variants.
  * Includes parameters block for custom configuration.
  * Used when registering custom schema variants with .variant().
@@ -245,6 +252,9 @@ export const customSubagentFields = {
   ...baseSubagentFields,
   parameters: Block('ParametersBlock', {}).describe(
     'Custom parameters for schema variants. Structure is defined by the schema variant.'
+  ),
+  reasoning: BYONReasoningBlock.describe(
+    'Reasoning block containing actions available to the agent (instructions not supported for custom subagents).'
   ),
   on_init: ProcedureValue.describe(
     'Procedures that run when the subagent is initialized.'
@@ -419,7 +429,7 @@ export const AgentScriptSchemaInfo: SchemaInfo = {
   // no arguments. These need to be promoted to typed declarations so they participate
   // in resolvedType validation instead of being silently skipped.
   globalScopes: {
-    utils: new Set(['transition', 'setVariables', 'escalate']),
+    utils: new Set(['transition', 'setVariables', 'escalate', 'end_session']),
     system_variables: new Set(['user_input']),
   },
 };

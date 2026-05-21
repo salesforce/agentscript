@@ -163,7 +163,7 @@ export function Block<T extends Schema>(
     }
   }
 
-  const base = addBuilderMethods(BlockNode);
+  const base = addBuilderMethods(BlockNode, undefined, { factory: true });
   if (options?.description) {
     Object.defineProperty(base, '__metadata', {
       value: { description: options.description },

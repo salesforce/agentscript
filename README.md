@@ -38,7 +38,19 @@ In this sense Agent Script follows the same pattern as other industry-standard d
 
 ### Prerequisites
 
-Node.js >= 20 and pnpm >= 8
+The simplest setup is to use [mise](https://mise.jdx.dev/), which installs the toolchain versions pinned in [`mise.toml`](mise.toml) (Node.js and the `tree-sitter` CLI):
+
+```bash
+mise install
+```
+
+To set up manually instead:
+
+- **Node.js 22** (minimum `>=18`)
+- **pnpm 10** — run `corepack enable pnpm` once; pnpm will resolve to the version pinned by `packageManager` in `package.json`
+- **`tree-sitter` CLI 0.25.x** on your `$PATH` — required by `pnpm build` to generate the parser for `packages/parser-tree-sitter`. Install via `mise install`, or download a 0.25.x binary from [tree-sitter releases](https://github.com/tree-sitter/tree-sitter/releases).
+
+**macOS note:** `brew install tree-sitter` installs only the C library, not the CLI. For the CLI on macOS, use `mise install` (recommended; matches the pinned 0.25.x line) or `brew install tree-sitter-cli` (currently ships 0.26.x).
 
 ### Installation
 

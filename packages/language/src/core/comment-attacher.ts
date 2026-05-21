@@ -19,10 +19,31 @@ import type {
   Comment,
   CommentAttachment,
   CommentTarget,
+  Range,
   SyntaxNode,
 } from './types.js';
-import { parseCommentNode } from './types.js';
+import { isNamedMap, parseCommentNode } from './types.js';
 import { ErrorBlock } from './children.js';
+import type { Statement } from './statements.js';
+
+/** A comment that has source-location range info (i.e. was parsed from source). */
+type RangedComment = Comment & { range: Range };
+
+function hasRange(c: Comment): c is RangedComment {
+  return c.range !== undefined;
+}
+
+/** Type guard for values with a `statements` array (e.g., ProcedureValueNode). */
+function hasProcedureStatements(
+  value: unknown
+): value is { statements: Statement[] } {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'statements' in value &&
+    Array.isArray((value as { statements: unknown }).statements)
+  );
+}
 
 export class CommentAttacher {
   private _pending: Comment[] = [];
@@ -151,4 +172,108 @@ export function attach(
 ): void {
   if (!node || comments.length === 0) return;
   node.__comments = [...(node.__comments ?? []), ...comments];
+}
+
+// ---------------------------------------------------------------------------
+// Comment routing helpers — called from Dialect.parseMappingElements and
+// parseSingularField to classify and place block-level comments relative to
+// a parsed value's body.
+// ---------------------------------------------------------------------------
+
+/** Extract comments on the same line as an element (inline comments). */
+export function parseInlineComments(element: SyntaxNode): Comment[] {
+  return element.children
+    .filter(c => c.type === 'comment' && c.startRow === element.startRow)
+    .map(c => parseCommentNode(c, 'inline'));
+}
+
+/** Extract all comment children from an element. */
+export function parseElementComments(element: SyntaxNode): Comment[] {
+  return element.children
+    .filter(c => c.type === 'comment')
+    .map(c => parseCommentNode(c));
+}
+
+/**
+ * Split comments into those before and after a value node's range.
+ *
+ * Comments without source range info (programmatic comments) are always
+ * placed in `beforeBody`. The `afterBody` array is guaranteed to contain
+ * only comments with range info, since only comments whose source line
+ * falls after the value node can land there.
+ */
+export function splitContainerComments(
+  comments: Comment[],
+  valueNode: SyntaxNode | null
+): { beforeBody: Comment[]; afterBody: RangedComment[] } {
+  if (!valueNode) {
+    return { beforeBody: comments, afterBody: [] };
+  }
+
+  const beforeBody: Comment[] = [];
+  const afterBody: RangedComment[] = [];
+  for (const c of comments) {
+    const line = c.range?.start.line;
+    if (line === undefined) {
+      // No source location — treat as before-body (programmatic comment).
+      beforeBody.push(c);
+      continue;
+    }
+    if (line < valueNode.startRow) {
+      beforeBody.push(c);
+      continue;
+    }
+    if (line > valueNode.endRow) {
+      const trailing = { ...c, attachment: 'trailing' as const };
+      if (hasRange(trailing)) {
+        afterBody.push(trailing);
+      }
+      continue;
+    }
+    // Comments inside the body range are treated as before-body container comments.
+    beforeBody.push(c);
+  }
+  return { beforeBody, afterBody };
+}
+
+/** Attach comments to the first entry of a TypedMap-like value. */
+export function attachToFirstTypedMapEntry(
+  value: unknown,
+  comments: Comment[]
+): void {
+  if (comments.length === 0) return;
+  if (!isNamedMap(value)) return;
+
+  const iterator = value.entries() as IterableIterator<[string, CommentTarget]>;
+  const first = iterator.next();
+  if (first.done) return;
+
+  attach(first.value[1], comments);
+}
+
+/** Attach comments to the first statement in a procedure-like value. */
+export function attachToFirstProcedureStatement(
+  value: unknown,
+  comments: Comment[]
+): void {
+  if (comments.length === 0) return;
+  if (!hasProcedureStatements(value)) return;
+  attach(value.statements[0], comments);
+}
+
+/** Attach comments as trailing to the last statement in a procedure-like value. */
+export function attachToLastProcedureStatement(
+  value: unknown,
+  comments: Comment[]
+): boolean {
+  if (comments.length === 0) return false;
+  if (!hasProcedureStatements(value)) return false;
+
+  const lastStmt = value.statements[value.statements.length - 1];
+  const tagged = comments.map(c => ({
+    ...c,
+    attachment: 'trailing' as CommentAttachment,
+  }));
+  attach(lastStmt, tagged);
+  return true;
 }

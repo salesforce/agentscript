@@ -219,7 +219,7 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
     }
   }
 
-  const base = addBuilderMethods(TypedMapNode);
+  const base = addBuilderMethods(TypedMapNode, undefined, { factory: true });
   if (options.description) {
     Object.defineProperty(base, '__metadata', {
       value: { description: options.description },

@@ -60,14 +60,24 @@ export const AFConfigBlock = Block('AFConfigBlock', {
 
 // ── LLM ─────────────────────────────────────────────────────────────
 
+const OPENAI_KIND = 'OpenAI';
+const GEMINI_KIND = 'Gemini';
+
 const llmBaseFields: Schema = {
   target: StringValue.describe(
-    'Connection URI (llm://<name>) referencing an LLM connection.'
-  ).required(),
-  kind: StringValue.describe('LLM provider discriminator.').required(),
+    'Connection URI (llm://connection_name) referencing an LLM connection.'
+  )
+    .pattern(/^llm:\/\/([a-zA-Z0-9\-._]+)$/)
+    .example('llm://connection_name')
+    .required(),
+  kind: StringValue.describe('LLM provider discriminator.')
+    .required()
+    .enum([OPENAI_KIND, GEMINI_KIND]),
   model: StringValue.describe('The model name to use.').required(),
-  temperature: NumberValue.describe('Controls randomness in output.'),
-  top_p: NumberValue.describe('Nucleus sampling parameter.'),
+  temperature: NumberValue.describe('Controls randomness in output.')
+    .min(0)
+    .max(2),
+  top_p: NumberValue.describe('Nucleus sampling parameter.').min(0).max(1),
   max_output_tokens: NumberValue.describe(
     'Maximum number of tokens to generate.'
   ),
@@ -101,26 +111,10 @@ const geminiLlmVariantFields: Schema = {
   ),
 };
 
-/** Prescan uses exact string values; these casings match prior case-insensitive llm lint. */
-const OPENAI_LLM_KIND_KEYS = ['openai', 'OpenAI', 'openAI', 'OPENAI'] as const;
-const GEMINI_LLM_KIND_KEYS = ['gemini', 'Gemini', 'GEMINI'] as const;
-
-let LLMEntryBlockFactory = NamedBlock(
-  'LLMEntryBlock',
-  llmBaseFields
-).discriminant('kind');
-for (const k of OPENAI_LLM_KIND_KEYS) {
-  LLMEntryBlockFactory = LLMEntryBlockFactory.variant(
-    k,
-    openaiLlmVariantFields
-  );
-}
-for (const k of GEMINI_LLM_KIND_KEYS) {
-  LLMEntryBlockFactory = LLMEntryBlockFactory.variant(
-    k,
-    geminiLlmVariantFields
-  );
-}
+const LLMEntryBlockFactory = NamedBlock('LLMEntryBlock', llmBaseFields)
+  .discriminant('kind')
+  .variant(OPENAI_KIND, openaiLlmVariantFields)
+  .variant(GEMINI_KIND, geminiLlmVariantFields);
 
 export const LLMEntryBlock = LLMEntryBlockFactory.describe(
   'LLM configuration entry.'
@@ -130,7 +124,7 @@ export const LLMBlock = CollectionBlock(LLMEntryBlock).describe(
   'Named LLM configurations referenced by agentic nodes.'
 );
 
-// ── Action Definitions ──────────────────────────────────────────────
+// ── Actions ─────────────────────────────────────────────────────────
 
 // Intentionally empty marker block: loose bindable parameter keys (typed InputsBlock deferred).
 export const ActionDefInputBlock = NamedBlock(
@@ -147,8 +141,11 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
   .extend(
     {
       target: StringValue.describe(
-        'Connection URI using protocol-specific schemes: a2a://<name> or mcp://<name>.'
-      ).required(),
+        'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name.'
+      )
+        .pattern(/^(?:a2a|mcp):\/\/([a-zA-Z0-9\-._]+)$/)
+        .example('a2a://connection_name')
+        .required(),
       kind: StringValue.describe(
         'Action type discriminator: "a2a:send_message" or "mcp:tool".'
       ).required(),
@@ -174,7 +171,7 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
   .variant('a2a:send_message', {})
   .describe('Action definition (A2A or MCP).');
 
-export const ActionDefinitionsBlock = CollectionBlock(ActionDefBlock).describe(
+export const ActionsBlock = CollectionBlock(ActionDefBlock).describe(
   'Named action definitions available to nodes.'
 );
 
@@ -183,10 +180,15 @@ export const ActionDefinitionsBlock = CollectionBlock(ActionDefBlock).describe(
 export const TriggerBlock = NamedBlock('TriggerBlock', {
   kind: StringValue.describe(
     'Trigger protocol discriminator. Currently only "a2a" is supported.'
-  ).required(),
+  )
+    .enum(['a2a'])
+    .required(),
   target: StringValue.describe(
-    'Broker reference URI (brokers://<broker-name>/<interface>).'
-  ).required(),
+    'Broker reference URI (brokers://broker_name/interface).'
+  )
+    .pattern(/^brokers?:\/\/(?:[a-zA-Z0-9\-._]+)\/(?:[a-zA-Z0-9\-._]+)$/)
+    .example('brokers://broker_name/interface')
+    .required(),
   on_message: ProcedureValue.describe(
     'Procedure executed when a message is received. Must contain a transition to the initial node.'
   ).required(),
@@ -280,7 +282,7 @@ export const OutputStructureBlock = Block('OutputStructureBlock', {
 const DialectReasoningActionBlock = ReasoningActionBlock.extend(
   {},
   { colinear: ExpressionValue.resolvedType('invocationTarget') }
-).describe('Action reference within a node, referencing an action_definition.');
+).describe('Action reference within a node, referencing an action definition.');
 
 export const NodeActionsBlock = CollectionBlock(
   DialectReasoningActionBlock
@@ -296,6 +298,15 @@ export const NodeReasoningSectionBlock = AgentScriptReasoningBlock.pick([
   .extend({
     actions: NodeActionsBlock.describe('Available actions for this node.'),
     outputs: OutputStructureBlock.describe('Schema for structured output.'),
+    max_number_of_loops: NumberValue.describe(
+      'Maximum reasoning loop iterations.'
+    ).min(1),
+    max_consecutive_errors: NumberValue.describe(
+      'Maximum consecutive errors before stopping.'
+    ).min(1),
+    task_timeout_secs: NumberValue.describe(
+      'Timeout in seconds for total node execution.'
+    ),
   })
   .describe('Node reasoning section.');
 
@@ -314,15 +325,6 @@ export const SubagentBlock = AgentScriptSubagentBlock.omit(
       reasoning: NodeReasoningSectionBlock.describe(
         'Node-level reasoning configuration.'
       ).required(),
-      max_number_of_loops: NumberValue.describe(
-        'Maximum reasoning loop iterations.'
-      ),
-      max_consecutive_errors: NumberValue.describe(
-        'Maximum consecutive errors before stopping.'
-      ),
-      task_timeout_secs: NumberValue.describe(
-        'Timeout in seconds for total node execution.'
-      ),
       on_exit: ProcedureValue.describe(
         'Procedure executed when node completes. Must contain a transition to statement.'
       ).required(),
@@ -375,7 +377,7 @@ export const ExecutorBlock = NamedBlock(
     description: StringValue.describe('Description of what this node does.'),
     label: StringValue.describe('Human-readable display name.'),
     do: ProcedureValue.describe(
-      'Deterministic steps: `set @variables.<name> = <expr>` and/or `run @actions.<action_def>` with `with` inputs and optional `set` lines that read `@outputs.<field>` from the action result. For prior graph node results use `@<node_type>.<node_name>.output` (for example `@generate.summary.output`). Use @request.* for trigger payload and @variables.* for declared variables.'
+      'Deterministic steps: `set @variables.<name> = <expr>` and/or `run @actions.<action_name>` with `with` inputs and optional `set` lines that read `@outputs.<field>` from the action result. For prior graph node results use `@<node_type>.<node_name>.output` (for example `@generate.summary.output`). Use @request.* for trigger payload and @variables.* for declared variables.'
     ).required(),
     on_exit: ProcedureValue.describe(
       'Procedure executed when node completes. Optional for terminal execute nodes; when present, should contain a transition to statement.'
@@ -479,7 +481,7 @@ export const AgentFabricSchema = {
   config: AFConfigBlock,
   variables: VariablesBlock,
   llm: LLMBlock,
-  action_definitions: ActionDefinitionsBlock,
+  actions: ActionsBlock,
   trigger: NamedCollectionBlock(TriggerBlock),
   orchestrator: NamedCollectionBlock(OrchestratorBlock),
   subagent: NamedCollectionBlock(SubagentBlock),

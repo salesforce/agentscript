@@ -267,10 +267,17 @@ function mergeTemplateContent(ctx: ParserContext, template: CSTNode): void {
 }
 
 /**
- * Gather tokens on the current line as template content.
- * Recognizes {! ... } as template expression breaks.
- * Everything else (including inter-token whitespace) becomes template_content.
- * Uses source-level offsets so whitespace between tokens is preserved.
+ * Gather a line's worth of template body: zero or more TEMPLATE_CONTENT
+ * tokens interleaved with `{!…}` template expressions.
+ *
+ * The lexer emits template text atomically as TEMPLATE_CONTENT (mirroring
+ * tree-sitter's scanner.c), so this function just consumes those tokens and
+ * forwards to parseTemplateExpression for the embedded code.
+ *
+ * `initialOffset`/`initialPos` carry a synthetic start point — used to
+ * capture whitespace between the preceding structural token (`|`, `}`, or
+ * the previous line's newline) and the first TEMPLATE_CONTENT token so that
+ * the final merged template_content span is byte-exact with tree-sitter.
  */
 function gatherTemplateContentLine(
   ctx: ParserContext,
@@ -278,14 +285,6 @@ function gatherTemplateContentLine(
   initialOffset?: number,
   initialPos?: { row: number; column: number }
 ): void {
-  // Track the source range of content before/after template expressions.
-  // If initialOffset is provided, use it (captures whitespace after |).
-  // Otherwise start from the current token position.
-  let contentStartOffset = initialOffset ?? ctx.peekOffset();
-  let contentStartPos = initialPos ?? ctx.peek().start;
-  let lastConsumedEndOffset = contentStartOffset;
-  let lastConsumedEndPos = contentStartPos;
-
   while (!isAtEnd(ctx)) {
     const tok = ctx.peek();
     if (
@@ -297,56 +296,62 @@ function gatherTemplateContentLine(
       break;
     }
 
-    // Template expression start
     if (tok.kind === TokenKind.TEMPLATE_EXPR_START) {
-      // Flush accumulated content up to the {!
-      const exprOffset = ctx.peekOffset();
-      if (exprOffset > contentStartOffset) {
+      // If a synthetic start is pending (e.g. whitespace between `|` and
+      // `{!` on the same line), emit it as template_content first.
+      if (initialOffset !== undefined && initialOffset < tok.startOffset) {
         parent.appendChild(
           new CSTNode(
             'template_content',
             ctx.source,
-            contentStartOffset,
-            exprOffset,
-            contentStartPos,
+            initialOffset,
+            tok.startOffset,
+            initialPos!,
             tok.start
           )
         );
       }
+      initialOffset = undefined;
+      initialPos = undefined;
 
-      // Parse template expression
       const exprNode = parseTemplateExpression(ctx);
       parent.appendChild(exprNode);
-
-      // Content after } continues from the end of the expression node
-      // (not from the next token — that would skip whitespace between } and next content)
-      contentStartOffset = exprNode.endOffset;
-      contentStartPos = exprNode.endPosition;
-      lastConsumedEndOffset = exprNode.endOffset;
-      lastConsumedEndPos = exprNode.endPosition;
       continue;
     }
 
-    // Track end of this token for accurate content span
-    const tokOffset = ctx.peekOffset();
-    lastConsumedEndOffset = tokOffset + tok.text.length;
-    lastConsumedEndPos = tok.end;
-    ctx.consume();
-  }
+    if (tok.kind === TokenKind.TEMPLATE_CONTENT) {
+      // If a synthetic start predates this token (captures the leading
+      // whitespace / newline-indent before the first char of template
+      // content on this line), extend the node to cover it.
+      const startOffset =
+        initialOffset !== undefined && initialOffset < tok.startOffset
+          ? initialOffset
+          : tok.startOffset;
+      const startPos =
+        initialPos !== undefined &&
+        initialOffset !== undefined &&
+        initialOffset < tok.startOffset
+          ? initialPos
+          : tok.start;
+      parent.appendChild(
+        new CSTNode(
+          'template_content',
+          ctx.source,
+          startOffset,
+          tok.startOffset + tok.text.length,
+          startPos,
+          tok.end
+        )
+      );
+      initialOffset = undefined;
+      initialPos = undefined;
+      ctx.consume();
+      continue;
+    }
 
-  // Flush remaining content — use end of last consumed token (not next token offset,
-  // which would include blank lines between this content and the next line)
-  if (lastConsumedEndOffset > contentStartOffset) {
-    parent.appendChild(
-      new CSTNode(
-        'template_content',
-        ctx.source,
-        contentStartOffset,
-        lastConsumedEndOffset,
-        contentStartPos,
-        lastConsumedEndPos
-      )
-    );
+    // Unexpected token — shouldn't happen given the lexer invariants, but
+    // skip to avoid infinite looping.
+    ctx.consume();
   }
 }
 

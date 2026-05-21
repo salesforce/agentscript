@@ -40,6 +40,42 @@ describe('compileExpression', () => {
       expect(compileExpression(expr, ctx)).toBe('"hello"');
     });
 
+    it('should escape newlines in string literals', () => {
+      const expr = new StringLiteral(
+        'talk about basketball \n talk about football'
+      );
+      expect(compileExpression(expr, ctx)).toBe(
+        '"talk about basketball \\n talk about football"'
+      );
+    });
+
+    it('should escape tabs in string literals', () => {
+      const expr = new StringLiteral('col1\tcol2');
+      expect(compileExpression(expr, ctx)).toBe('"col1\\tcol2"');
+    });
+
+    it('should escape carriage returns in string literals', () => {
+      const expr = new StringLiteral('line1\rline2');
+      expect(compileExpression(expr, ctx)).toBe('"line1\\rline2"');
+    });
+
+    it('should escape backslashes in string literals', () => {
+      const expr = new StringLiteral('path\\to\\file');
+      expect(compileExpression(expr, ctx)).toBe('"path\\\\to\\\\file"');
+    });
+
+    it('should escape double quotes in string literals', () => {
+      const expr = new StringLiteral('say "hello"');
+      expect(compileExpression(expr, ctx)).toBe('"say \\"hello\\""');
+    });
+
+    it('should escape multiple special characters together', () => {
+      const expr = new StringLiteral('line1\nline2\ttab\r\n"quoted"');
+      expect(compileExpression(expr, ctx)).toBe(
+        '"line1\\nline2\\ttab\\r\\n\\"quoted\\""'
+      );
+    });
+
     it('should compile number literals', () => {
       const expr = new NumberLiteral(42);
       expect(compileExpression(expr, ctx)).toBe('42');
@@ -131,6 +167,52 @@ describe('compileExpression', () => {
         'myAction'
       );
       compileExpression(expr, ctx, { allowActionReferences: false });
+      expect(
+        ctx.diagnostics.some(d => d.severity === DiagnosticSeverity.Error)
+      ).toBe(true);
+    });
+  });
+
+  describe('@response_formats references', () => {
+    it('should compile @response_formats.x as response_formats.x when allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_formats'),
+        'myFormat'
+      );
+      expect(
+        compileExpression(expr, ctx, { allowFormatReferences: true })
+      ).toBe('response_formats.myFormat');
+    });
+
+    it('should error for @response_formats.x when not allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_formats'),
+        'myFormat'
+      );
+      compileExpression(expr, ctx, { allowFormatReferences: false });
+      expect(
+        ctx.diagnostics.some(d => d.severity === DiagnosticSeverity.Error)
+      ).toBe(true);
+    });
+  });
+
+  describe('@response_actions references', () => {
+    it('should compile @response_actions.x as response_formats.x when allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_actions'),
+        'myFormat'
+      );
+      expect(
+        compileExpression(expr, ctx, { allowFormatReferences: true })
+      ).toBe('response_formats.myFormat');
+    });
+
+    it('should error for @response_actions.x when not allowed', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('response_actions'),
+        'myFormat'
+      );
+      compileExpression(expr, ctx, { allowFormatReferences: false });
       expect(
         ctx.diagnostics.some(d => d.severity === DiagnosticSeverity.Error)
       ).toBe(true);

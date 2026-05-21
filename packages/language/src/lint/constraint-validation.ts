@@ -19,7 +19,7 @@ import {
   schemaContextKey,
   type LintPass,
   type PassStore,
-} from '../core/analysis/lint.js';
+} from '../core/analysis/lint-engine.js';
 import type { SchemaContext } from '../core/analysis/scope.js';
 import {
   lintDiagnostic,
@@ -31,7 +31,7 @@ import {
   MemberExpression,
 } from '../core/expressions.js';
 import { SequenceNode } from '../core/sequence.js';
-import { walkSchema } from './schema-walker.js';
+import { walkSchema } from '../core/analysis/schema-walker.js';
 
 function getConstraints(fieldType: FieldType): ConstraintMetadata | undefined {
   return fieldType.__metadata?.constraints;

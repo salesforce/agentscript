@@ -576,12 +576,18 @@ function findContainingPath(
 /**
  * Search sibling symbols for a namespace.
  * Checks direct container names and promoted "namespace name" patterns.
+ *
+ * `skip`, when provided, excludes a specific sibling symbol from the
+ * match. Used by the bottom-up resolver to walk past the namespace map
+ * the cursor is currently inside (e.g. a binding RHS skips its enclosing
+ * `reasoning.actions` and resolves against `subagent.actions`).
  */
 function findNamespaceInLevel(
   siblings: DocumentSymbol[],
-  namespace: string
+  namespace: string,
+  skip?: DocumentSymbol
 ): SymbolEntry[] | null {
-  const nsSym = siblings.find(s => s.name === namespace);
+  const nsSym = siblings.find(s => s.name === namespace && s !== skip);
   if (nsSym) {
     return (nsSym.children ?? []).map(c => ({ name: c.name, symbol: c }));
   }
@@ -589,6 +595,7 @@ function findNamespaceInLevel(
   const prefix = namespace + ' ';
   const promoted: SymbolEntry[] = [];
   for (const s of siblings) {
+    if (s === skip) continue;
     if (s.name.startsWith(prefix)) {
       promoted.push({ name: s.name.slice(prefix.length), symbol: s });
     }
@@ -598,8 +605,13 @@ function findNamespaceInLevel(
 
 /**
  * Resolve a namespace bottom-up from a position in the symbol tree.
- * Walks from deepest containing symbol to root, checking siblings at each level.
- * Schema-agnostic -- uses only range containment and symbol names.
+ * Walks from deepest containing symbol to root, checking siblings at each
+ * level. Schema-agnostic -- uses only range containment and symbol names.
+ *
+ * Innermost-wins (shadowing): the first namespace symbol found wins. A
+ * match whose symbol IS the path entry at that level (i.e. the cursor is
+ * inside that very namespace map) is skipped, so binding-RHS contexts
+ * walk past their enclosing map and resolve against the outer definition.
  */
 function resolveNamespaceBottomUp(
   symbols: DocumentSymbol[],
@@ -610,7 +622,11 @@ function resolveNamespaceBottomUp(
   const path = findContainingPath(symbols, line, character);
 
   for (let i = path.length - 1; i >= 0; i--) {
-    const result = findNamespaceInLevel(path[i].siblings, namespace);
+    const result = findNamespaceInLevel(
+      path[i].siblings,
+      namespace,
+      path[i].symbol
+    );
     if (result) return result;
   }
 

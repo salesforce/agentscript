@@ -1,0 +1,561 @@
+unifiedAgentSpec:
+  schema-version: 2.0.0
+  id: it-help-investigation-new
+  label: it-help-investigation-new
+  definitions:
+    - name: help_center_agent-action
+      type: action
+      client: help_center_agent-client
+      label: help_center_agent-action
+      description: "A2A tool: help_center_agent"
+      invocation-target-type: agent
+      invocation-target-name: help_center_agent
+      input-schema:
+        type: object
+        properties:
+          message:
+            type: object
+            properties:
+              role:
+                type: string
+              parts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    kind:
+                      type: string
+                    text:
+                      type: string
+      output-schema:
+        type: object
+        properties:
+          result:
+            type: object
+      behavior:
+        require-user-confirmation: false
+        include-in-progress-indicator: false
+      metadata:
+        protocol: a2a
+        url: helpCenterAgentTestConnectionNew
+        platform: Mulesoft
+    - name: license_procurement_agent-action
+      type: action
+      client: license_procurement_agent-client
+      label: license_procurement_agent-action
+      description: "A2A tool: license_procurement_agent"
+      invocation-target-type: agent
+      invocation-target-name: license_procurement_agent
+      input-schema:
+        type: object
+        properties:
+          message:
+            type: object
+            properties:
+              role:
+                type: string
+              parts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    kind:
+                      type: string
+                    text:
+                      type: string
+      output-schema:
+        type: object
+        properties:
+          result:
+            type: object
+      behavior:
+        require-user-confirmation: false
+        include-in-progress-indicator: false
+      metadata:
+        protocol: a2a
+        url: licenseProcurementAgentTestConnectionNew
+        platform: Mulesoft
+    - name: escalate-action
+      type: action
+      client: escalate-client
+      label: escalate-action
+      description: "MCP tool: escalate"
+      invocation-target-type: mcp
+      invocation-target-name: escalate
+      input-schema:
+        type: object
+        properties: {}
+        additionalProperties: true
+      output-schema:
+        type: object
+        properties:
+          result:
+            type: object
+      behavior:
+        require-user-confirmation: false
+        include-in-progress-indicator: false
+      metadata:
+        protocol: mcp
+        connection: escalationMcpTestConnectionNew
+        tool_name: escalate
+    - name: updateIssue-action
+      type: action
+      client: updateIssue-client
+      label: updateIssue-action
+      description: "MCP tool: updateIssue"
+      invocation-target-type: mcp
+      invocation-target-name: updateIssue
+      input-schema:
+        type: object
+        properties: {}
+        additionalProperties: true
+      output-schema:
+        type: object
+        properties:
+          result:
+            type: object
+      behavior:
+        require-user-confirmation: false
+        include-in-progress-indicator: false
+      metadata:
+        protocol: mcp
+        connection: jiraMcpTestConnectionNew
+        tool_name: updateIssue
+    - name: IdentityAction
+      type: action
+      client: in-built
+      label: State Update Action
+      description: Generic action for updating state variables
+      invocation-target-type: internal
+      invocation-target-name: state-update-action
+      input-schema:
+        type: object
+        properties: {}
+        additionalProperties: true
+      output-schema:
+        type: object
+        properties: {}
+        additionalProperties: true
+  graph:
+    state-variables:
+      - name: outputs
+        label: Node outputs
+        data-type: object
+        description: Map of action/execute node outputs in state namespace (agent
+          outputs are in system.node_outputs)
+        default: {}
+    initial-node: classifySeverity
+    nodes:
+      - name: crossPlatformTriage
+        label: Cross-Platform Triage
+        description: Investigates the ticket using Help Center and License Procurement
+          agents.
+        type: agent
+        llm:
+          ref: gemini_pro
+          configuration:
+            model: gemini-2.5-pro
+          output-structure-ref: os_crossPlatformTriage
+        on-init: null
+        system-prompt: "| {{state.request.payload.message.parts[0].text}}"
+        focus-prompt: >
+          You are a task decomposition expert that analyzes user requests,
+          identifies required sub-tasks, selects appropriate tools, and
+          synthesizes final answers.
+
+
+          1. **Decompose** the query into atomic sub-tasks
+
+          2. **Match** each sub-task to the appropriate tool below
+
+          3. **Execute** tools in optimal sequence
+
+          4. **Synthesize** results into final response
+
+
+          Here is an Example of how to break down a user prompt
+
+          **User Query:** 'Analyze Q2 earnings for Tesla and compare to Ford in
+          EUR'
+
+          **Sub-tasks:**
+
+          1. Get Tesla financials (USD) → Financial Summary Tool
+
+          2. Get Ford financials (USD) → Financial Summary Tool
+
+          3. Convert USD figures to EUR → Currency Converter Tool
+
+          4. Perform comparative analysis → Built-in Analysis Module
+
+
+          The User's instructions section contains directives *YOU MUST* follow
+          when deciding which action to take next.
+
+
+          ### User's instructions
+
+
+
+          Investigate this low-severity IT support ticket.
+
+          Step 1: Search the Help Center agent for relevant articles or known
+          solutions.
+
+          Step 2: If the issue involves software licensing, check with the
+          License Procurement agent.
+
+          Step 3: Update the Jira ticket with your findings and resolution.
+
+          If you found an answer from the Help Center, set resolution to
+          "help_given".
+
+          If you resolved a licensing issue, set resolution to "license_given".
+
+          If you could not find a solution or the issue requires human
+          intervention, set resolution to "unresolved".
+
+          Always update the Jira ticket with resolution notes.
+
+
+
+          ### Instructions for executing steps, selecting tools and generating
+          output
+
+
+          - Execute the list of steps in order. For each step, determine if
+          invoking a tool is necessary
+
+          - When you reach a step that requires a tool, look at the available
+          tools and conversation history to determine the *single best tool* to
+          call next.
+
+
+          ### Constraints
+
+
+          - Use the conversation history to avoid redundant tool calls and to
+          track progress toward the goal.
+        tools:
+          - type: a2a
+            ref: help_center_agent-client
+            enabled: true
+          - type: a2a
+            ref: license_procurement_agent-client
+            enabled: true
+          - type: mcp_tool
+            ref: updateIssue-client
+            enabled: true
+            bound-inputs:
+              ticket_id: system.node_outputs['classifySeverity'].ticket_id
+            llm-inputs:
+              - status
+              - comment
+        after-reasoning:
+          - type: handoff
+            target: resolutionRouter
+      - name: classifySeverity
+        label: Classify Severity
+        description: Classifies the severity of the support ticket.
+        type: agent
+        llm:
+          ref: gemini_pro
+          configuration:
+            model: gemini-2.5-pro
+          output-structure-ref: os_classifySeverity
+        on-init:
+          - ref: IdentityAction
+            state-updates:
+              - request: normalize_headers(variables['request'])
+        system-prompt: "| {{state.request.payload.message.parts[0].text}}"
+        focus-prompt: >-
+          Classify the severity of the incoming IT support ticket and extract
+          the Jira ticket ID.
+
+
+          Classify as HIGH:
+
+          - System outages affecting multiple users (e.g. "VPN is down for the
+          entire office", "Nobody in Building 3 can connect")
+
+          - Security incidents involving unauthorized access or suspicious
+          activity (e.g. "unauthorized login attempts from an IP in another
+          country")
+
+          - Any blocking issue impacting a team, building, or department
+
+
+          Classify as LOW:
+
+          - Password resets or connectivity help (e.g. "I forgot my VPN
+          password")
+
+          - Software license or access requests (e.g. "rate limited on my Figma
+          MCP server", "I need access to Tableau")
+
+          - Single-user issues with a clear description
+
+
+          The ticket_id must always be a string value.
+
+          If no Jira ticket ID is provided in the input, default ticket_id to
+          "JIRA001".
+        tools: null
+        after-reasoning:
+          - type: handoff
+            target: severityRouter
+      - name: helpSummary
+        label: null
+        description: Generates a summary of the help resolution.
+        type: agent
+        llm:
+          ref: gemini_flash
+          configuration:
+            model: gemini-2.5-flash
+        on-init: null
+        system-prompt: "| Generate a resolution summary for the user. Original request:
+          {{state.request.payload.message.parts[0].text}}. Resolution and
+          actions taken: {{system.node_outputs['crossPlatformTriage'].summary}}"
+        focus-prompt: You generate clear, friendly summaries of IT help desk resolutions.
+        tools: null
+        after-reasoning:
+          - type: handoff
+            target: helpResponse
+      - name: licenseSummary
+        label: null
+        description: Generates a summary of the license provisioning.
+        type: agent
+        llm:
+          ref: gemini_flash
+          configuration:
+            model: gemini-2.5-flash
+        on-init: null
+        system-prompt: "| Generate a license provisioning summary for the user. Original
+          request: {{state.request.payload.message.parts[0].text}}. Resolution
+          and actions taken:
+          {{system.node_outputs['crossPlatformTriage'].summary}}"
+        focus-prompt: You generate clear, friendly summaries of license provisioning actions.
+        tools: null
+        after-reasoning:
+          - type: handoff
+            target: licenseResponse
+      - name: escalateTicket
+        type: action
+        label: null
+        tools:
+          - type: action
+            ref: escalate-action
+            bound-inputs:
+              ticket_id: system.node_outputs['classifySeverity'].ticket_id
+              severity: '"high"'
+              reason: system.node_outputs['classifySeverity'].reason
+              description: state.request.payload.message.parts[0].text
+            state-updates:
+              - outputs: add(state.outputs, "escalateTicket", result["result"])
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: escalationResponse
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: escalateUnresolved
+        type: action
+        label: null
+        tools:
+          - type: action
+            ref: escalate-action
+            bound-inputs:
+              ticket_id: system.node_outputs['classifySeverity'].ticket_id
+              severity: '"low"'
+              reason: system.node_outputs['crossPlatformTriage'].summary
+              description: state.request.payload.message.parts[0].text
+            state-updates:
+              - outputs: add(state.outputs, "escalateUnresolved", result["result"])
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: unresolvedResponse
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: severityRouter
+        type: action
+        label: null
+        tools: []
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: escalateTicket
+            enabled: system.node_outputs['classifySeverity'].severity == "high"
+          - type: handoff
+            target: crossPlatformTriage
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: resolutionRouter
+        type: action
+        label: null
+        tools: []
+        on-init: null
+        on-exit:
+          - type: handoff
+            target: licenseSummary
+            enabled: system.node_outputs['crossPlatformTriage'].resolution ==
+              "license_given"
+          - type: handoff
+            target: escalateUnresolved
+            enabled: system.node_outputs['crossPlatformTriage'].resolution == "unresolved"
+          - type: handoff
+            target: helpSummary
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: escalationResponse
+        type: action
+        label: null
+        tools:
+          - ref: IdentityAction
+            state-updates:
+              - __escalationResponse_value: "a2a_task(state=\"completed\",
+                  message=a2a_message(messageId=uuid(),
+                  parts=[a2a_textPart(\"Ticket \" +
+                  system.node_outputs['classifySeverity'].ticket_id + \" has
+                  been escalated to the on-call team due to high severity: \" +
+                  system.node_outputs['classifySeverity'].reason)]),
+                  metadata=None)"
+              - outputs: add(state.outputs, "escalationResponse",
+                  state.__escalationResponse_value)
+        on-init: null
+        on-exit: null
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: helpResponse
+        type: action
+        label: null
+        tools:
+          - ref: IdentityAction
+            state-updates:
+              - __helpResponse_value: a2a_task(state="completed",
+                  message=a2a_message(messageId=uuid(),
+                  parts=[a2a_textPart(generator.helpSummary.output)]),
+                  metadata=None)
+              - outputs: add(state.outputs, "helpResponse", state.__helpResponse_value)
+        on-init: null
+        on-exit: null
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: licenseResponse
+        type: action
+        label: null
+        tools:
+          - ref: IdentityAction
+            state-updates:
+              - __licenseResponse_value: a2a_task(state="completed",
+                  message=a2a_message(messageId=uuid(),
+                  parts=[a2a_textPart(system.node_outputs['licenseSummary'])]),
+                  metadata=None)
+              - outputs: add(state.outputs, "licenseResponse", state.__licenseResponse_value)
+        on-init: null
+        on-exit: null
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: unresolvedResponse
+        type: action
+        label: null
+        tools:
+          - ref: IdentityAction
+            state-updates:
+              - __unresolvedResponse_value: "a2a_task(state=\"completed\",
+                  message=a2a_message(messageId=uuid(),
+                  parts=[a2a_textPart(\"Ticket \" +
+                  system.node_outputs['classifySeverity'].ticket_id + \" could
+                  not be resolved automatically and has been escalated to a
+                  human agent. Summary: \" +
+                  system.node_outputs['crossPlatformTriage'].summary)]),
+                  metadata=None)"
+              - outputs: add(state.outputs, "unresolvedResponse",
+                  state.__unresolvedResponse_value)
+        on-init: null
+        on-exit: null
+        add-tool-result-to-chat-history: false
+        output-template: null
+llmProviders:
+  - name: gemini_pro
+    description: "LLM provider: gemini_pro"
+    metadata:
+      platform: gemini
+      connection: geminiConnection
+  - name: gemini_flash
+    description: "LLM provider: gemini_flash"
+    metadata:
+      platform: gemini
+      connection: geminiConnection
+invokableClients:
+  - name: help_center_agent-client
+    type: a2a
+    label: help_center_agent
+    metadata:
+      connection: helpCenterAgentTestConnectionNew
+  - name: license_procurement_agent-client
+    type: a2a
+    label: license_procurement_agent
+    metadata:
+      connection: licenseProcurementAgentTestConnectionNew
+  - name: escalate-client
+    type: mcp_tool
+    label: escalate
+    metadata:
+      description: "MCP tool: escalate"
+      connection: escalationMcpTestConnectionNew
+      transport: streamable-http
+      tool_name: escalate
+  - name: updateIssue-client
+    type: mcp_tool
+    label: updateIssue
+    metadata:
+      description: "MCP tool: updateIssue"
+      connection: jiraMcpTestConnectionNew
+      transport: streamable-http
+      tool_name: updateIssue
+  - name: in-built
+    type: internal-action
+    label: Internal Actions
+    metadata:
+      description: Built-in actions for state management
+responseNodeNames:
+  - escalationResponse
+  - helpResponse
+  - licenseResponse
+  - unresolvedResponse
+trigger:
+  id: ticketTrigger
+  kind: a2a
+  namespace: brokers
+  target_id: it-help-investigation-new
+  on_message:
+    transition_to: "@generator.classifySeverity"
+outputStructures:
+  os_crossPlatformTriage:
+    resolution:
+      type: string
+      description: The resolution type
+      enum:
+        - help_given
+        - license_given
+        - unresolved
+    summary:
+      type: string
+      description: Summary of the resolution and actions taken
+  os_classifySeverity:
+    ticket_id:
+      type: string
+      description: The Jira ticket ID extracted from the input (e.g. '001' from 'Jira
+        ticket ID 001')
+    severity:
+      type: string
+      description: The severity level
+      enum:
+        - high
+        - low
+    reason:
+      type: string
+      description: Brief explanation of the classification, if the reasoning is
+        generic then by default give the severity as low and ticket_id should be
+        JIRA001

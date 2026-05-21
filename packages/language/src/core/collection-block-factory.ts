@@ -187,7 +187,9 @@ export function CollectionBlock<
     }
   }
 
-  const base = addBuilderMethods(CollectionBlockNode);
+  const base = addBuilderMethods(CollectionBlockNode, undefined, {
+    factory: true,
+  });
   const dp = (key: string, value: unknown) =>
     Object.defineProperty(base, key, {
       value,

@@ -64,6 +64,7 @@ export type {
   Surface,
   OutboundRouteConfig,
   ResponseAction,
+  ResponseFormat,
   StateUpdate,
 } from './types.js';
 

@@ -26,7 +26,7 @@ export function checkConnectionUriRules(root: Record<string, unknown>): void {
     }
   }
 
-  const actionDefs = root.action_definitions;
+  const actionDefs = root.actions;
   if (isNamedMap(actionDefs)) {
     for (const [, entry] of actionDefs) {
       if (entry == null || typeof entry !== 'object') continue;
@@ -43,7 +43,7 @@ export function checkConnectionUriRules(root: Record<string, unknown>): void {
       if (target && expectedScheme && !target.startsWith(expectedScheme)) {
         attachError(
           entry as AstLike,
-          `action_definitions.target must use the '${expectedScheme}' URI scheme for kind '${kind}'.`,
+          `actions.target must use the '${expectedScheme}' URI scheme for kind '${kind}'.`,
           'connection-uri'
         );
       }

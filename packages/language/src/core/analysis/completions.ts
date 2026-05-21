@@ -27,6 +27,8 @@ import {
   findScopeBlock,
   collectNamespaceMaps,
   resolveNamespaceKeys,
+  resolveEntryAtRoot,
+  resolveEntryInScope,
   getNamespaceMetadata,
   activeScopeForNamespace,
   type ScopeContext,
@@ -51,20 +53,72 @@ export interface CompletionCandidate {
 
 /**
  * Find the enclosing scope for a cursor position.
- * Uses the position index for O(1) lookup when available, otherwise walks the AST.
+ *
+ * Resolution order:
+ *   1. Position index (O(1)) if provided, else CST walk of the AST.
+ *   2. If that yields an empty scope and `source` is provided, fall back
+ *      to an indentation-based scan of the source text.
+ *
+ * The indentation fallback exists because CST ranges on error-recovered
+ * blocks (e.g. a partially-typed `with` line) may not contain the cursor,
+ * so the CST walk returns `{}`. Scanning indentation gives a best-effort
+ * reconstruction of the parent chain from what the user has typed.
  */
 export function findEnclosingScope(
   ast: AstRoot,
   line: number,
   character: number,
-  index?: PositionIndex
+  index?: PositionIndex,
+  source?: string,
+  ctx?: SchemaContext
 ): ScopeContext {
-  if (index) {
-    return queryScopeAtPosition(index, line, character);
+  const scope = index
+    ? queryScopeAtPosition(index, line, character)
+    : (() => {
+        const s: Record<string, string> = {};
+        walkScopeBlocks(ast, line, character, s, new Set());
+        return s;
+      })();
+
+  if (Object.keys(scope).length > 0) return scope;
+
+  if (source && ctx) {
+    return scopeFromIndentation(source.split('\n'), line, ctx);
   }
 
+  return scope;
+}
+
+/**
+ * Reconstruct a ScopeContext from indentation by walking the parent chain
+ * and recording `scopeAlias` → entry name for each `key name:` line.
+ */
+function scopeFromIndentation(
+  lines: string[],
+  cursorLine: number,
+  ctx: SchemaContext
+): ScopeContext {
   const scope: Record<string, string> = {};
-  walkScopeBlocks(ast, line, character, scope, new Set());
+  const rootSchema = ctx.info.schema;
+
+  for (const { trimmed } of walkParentsByIndent(lines, cursorLine)) {
+    const m = trimmed.match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
+    if (!m) continue;
+
+    const key = m[1];
+    const entryName = m[2];
+    if (!entryName) continue;
+
+    for (const schemaKey of resolveNamespaceKeys(key, ctx)) {
+      const rawFt = rootSchema[schemaKey];
+      if (!rawFt) continue;
+      const ft = Array.isArray(rawFt) ? rawFt[0] : rawFt;
+      if (ft.scopeAlias) {
+        scope[ft.scopeAlias] = entryName;
+      }
+    }
+  }
+
   return scope;
 }
 
@@ -187,11 +241,19 @@ export function getCompletionCandidates(
   }
 
   if (symbols) {
+    // When a cursor position is available, use position-based bottom-up
+    // resolution so the innermost-enclosing namespace map wins (shadowing).
+    // Without a position, fall back to scope-chain top-down resolution.
+    const position =
+      line !== undefined && character !== undefined
+        ? { line, character }
+        : undefined;
     const entries = getSymbolNamespaceEntries(
       symbols,
       namespace,
       ctx,
-      effectiveScope
+      effectiveScope,
+      position
     );
     if (entries) {
       return entries.map(({ name, symbol }) => ({
@@ -534,7 +596,7 @@ function inferBlockFromIndentation(
 ): { block: AstNodeLike; schema: Schema } | null {
   const lines = source.split('\n');
   const currentLine = lines[line] ?? '';
-  const cursorIndent = currentLine.length - currentLine.trimStart().length;
+  const cursorIndent = getIndent(currentLine);
 
   if (cursorIndent === 0) return null; // top-level, let normal path handle it
 
@@ -547,17 +609,10 @@ function inferBlockFromIndentation(
     line: number;
     hasEntryName: boolean;
   }> = [];
-  let targetIndent = cursorIndent;
-  for (let l = line - 1; l >= 0; l--) {
-    const ln = lines[l];
-    if (!ln || !ln.trim()) continue;
-    const indent = ln.length - ln.trimStart().length;
-    if (indent >= targetIndent) continue;
-    const m = ln.trimStart().match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
+  for (const { line: l, indent, trimmed } of walkParentsByIndent(lines, line)) {
+    const m = trimmed.match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
     if (!m) continue;
     parents.unshift({ key: m[1], indent, line: l, hasEntryName: !!m[2] });
-    targetIndent = indent;
-    if (indent === 0) break;
   }
 
   if (parents.length === 0) return null;
@@ -633,7 +688,7 @@ function inferBlockFromIndentation(
   for (let l = lastParent.line + 1; l < lines.length; l++) {
     const ln = lines[l];
     if (!ln || !ln.trim()) continue;
-    const indent = ln.length - ln.trimStart().length;
+    const indent = getIndent(ln);
     // Stop at block boundary (line at or before parent indent)
     if (indent <= lastParent.indent) break;
     if (indent !== cursorIndent) continue;
@@ -806,7 +861,7 @@ export function getValueCompletions(
 ): CompletionCandidate[] {
   const lines = source.split('\n');
   const currentLine = lines[line] ?? '';
-  const cursorIndent = currentLine.length - currentLine.trimStart().length;
+  const cursorIndent = getIndent(currentLine);
 
   if (cursorIndent === 0) return [];
 
@@ -818,17 +873,10 @@ export function getValueCompletions(
     indent: number;
     hasEntryName: boolean;
   }> = [];
-  let targetIndent = cursorIndent;
-  for (let l = line - 1; l >= 0; l--) {
-    const ln = lines[l];
-    if (!ln || !ln.trim()) continue;
-    const indent = ln.length - ln.trimStart().length;
-    if (indent >= targetIndent) continue;
-    const m = ln.trimStart().match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
+  for (const { trimmed, indent } of walkParentsByIndent(lines, line)) {
+    const m = trimmed.match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
     if (!m) continue;
     parents.unshift({ key: m[1], indent, hasEntryName: !!m[2] });
-    targetIndent = indent;
-    if (indent === 0) break;
   }
 
   if (parents.length === 0) return [];
@@ -898,4 +946,206 @@ function extractCandidateDocumentation(obj: AstNodeLike): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Get completion candidates for `with` clause parameter names.
+ *
+ * When the user types `with ` (or `with par`) inside a reasoning action
+ * binding or a `run` statement, returns the input parameter names declared
+ * on the referenced action definition, excluding parameters already bound
+ * by sibling `with` lines.
+ *
+ * Supported contexts:
+ * - Reasoning action binding: `binding_name: @ns.action` with `with` indented underneath.
+ * - Run statement: `run @ns.action` with `with` indented underneath.
+ *
+ * Returns an empty array if the cursor is not on a `with` line or no action
+ * definition with inputs can be resolved.
+ */
+export function getWithCompletions(
+  ast: AstRoot,
+  line: number,
+  _character: number,
+  ctx: SchemaContext,
+  source: string
+): CompletionCandidate[] {
+  const lines = source.split('\n');
+  const currentLine = lines[line] ?? '';
+
+  // Guard: only activate when the cursor is on a line that starts with
+  // `with` followed by an optional partial parameter name.
+  // Examples that match: "        with ", "        with ord"
+  // Examples that don't: "        with order_number = value", "set x = 1"
+  const withMatch = currentLine.match(/^\s+with\s+(\w*)$/);
+  if (!withMatch) return [];
+
+  // Step 1: Walk up source lines by indentation to find the enclosing
+  // action reference — either `run @actions.X` or `binding: @actions.X`.
+  // Returns { namespace: "actions", property: "X" } or null.
+  const ref = findEnclosingActionRef(lines, line);
+  if (!ref) return [];
+
+  // Step 2: Resolve the enclosing ScopeContext. CST ranges on
+  // error-recovered `with` lines often don't contain the cursor, so
+  // `findEnclosingScope` falls back to an indentation-based reconstruction
+  // when the CST-based result is empty.
+  const scope = findEnclosingScope(
+    ast,
+    line,
+    _character,
+    undefined,
+    source,
+    ctx
+  );
+
+  // Step 3: Resolve the action definition AST node carrying `inputs`.
+  //
+  // Try root-level first, then scoped. A binding entry can share its name
+  // with the root-level definition it references (e.g.,
+  // `foo: @actions.foo`); scoped-first would return the binding (no
+  // `inputs`) instead of the definition (with `inputs`).
+  const actionBlock =
+    resolveEntryAtRoot(ast, ref.namespace, ref.property, ctx) ??
+    resolveEntryInScope(ast, ref.namespace, ref.property, ctx, scope);
+  if (!actionBlock) return [];
+
+  // Step 4: Read the `inputs` field from the resolved action definition.
+  // In the AST, `inputs` is a NamedMap where each key is a parameter name
+  // and each value is a declaration node (e.g., `order_number: string`).
+  const candidates: CompletionCandidate[] = [];
+  const inputs = actionBlock.inputs;
+  if (isNamedMap(inputs)) {
+    // Collect parameter names already bound by sibling `with` lines so
+    // we can exclude them from the suggestions. For example, if the user
+    // already wrote `with order_number = ...` on a preceding line, we
+    // should not suggest `order_number` again.
+    const boundParams = collectBoundWithParams(lines, line);
+
+    for (const [name, entry] of inputs) {
+      // Skip parameters that are already bound
+      if (boundParams.has(name)) continue;
+      if (!isAstNodeLike(entry)) continue;
+      // Extract the `description` field from the parameter declaration
+      // node, if present, to show as documentation in the completion popup.
+      const documentation = extractCandidateDocumentation(entry);
+      candidates.push({
+        name,
+        kind: SymbolKind.Property,
+        documentation,
+      });
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Walk up from `cursorLine` to find the enclosing `@namespace.name` action
+ * reference. Returns the namespace and property from the first matching
+ * parent line (`run @ns.name` or `binding: @ns.name`), or `null` if none
+ * is found before the search bails at a non-matching lower-indent line.
+ *
+ * Source-text walking is used because `with` lines in error-recovered
+ * ASTs often fall outside the CST range of the enclosing block.
+ */
+function findEnclosingActionRef(
+  lines: string[],
+  cursorLine: number
+): { namespace: string; property: string } | null {
+  // Only the first strictly-less-indented parent matters. If it isn't an
+  // action reference, the `with` clause isn't under one — stop searching.
+  for (const { trimmed } of walkParentsByIndent(lines, cursorLine)) {
+    const runMatch = trimmed.match(/^run\s+@(\w+)\.([\w-]+)/);
+    if (runMatch) return { namespace: runMatch[1], property: runMatch[2] };
+
+    const entryMatch = trimmed.match(/^[\w-]+:\s+@(\w+)\.([\w-]+)/);
+    if (entryMatch) {
+      return { namespace: entryMatch[1], property: entryMatch[2] };
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Collect the set of `with` parameter names already bound at the same
+ * indentation level as `cursorLine`, scanning both directions until the
+ * parent (lower-indent) line is reached.
+ */
+function collectBoundWithParams(
+  lines: string[],
+  cursorLine: number
+): Set<string> {
+  const bound = new Set<string>();
+  const cursorIndent = getIndent(lines[cursorLine]);
+
+  // ── Scan upward from the cursor ────────────────────────────────────
+  // Walk backward through preceding lines. Stop when we hit a line with
+  // lower indentation (that's the parent action reference line).
+  // Only collect lines at exactly the cursor's indentation level.
+  for (let l = cursorLine - 1; l >= 0; l--) {
+    const ln = lines[l];
+    if (!ln || !ln.trim()) continue;
+    const lineIndent = getIndent(ln);
+    // Lower indentation = parent scope boundary, stop scanning
+    if (lineIndent < cursorIndent) break;
+    // Skip lines at deeper indentation (children of other clauses)
+    if (lineIndent !== cursorIndent) continue;
+    // Extract the parameter name from `with param_name = ...`
+    const withParamMatch = ln.trim().match(/^with\s+([\w-]+)/);
+    if (withParamMatch) {
+      bound.add(withParamMatch[1]);
+    }
+  }
+
+  // ── Scan downward from the cursor ──────────────────────────────────
+  // Same logic in the forward direction — collect sibling `with` lines
+  // that appear after the cursor line.
+  for (let l = cursorLine + 1; l < lines.length; l++) {
+    const ln = lines[l];
+    if (!ln || !ln.trim()) continue;
+    const lineIndent = getIndent(ln);
+    if (lineIndent < cursorIndent) break;
+    if (lineIndent !== cursorIndent) continue;
+    const withParamMatch = ln.trim().match(/^with\s+([\w-]+)/);
+    if (withParamMatch) {
+      bound.add(withParamMatch[1]);
+    }
+  }
+
+  return bound;
+}
+
+/**
+ * Get the indentation level (number of leading spaces) of a source line.
+ */
+function getIndent(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
+/**
+ * Yield non-blank lines above `cursorLine` at strictly decreasing
+ * indentation — the structural parent chain in an indentation-based
+ * grammar. Stops once a line at indent 0 is yielded.
+ *
+ * Each caller applies its own regex to `trimmed` to extract the fields
+ * it needs (`key:`, `run @ns.name`, etc.).
+ */
+function* walkParentsByIndent(
+  lines: string[],
+  cursorLine: number
+): Generator<{ line: number; indent: number; trimmed: string }> {
+  let targetIndent = getIndent(lines[cursorLine] ?? '');
+  for (let l = cursorLine - 1; l >= 0; l--) {
+    const ln = lines[l];
+    if (!ln || !ln.trim()) continue;
+    const indent = getIndent(ln);
+    if (indent >= targetIndent) continue;
+    yield { line: l, indent, trimmed: ln.trimStart() };
+    targetIndent = indent;
+    if (indent === 0) break;
+  }
 }

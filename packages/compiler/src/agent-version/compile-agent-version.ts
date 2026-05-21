@@ -33,6 +33,11 @@ import {
 import { compileModalityParameters } from '../modality/compile-modality.js';
 import { compileNode } from '../nodes/compile-node.js';
 import { compileConnectedAgentNode } from '../nodes/compile-connected-agent-node.js';
+import {
+  compileCustomSubagentNode,
+  COMMERCE_SHOPPER_BYO_CLIENT,
+} from '../nodes/compile-custom-subagent-node.js';
+import { COMMERCE_SHOPPER_SCHEMA } from '@agentscript/agentforce-dialect';
 import { compileSurfaces } from '../surfaces/compile-surfaces.js';
 import { extractCompanyAndRole } from '../config/agent-configuration.js';
 import { extractGlobalModelConfiguration } from '../config/model-config.js';
@@ -93,15 +98,28 @@ export function compileAgentVersion(
   // Compile all nodes
   const nodes: AgentNode[] = [];
   for (const { name, block } of blocks) {
-    const node = compileNode(
-      name,
-      block,
-      parsed.system,
-      topicDescriptions,
-      globalModelConfig,
-      ctx
-    );
-    nodes.push(node);
+    const schemaValue = extractStringValue(block.schema);
+    if (schemaValue === COMMERCE_SHOPPER_SCHEMA) {
+      nodes.push(
+        compileCustomSubagentNode(
+          name,
+          block,
+          COMMERCE_SHOPPER_BYO_CLIENT,
+          topicDescriptions,
+          ctx
+        )
+      );
+    } else {
+      const node = compileNode(
+        name,
+        block,
+        parsed.system,
+        topicDescriptions,
+        globalModelConfig,
+        ctx
+      );
+      nodes.push(node);
+    }
   }
 
   // Compile connected agent nodes

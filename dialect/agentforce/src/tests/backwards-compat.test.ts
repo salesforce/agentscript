@@ -107,17 +107,18 @@ subagent main:
     const subagents = ast.subagent!;
     expect(subagents.has('main')).toBe(true);
 
-    const main = subagents.get('main')!;
+    const main = subagents.get('main')! as Record<string, unknown>;
     expect(main.actions).toBeDefined();
     expect(main.reasoning).toBeDefined();
 
-    const actionDefs = main.actions!;
+    const actionDefs = main.actions as Map<string, unknown>;
     expect(actionDefs.has('fetch_data')).toBe(true);
 
-    const reasoning = main.reasoning!;
+    const reasoning = main.reasoning as Record<string, unknown>;
     expect(reasoning.actions).toBeDefined();
-    const raActions = reasoning.actions!;
-    expect(raActions.has('do_fetch')).toBe(true);
+    expect((reasoning.actions as Map<string, unknown>).has('do_fetch')).toBe(
+      true
+    );
   });
 
   it('topic and subagent co-exist with their own field names', () => {
@@ -161,10 +162,14 @@ subagent returns:
     // 'returns' stored under 'subagent' key with actions
     expect(ast.subagent).toBeDefined();
     expect(ast.subagent!.has('returns')).toBe(true);
-    const returns = ast.subagent!.get('returns')!;
+    const returns = ast.subagent!.get('returns')! as Record<string, unknown>;
     expect(returns.actions).toBeDefined();
-    expect(returns.actions!.has('process_return')).toBe(true);
-    expect(returns.reasoning!.actions).toBeDefined();
+    expect(
+      (returns.actions as Map<string, unknown>).has('process_return')
+    ).toBe(true);
+    expect(
+      (returns.reasoning as Record<string, unknown>).actions
+    ).toBeDefined();
   });
 
   it('parses start_agent with old names', () => {
@@ -417,8 +422,7 @@ subagent returns:
     expect(syntaxErrors).toHaveLength(0);
   });
 
-  // TODO: restore once topic deprecated() is re-enabled in schema.ts
-  it.skip('emits deprecated diagnostics for old-style names', () => {
+  it('emits deprecated diagnostics for old-style names', () => {
     const { diagnostics } = parseWithDiagnostics(`
 topic main:
   description: "Main"

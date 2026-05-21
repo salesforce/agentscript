@@ -252,18 +252,34 @@ export class FieldBuilder<V = any, F = V> {
  * Uses a single `populateMethods` function as the source of truth for all
  * method definitions — both static entry points and chained instance methods.
  */
+/**
+ * Options for {@link addBuilderMethods}. When `factory: true`, the pure
+ * metadata builders (`describe`, `example`, `required`, …) and the
+ * structural methods (`extend`, `omit`, `pick`, …) are skipped because the
+ * caller will install factory-specific versions via
+ * {@link import('./factory-utils.js').overrideFactoryBuilderMethods}. The
+ * constraint methods (`min`, `enum`, etc.) and factory-neutral builders
+ * (`hidden`, `omitArrow`, `disallowTemplates`, `accepts`,
+ * `allowedNamespaces`, `resolvedType`) are always installed.
+ */
+export interface AddBuilderOptions {
+  factory?: boolean;
+}
+
 export function addBuilderMethods<
   T extends FieldType,
   const S extends readonly ConstraintCategory[] = readonly [],
 >(
   fieldType: T,
-  constraints?: S
+  constraints?: S,
+  opts?: AddBuilderOptions
 ): T &
   BuilderMethods<S, InferFieldValue<T>, InferFieldValue<T>> &
   ResolveConstraints<S, InferFieldValue<T>, InferFieldValue<T>> {
   type V = InferFieldValue<T>;
   type F = V;
   const cats: readonly ConstraintCategory[] = constraints ?? [];
+  const skipFactoryOverridden = opts?.factory === true;
 
   /**
    * Assign all builder + constraint methods to `target`. Called once for the
@@ -287,17 +303,23 @@ export function addBuilderMethods<
         base
       );
 
-    // --- Base builder methods (always present) ---
-    target.describe = (desc: string) => withMeta({ description: desc });
-    target.example = (ex: string) => withMeta({ example: ex });
-    target.minVersion = (v: string) => withMeta({ minVersion: v });
-    target.deprecated = (
-      msg?: string,
-      opts?: { since?: string; removeIn?: string; replacement?: string }
-    ) => withMeta({ deprecated: { message: msg, ...opts } });
-    target.experimental = () => withMeta({ experimental: true });
+    // --- Base builder methods ---
+    // Pure-metadata setters (describe/example/required/minVersion/deprecated/
+    // experimental) are skipped when the caller is a factory that will
+    // reinstall them via overrideFactoryBuilderMethods. `hidden` has no
+    // factory override and is always installed.
+    if (!skipFactoryOverridden) {
+      target.describe = (desc: string) => withMeta({ description: desc });
+      target.example = (ex: string) => withMeta({ example: ex });
+      target.minVersion = (v: string) => withMeta({ minVersion: v });
+      target.deprecated = (
+        msg?: string,
+        opts?: { since?: string; removeIn?: string; replacement?: string }
+      ) => withMeta({ deprecated: { message: msg, ...opts } });
+      target.experimental = () => withMeta({ experimental: true });
+      target.required = () => withMeta({ required: true });
+    }
     target.hidden = () => withMeta({ hidden: true });
-    target.required = () => withMeta({ required: true });
     target.omitArrow = () => {
       // Object.create preserves non-enumerable static methods (parse, emit)
       // via prototype chain. Spread ({...base}) would lose them.
@@ -396,45 +418,47 @@ export function addBuilderMethods<
       withConstraint({ allowedNamespaces: namespaces });
     target.resolvedType = (type: BlockCapability) =>
       withConstraint({ resolvedType: type });
-    target.crossBlockReferenceable = () =>
-      withMeta({ crossBlockReferenceable: true });
-    target.pick = (keys: string[]) => {
-      if ('pick' in base && typeof base.pick === 'function') {
-        return enhance(meta, base.pick(keys));
-      }
-      throw new Error('Base type does not support pick()');
-    };
+    if (!skipFactoryOverridden) {
+      target.crossBlockReferenceable = () =>
+        withMeta({ crossBlockReferenceable: true });
+      target.pick = (keys: string[]) => {
+        if ('pick' in base && typeof base.pick === 'function') {
+          return enhance(meta, base.pick(keys));
+        }
+        throw new Error('Base type does not support pick()');
+      };
 
-    // --- Structural method propagation ---
-    // Always add extend/omit/withProperties/extendProperties. When the base
-    // type supports them, the calls are delegated and wrapped with enhance()
-    // to preserve metadata + constraints. Otherwise they throw.
-    // Use direct property access (not Object.entries) so that non-enumerable
-    // static methods on class-based factories (e.g. TypedMapNode) are found.
-    const baseAny = base as unknown as Record<string, unknown>;
-    for (const method of [
-      'extend',
-      'omit',
-      'withProperties',
-      'extendProperties',
-      'withKeyPattern',
-    ] as const) {
-      const orig = baseAny[method];
-      if (typeof orig === 'function') {
-        target[method] = (...args: unknown[]) => {
-          // SAFETY: structural methods (extend, omit, etc.) return FieldType at runtime
-          const applied = orig.apply(base, args) as FieldType;
-          return enhance(meta, applied);
-        };
-      } else {
-        target[method] = () => {
-          throw new Error(`Base type does not support ${method}()`);
-        };
+      // --- Structural method propagation ---
+      // Always add extend/omit/withProperties/extendProperties. When the base
+      // type supports them, the calls are delegated and wrapped with enhance()
+      // to preserve metadata + constraints. Otherwise they throw.
+      // Use direct property access (not Object.entries) so that non-enumerable
+      // static methods on class-based factories (e.g. TypedMapNode) are found.
+      const baseAny = base as unknown as Record<string, unknown>;
+      for (const method of [
+        'extend',
+        'omit',
+        'withProperties',
+        'extendProperties',
+        'withKeyPattern',
+      ] as const) {
+        const orig = baseAny[method];
+        if (typeof orig === 'function') {
+          target[method] = (...args: unknown[]) => {
+            // SAFETY: structural methods (extend, omit, etc.) return FieldType at runtime
+            const applied = orig.apply(base, args) as FieldType;
+            return enhance(meta, applied);
+          };
+        } else {
+          target[method] = () => {
+            throw new Error(`Base type does not support ${method}()`);
+          };
+        }
       }
+
+      // clone — for FieldBuilder, just re-enhance with a copy of metadata
+      target.clone = () => enhance({ ...meta }, base);
     }
-
-    // clone — for FieldBuilder, just re-enhance with a copy of metadata
-    target.clone = () => enhance({ ...meta }, base);
 
     // --- Constraint methods (conditional on categories, with validation) ---
     if (cats.includes('number')) {

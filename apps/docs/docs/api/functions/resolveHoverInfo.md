@@ -34,4 +34,4 @@ Hover info with metadata and range, or null
 
 ## Defined in
 
-[monaco/src/schema-resolver.ts:63](https://github.com/salesforce/agentscript/blob/fbe864ab5fc4785e497a92e2c3f6f4575ef8510c/packages/monaco/src/schema-resolver.ts#L63)
+[monaco/src/schema-resolver.ts:63](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/schema-resolver.ts#L63)

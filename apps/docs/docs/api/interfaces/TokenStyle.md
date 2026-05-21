@@ -6,12 +6,8 @@
 
 AgentScript theme color definitions — SINGLE SOURCE OF TRUTH.
 
-All syntax highlighting colors for both Monaco and VS Code are defined here.
-Monaco imports these directly. VS Code's package.json is synced via:
-
-  pnpm sync-theme
-
-Run that command after changing any colors here.
+All syntax highlighting colors for Monaco are defined here.
+Monaco imports these directly.
 
 ## Properties
 
@@ -21,7 +17,7 @@ Run that command after changing any colors here.
 
 #### Defined in
 
-[monaco/src/theme.ts:21](https://github.com/salesforce/agentscript/blob/fbe864ab5fc4785e497a92e2c3f6f4575ef8510c/packages/monaco/src/theme.ts#L21)
+[monaco/src/theme.ts:17](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L17)
 
 ***
 
@@ -31,7 +27,7 @@ Run that command after changing any colors here.
 
 #### Defined in
 
-[monaco/src/theme.ts:20](https://github.com/salesforce/agentscript/blob/fbe864ab5fc4785e497a92e2c3f6f4575ef8510c/packages/monaco/src/theme.ts#L20)
+[monaco/src/theme.ts:16](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L16)
 
 ***
 
@@ -41,4 +37,4 @@ Run that command after changing any colors here.
 
 #### Defined in
 
-[monaco/src/theme.ts:22](https://github.com/salesforce/agentscript/blob/fbe864ab5fc4785e497a92e2c3f6f4575ef8510c/packages/monaco/src/theme.ts#L22)
+[monaco/src/theme.ts:18](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L18)

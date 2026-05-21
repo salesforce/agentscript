@@ -13,9 +13,9 @@ import {
   schemaContextKey,
   type LintPass,
   type PassStore,
-} from '../core/analysis/lint.js';
+} from '../core/analysis/lint-engine.js';
 import { lintDiagnostic } from './lint-utils.js';
-import { walkSchema } from './schema-walker.js';
+import { walkSchema } from '../core/analysis/schema-walker.js';
 
 function isRequired(fieldType: FieldType): boolean {
   return fieldType.__metadata?.required === true;
