@@ -236,6 +236,10 @@ export interface FactoryBuilderMethods<Self> {
   experimental(): Self;
   required(): Self;
   crossBlockReferenceable(): Self;
+  transitionContainer(): Self;
+  predicateField(): Self;
+  outputNameField(): Self;
+  displayLabelField(): Self;
   singular(): Self;
   accepts(kinds: string[]): Self;
   omitArrow(): Self;
