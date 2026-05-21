@@ -287,7 +287,7 @@ The subagent node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
 | `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section) | No |
 | `system.instructions` | Overrides the global `system.instructions` at the file root level | String | No |
 | `reasoning.instructions` | Session-specific query or instructions for this particular node, typically containing user provided or user related context | String | Yes |
@@ -346,7 +346,7 @@ The orchestrator node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
 | `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section) | No |
 | `system.instructions` | Overrides the global `system.instructions` at the file root level | String | No |
 | `reasoning.instructions` | Session-specific query or instructions for this particular node, typically containing user provided or user related context | String | Yes |
@@ -376,7 +376,7 @@ The generator node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
 | `llm` | A reference to the LLM connection. | @llm reference See [LLM Section](#llm-section) | No |
 | `system.instructions` | Overrides the global `system.instructions` at the file root level for this generator node. | String | No |
 | `prompt` | Session-specific query or instructions for this particular node, typically containing user provided or user related context. | String | Yes |
@@ -405,7 +405,7 @@ The executor node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | Yes |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
 | `do` | Agent Script statements to execute | procedure | Yes |
 
 ### Router Node
@@ -434,6 +434,7 @@ The router node has these properties.
 | `id` | The node identifier, defined next to the node type. | String | Yes |
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
+| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
 | `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: `target`, `when`, and optional `label`. | Array | Yes |
 | `otherwise` | Defines a default transition when no route condition matches. Contains: `target`. | Object | Yes with `routes` |
 
