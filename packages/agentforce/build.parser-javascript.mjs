@@ -19,7 +19,7 @@ console.log('📦 Building (parser-javascript)...\n');
 
 // ── esbuild plugin: stub tree-sitter-only imports ───────────────────────
 
-/** Replaces web-tree-sitter and wasm-constants-generated with empty modules. */
+/** Replaces web-tree-sitter and wasm-loader with empty modules. */
 const stubTreeSitterPlugin = {
   name: 'stub-tree-sitter',
   setup(b) {
@@ -31,11 +31,22 @@ const stubTreeSitterPlugin = {
       path: 'wasm-constants-generated',
       namespace: 'stub',
     }));
+    b.onResolve({ filter: /wasm-loader/ }, () => ({
+      path: 'wasm-loader',
+      namespace: 'stub',
+    }));
     b.onLoad({ filter: /.*/, namespace: 'stub' }, args => {
       if (args.path === 'wasm-constants-generated') {
         return {
           contents:
             'export const TREE_SITTER_ENGINE_BASE64 = [];\nexport const TREE_SITTER_AGENTSCRIPT_BASE64 = [];',
+          loader: 'js',
+        };
+      }
+      if (args.path === 'wasm-loader') {
+        return {
+          contents:
+            'export async function loadWasmModule() { return undefined; }',
           loader: 'js',
         };
       }
@@ -48,7 +59,7 @@ const stubTreeSitterPlugin = {
 // ── Bundles ─────────────────────────────────────────────────────────────
 
 // 1. Node.js ESM bundle
-await buildNodeBundle();
+await buildNodeBundle({ plugins: [stubTreeSitterPlugin] });
 
 // 2. Browser ESM bundle
 console.log('Building browser ESM bundle (parser-javascript)...');

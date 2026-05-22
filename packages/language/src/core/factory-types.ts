@@ -17,6 +17,7 @@ import type {
   BlockCapability,
   InferFields,
   KeywordInfo,
+  MaybeDiscriminant,
 } from './types.js';
 import type { Dialect } from './dialect.js';
 import type { Diagnostic } from './diagnostics.js';
@@ -246,9 +247,8 @@ export interface FactoryBuilderMethods<Self> {
  * as a schema field. This enables InferFields to read the phantom directly
  * instead of recursing (Zod-style eager resolution).
  */
-export interface BlockFactory<T extends Schema> extends FactoryBuilderMethods<
-  BlockFactory<T>
-> {
+export interface BlockFactory<T extends Schema>
+  extends FactoryBuilderMethods<BlockFactory<T>>, MaybeDiscriminant {
   // FieldType members (inlined to avoid union-type extension)
   readonly __fieldKind: 'Block';
   /** Phantom: pre-computed field output type for InferFields. */
@@ -284,10 +284,6 @@ export interface BlockFactory<T extends Schema> extends FactoryBuilderMethods<
   ): BlockFactory<Omit<T, keyof U> & U>;
   omit<K extends string>(...keys: K[]): BlockFactory<Omit<T, K>>;
   pick<K extends string & keyof T>(keys: K[]): BlockFactory<Pick<T, K>>;
-  /** The discriminant field name, if using field-based discrimination. */
-  readonly discriminantField?: string;
-  /** Resolve variant schema by discriminant field value. */
-  resolveSchemaForDiscriminant?(value: string): Record<string, FieldType>;
   /** Set the discriminant field for field-based variant resolution. */
   discriminant(fieldName: string): BlockFactory<T>;
   /** Add a variant schema keyed by discriminant value. */
@@ -304,7 +300,8 @@ export interface BlockFactory<T extends Schema> extends FactoryBuilderMethods<
 export interface NamedBlockFactory<
   T extends Schema,
   V extends Record<string, Schema> = Record<never, never>,
-> extends FactoryBuilderMethods<NamedBlockFactory<T, V>> {
+>
+  extends FactoryBuilderMethods<NamedBlockFactory<T, V>>, MaybeDiscriminant {
   /** Phantom: variant schemas keyed by variant name. Empty `{}` when no variants. */
   readonly __variants: V;
   __metadata?: FieldMetadata;
@@ -328,10 +325,6 @@ export interface NamedBlockFactory<
   readonly hasBody: boolean;
   new (name: string, fields: InferFields<T>): NamedBlockInstance<T>;
   resolveSchemaForName(name: string): Record<string, FieldType>;
-  /** The discriminant field name, if using field-based discrimination. */
-  readonly discriminantField?: string;
-  /** Resolve variant schema by discriminant field value. */
-  resolveSchemaForDiscriminant?(value: string): Record<string, FieldType>;
   // Structural methods — generics preserve schema types through chains
   extend<U extends Schema>(
     additionalFields: U,

@@ -12,6 +12,7 @@
  * type in a single call and are resilient to string literal typos.
  */
 
+import { isAstNodeLike } from './types.js';
 import {
   TemplateText,
   TemplateInterpolation,
@@ -22,13 +23,8 @@ import {
   AtIdentifier,
 } from './expressions.js';
 
-import {
-  IfStatement,
-  TransitionStatement,
-  ToClause,
-  SetClause,
-  WithClause,
-} from './statements.js';
+import { IfStatement, TransitionStatement, ToClause } from './statements.js';
+import type { SetClause, WithClause } from './statements.js';
 
 // ── Expression guards ────────────────────────────────────────────────
 
@@ -81,9 +77,9 @@ export function isToClause(node: unknown): node is ToClause {
 }
 
 export function isSetClause(node: unknown): node is SetClause {
-  return node instanceof SetClause;
+  return isAstNodeLike(node) && node.__kind === 'SetClause';
 }
 
 export function isWithClause(node: unknown): node is WithClause {
-  return node instanceof WithClause;
+  return isAstNodeLike(node) && node.__kind === 'WithClause';
 }

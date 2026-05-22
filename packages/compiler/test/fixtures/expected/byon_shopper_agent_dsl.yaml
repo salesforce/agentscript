@@ -1,0 +1,213 @@
+schema_version: "2.0"
+global_configuration:
+  developer_name: commerce_shopper_agent
+  label: Commerce Shopper Agent
+  description: Assists customers in browsing products, searching catalogs, and
+    managing carts.
+  enable_enhanced_event_logs: false
+  agent_type: EinsteinServiceAgent
+  context_variables:
+    - developer_name: EndUserId
+      label: End User Id
+      description: MessagingEndUser Id
+      data_type: string
+      field_mapping: MessagingSession.MessagingEndUserId
+    - developer_name: RoutableId
+      label: Routable Id
+      description: MessagingSession Id
+      data_type: string
+      field_mapping: MessagingSession.Id
+  default_agent_user: commerce@example.com
+agent_version:
+  planner_type: Atlas__ConcurrentMultiAgentOrchestration
+  system_messages:
+    - message: Hello! I'm your shopping assistant. How can I help you today?
+      message_type: Welcome
+    - message: Sorry, something went wrong. Please try again.
+      message_type: Error
+  state_variables:
+    - developer_name: AgentScriptInternal_next_topic
+      label: Next Topic
+      description: The next topic to be visited
+      data_type: string
+      is_list: false
+      default: '"__EMPTY__"'
+      visibility: Internal
+    - developer_name: AgentScriptInternal_agent_instructions
+      label: Agent Instructions
+      description: The agent instructions
+      data_type: string
+      is_list: false
+      default: "''"
+      visibility: Internal
+    - developer_name: AgentScriptInternal_condition
+      label: Runtime Condition
+      description: Runtime condition evaluation for if statements
+      data_type: boolean
+      is_list: false
+      visibility: Internal
+  initial_node: topic_selector
+  nodes:
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Route shopping requests to the appropriate agent
+      tools:
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_next_topic: '"product_browse"'
+          name: go_to_shopper
+          description: Handle shopping queries
+      developer_name: topic_selector
+      label: Topic Selector
+      action_definitions: []
+      instructions: You are a commerce assistant that helps shoppers find and purchase
+        products.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Analyze the user's request and route to the appropriate agent.
+                Use action.go_to_shopper for product search and cart operations.
+      after_all_tool_calls:
+        - type: handoff
+          target: product_browse
+          enabled: state.AgentScriptInternal_next_topic=="product_browse"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
+      reasoning_type: salesforce.default
+      description: Browse and search products
+      tools:
+        - type: action
+          target: Browse_Catalog
+          bound_inputs: {}
+          llm_inputs:
+            - category
+          state_updates: []
+          name: browse
+          description: Browse
+      developer_name: product_browse
+      label: Product Browse
+      action_definitions:
+        - developer_name: Browse_Catalog
+          label: Browse Catalog
+          description: Browse the product catalog
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: flow
+          invocation_target_name: Browse_Catalog
+          input_type:
+            - developer_name: category
+              label: Category
+              description: Product category to browse
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: true
+          output_type: []
+          source: CommerceGuidedShopping__BrowseCatalog
+          progress_indicator_message: Browsing the catalog...
+      instructions: You are a commerce assistant that helps shoppers find and purchase
+        products.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user browse and search for products.
+
+                Use action.browse when the user wants to explore product
+                categories.
+    - type: byon
+      developer_name: shopper_agent
+      description: Commerce Cloud shopper agent for assisted buying
+      label: Shopper Agent
+      byo_client:
+        client_ref: icr-default
+        configuration:
+          node_type_id: commerce_shopper_agent
+          node_namespace: commerceshopperagent
+      input_parameters:
+        auth_token: variables.EndUserId
+      action_definitions:
+        - developer_name: Search_Products
+          label: Search Products
+          description: Search the product catalog
+          require_user_confirmation: false
+          include_in_progress_indicator: true
+          invocation_target_type: byon
+          invocation_target_name: getB2cUserAccessToken
+          input_type:
+            - developer_name: query
+              label: Query
+              description: Search query text
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type: []
+          source: CommerceGuidedShoppingB2C__GetB2CUserAccessToken
+        - developer_name: Add_To_Cart
+          label: Add To Cart
+          description: Add item to shopping cart
+          require_user_confirmation: true
+          include_in_progress_indicator: true
+          invocation_target_type: byon
+          invocation_target_name: add_to_cart
+          input_type:
+            - developer_name: product_id
+              label: Product Id
+              description: Product identifier
+              data_type: String
+              is_list: false
+              required: true
+              is_user_input: false
+            - developer_name: quantity
+              label: Quantity
+              description: Quantity to add
+              data_type: Double
+              is_list: false
+              required: true
+              is_user_input: false
+          output_type: []
+          source: CommerceGuidedShoppingB2C__AddToCart
+      tools:
+        - type: action
+          target: Search_Products
+          name: Search_Products
+          bound_inputs:
+            auth_named_credential: variables.EndUserId
+        - type: action
+          target: Add_To_Cart
+          name: Add_To_Cart
+          bound_inputs:
+            auth_named_credential: variables.EndUserId
+  surfaces: []
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    DISABLE_GROUNDEDNESS: true
+    system_messages: "[{\"message\": \"Hello! I'm your shopping assistant. How can I
+      help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry,
+      something went wrong. Please try again.\", \"messageType\": \"Error\"}]"

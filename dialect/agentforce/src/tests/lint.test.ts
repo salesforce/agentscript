@@ -326,6 +326,79 @@ topic main:
     expect(errors).toHaveLength(0);
   });
 
+  it('allows placeholder:// target but emits warning', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    stub_action:
+      description: "Stub Action"
+      target: "placeholder://future_implementation"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'invalid-action-target');
+    expect(errors).toHaveLength(0);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'placeholder-action-target'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain('placeholder target');
+    expect(warnings[0].message).toContain('stub_action');
+    expect(warnings[0].message).toContain(
+      'Replace this with a real implementation before committing'
+    );
+  });
+
+  it('warns for multiple placeholder actions', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    stub_one:
+      description: "Stub One"
+      target: "placeholder://implementation_one"
+    stub_two:
+      description: "Stub Two"
+      target: "placeholder://implementation_two"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'placeholder-action-target'
+    );
+    expect(warnings).toHaveLength(2);
+    expect(warnings.every(w => w.severity === DiagnosticSeverity.Warning)).toBe(
+      true
+    );
+  });
+
+  it('warns for placeholder in start_agent blocks', () => {
+    const diagnostics = runSecurityLint(`
+start_agent selector:
+  label: "Selector"
+  actions:
+    stub_action:
+      description: "Stub"
+      target: "placeholder://tbd"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'placeholder-action-target'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('stub_action');
+  });
+
   it('allows slack:// target', () => {
     const diagnostics = runSecurityLint(`
 topic main:
@@ -664,6 +737,8 @@ variables:
     source: @MessagingSession.Id
   contact_id: string
     source: @MessagingEndUser.ContactId
+  voice_call_id: string
+    source: @VoiceCall.Id
 `);
 
     const nsErrors = diagnostics.filter(
@@ -686,6 +761,7 @@ variables:
     expect(nsErrors[0].message).toContain('@session');
     expect(nsErrors[0].message).toContain('@MessagingSession');
     expect(nsErrors[0].message).toContain('@MessagingEndUser');
+    expect(nsErrors[0].message).toContain('@VoiceCall');
   });
 });
 
@@ -1293,6 +1369,40 @@ connection telephony:
     expect(errors).toHaveLength(0);
   });
 
+  it('warns when messaging connection has inputs field', () => {
+    const diagnostics = runSecurityLint(`
+connection messaging:
+    outbound_route_type: OmniChannelFlow
+    outbound_route_name: "flow://Route"
+    inputs:
+        test: string
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'connection-field-not-used'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('Messaging');
+    expect(warnings[0].message).toContain('inputs');
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('warns when customer_web_client connection has inputs field', () => {
+    const diagnostics = runSecurityLint(`
+connection customer_web_client:
+    inputs:
+        test: string
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'connection-field-not-used'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('Customer Web Client');
+    expect(warnings[0].message).toContain('inputs');
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
   // -------------------------------------------------------------------------
   // empty keyword for connections
   // Python: TestEmptyKeyword
@@ -1403,7 +1513,8 @@ connected_subagent order_lookup:
     const boundErrors = diagnostics.filter(
       d =>
         d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked'
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
     );
     expect(boundErrors).toHaveLength(0);
   });
@@ -1430,7 +1541,7 @@ connected_subagent order_lookup:
     expect(errors[0].message).toContain('simple variable reference');
   });
 
-  it('reports error when default references a mutable variable', () => {
+  it('allows input with simple @variables.X reference to mutable var', () => {
     const diagnostics = runSecurityLint(`
 variables:
   counter: mutable number
@@ -1442,14 +1553,67 @@ connected_subagent order_lookup:
     count: number = @variables.counter
 `);
 
-    const errors = diagnostics.filter(d => d.code === 'bound-input-not-linked');
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain("'counter'");
-    expect(errors[0].message).toContain('mutable');
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
   });
 
-  it('allows input without a default value', () => {
+  it('allows connected_subagent with both linked and mutable variable inputs', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  user_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "User contact ID"
+  session_count: mutable number
+    description: "Number of sessions"
+  user_name: mutable string = "Guest"
+    description: "User display name"
+
+connected_subagent support_agent:
+  target: "agentforce://Support_Agent"
+  label: "Support Agent"
+  description: "Handles customer support requests"
+  inputs:
+    contact_id: string = @variables.user_id
+    session_num: number = @variables.session_count
+    display_name: string = @variables.user_name
+`);
+
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
+  it('reports error when default references an unmodified variable', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  plain_var: string
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    value: string = @variables.plain_var
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'plain_var'");
+    expect(errors[0].message).toContain('unmodified');
+  });
+
+  it('reports error for input without a default value', () => {
     const diagnostics = runSecurityLint(`
 connected_subagent order_lookup:
   label: "Order Lookup"
@@ -1458,15 +1622,73 @@ connected_subagent order_lookup:
     customer_id: string
 `);
 
-    const boundErrors = diagnostics.filter(
-      d =>
-        d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked'
-    );
-    expect(boundErrors).toHaveLength(0);
+    const errors = diagnostics.filter(d => d.code === 'bound-input-required');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'customer_id'");
+    expect(errors[0].message).toContain('must be bound to a variable');
   });
 
-  it('reports errors for multiple invalid inputs', () => {
+  it('reports errors for multiple unbound inputs', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  user_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "User ID"
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    customer_id: string = @variables.user_id
+    unbound_param: string
+    another_unbound: number
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'bound-input-required');
+    expect(errors).toHaveLength(2);
+    expect(errors[0].message).toContain("'unbound_param'");
+    expect(errors[1].message).toContain("'another_unbound'");
+  });
+
+  it('reports different error types for mixed input issues', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  user_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "User ID"
+  plain_var: string
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    good_input: string = @variables.user_id
+    unbound_input: string
+    computed_input: string = @variables.user_id + "_suffix"
+    unmodified_var_input: string = @variables.plain_var
+`);
+
+    const unboundErrors = diagnostics.filter(
+      d => d.code === 'bound-input-required'
+    );
+    expect(unboundErrors).toHaveLength(1);
+    expect(unboundErrors[0].message).toContain("'unbound_input'");
+
+    const notVarErrors = diagnostics.filter(
+      d => d.code === 'bound-input-not-variable'
+    );
+    expect(notVarErrors).toHaveLength(1);
+    expect(notVarErrors[0].message).toContain('simple variable reference');
+
+    const notLinkedOrMutableErrors = diagnostics.filter(
+      d => d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(notLinkedOrMutableErrors).toHaveLength(1);
+    expect(notLinkedOrMutableErrors[0].message).toContain("'plain_var'");
+  });
+
+  it('reports error for computed expression but allows mutable variable', () => {
     const diagnostics = runSecurityLint(`
 variables:
   counter: mutable number
@@ -1482,13 +1704,16 @@ connected_subagent order_lookup:
     ref: string = @variables.session_id + "_suffix"
 `);
 
-    const notLinked = diagnostics.filter(
-      d => d.code === 'bound-input-not-linked'
+    // counter is mutable, so it should be allowed (no error)
+    const notLinkedOrMutable = diagnostics.filter(
+      d => d.code === 'bound-input-not-linked-or-mutable'
     );
+    expect(notLinkedOrMutable).toHaveLength(0);
+
+    // The computed expression should still error
     const notVar = diagnostics.filter(
       d => d.code === 'bound-input-not-variable'
     );
-    expect(notLinked).toHaveLength(1);
     expect(notVar).toHaveLength(1);
   });
 
@@ -1502,7 +1727,8 @@ connected_subagent order_lookup:
     const boundErrors = diagnostics.filter(
       d =>
         d.code === 'bound-input-not-variable' ||
-        d.code === 'bound-input-not-linked'
+        d.code === 'bound-input-not-linked' ||
+        d.code === 'bound-input-not-linked-or-mutable'
     );
     expect(boundErrors).toHaveLength(0);
   });
@@ -2117,4 +2343,174 @@ subagent Order_Management:
     d => d.code === 'object-type-missing-schema'
   );
   expect(warnings.length).toBeGreaterThan(0);
+});
+
+describe('complex data type rule', () => {
+  const wrap = (inputs: string, outputs: string): string => `
+subagent S:
+  description: "S"
+  actions:
+    A:
+      description: "A"
+      inputs:
+${inputs}
+      outputs:
+${outputs}
+  reasoning:
+    instructions: ->
+      |Do it
+`;
+
+  it('warns when a primitive input has complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'amount'");
+    expect(warnings[0].message).toContain("'A'");
+    expect(warnings[0].message).toContain("'number'");
+  });
+
+  it('does not flag primitive inputs without complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          description: "an amount"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(d => d.code === 'complex-data-type-on-primitive')
+    ).toHaveLength(0);
+  });
+
+  it('warns when a primitive output has complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        in_ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        message: string\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'message'");
+    expect(warnings[0].message).toContain("'string'");
+  });
+
+  it.each([
+    ['boolean'],
+    ['integer'],
+    ['id'],
+    ['date'],
+    ['datetime'],
+    ['time'],
+    ['timestamp'],
+    ['currency'],
+    ['long'],
+  ])('warns when primitive type %s has complex_data_type_name', primitive => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        v: ${primitive}\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain(`'${primitive}'`);
+  });
+
+  it('does not flag object input with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        order: object\n          complex_data_type_name: "OrderRecord"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('does not flag object input that uses schema:', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        order: object\n          schema: "schema://order_schema"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('does not flag list[object] output with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        items: list[object]\n          complex_data_type_name: "OrderRecord"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('warns on list[string] input with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        tags: list[string]\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'list[string]'");
+  });
+
+  it('reports both warnings for mixed declarations', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        result: object\n          description: "bare object output"\n`
+      )
+    );
+    const primitiveWarnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    const missingSchemaWarnings = diagnostics.filter(
+      d => d.code === 'object-type-missing-schema'
+    );
+    expect(primitiveWarnings).toHaveLength(1);
+    expect(primitiveWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(primitiveWarnings[0].message).toContain("'amount'");
+    expect(missingSchemaWarnings).toHaveLength(1);
+    expect(missingSchemaWarnings[0].message).toContain("'result'");
+  });
 });

@@ -112,15 +112,44 @@ function snippetForCollection(
   counter: Counter,
   tabSize: number
 ): string {
-  const pad = ' '.repeat(indent * tabSize);
+  const basePad = generatePad(indent, tabSize);
   const entryBlock = getEntryBlock(ft);
 
-  if (!entryBlock?.schema) {
-    return `${pad}${name} \${${counter.value++}:Name}:\n${pad}${' '.repeat(tabSize)}\${${counter.value++}}$0`;
+  if (!entryBlock?.schema || Object.keys(entryBlock.schema).length === 0) {
+    // Schema for entry block is not provided or empty. No collection content is provided
+    if (ft.__isNamedCollection) {
+      // Named collection, field name and collection name inlined
+      return (
+        [
+          `${basePad}${name} \${${counter.value++}:Name}:`,
+          `${generatePad(indent + 1, tabSize)}\${${counter.value++}}`,
+        ].join('\n') + '$0'
+      );
+    }
+
+    // Regular CollectionBlock - Field name in first line and collection name indented in second line
+    return (
+      [
+        `${basePad}${name}:`,
+        `${generatePad(indent + 1, tabSize)}\${${counter.value++}:Name}:`,
+        `${generatePad(indent + 2, tabSize)}\${${counter.value++}}`,
+      ].join('\n') + '$0'
+    );
   }
 
-  // Named entry — include name tab stop, then only required children
-  const lines: string[] = [`${pad}${name} \${${counter.value++}:Name}:`];
+  // Schema is provided — include name tab stop, then only required children
+  let lines: string[];
+  if (ft.__isNamedCollection) {
+    // Named collection, field name and collection name inlined
+    lines = [`${basePad}${name} \${${counter.value++}:Name}:`];
+  } else {
+    // Regular CollectionBlock - Field name in first line and collection name indented in second line
+    lines = [
+      `${basePad}${name}:`,
+      `${generatePad(indent + 1, tabSize)}\${${counter.value++}:Name}:`,
+    ];
+    indent += 1; // Required to indent children inside collection block
+  }
 
   const childLines = generateChildLines(
     entryBlock.schema,
@@ -132,8 +161,7 @@ function snippetForCollection(
   );
 
   if (childLines.length === 0) {
-    const childPad = ' '.repeat((indent + 1) * tabSize);
-    lines.push(`${childPad}\${${counter.value++}}`);
+    lines.push(`${generatePad(indent + 1, tabSize)}\${${counter.value++}}`);
   } else {
     lines.push(...childLines);
   }
@@ -299,6 +327,11 @@ function primitiveSnippetLine(
 }
 
 function primitiveSnippetValue(ft: FieldType, counter: Counter): string {
+  if (isEnumValue(ft)) {
+    const placeholder = placeholderFromEnum(ft) ?? 'value';
+    return `"\${${counter.value++}|${placeholder}|}"`;
+  }
+
   if (isStringValue(ft)) {
     const placeholder = placeholderFromMeta(ft) ?? 'value';
     return `"\${${counter.value++}:${escapeSnippetText(placeholder)}}"`;
@@ -335,15 +368,24 @@ function isSequence(ft: FieldType): boolean {
 
 function isStringValue(ft: FieldType): boolean {
   return (
-    ft.__fieldKind === 'Primitive' &&
+    isPrimitive(ft) &&
     Array.isArray(ft.__accepts) &&
     ft.__accepts.includes('StringLiteral')
   );
 }
 
+function isEnumValue(ft: FieldType): boolean {
+  return (
+    isPrimitive(ft) &&
+    Array.isArray(ft.__accepts) &&
+    ft.__accepts.includes('StringLiteral') &&
+    Array.isArray(ft.__metadata?.constraints?.enum)
+  );
+}
+
 function isBooleanValue(ft: FieldType): boolean {
   return (
-    ft.__fieldKind === 'Primitive' &&
+    isPrimitive(ft) &&
     Array.isArray(ft.__accepts) &&
     ft.__accepts.includes('BooleanLiteral')
   );
@@ -351,14 +393,14 @@ function isBooleanValue(ft: FieldType): boolean {
 
 function isNumberValue(ft: FieldType): boolean {
   return (
-    ft.__fieldKind === 'Primitive' &&
+    isPrimitive(ft) &&
     Array.isArray(ft.__accepts) &&
     ft.__accepts.includes('NumberLiteral')
   );
 }
 
 function isProcedureValue(ft: FieldType): boolean {
-  return ft.__fieldKind === 'Primitive' && !ft.__accepts?.length;
+  return isPrimitive(ft) && !ft.__accepts?.length;
 }
 
 function isTypedMap(ft: FieldType): boolean {
@@ -406,8 +448,23 @@ export function escapeSnippetText(text: string): string {
     .replace(/"/g, "'");
 }
 
+/** Escape special characters inside an LSP snippet choice value (`${N|...|}`). */
+function escapeChoiceValue(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/\$/g, '\\$')
+    .replace(/}/g, '\\}')
+    .replace(/\|/g, '\\|')
+    .replace(/,/g, '\\,');
+}
+
 /** Extract a short placeholder string from field metadata description. */
 function placeholderFromMeta(ft: FieldType): string | undefined {
+  const example = ft.__metadata?.example;
+  if (example) {
+    return example;
+  }
+
   const desc = ft.__metadata?.description;
   if (!desc) return undefined;
 
@@ -415,4 +472,16 @@ function placeholderFromMeta(ft: FieldType): string | undefined {
   const firstSentence = desc.split(/\.\s/)[0];
   if (firstSentence.length <= 50) return firstSentence.replace(/\.$/, '');
   return firstSentence.slice(0, 47) + '...';
+}
+
+/** Generate padding based on indent and tab size. */
+function generatePad(indent: number, tabSize: number) {
+  return ' '.repeat(indent * tabSize);
+}
+
+/** Build a comma-separated choice string from enum constraint values. */
+function placeholderFromEnum(ft: FieldType): string | undefined {
+  const enumValues = ft.__metadata?.constraints?.enum;
+  if (!Array.isArray(enumValues)) return undefined;
+  return enumValues.map(v => escapeChoiceValue(String(v))).join(',');
 }

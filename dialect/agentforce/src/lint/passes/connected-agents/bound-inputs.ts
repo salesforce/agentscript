@@ -6,17 +6,17 @@
  */
 
 /**
- * Validates that connected agent input bindings are simple linked variable references.
+ * Validates that connected agent input bindings are simple variable references.
  *
- * Default values on connected agent inputs (e.g. `foo: string = @variables.bar`)
- * must be a bare `@variables.X` reference to a linked (context) variable — no
- * computed expressions. This mirrors the runtime constraint that connected agent
- * invocations can only bind context variables as inputs.
+ * All inputs on connected agent blocks must have a default value that is a bare
+ * `@variables.X` reference to a linked or mutable variable — no computed expressions,
+ * and no unbound inputs. This allows both context variables (linked) and agent
+ * state variables (mutable) to be passed to connected agents.
  *
  * The core check (`isSimpleVariableReference`) is intentionally reusable for
  * future tool-call `with` clause validation.
  *
- * Diagnostics: bound-input-not-variable, bound-input-not-linked
+ * Diagnostics: bound-input-required, bound-input-not-variable, bound-input-not-linked-or-mutable
  */
 
 import type { AstNodeLike } from '@agentscript/language';
@@ -48,14 +48,31 @@ export function boundInputsRule(): LintPass {
   return defineRule({
     id: 'connected-agent/bound-inputs',
     description:
-      'Connected agent input bindings must be simple linked variable references',
+      'Connected agent inputs must be bound to linked or mutable variables',
     deps: { typeMap: typeMapKey },
 
     run({ typeMap }) {
       for (const [, agentInfo] of typeMap.connectedAgents) {
-        for (const [, inputInfo] of agentInfo.inputs) {
-          if (!inputInfo.defaultValueNode || !inputInfo.defaultValueCst)
+        for (const [inputName, inputInfo] of agentInfo.inputs) {
+          // Check if input has a default value (is bound)
+          if (!inputInfo.defaultValueNode || !inputInfo.defaultValueCst) {
+            const declCst = (inputInfo.decl as any).__cst;
+            const range = declCst?.range ?? {
+              start: { line: 0, character: 0 },
+              end: { line: 0, character: 0 },
+            };
+
+            attachDiagnostic(
+              inputInfo.decl,
+              lintDiagnostic(
+                range,
+                `Input '${inputName}' must be bound to a variable (e.g. ${inputName}: string = @variables.X).`,
+                DiagnosticSeverity.Error,
+                'bound-input-required'
+              )
+            );
             continue;
+          }
 
           const varName = isSimpleVariableReference(inputInfo.defaultValueNode);
           if (!varName) {
@@ -72,14 +89,18 @@ export function boundInputsRule(): LintPass {
           }
 
           const varInfo = typeMap.variables.get(varName);
-          if (varInfo && varInfo.modifier !== 'linked') {
+          if (
+            varInfo &&
+            varInfo.modifier !== 'linked' &&
+            varInfo.modifier !== 'mutable'
+          ) {
             attachDiagnostic(
               inputInfo.decl,
               lintDiagnostic(
                 inputInfo.defaultValueCst.range,
-                `Bound input must reference a linked variable — '${varName}' is ${varInfo.modifier ?? 'unmodified'}.`,
+                `Bound input must reference a linked or mutable variable — '${varName}' is ${varInfo.modifier ?? 'unmodified'}.`,
                 DiagnosticSeverity.Error,
-                'bound-input-not-linked'
+                'bound-input-not-linked-or-mutable'
               )
             );
           }

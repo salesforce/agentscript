@@ -27,6 +27,7 @@ import type {
   ParserBackend,
   WasmInitOptions,
 } from '@agentscript/parser';
+import { loadWasmModule } from './wasm-loader.js';
 
 export { stripWasmSourceMapUrl } from '@agentscript/parser';
 export type { HighlightCapture as QueryCapture, Parser };
@@ -106,22 +107,11 @@ export async function init(): Promise<void> {
 }
 
 async function doInit(): Promise<void> {
-  // Dynamic import so the WASM constants are only loaded when init() is called.
-  // Computed path prevents bundlers from statically resolving this import.
-  // If the module doesn't exist (parser-javascript builds), silently skip — the
-  // default parser-javascript backend will be used via getParser()/executeQuery().
-  let wasmModule: {
-    TREE_SITTER_ENGINE_BASE64?: string[];
-    TREE_SITTER_AGENTSCRIPT_BASE64?: string[];
-  };
-
-  try {
-    const wasmModuleName = './wasm-constants-generated';
-    wasmModule = (await import(
-      /* @vite-ignore */ `${wasmModuleName}.js`
-    )) as typeof wasmModule;
-  } catch {
-    // WASM constants not available — parser-javascript mode, nothing to initialize.
+  // loadWasmModule() dynamically imports the generated WASM constants.
+  // In parser-javascript builds the entire wasm-loader module is stubbed out
+  // by esbuild, so no wasm-constants-generated reference appears in output.
+  const wasmModule = await loadWasmModule();
+  if (!wasmModule) {
     _initialized = true;
     return;
   }

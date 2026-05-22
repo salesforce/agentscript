@@ -528,7 +528,7 @@ function statementsHaveTemplateContent(statements: Statement[]): boolean {
  * The dialect parser returns a ProcedureValue with a `.statements` array,
  * not a raw Statement[]. This helper handles both formats.
  */
-function extractStatements(
+export function extractStatements(
   value: ProcedureValue | undefined
 ): Statement[] | undefined {
   if (!value) return undefined;

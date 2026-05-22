@@ -13,7 +13,7 @@
 import type { SyntaxNode, AstRoot } from './core/types.js';
 import type { Diagnostic } from './core/diagnostics.js';
 import { Dialect } from './core/dialect.js';
-import { LintEngine, PassStore } from './core/analysis/lint.js';
+import { LintEngine, PassStore } from './core/analysis/lint-engine.js';
 import {
   createSchemaContext,
   type SchemaContext,
