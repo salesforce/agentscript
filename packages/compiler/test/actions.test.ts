@@ -792,3 +792,82 @@ start_agent test:
     }
   );
 });
+
+// Tool.description is an explicit override of ActionConfiguration.description
+// (per DSL schema). The compiler must only emit it when the user supplied a
+// `description:` on the reasoning action — otherwise leave it absent so the
+// runtime falls back to the action's real description.
+describe('tool description override', () => {
+  function compileTopic(source: string) {
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    return node.tools.filter(t => t.target !== STATE_UPDATE_ACTION);
+  }
+
+  it('emits description when supplied on the reasoning action', () => {
+    const tools = compileTopic(`
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        clean_zoo:
+            description: "use this action to clean the zoo."
+            target: "flow://CleanZoo"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            clean_zoo: @actions.clean_zoo
+                description: "Override on the reasoning binding"
+`);
+    expect(tools[0].description).toBe('Override on the reasoning binding');
+  });
+
+  it('omits description when not supplied on the reasoning action', () => {
+    const tools = compileTopic(`
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        clean_zoo:
+            description: "use this action to clean the zoo."
+            target: "flow://CleanZoo"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            clean_zoo: @actions.clean_zoo
+`);
+    expect(tools[0].description).toBeUndefined();
+  });
+
+  it('omits description even when reasoning binding uses an alias', () => {
+    // Regression: previously emitted humanized name (e.g. "Tidy Up") which
+    // shadowed the action's real description at runtime.
+    const tools = compileTopic(`
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        CleanZoo:
+            description: "use this action to clean the zoo."
+            target: "flow://CleanZoo"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            tidy_up: @actions.CleanZoo
+`);
+    expect(tools[0].name).toBe('tidy_up');
+    expect(tools[0].target).toBe('CleanZoo');
+    expect(tools[0].description).toBeUndefined();
+  });
+});

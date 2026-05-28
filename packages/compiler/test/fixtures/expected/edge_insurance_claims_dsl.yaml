@@ -1,30 +1,20 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: Insurance_Claims_Agent
   label: Insurance Claims Agent
   description: Handles insurance claim filing, document management, and status tracking.
   enable_enhanced_event_logs: false
   agent_type: EinsteinServiceAgent
-  default_agent_user: claims@insurance.com
   context_variables: []
+  default_agent_user: claims@insurance.com
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages:
-    - message: Hello! I can help you file a new claim or check the status of an existing
-        one.
+    - message: Hello! I can help you file a new claim or check the status of an
+        existing one.
       message_type: Welcome
     - message: Sorry, the claims system encountered an error.
       message_type: Error
-  modality_parameters:
-    language:
-      default_locale: en_US
-      additional_locales: []
-      all_additional_locales: false
-  additional_parameters:
-    reset_to_initial_node: true
-    system_messages: '[{"message": "Hello! I can help you file a new claim or check
-      the status of an existing one.", "messageType": "Welcome"}, {"message": "Sorry,
-      the claims system encountered an error.", "messageType": "Error"}]'
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -38,7 +28,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -51,72 +41,55 @@ agent_version:
       description: Insurance policy number
       data_type: string
       is_list: false
-      default: ''''''
       visibility: Internal
+      default: "''"
     - developer_name: claim_id
       label: Claim Id
       description: Claim identifier
       data_type: string
       is_list: false
-      default: ''''''
       visibility: Internal
+      default: "''"
     - developer_name: claim_type
       label: Claim Type
-      description: 'Type of claim: auto, home, health, life'
+      description: "Type of claim: auto, home, health, life"
       data_type: string
       is_list: false
-      default: ''''''
       visibility: Internal
+      default: "''"
     - developer_name: claim_status
       label: Claim Status
       description: Current claim status
       data_type: string
       is_list: false
-      default: ''''''
       visibility: Internal
+      default: "''"
     - developer_name: documents_uploaded
       label: Documents Uploaded
       description: Whether required documents are uploaded
       data_type: boolean
       is_list: false
-      default: false
       visibility: Internal
+      default: false
     - developer_name: adjuster_assigned
       label: Adjuster Assigned
       description: Whether an adjuster has been assigned
       data_type: boolean
       is_list: false
-      default: false
       visibility: Internal
+      default: false
     - developer_name: claim_amount
       label: Claim Amount
       description: Claimed amount
       data_type: number
       is_list: false
-      default: 0
       visibility: Internal
+      default: 0
   initial_node: claim_intake
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Help the customer file a new claim or check existing claim status.
-
-                Gather policy number, claim type, and incident details.'
-      instructions: You are an insurance claims assistant. Help customers file claims,
-        upload documents, and track claim status.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Initiates the claims process and gathers initial information
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: file_claim
@@ -130,7 +103,6 @@ agent_version:
             - claim_id: result.claim_id
             - claim_status: result.status
           name: file
-          description: File
         - type: action
           target: __state_update_action__
           state_updates:
@@ -143,17 +115,6 @@ agent_version:
             - AgentScriptInternal_next_topic: '"status_tracking"'
           name: go_status
           description: Check claim status
-      after_all_tool_calls:
-        - type: handoff
-          target: document_upload
-          enabled: state.AgentScriptInternal_next_topic=="document_upload"
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
-        - type: handoff
-          target: status_tracking
-          enabled: state.AgentScriptInternal_next_topic=="status_tracking"
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
       developer_name: claim_intake
       label: Claim Intake
       action_definitions:
@@ -208,25 +169,39 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Guide the customer through uploading required documents for their
-                claim.'
       instructions: You are an insurance claims assistant. Help customers file claims,
         upload documents, and track claim status.
-      type: subagent
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer file a new claim or check existing claim
+                status.
+
+                Gather policy number, claim type, and incident details.
+      after_all_tool_calls:
+        - type: handoff
+          target: document_upload
+          enabled: state.AgentScriptInternal_next_topic=="document_upload"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: handoff
+          target: status_tracking
+          enabled: state.AgentScriptInternal_next_topic=="status_tracking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
       reasoning_type: salesforce.default
       description: Handles document upload and verification for claims
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: verify_documents
@@ -236,20 +211,13 @@ agent_version:
           state_updates:
             - documents_uploaded: result.all_uploaded
           name: verify
-          description: Verify
         - type: action
           target: __state_update_action__
-          enabled: state.documents_uploaded == True
           state_updates:
             - AgentScriptInternal_next_topic: '"adjuster_assignment"'
           name: go_adjuster
           description: Assign an adjuster
-      after_all_tool_calls:
-        - type: handoff
-          target: adjuster_assignment
-          enabled: state.AgentScriptInternal_next_topic=="adjuster_assignment"
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+          enabled: state.documents_uploaded == True
       developer_name: document_upload
       label: Document Upload
       action_definitions:
@@ -283,24 +251,32 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Assign an adjuster to review the claim and inform the customer.'
       instructions: You are an insurance claims assistant. Help customers file claims,
         upload documents, and track claim status.
-      type: subagent
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Guide the customer through uploading required documents for
+                their claim.
+      after_all_tool_calls:
+        - type: handoff
+          target: adjuster_assignment
+          enabled: state.AgentScriptInternal_next_topic=="adjuster_assignment"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
       reasoning_type: salesforce.default
       description: Assigns a claims adjuster to the case
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: assign_adjuster
@@ -311,19 +287,12 @@ agent_version:
           state_updates:
             - adjuster_assigned: result.adjuster_name is not None
           name: assign
-          description: Assign
         - type: action
           target: __state_update_action__
           state_updates:
             - AgentScriptInternal_next_topic: '"status_tracking"'
           name: go_tracking
           description: Track claim progress
-      after_all_tool_calls:
-        - type: handoff
-          target: status_tracking
-          enabled: state.AgentScriptInternal_next_topic=="status_tracking"
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
       developer_name: adjuster_assignment
       label: Adjuster Assignment
       action_definitions:
@@ -364,28 +333,30 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Provide the customer with their claim status and next steps.
-
-                Claim: {{state.claim_id}}
-
-                Status: {{state.claim_status}}'
       instructions: You are an insurance claims assistant. Help customers file claims,
         upload documents, and track claim status.
-      type: subagent
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Assign an adjuster to review the claim and inform the customer.
+      after_all_tool_calls:
+        - type: handoff
+          target: status_tracking
+          enabled: state.AgentScriptInternal_next_topic=="status_tracking"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+    - type: subagent
       reasoning_type: salesforce.default
       description: Provides claim status updates and tracking
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: get_status
@@ -395,7 +366,6 @@ agent_version:
           state_updates:
             - claim_status: result.status
           name: status
-          description: Status
       developer_name: status_tracking
       label: Status Tracking
       action_definitions:
@@ -436,4 +406,32 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
+      instructions: You are an insurance claims assistant. Help customers file claims,
+        upload documents, and track claim status.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Provide the customer with their claim status and next steps.
+                Claim: {{state.claim_id}}
+                Status: {{state.claim_status}}
   surfaces: []
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: '[{"message": "Hello! I can help you file a new claim or check
+      the status of an existing one.", "messageType": "Welcome"}, {"message":
+      "Sorry, the claims system encountered an error.", "messageType":
+      "Error"}]'

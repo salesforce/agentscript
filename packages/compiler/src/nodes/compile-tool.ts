@@ -34,7 +34,6 @@ import {
   resolveAtReference,
 } from '../ast-helpers.js';
 import type { Sourceable } from '../sourced.js';
-import { normalizeDeveloperName } from '../utils.js';
 import { TRANSITION_TARGET_NAMESPACES } from '../constants.js';
 import { warnIfConnectedAgentTransition } from './compile-utils.js';
 
@@ -65,9 +64,11 @@ export function compileTool(
     }
   }
 
-  const description =
-    extractSourcedDescription(actionDef.description) ??
-    normalizeDeveloperName(name);
+  // Tool.description is an explicit *override* of the underlying
+  // ActionConfiguration.description (per DSL schema). Only emit it when the
+  // user supplied `description:` on the reasoning action — otherwise leave
+  // it unset so the runtime falls back to ActionConfiguration.description.
+  const description = extractSourcedDescription(actionDef.description);
   const alias = extractSourcedString(actionDef.label);
   const displayName = alias ?? name;
 
@@ -185,7 +186,7 @@ export function compileTool(
         }),
     state_updates: stateUpdates,
     name: displayName,
-    description,
+    ...(description !== undefined ? { description } : {}),
   };
 
   if (enabledCondition) {
