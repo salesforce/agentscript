@@ -247,8 +247,14 @@ export function provideCompletion(
         );
         items = candidates.map((candidate, idx) => {
           const hasSnippet = !!candidate.snippet;
+          // Snippet bodies are emitted relative to column 0. The host
+          // editor (VS Code's snippet engine) prepends the cursor's
+          // existing leading whitespace to lines 2+ during insertion, so
+          // doing it server-side too produces double-indented bodies (see
+          // W-22181425). Plain-text completions still need the trailing
+          // ': ' to land the cursor right after the colon.
           const newText = hasSnippet
-            ? adjustSnippetIndentation(candidate.snippet!, indentLength)
+            ? candidate.snippet!
             : candidate.name + ': ';
           return {
             label: candidate.name,
@@ -280,19 +286,6 @@ export function provideCompletion(
     console.error('[Completion] Error providing completions:', error);
     return { isIncomplete: false, items: [] };
   }
-}
-
-/**
- * Adjust a snippet's indentation to match the cursor's current column.
- * Line 1 stays as-is (replaces the current line content from indentLength).
- * Lines 2+ get the base indentation prepended.
- */
-function adjustSnippetIndentation(snippet: string, baseIndent: number): string {
-  const lines = snippet.split('\n');
-  if (lines.length <= 1) return snippet;
-
-  const indentStr = ' '.repeat(baseIndent);
-  return lines.map((ln, i) => (i === 0 ? ln : indentStr + ln)).join('\n');
 }
 
 /**

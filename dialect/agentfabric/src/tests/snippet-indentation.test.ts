@@ -1,7 +1,7 @@
 /**
  * Indentation guardrails for completion snippets in AgentFabric `.agent` files.
  *
- * Bug: when a multi-line completion snippet is inserted at a
+ * Bug: W-22181425 — when a multi-line completion snippet is inserted at a
  * cursor that is already indented, nested entries inside the snippet are
  * indented too deeply relative to the indentation step the user is already
  * using in the document.
@@ -106,7 +106,7 @@ function build(...lines: string[]): string {
 // Scope 1: Action-level fields — primary bug repro
 // ---------------------------------------------------------------------------
 
-describe('snippet indentation — action-level fields (primary bug repro)', () => {
+describe('snippet indentation — action-level fields (W-22181425 repro)', () => {
   /**
    * Document uses 2-space indent step. Cursor at column 4 (one body step
    * inside an action entry). Completing `inputs:` should produce:
