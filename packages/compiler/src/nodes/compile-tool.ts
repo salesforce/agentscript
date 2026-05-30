@@ -124,6 +124,13 @@ export function compileTool(
     }
   }
 
+  // Default unbound required declared inputs to LLM-filled.
+  // Skip connected agents: they have a dedicated missing-required-input
+  // warning path below and do not emit llm_inputs in the compiled tool.
+  if (!isConnectedAgent) {
+    setDefaultLlmInputs(target, boundInputs, llmInputs, ctx);
+  }
+
   // Validate with clauses against connected agent input signatures
   if (actionDef.value) {
     const decomposed2 = decomposeAtMemberExpression(actionDef.value);
@@ -255,6 +262,8 @@ function compilePostToolAction(
     }
   }
 
+  setDefaultLlmInputs(targetName, boundInputs, llmInputs, ctx);
+
   const action: Action = {
     type: 'action',
     target: targetName,
@@ -263,6 +272,28 @@ function compilePostToolAction(
     state_updates: stateUpdates,
   };
   return action;
+}
+
+/**
+ * Push every required declared input on `target`'s action_definition that is
+ * neither bound nor already LLM-marked into `llmInputs`. Mirrors the slot-fill
+ * default in the AgentFabric dialect compiler (build-nodes.ts), but limited to
+ * required inputs so authors aren't forced to have the LLM fabricate values
+ * for optional fields they didn't reference.
+ */
+function setDefaultLlmInputs(
+  target: string,
+  boundInputs: Record<string, string>,
+  llmInputs: string[],
+  ctx: CompilerContext
+): void {
+  const sig = ctx.actionInputSignatures.get(target);
+  if (!sig) return;
+  for (const name of sig.requiredInputs) {
+    if (Object.prototype.hasOwnProperty.call(boundInputs, name)) continue;
+    if (llmInputs.includes(name)) continue;
+    llmInputs.push(name);
+  }
 }
 
 /**

@@ -35,8 +35,10 @@ import type { ActionSignature, ConnectedAgentInfo } from './type-map.js';
 
 export interface ReasoningActionEntry {
   topicName: string;
-  /** Referenced action name (from @actions.X). */
+  /** Referenced action name (from @actions.X or @connected_subagent.X). */
   refActionName: string;
+  /** Which namespace the reference targets ('actions' or 'connected_subagent'). */
+  namespace: 'actions' | 'connected_subagent';
   sig: ActionSignature;
   /** The ReasoningActionBlock AST node. */
   ra: Record<string, unknown>;
@@ -176,6 +178,7 @@ class ReasoningActionsAnalyzer implements LintPass {
       entries.push({
         topicName: r.topicName,
         refActionName: r.refActionName,
+        namespace: r.namespace,
         sig,
         ra: r.ra,
         statements: r.statements,

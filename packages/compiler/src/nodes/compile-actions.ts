@@ -41,6 +41,10 @@ export function compileActionDefinitions(
   actions: NamedMap<Record<string, unknown>> | undefined,
   ctx: CompilerContext
 ): ActionDefinition[] {
+  // Per-topic scoping: stale signatures from a previously-compiled topic must
+  // not influence default slot-fill in the current topic.
+  ctx.actionInputSignatures.clear();
+
   if (!actions) return [];
 
   const result: ActionDefinition[] = [];
@@ -99,14 +103,34 @@ function compileActionDefinition(
     }
   }
 
-  const inputType = compileInputParameters(
-    def['inputs'] as NamedMap<ParameterDeclarationNode> | undefined,
-    ctx
-  );
+  const inputDecls = def['inputs'] as
+    | NamedMap<ParameterDeclarationNode>
+    | undefined;
+  const inputType = compileInputParameters(inputDecls, ctx);
   const outputType = compileOutputParameters(
     def['outputs'] as NamedMap<ParameterDeclarationNode> | undefined,
     ctx
   );
+
+  /**
+   * Auto-LLM-fill is reserved for inputs that the linter would also flag as
+   * missing: required AND lacking a definition-time default.
+   * Inputs with a default (e.g. `limit: number = 10`) don't need a `with` clause and
+   * shouldn't have the LLM fabricate a value.
+   * We read `defaultValue` from the parsed AST so this works for any default kind,
+   * not just the subset that `extractConstantValue` captures into `constant_value`.
+   **/
+  const requiredInputs: string[] = [];
+  if (inputDecls) {
+    for (const [paramName, decl] of iterateNamedMap(inputDecls)) {
+      const props = decl.properties as Record<string, unknown> | undefined;
+      const isRequired = extractBooleanValue(props?.['is_required']) === true;
+      if (isRequired && !decl.defaultValue) {
+        requiredInputs.push(paramName);
+      }
+    }
+  }
+  ctx.actionInputSignatures.set(name, { requiredInputs });
 
   // source is only set when explicitly specified in the .agent file
   const source = extractSourcedString(def['source']) ?? undefined;

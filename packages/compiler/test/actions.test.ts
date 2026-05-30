@@ -871,3 +871,232 @@ start_agent test:
     expect(tools[0].description).toBeUndefined();
   });
 });
+
+describe('action default slot-fill', () => {
+  function findActionTool(source: string, toolTarget: string) {
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const actionTools = node.tools.filter(
+      t => t.target !== STATE_UPDATE_ACTION
+    );
+    return actionTools.find(t => t.target === toolTarget);
+  }
+
+  it('auto-fills required declared inputs as llm_inputs when no with clause is provided', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        slot_action:
+            description: "Auto-filled action"
+            target: "flow://SlotAction"
+            inputs:
+                param1: string
+                    is_required: True
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke: @actions.slot_action
+`;
+    const tool = findActionTool(source, 'slot_action');
+    expect(tool).toBeDefined();
+    expect(tool?.bound_inputs).toEqual({});
+    expect(tool?.llm_inputs).toEqual(['param1']);
+  });
+
+  it('auto-fills only the unbound required inputs when some are bound', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    data: mutable string = ""
+
+start_agent test:
+    description: "Test"
+    actions:
+        mixed_action:
+            description: "Mixed action"
+            target: "flow://MixedAction"
+            inputs:
+                param1: string
+                    is_required: True
+                param2: string
+                    is_required: True
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke: @actions.mixed_action
+                with param1=@variables.data
+`;
+    const tool = findActionTool(source, 'mixed_action');
+    expect(tool).toBeDefined();
+    expect(tool?.bound_inputs).toEqual({ param1: 'state.data' });
+    expect(tool?.llm_inputs).toEqual(['param2']);
+  });
+
+  it('does not duplicate inputs already marked as ellipsis', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        ellipsis_action:
+            description: "Ellipsis-mixed action"
+            target: "flow://EllipsisAction"
+            inputs:
+                param1: string
+                    is_required: True
+                param2: string
+                    is_required: True
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke: @actions.ellipsis_action
+                with param1=...
+`;
+    const tool = findActionTool(source, 'ellipsis_action');
+    expect(tool).toBeDefined();
+    expect(tool?.bound_inputs).toEqual({});
+    expect(tool?.llm_inputs).toEqual(['param1', 'param2']);
+  });
+
+  it('does not auto-fill optional declared inputs', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        partial_required:
+            description: "Partial required action"
+            target: "flow://PartialRequired"
+            inputs:
+                param1: string
+                    is_required: True
+                param2: string
+                    is_required: False
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke: @actions.partial_required
+`;
+    const tool = findActionTool(source, 'partial_required');
+    expect(tool).toBeDefined();
+    expect(tool?.bound_inputs).toEqual({});
+    expect(tool?.llm_inputs).toEqual(['param1']);
+  });
+
+  it('does not auto-fill required inputs that have a definition-time default', () => {
+    // Inputs with `= <default>` don't need a `with` clause — the linter
+    // already exempts them, so the compiler must not LLM-fill them either.
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        defaulted_action:
+            description: "Action with defaulted required input"
+            target: "flow://Defaulted"
+            inputs:
+                limit: number = 10
+                    is_required: True
+                query: string
+                    is_required: True
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke: @actions.defaulted_action
+`;
+    const tool = findActionTool(source, 'defaulted_action');
+    expect(tool).toBeDefined();
+    expect(tool?.bound_inputs).toEqual({});
+    // Only 'query' (no default) is auto-filled. 'limit' has a default and
+    // is left out of llm_inputs entirely.
+    expect(tool?.llm_inputs).toEqual(['query']);
+  });
+
+  it('leaves llm_inputs empty when the action declares no inputs', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        bare_action:
+            description: "Bare action"
+            target: "flow://Bare"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke: @actions.bare_action
+`;
+    const tool = findActionTool(source, 'bare_action');
+    expect(tool).toBeDefined();
+    expect(tool?.bound_inputs).toEqual({});
+    expect(tool?.llm_inputs).toEqual([]);
+  });
+
+  it('auto-fills required inputs on nested run @actions.X post-tool-call statements', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    data: mutable string = ""
+
+start_agent test:
+    description: "Test"
+    actions:
+        primary:
+            description: "Primary action"
+            target: "flow://Primary"
+            inputs:
+                input1: string
+                    is_required: True
+        followup:
+            description: "Followup action"
+            target: "flow://Followup"
+            inputs:
+                slot_a: string
+                    is_required: True
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            invoke_primary: @actions.primary
+                with input1=@variables.data
+                run @actions.followup
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const postToolCalls = node.post_tool_call ?? [];
+    const primaryPost = postToolCalls.find(p => p.target === 'primary');
+    expect(primaryPost).toBeDefined();
+    const followupAction = primaryPost?.actions.find(
+      a => a.target === 'followup'
+    );
+    expect(followupAction).toBeDefined();
+    expect(followupAction?.bound_inputs).toEqual({});
+    expect(followupAction?.llm_inputs).toEqual(['slot_a']);
+  });
+});

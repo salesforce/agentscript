@@ -520,6 +520,42 @@ connected_subagent Order_Agent:
     expect(tool!.llm_inputs).toBeUndefined();
   });
 
+  it('does not auto-fill llm_inputs for connected agents missing required inputs', () => {
+    // Regression: the default LLM slot-fill for regular @actions.X tools must
+    // not bleed into the @connected_subagent.X path. Connected agents have
+    // their own explicit "Missing required input" warning and intentionally
+    // omit bound_inputs / llm_inputs from the compiled supervision tool.
+    const source = `
+${baseConfig}
+    reasoning:
+        instructions: ->
+            | Route requests
+        actions:
+            call_agent: @connected_subagent.Order_Agent
+                description: "Invoke order agent"
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    inputs:
+        customer_id: string
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const mainNode = output.agent_version.nodes.find(
+      n => n.developer_name === 'Main'
+    )!;
+    const tool = mainNode.tools.find(t => t.name === 'call_agent');
+    expect(tool).toBeDefined();
+    expect(tool!.bound_inputs).toBeUndefined();
+    expect(tool!.llm_inputs).toBeUndefined();
+    expect(
+      diagnostics.some(d =>
+        d.message.includes('Missing required input "customer_id"')
+      )
+    ).toBe(true);
+  });
+
   it('should compile connected agent tool alongside a transition', () => {
     const source = `
 ${baseConfig}

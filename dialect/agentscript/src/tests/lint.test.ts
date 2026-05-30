@@ -2722,7 +2722,7 @@ subagent main:
     expect(errors[0].data?.suggestion).toBe('verification_code');
   });
 
-  it('reports missing required input', () => {
+  it('reports missing required input on @actions.X as informational (LLM auto-fill)', () => {
     const diagnostics = runLint(
       BASE +
         `      check: @actions.send_code
@@ -2730,10 +2730,12 @@ subagent main:
 `
     );
 
-    const errors = diagnostics.filter(d => d.code === 'action-missing-input');
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'member_number'");
-    expect(errors[0].message).toContain('send_code');
+    const notes = diagnostics.filter(d => d.code === 'action-missing-input');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].severity).toBe(DiagnosticSeverity.Information);
+    expect(notes[0].message).toContain("'member_number'");
+    expect(notes[0].message).toContain('send_code');
+    expect(notes[0].message).toContain('filled by the LLM');
   });
 
   it('does not report missing input when it has a default value', () => {
@@ -2833,6 +2835,10 @@ subagent main:
     expect(names).toHaveLength(2);
     expect(names[0]).toContain("'city'");
     expect(names[1]).toContain("'country'");
+    // @actions.X diagnostics are informational — the compiler auto-fills.
+    expect(
+      missing.every(d => d.severity === DiagnosticSeverity.Information)
+    ).toBe(true);
   });
 
   it('passes valid inputs and outputs', () => {
@@ -2908,7 +2914,9 @@ connected_subagent Order_Agent:
     expect(errors[0].message).toContain('Order_Agent');
   });
 
-  it('reports missing required input on @actions.X for connected_subagent.X', () => {
+  it('reports missing required input on @connected_subagent.X as Error', () => {
+    // Connected agents do not auto-fill, so missing required inputs remain
+    // hard errors (unlike @actions.X which downgrades to Information).
     const diagnostics = runLint(`
 start_agent main:
   description: "Main"
@@ -2929,6 +2937,8 @@ connected_subagent Order_Agent:
 
     const errors = diagnostics.filter(d => d.code === 'action-missing-input');
     expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('Missing required input');
     expect(errors[0].message).toContain("'order_id'");
     expect(errors[0].message).toContain('Order_Agent');
   });
