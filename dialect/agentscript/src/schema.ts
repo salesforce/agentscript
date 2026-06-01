@@ -95,6 +95,9 @@ export const ConfigBlock = Block('ConfigBlock', {
   );
 
 export const LanguageBlock = Block('LanguageBlock', {
+  adaptive: BooleanValue.describe(
+    'When True, the agent infers the locale from the user and other language fields are ignored.'
+  ),
   default_locale: StringValue.describe(
     'The primary locale for the agent (e.g., "en_US", "de", "fr").'
   ),

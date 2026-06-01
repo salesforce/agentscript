@@ -493,6 +493,7 @@ export const supportedLocale = z.enum([
  * Configuration for the language of the agent.
  */
 export const languageConfiguration = z.object({
+  adaptive: z.boolean().nullish(),
   default_locale: supportedLocale.nullish(),
   additional_locales: z.array(supportedLocale).nullish(),
   all_additional_locales: z.boolean().nullish(),

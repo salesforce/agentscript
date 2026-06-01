@@ -2514,3 +2514,191 @@ ${outputs}
     expect(missingSchemaWarnings[0].message).toContain("'result'");
   });
 });
+
+describe('voice-adaptive conflict rule', () => {
+  it('reports warning when language.adaptive is True and modality voice is present', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "ConflictBot"
+
+language:
+    adaptive: True
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(conflicts[0].message).toContain('adaptive');
+    expect(conflicts[0].message).toContain('voice');
+  });
+
+  it('does not report when adaptive is True but no voice modality is present', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "AdaptiveBot"
+
+language:
+    adaptive: True
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(0);
+  });
+
+  it('does not report when voice modality is present but adaptive is False', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "VoiceBot"
+
+language:
+    default_locale: "en_US"
+    adaptive: False
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(0);
+  });
+
+  it('does not report when voice modality is present but no language block exists', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "VoiceOnlyBot"
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(0);
+  });
+});
+
+describe('adaptive-language-overrides rule', () => {
+  it('emits one warning per ignored field when adaptive: True is set with other fields', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "OverrideBot"
+
+language:
+    adaptive: True
+    default_locale: "en_US"
+    additional_locales: "fr, de"
+    all_additional_locales: True
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(3);
+    expect(
+      overrides.every(d => d.severity === DiagnosticSeverity.Warning)
+    ).toBe(true);
+    const messages = overrides.map(d => d.message).join('\n');
+    expect(messages).toContain("'default_locale'");
+    expect(messages).toContain("'additional_locales'");
+    expect(messages).toContain("'all_additional_locales'");
+    expect(messages).toContain('language.adaptive is True');
+  });
+
+  it('does not warn when adaptive: True is set alone', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "AdaptiveOnlyBot"
+
+language:
+    adaptive: True
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(0);
+  });
+
+  it('does not warn when adaptive is False even with default_locale', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "NonAdaptiveBot"
+
+language:
+    adaptive: False
+    default_locale: "en_US"
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(0);
+  });
+
+  it('does not warn when adaptive is absent', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "PlainBot"
+
+language:
+    default_locale: "en_US"
+    additional_locales: "fr, de"
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(0);
+  });
+
+  it('anchors each warning to the ignored field range', () => {
+    const source = `
+config:
+    agent_name: "AnchorBot"
+
+language:
+    adaptive: True
+    default_locale: "en_US"
+
+start_agent main:
+    description: "test"
+`;
+    const diagnostics = runSecurityLint(source);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(1);
+
+    const lines = source.split('\n');
+    const defaultLocaleLine = lines.findIndex(l =>
+      l.includes('default_locale:')
+    );
+    expect(overrides[0].range.start.line).toBe(defaultLocaleLine);
+  });
+});
