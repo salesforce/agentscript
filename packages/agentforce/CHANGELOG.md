@@ -1,5 +1,22 @@
 # @agentscript/agentforce
 
+## 2.5.32
+
+### Patch Changes
+
+- d01c76b: Fix publish: rewrite `@agentscript/*` → `@sf-agentscript/*` in `dist/` and `src/`, not just `package.json`.
+
+  Previously, `scripts/publish.mjs` only rewrote `package.json` files at publish time. The compiled JavaScript in `dist/` and the shipped TypeScript in `src/` still contained `import ... from '@agentscript/*'`, so consumers installing `@sf-agentscript/*` packages from npm hit `ERR_MODULE_NOT_FOUND: Cannot find package '@agentscript/...'` at runtime.
+
+  `scripts/publish.mjs` now also rewrites `.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.cts`, `.mts`, and `.map` files inside each package's `dist/` and `src/` directories, so published artifacts resolve cleanly under the `@sf-agentscript` scope.
+
+- Updated dependencies [d01c76b]
+  - @agentscript/agentforce-dialect@2.9.8
+  - @agentscript/compiler@2.6.9
+  - @agentscript/language@2.5.4
+  - @agentscript/parser@4.0.1
+  - @agentscript/types@0.2.2
+
 ## 2.5.19
 
 ### Patch Changes
