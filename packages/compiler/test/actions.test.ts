@@ -15,7 +15,10 @@
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
-import { STATE_UPDATE_ACTION } from '../src/constants.js';
+import {
+  STATE_UPDATE_ACTION,
+  AGENT_INSTRUCTIONS_VARIABLE,
+} from '../src/constants.js';
 import { DiagnosticSeverity } from '@agentscript/types';
 
 describe('action aliases: syntax', () => {
@@ -1098,5 +1101,73 @@ start_agent test:
     expect(followupAction).toBeDefined();
     expect(followupAction?.bound_inputs).toEqual({});
     expect(followupAction?.llm_inputs).toEqual(['slot_a']);
+  });
+});
+
+describe('action references in instruction templates', () => {
+  function getInstructionText(source: string): string {
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const bri = node.before_reasoning_iteration!;
+    const appendAction = bri.find(
+      (a: Record<string, unknown>) =>
+        Array.isArray(a.state_updates) &&
+        (a.state_updates as Array<Record<string, string>>).some(
+          u =>
+            AGENT_INSTRUCTIONS_VARIABLE in u &&
+            u[AGENT_INSTRUCTIONS_VARIABLE] !== "''"
+        )
+    ) as Record<string, unknown>;
+    const updates = appendAction.state_updates as Array<Record<string, string>>;
+    const entry = updates.find(
+      u =>
+        AGENT_INSTRUCTIONS_VARIABLE in u &&
+        u[AGENT_INSTRUCTIONS_VARIABLE] !== "''"
+    )!;
+    return entry[AGENT_INSTRUCTIONS_VARIABLE];
+  }
+
+  it('should emit bare tool name without action. prefix in instruction text', () => {
+    const text = getInstructionText(`
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        SendEmailVerificationCode:
+            description: "Sends a verification code"
+            target: "flow://SendEmailVerification"
+    reasoning:
+        instructions: ->
+            | Use {!@actions.SendEmailVerificationCode} to verify the email.
+        actions:
+            send_code: @actions.SendEmailVerificationCode
+`);
+    expect(text).toContain('Use SendEmailVerificationCode to verify the email');
+    expect(text).not.toContain('action.SendEmailVerificationCode');
+  });
+
+  it('should resolve action reference without action. prefix even for non-aliased actions', () => {
+    const text = getInstructionText(`
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        Very_Long_Action_Name:
+            description: "A long action"
+            target: "flow://VeryLong"
+    reasoning:
+        instructions: ->
+            | Call {!@actions.Very_Long_Action_Name} to proceed.
+        actions:
+            short_name: @actions.Very_Long_Action_Name
+`);
+    expect(text).toContain('Call Very_Long_Action_Name to proceed');
+    expect(text).not.toContain('action.');
   });
 });

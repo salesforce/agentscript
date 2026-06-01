@@ -49,12 +49,11 @@ export function compileTemplate(
         if (opts.isSystemMessage) {
           return `{!${compiled}}`;
         }
-        // Action and response_format references should not be wrapped in {{}}
-        if (
-          compiled.startsWith('action.') ||
-          compiled.startsWith('response_formats.')
-        ) {
-          return compiled;
+        if (compiled.startsWith('action.')) {
+          return compiled.slice('action.'.length);
+        }
+        if (compiled.startsWith('response_formats.')) {
+          return compiled.slice('response_formats.'.length);
         }
         return `{{${compiled}}}`;
       }
