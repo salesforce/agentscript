@@ -88,6 +88,18 @@ function compileExprNode(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
+  // Defense-in-depth: the parser may produce null expression nodes for
+  // incomplete syntax (e.g. `set foo = ` with nothing after `=`). Guard
+  // here — the single chokepoint that compileExpression, compileValueExpression,
+  // and recursive callers all funnel through.
+  if ((expr as Expression | null | undefined) == null) {
+    ctx.error(
+      'Internal: expression node was null',
+      undefined,
+      'COMPILER_NULL_EXPRESSION'
+    );
+    return '';
+  }
   if (expr instanceof MemberExpression) {
     return compileMemberExpression(expr, ctx, opts);
   }
