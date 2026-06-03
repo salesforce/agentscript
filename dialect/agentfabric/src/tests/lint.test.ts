@@ -752,8 +752,7 @@ echo out:
   message: a2a.message(a2a.textPart("hello"))
 `;
     const result = parseAndLintSource(source);
-    const relevant = result.diagnostics.filter(d => d.code !== 'unused-node');
-    expect(relevant.length).toBe(0);
+    expect(result.diagnostics.length).toBe(0);
   });
 
   it('allows namespaced A2A helper calls when assigning value to variable', () => {
@@ -1295,24 +1294,6 @@ echo done:
       expect(d.source).toBe('agentfabric-lint');
       expect(d.tags).toEqual([1]);
     }
-  });
-
-  it('still flags unused nodes when no trigger is present', () => {
-    const source = `
-config:
-  agent_name: "unused-node-9"
-
-echo orphan:
-  kind: "a2a:response"
-  message: "x"
-`;
-    const { diagnostics } = parseAndLintSource(source);
-    expect(diagnostics).toHaveLength(1);
-    const found = unusedNode(diagnostics);
-    expect(found).toHaveLength(1);
-    expect(found[0].message).toBe(
-      "Echo 'orphan' is declared but never referenced"
-    );
   });
 
   it('does not crash or double-report on a malformed transition target', () => {
