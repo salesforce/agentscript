@@ -24,6 +24,7 @@ export interface DiscriminantConfig {
     test: (value: string) => boolean;
     schema: Record<string, FieldType>;
   }>;
+
   /** Valid variant names for error messages */
   validValues: string[];
 }
