@@ -4580,3 +4580,182 @@ subagent main:
     });
   });
 });
+
+// ============================================================================
+// available-when-type-check rule tests
+// ============================================================================
+
+describe('availableWhenTypeCheckRule', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  const BASE = `
+variables:
+  verified: mutable boolean
+  name: mutable string
+  count: mutable number
+  items: mutable list[string] = []
+subagent main:
+  label: "Main"
+  actions:
+    check:
+      description: "Check"
+      target: "flow://Check"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+`;
+
+  it('accepts boolean comparison in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.verified == True
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts boolean literal in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when True
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts logical and/or in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.verified == True and @variables.count > 0
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts not expression in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when not @variables.verified
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts boolean variable reference in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.verified
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts unresolvable reference in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @outputs.some_flag
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts function call in available when (unknown return type)', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when len(@variables.items) > 0
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports string literal in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when "hello"
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a string');
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('reports number literal in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when 42
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a number');
+  });
+
+  it('reports non-boolean variable reference in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.name
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('string');
+  });
+
+  it('reports arithmetic expression in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.count + 1
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a number');
+  });
+});
