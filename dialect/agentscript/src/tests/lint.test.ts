@@ -2215,8 +2215,9 @@ start_agent main:
       d => d.code === 'constraint-resolved-type'
     );
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('@namespace.member');
-    expect(errors[0].message).toContain('invocation target');
+    expect(errors[0].message).toContain('@actions');
+    expect(errors[0].message).toContain('@utils');
+    expect(errors[0].message).toContain('Identifier');
   });
 
   it('rejects string literal as invocation target', () => {
@@ -2233,7 +2234,8 @@ start_agent main:
       d => d.code === 'constraint-resolved-type'
     );
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('@namespace.member');
+    expect(errors[0].message).toContain('@actions');
+    expect(errors[0].message).toContain('StringLiteral');
   });
 
   it('rejects ellipsis as invocation target', () => {
@@ -2250,7 +2252,8 @@ start_agent main:
       d => d.code === 'constraint-resolved-type'
     );
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('@namespace.member');
+    expect(errors[0].message).toContain('@actions');
+    expect(errors[0].message).toContain('Ellipsis');
   });
 
   it('rejects lone @utils as invocation target', () => {
@@ -2267,7 +2270,8 @@ start_agent main:
       d => d.code === 'constraint-resolved-type'
     );
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('@namespace.member');
+    expect(errors[0].message).toContain('@actions');
+    expect(errors[0].message).toContain('AtIdentifier');
   });
 });
 
