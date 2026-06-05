@@ -106,6 +106,29 @@ function resolvedTypeLabel(resolvedType: BlockCapability): string {
   return resolvedType;
 }
 
+/**
+ * Format the list of namespaces that satisfy a resolvedType constraint for a
+ * diagnostic message. Pulls capability-bearing namespaces from the dialect
+ * ctx, drops aliases (e.g. start_agent → subagent), and includes @utils when
+ * the dialect declares it (the only tool-bearing global scope today).
+ */
+function formatAllowedNamespaces(
+  resolvedType: BlockCapability,
+  ctx: SchemaContext
+): string {
+  const capability = resolveCapabilityNamespaces(resolvedType, ctx);
+  const aliasKeys = new Set(Object.keys(ctx.info.aliases));
+  const names = new Set<string>();
+  if (capability)
+    for (const n of capability) if (!aliasKeys.has(n)) names.add(n);
+  if (ctx.globalScopes.has('utils')) names.add('utils');
+  if (names.size === 0) return '@namespace.member';
+  return [...names]
+    .sort()
+    .map(n => `@${n}`)
+    .join(', ');
+}
+
 /** Validate a field value against its constraint metadata, attaching diagnostics to the AST node. */
 function validateConstraints(
   value: unknown,
@@ -153,6 +176,31 @@ function validateConstraints(
         return;
       }
     }
+  }
+
+  // resolvedType also rejects non-MemberExpression colinear values (bare
+  // identifiers, string literals, ellipsis, lone @ns). These compile to a
+  // no-op tool at runtime because compile-tool.ts only rebinds target for
+  // @actions.X / @connected_subagent.X member expressions. Enumerate the
+  // valid namespaces from the dialect ctx so the message stays correct
+  // across dialects (agentscript / agentforce / agentfabric ship different
+  // sets).
+  if (constraints.resolvedType && !(node instanceof MemberExpression)) {
+    validatedRefs?.add(node);
+    const kind = (node as { __kind?: string }).__kind ?? 'unknown';
+    const allowed = ctx
+      ? formatAllowedNamespaces(constraints.resolvedType, ctx)
+      : '@namespace.member';
+    attachDiagnostic(
+      node,
+      lintDiagnostic(
+        range,
+        `'${fieldName}' must be a member of ${allowed}. Got ${kind}.`,
+        DiagnosticSeverity.Error,
+        'constraint-resolved-type'
+      )
+    );
+    return;
   }
 
   // Validate allowedNamespaces for ReferenceValue (MemberExpression) fields.
