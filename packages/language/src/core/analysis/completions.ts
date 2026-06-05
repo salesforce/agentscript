@@ -49,6 +49,12 @@ export interface CompletionCandidate {
   documentation?: string;
   /** Auto-generated LSP snippet text with tab stops, for compound fields. */
   snippet?: string;
+  /**
+   * Text actually inserted at the cursor. Defaults to `name` when absent.
+   * Used by enum-value candidates that need quoting (e.g. label `OpenAI`,
+   * insertText `"OpenAI"`).
+   */
+  insertText?: string;
 }
 
 /**
@@ -501,6 +507,7 @@ export function getFieldCompletions(
 ): CompletionCandidate[] {
   const rootSchema = ctx.info.schema;
   const aliases = ctx.info.aliases;
+  const tabSize = source ? inferIndentStep(ast, source) : DEFAULT_INDENT_STEP;
 
   let result = findEnclosingBlockWithSchema(ast, line, character, rootSchema);
 
@@ -546,7 +553,7 @@ export function getFieldCompletions(
           name: key,
           kind: fieldCompletionKind(ft),
           documentation: ft.__metadata?.description,
-          snippet: generateFieldSnippet(key, ft),
+          snippet: generateFieldSnippet(key, ft, { tabSize }),
         };
       });
   }
@@ -567,68 +574,104 @@ export function getFieldCompletions(
         name,
         kind: fieldCompletionKind(fieldType),
         documentation: fieldType.__metadata?.description,
-        snippet: generateFieldSnippet(name, fieldType),
+        snippet: generateFieldSnippet(name, fieldType, { tabSize }),
       };
     });
 }
 
 /**
- * Indentation-based inference for schema context.
+ * Resolved schema context derived from the cursor's indentation and the AST.
  *
- * AgentScript uses indentation to define structure, so the indent hierarchy
- * directly maps to the schema hierarchy.  This function:
- *
- * 1. Collects parent keys at strictly decreasing indent levels going upward
- * 2. Walks the schema top-down following those keys
- * 3. Tracks whether the cursor is at a "map level" (where users type entry
- *    names, not field keywords) or inside a block (where we offer completions)
- * 4. Scans siblings at cursor indent for already-present field exclusion
- *
- * Works uniformly for intact and broken ASTs since it only reads source text
- * and schema — no CST/AST traversal needed.
+ * Shared between `getFieldCompletions` (via `inferBlockFromIndentation`) and
+ * `getValueCompletions`. Walking parents twice with two slightly divergent
+ * implementations was the bug source for W-22415806; both callers now use
+ * this single resolver.
  */
-function inferBlockFromIndentation(
-  _ast: AstRoot,
-  line: number,
-  _character: number,
-  rootSchema: Schema | Record<string, FieldType>,
-  source: string
-): { block: AstNodeLike; schema: Schema } | null {
-  const lines = source.split('\n');
-  const currentLine = lines[line] ?? '';
-  const cursorIndent = getIndent(currentLine);
-
-  if (cursorIndent === 0) return null; // top-level, let normal path handle it
-
-  // Step 1: collect parent keys at strictly decreasing indent levels.
-  // For "start_agent greeting:" we capture key="start_agent" and note
-  // that an entry name is present on the same line (hasEntryName=true).
-  const parents: Array<{
+interface IndentSchemaContext {
+  /** Parent keys at strictly decreasing indents (root → cursor's parent). */
+  parents: Array<{
     key: string;
     indent: number;
     line: number;
-    hasEntryName: boolean;
-  }> = [];
+    entryName?: string;
+  }>;
+  /** Schema at the cursor's nesting level after variant/TypedMap resolution. */
+  schema: Schema | Record<string, FieldType>;
+  /**
+   * Whether the cursor sits at a level where users type entry names (rather
+   * than field keys / values).
+   *   'none'  → inside a regular block; field/enum completions apply.
+   *   'named' → entry-name level of a NamedMap or CollectionBlock.
+   *   'typed' → entry-name level of a TypedMap; propertiesSchema fields apply.
+   */
+  mapLevel: 'none' | 'named' | 'typed';
+  /**
+   * The TypedMap field whose primitive-type keywords (`string`, `number`, …)
+   * should be offered at value position. Set only when the cursor's parent is
+   * a TypedMap entry. Independent of `mapLevel`; primitive keywords appear
+   * after the colon on a TypedMap entry's value side.
+   */
+  typedMapField: FieldType | null;
+  /** Cached source split into lines (avoid re-splitting in the caller). */
+  lines: string[];
+  /** Indent of the cursor line, in columns. */
+  cursorIndent: number;
+  /** Cursor line content (trimmed and raw both useful). */
+  cursorLineRaw: string;
+}
+
+/**
+ * Walk parents from the cursor up to the root and resolve the matching
+ * schema, mirroring discriminant-based variant resolution from the AST.
+ *
+ * AgentScript uses indentation to define structure, so the indent hierarchy
+ * maps directly to the schema hierarchy. This function:
+ *
+ * 1. Collects parent keys at strictly decreasing indent levels going upward
+ * 2. Walks the schema top-down following those keys
+ * 3. Tracks the matching AST node in lockstep so it can resolve
+ *    discriminant-based variant schemas (e.g. `kind: "OpenAI"` exposes
+ *    OpenAI-specific fields on top of the LLM base schema). Mirrors the
+ *    CST-path resolution in `findEnclosingBlockWithSchema`.
+ *
+ * Returns `null` only when there is nothing useful for any caller (no
+ * parents at all, or top-level cursor).
+ */
+function walkParentsToSchemaContext(
+  ast: AstRoot,
+  line: number,
+  rootSchema: Schema | Record<string, FieldType>,
+  source: string
+): IndentSchemaContext | null {
+  const lines = source.split('\n');
+  const cursorLineRaw = lines[line] ?? '';
+  const cursorIndent = getIndent(cursorLineRaw);
+
+  if (cursorIndent === 0) return null;
+
+  const parents: IndentSchemaContext['parents'] = [];
   for (const { line: l, indent, trimmed } of walkParentsByIndent(lines, line)) {
     const m = trimmed.match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
     if (!m) continue;
-    parents.unshift({ key: m[1], indent, line: l, hasEntryName: !!m[2] });
+    parents.unshift({ key: m[1], indent, line: l, entryName: m[2] });
   }
 
   if (parents.length === 0) return null;
 
-  // Step 2: walk the schema tree following the parent keys.
-  // Track whether the cursor is at a map's entry level — where users type
-  // entry names rather than field keywords.
-  //
   // Key distinction:
   //   NamedMap / CollectionBlock at entry level → no completions (user types names)
   //   TypedMap at entry level → show propertiesSchema (entries are typed
   //     declarations like "name: string", properties are useful here)
   let schema: Schema | Record<string, FieldType> = rootSchema;
-  let mapLevel: 'none' | 'named' | 'typed' = 'none';
+  let mapLevel: IndentSchemaContext['mapLevel'] = 'none';
+  let typedMapField: FieldType | null = null;
+  let astCursor: unknown = ast;
+  // Set only when the parent step entered a CollectionBlock; consumed on
+  // the next step to resolve the variant/named schema for the entry once
+  // its name is known.
+  let pendingEntryBlock: NamedBlockEntryType | undefined;
 
-  for (const { key, hasEntryName } of parents) {
+  for (const { key, entryName } of parents) {
     const fieldDef = schema[key];
     if (fieldDef) {
       const ft = Array.isArray(fieldDef) ? fieldDef[0] : fieldDef;
@@ -637,12 +680,23 @@ function inferBlockFromIndentation(
 
       if (mapLike) {
         const entrySchema = ft.schema ?? ft.propertiesSchema;
+        typedMapField = isTypedMap ? ft : null;
         if (entrySchema) {
           schema = entrySchema;
-          if (hasEntryName) {
-            // Entry name on same line (e.g. "start_agent greeting:")
-            // → inside the entry, not at map level
+          astCursor = isAstNodeLike(astCursor)
+            ? astField(astCursor, key)
+            : undefined;
+          pendingEntryBlock = isCollectionFieldType(ft)
+            ? ft.entryBlock
+            : undefined;
+          if (entryName) {
             mapLevel = 'none';
+            astCursor = isNamedMap(astCursor)
+              ? astCursor.get(entryName)
+              : undefined;
+            schema = resolveEntrySchema(astCursor, pendingEntryBlock, schema);
+            pendingEntryBlock = undefined;
+            typedMapField = null;
           } else {
             mapLevel = isTypedMap ? 'typed' : 'named';
           }
@@ -650,25 +704,71 @@ function inferBlockFromIndentation(
       } else if (ft.schema) {
         schema = ft.schema;
         mapLevel = 'none';
+        typedMapField = null;
+        astCursor = isAstNodeLike(astCursor)
+          ? astField(astCursor, key)
+          : undefined;
+        pendingEntryBlock = undefined;
       } else {
         // Leaf field (no sub-schema, e.g. ProcedureValue) — cursor is
-        // inside a value body where schema-based field completions
-        // don't apply.  Return an empty schema to suppress completions
-        // and override any CST-based result.
+        // inside a value body where schema-based completions don't apply.
         return {
-          block: { __kind: 'LeafField' } as unknown as AstNodeLike,
+          parents,
           schema: {} as Schema,
+          mapLevel: 'none',
+          typedMapField: null,
+          lines,
+          cursorIndent,
+          cursorLineRaw,
         };
       }
     } else {
-      // Key not in schema = named entry key (e.g. "collect_info" in actions).
-      // The schema was already set to the entry schema by the parent map-like
-      // step, so we're now inside this entry.
+      // Key not in schema = named entry key (e.g. "myLLM" inside `llm:`).
+      // The parent map-like step already advanced the schema to the entry
+      // schema; descend into the entry and resolve any variant schema.
       mapLevel = 'none';
+      typedMapField = null;
+      astCursor = isNamedMap(astCursor) ? astCursor.get(key) : undefined;
+      schema = resolveEntrySchema(astCursor, pendingEntryBlock, schema);
+      pendingEntryBlock = undefined;
     }
   }
 
-  if (schema === rootSchema) return null;
+  return {
+    parents,
+    schema,
+    mapLevel,
+    typedMapField,
+    lines,
+    cursorIndent,
+    cursorLineRaw,
+  };
+}
+
+/**
+ * Indentation-based inference for schema context.
+ *
+ * Used by `getFieldCompletions` to surface field-key completions when the
+ * CST walk returns nothing (blank line, error-recovered partial AST). Wraps
+ * `walkParentsToSchemaContext` with the field-completion-specific
+ * post-processing: synthetic block with sibling keys for already-present
+ * field exclusion, leaf/named-gap returns.
+ */
+function inferBlockFromIndentation(
+  ast: AstRoot,
+  line: number,
+  _character: number,
+  rootSchema: Schema | Record<string, FieldType>,
+  source: string
+): { block: AstNodeLike; schema: Schema } | null {
+  const ctx = walkParentsToSchemaContext(ast, line, rootSchema, source);
+  if (!ctx) return null;
+
+  const { parents, schema, mapLevel, lines, cursorIndent } = ctx;
+
+  // Leaf field — suppress completions and override any CST-based result.
+  if (!parents.length) return null;
+  if (mapLevel === 'none' && schema === rootSchema) return null;
 
   // NamedMap/CollectionBlock at entry level → user types entry names, no completions
   if (mapLevel === 'named') {
@@ -680,9 +780,9 @@ function inferBlockFromIndentation(
   // TypedMap at entry level → show propertiesSchema fields (mapLevel === 'typed')
   // Block level → show block schema fields (mapLevel === 'none')
 
-  // Step 3: build a synthetic block with already-present sibling keys so
-  // the caller can filter them out of completion suggestions.
-  // Scan lines at cursor indent within the parent block boundaries.
+  // Build a synthetic block with already-present sibling keys so the caller
+  // can filter them out of completion suggestions.  Scan lines at cursor
+  // indent within the parent block boundaries.
   const lastParent = parents[parents.length - 1];
   const presentKeys: Record<string, unknown> = { __kind: 'Synthetic' };
   for (let l = lastParent.line + 1; l < lines.length; l++) {
@@ -702,6 +802,33 @@ function inferBlockFromIndentation(
     block: presentKeys as unknown as AstNodeLike,
     schema: schema as Schema,
   };
+}
+
+/**
+ * Resolve the schema variant for a parsed NamedMap entry, mirroring what
+ * the dialect would compute at parse time. Tries discriminant-based
+ * resolution first, then name-based, and falls back to `entrySchema` when
+ * neither applies (or the entry is half-parsed / missing). The fallback
+ * yields safe completions when the AST is partial: callers still get the
+ * base schema rather than no completions at all.
+ */
+function resolveEntrySchema(
+  entry: unknown,
+  entryBlock: NamedBlockEntryType | undefined,
+  entrySchema: Schema | Record<string, FieldType>
+): Schema | Record<string, FieldType> {
+  if (!entryBlock || !isAstNodeLike(entry)) return entrySchema;
+  if (hasDiscriminant(entryBlock)) {
+    const discValue = extractDiscriminantValue(
+      entry,
+      entryBlock.discriminantField
+    );
+    if (discValue) return entryBlock.resolveSchemaForDiscriminant(discValue);
+    return entrySchema;
+  }
+  const name = typeof entry.__name === 'string' ? entry.__name : undefined;
+  if (name) return entryBlock.resolveSchemaForName(name);
+  return entrySchema;
 }
 
 function fieldCompletionKind(ft: FieldType | FieldType[]): SymbolKind {
@@ -732,23 +859,7 @@ function findEnclosingBlockWithSchema(
       const cst = entry.__cst;
       if (!cst || !isPositionInRange(line, character, cst.range)) continue;
 
-      let entrySchema = schema;
-      // Check for discriminant-based variant resolution first
-      if (namedEntryType && hasDiscriminant(namedEntryType)) {
-        const discValue = extractDiscriminantValue(
-          entry,
-          namedEntryType.discriminantField
-        );
-        if (discValue) {
-          entrySchema = namedEntryType.resolveSchemaForDiscriminant(discValue);
-        }
-      } else if (namedEntryType) {
-        const name =
-          typeof entry.__name === 'string' ? entry.__name : undefined;
-        if (name) {
-          entrySchema = namedEntryType.resolveSchemaForName(name);
-        }
-      }
+      const entrySchema = resolveEntrySchema(entry, namedEntryType, schema);
       return (
         findDeeperBlock(entry, line, character, entrySchema) ?? {
           block: entry,
@@ -847,89 +958,74 @@ function findDeeperBlock(
 }
 
 /**
- * Get value completions for a TypedMap entry's value position.
+ * Get value-position completions for the cursor on `<key>: <CURSOR>`.
  *
- * When the cursor is after `key: ` inside a TypedMap (e.g., `inputs:`,
- * `outputs:`, `variables:`), returns the primitive types and modifiers
- * defined by the TypedMap's schema.
+ * Two sources contribute:
+ *
+ *  1. **Enum members** — when the cursor's key resolves to a `StringValue`
+ *     (or other primitive) field whose schema declares
+ *     `__metadata.constraints.enum`, each enum value is offered. Discriminant
+ *     variants are honoured: if the enclosing entry has a discriminant set
+ *     (e.g. `kind: "OpenAI"`), enum candidates come from the resolved variant
+ *     schema, not the base.
+ *
+ *  2. **TypedMap primitive keywords** — when the cursor sits at the value
+ *     side of a TypedMap entry (e.g. `name: <CURSOR>` under `variables:`),
+ *     the TypedMap's primitive type keywords (`string`, `number`, …) are
+ *     offered.
+ *
+ *  Both sources can fire independently; for fields like `visibility:` under
+ *  a TypedMap variable entry only the enum branch fires (the cursor is at
+ *  the property value, not the entry value).
  */
 export function getValueCompletions(
+  ast: AstRoot,
   line: number,
   _character: number,
   ctx: SchemaContext,
   source: string
 ): CompletionCandidate[] {
-  const lines = source.split('\n');
-  const currentLine = lines[line] ?? '';
-  const cursorIndent = getIndent(currentLine);
-
-  if (cursorIndent === 0) return [];
-
   const rootSchema = ctx.info.schema;
+  const resolved = walkParentsToSchemaContext(ast, line, rootSchema, source);
+  if (!resolved) return [];
 
-  // Walk up to find parent keys at strictly decreasing indent levels
-  const parents: Array<{
-    key: string;
-    indent: number;
-    hasEntryName: boolean;
-  }> = [];
-  for (const { trimmed, indent } of walkParentsByIndent(lines, line)) {
-    const m = trimmed.match(/^([\w-]+)(?:\s+([\w-]+))?\s*:/);
-    if (!m) continue;
-    parents.unshift({ key: m[1], indent, hasEntryName: !!m[2] });
-  }
+  const { schema, typedMapField, cursorLineRaw } = resolved;
+  const candidates: CompletionCandidate[] = [];
 
-  if (parents.length === 0) return [];
-
-  // Walk schema following parent keys to find the enclosing TypedMap
-  let schema: Schema | Record<string, FieldType> = rootSchema;
-  let typedMapField: FieldType | null = null;
-
-  for (const { key, hasEntryName } of parents) {
-    const fieldDef = schema[key];
+  // 1. Enum members for the cursor-line key, if any.
+  const keyMatch = cursorLineRaw.trimStart().match(/^([\w-]+)\s*:/);
+  if (keyMatch) {
+    const cursorKey = keyMatch[1];
+    const fieldDef = (schema as Record<string, FieldType | FieldType[]>)[
+      cursorKey
+    ];
     if (fieldDef) {
       const ft = Array.isArray(fieldDef) ? fieldDef[0] : fieldDef;
-      const isTypedMap = ft.__isTypedMap === true;
-      const mapLike = ft.isNamed || ft.__isCollection || isTypedMap;
-
-      if (mapLike) {
-        if (isTypedMap) {
-          typedMapField = ft;
-        } else {
-          typedMapField = null;
+      const enumValues = ft.__metadata?.constraints?.enum;
+      if (Array.isArray(enumValues)) {
+        const needsQuotes = ft.__accepts?.includes('StringLiteral');
+        for (const value of enumValues) {
+          const literal = String(value);
+          candidates.push({
+            name: literal,
+            kind: SymbolKind.EnumMember,
+            insertText: needsQuotes ? `"${literal}"` : literal,
+          });
         }
-        const entrySchema = ft.schema ?? ft.propertiesSchema;
-        if (entrySchema) {
-          schema = entrySchema;
-          if (hasEntryName) {
-            // Inside the entry, not at map level
-            typedMapField = null;
-          }
-        }
-      } else if (ft.schema) {
-        schema = ft.schema;
-        typedMapField = null;
-      } else {
-        typedMapField = null;
       }
-    } else {
-      // Key not in schema = named entry key
-      typedMapField = null;
     }
   }
 
-  if (!typedMapField) return [];
-
-  const candidates: CompletionCandidate[] = [];
-
-  // Add primitive type completions (e.g., string, number, boolean)
-  const primitiveTypes = typedMapField.__primitiveTypes ?? [];
-  for (const pt of primitiveTypes) {
-    candidates.push({
-      name: pt.keyword,
-      kind: SymbolKind.TypeParameter,
-      documentation: pt.description,
-    });
+  // 2. TypedMap primitive type keywords (e.g. string, number, boolean).
+  if (typedMapField) {
+    const primitiveTypes = typedMapField.__primitiveTypes ?? [];
+    for (const pt of primitiveTypes) {
+      candidates.push({
+        name: pt.keyword,
+        kind: SymbolKind.TypeParameter,
+        documentation: pt.description,
+      });
+    }
   }
 
   return candidates;
@@ -1124,6 +1220,91 @@ function collectBoundWithParams(
  */
 function getIndent(line: string): number {
   return line.length - line.trimStart().length;
+}
+
+/** Min/max indent step we'll honour. Outside this range we fall back. */
+const MIN_INDENT_STEP = 2;
+const MAX_INDENT_STEP = 8;
+const DEFAULT_INDENT_STEP = 4;
+
+/**
+ * Infer the document's indent step for snippet generation by walking the
+ * AST. Used so completion-snippet bodies match the user's actual
+ * indentation convention rather than a hardcoded 4 spaces.
+ *
+ * The dialect's grammar is whitespace-significant with a consistent step
+ * across the whole document. We just need ONE structural parent→child
+ * pair on different lines to recover the step.
+ *
+ * For each `AstNodeLike` we have a CST range, and the "structural indent"
+ * of that node is the leading-whitespace count of the line where its CST
+ * starts. Walking the AST depth-first and comparing line-indents between a
+ * node and the nearest descendant that starts on a different line gives
+ * the document's step.
+ *
+ * This is naturally immune to indented prose inside multi-line scalars
+ * (`description: |` content is a StringLiteral leaf, not nested
+ * `AstNodeLike` children with their own line starts).
+ *
+ * Result is clamped to [MIN_INDENT_STEP, MAX_INDENT_STEP]. When nothing
+ * usable is found (empty file, single-line doc, totally broken parse), we
+ * fall back to DEFAULT_INDENT_STEP.
+ */
+function inferIndentStep(ast: AstRoot, source: string): number {
+  const lines = source.split('\n');
+  const lineIndent = (line: number): number => {
+    const ln = lines[line];
+    if (ln === undefined) return -1;
+    return ln.length - ln.trimStart().length;
+  };
+
+  let result: number | undefined;
+
+  function visit(node: unknown, parentIndent: number): void {
+    if (result !== undefined) return;
+    if (!node || typeof node !== 'object') return;
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        visit(item, parentIndent);
+        if (result !== undefined) return;
+      }
+      return;
+    }
+
+    if (!isAstNodeLike(node) && !isNamedMap(node)) return;
+
+    let nextParentIndent = parentIndent;
+    const cst = (node as AstNodeLike).__cst;
+    if (cst) {
+      const indent = lineIndent(cst.range.start.line);
+      if (indent >= 0 && parentIndent >= 0 && indent > parentIndent) {
+        const delta = indent - parentIndent;
+        if (delta >= MIN_INDENT_STEP && delta <= MAX_INDENT_STEP) {
+          result = delta;
+          return;
+        }
+      }
+      if (indent >= 0) nextParentIndent = indent;
+    }
+
+    if (isNamedMap(node)) {
+      for (const [, entry] of node) {
+        visit(entry, nextParentIndent);
+        if (result !== undefined) return;
+      }
+      return;
+    }
+
+    for (const [k, v] of Object.entries(node as AstNodeLike)) {
+      if (k.startsWith('__')) continue;
+      visit(v, nextParentIndent);
+      if (result !== undefined) return;
+    }
+  }
+
+  visit(ast, -1);
+  return result ?? DEFAULT_INDENT_STEP;
 }
 
 /**

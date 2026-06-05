@@ -84,6 +84,35 @@ export interface BuilderMethods<
   allowedNamespaces(namespaces: string[]): ConstrainedBuilder<S, V, F>;
   resolvedType(type: BlockCapability): ConstrainedBuilder<S, V, F>;
   crossBlockReferenceable(): ConstrainedBuilder<S, V, F>;
+  /**
+   * Mark a `ProcedureValue` field as a transition container — its body is
+   * expected to hold `TransitionStatement`s that produce graph edges.
+   * Consumed by schema-driven graph extractors so they can discover
+   * transition sites without hardcoding field names like `on_exit`.
+   */
+  transitionContainer(): ConstrainedBuilder<S, V, F>;
+  /**
+   * Mark a primitive field as carrying a predicate / condition for its
+   * sibling transition target (e.g. a router route's `when` expression).
+   * Schema-driven graph extractors surface this as the edge's predicate
+   * without needing to know the field's name.
+   */
+  predicateField(): ConstrainedBuilder<S, V, F>;
+  /**
+   * Mark a string-literal field as the human-readable name of the output
+   * a sibling transition target represents (e.g. a router route's
+   * `label` field). Schema-driven graph extractors copy its value as the
+   * edge's `output` so the canvas can render route names without
+   * hardcoding the field name.
+   */
+  outputNameField(): ConstrainedBuilder<S, V, F>;
+  /**
+   * Mark a string-literal field as the human-readable display label for
+   * the surrounding block (e.g. a node's `label` field). Schema-driven
+   * graph extractors surface its value as the protocol-level node
+   * label without hardcoding the field name.
+   */
+  displayLabelField(): ConstrainedBuilder<S, V, F>;
   hidden(): ConstrainedBuilder<S, V, F>;
   // Structural methods — delegate to base type's extend/omit/etc. when present.
   // Throws at runtime for types that don't support them (e.g., primitives).
@@ -421,6 +450,11 @@ export function addBuilderMethods<
     if (!skipFactoryOverridden) {
       target.crossBlockReferenceable = () =>
         withMeta({ crossBlockReferenceable: true });
+      target.transitionContainer = () =>
+        withMeta({ transitionContainer: true });
+      target.predicateField = () => withMeta({ predicateField: true });
+      target.outputNameField = () => withMeta({ outputNameField: true });
+      target.displayLabelField = () => withMeta({ displayLabelField: true });
       target.pick = (keys: string[]) => {
         if ('pick' in base && typeof base.pick === 'function') {
           return enhance(meta, base.pick(keys));

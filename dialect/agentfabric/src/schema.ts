@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026, Salesforce, Inc.
- * All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
- */
-
 import {
   Block,
   NamedBlock,
@@ -26,7 +19,30 @@ import type {
   Schema,
   SchemaInfo,
   SchemaContext,
+  NamedBlockFactory,
+  CollectionBlockFactory,
+  BlockFactory,
 } from '@agentscript/language';
+
+/**
+ * Lazy field type wrapper that defers resolution of a factory reference until
+ * first access. Used to declare self-referential block schemas without hitting
+ * the language factories' eager freeze + validate pass.
+ */
+function lazyField<F extends object>(resolve: () => F): F {
+  let cache: F | undefined;
+  const get = (): F => (cache ??= resolve());
+  return new Proxy({} as F, {
+    get(_target, prop) {
+      return (get() as Record<string | symbol, unknown>)[
+        prop as string | symbol
+      ];
+    },
+    has(_target, prop) {
+      return prop in (get() as object);
+    },
+  });
+}
 
 import {
   SystemBlock,
@@ -43,7 +59,9 @@ export { SystemBlock, VariablesBlock } from '@agentscript/agentscript-dialect';
 
 export const AFConfigBlock = Block('AFConfigBlock', {
   agent_name: StringValue.describe('Unique agent identifier.').required(),
-  label: StringValue.describe('Human-readable display name for the agent.'),
+  label: StringValue.describe(
+    'Human-readable display name for the agent.'
+  ).displayLabelField(),
   description: StringValue.describe('Description of the agent.'),
   default_llm: ReferenceValue.describe(
     'Default LLM (@llm.<name>) used at compile time for orchestration, reasoning, and generate nodes that omit an explicit llm field. The linter reports an error if this is omitted while any such node also omits llm.'
@@ -93,7 +111,7 @@ const llmBaseFields: Schema = {
 const openaiLlmVariantFields: Schema = {
   reasoning_effort: StringValue.describe(
     'Constrains effort on reasoning for OpenAI reasoning models.'
-  ).enum(['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH']),
+  ).enum(['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH', 'XHIGH']),
   top_logprobs: NumberValue.describe(
     'Number of most likely tokens to return at each position (OpenAI).'
   ),
@@ -149,9 +167,6 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
       kind: StringValue.describe(
         'Action type discriminator: "a2a:send_message" or "mcp:tool".'
       ).required(),
-      http_headers: ExpressionValue.describe(
-        'Optional per-action HTTP headers map applied to outgoing action calls.'
-      ),
       inputs: CollectionBlock(ActionDefInputBlock).describe(
         'Bindable input arguments for the action.'
       ),
@@ -191,7 +206,9 @@ export const TriggerBlock = NamedBlock('TriggerBlock', {
     .required(),
   on_message: ProcedureValue.describe(
     'Procedure executed when a message is received. Must contain a transition to the initial node.'
-  ).required(),
+  )
+    .required()
+    .transitionContainer(),
 })
   .discriminant('kind')
   .variant('a2a', {})
@@ -245,31 +262,49 @@ function createOutputJsonSchemaFields(options?: {
   return fields;
 }
 
-export const OutputPropertyBlock = NamedBlock('OutputPropertyBlock', {
-  ...createOutputJsonSchemaFields({ includeRequired: true }),
-  items: Block('OutputArrayItemsBlock', {
+// Self-referential schema: a property's `items` (array) and `properties`
+// entries (object) recursively accept the same shape. Forward declarations
+// + lazy proxies break the cycle without depending on factory `extend`,
+// which returns a new factory rather than mutating in place.
+const lazyOutputProperty: NamedBlockFactory<Schema> = lazyField(
+  () => OutputPropertyBlock as NamedBlockFactory<Schema>
+);
+const lazyOutputArrayItems: BlockFactory<Schema> = lazyField(
+  () => OutputArrayItemsBlock as BlockFactory<Schema>
+);
+const lazyOutputPropertyCollection: CollectionBlockFactory<Schema> = lazyField(
+  () => OutputPropertyCollection as CollectionBlockFactory<Schema>
+);
+
+export const OutputPropertyBlock: NamedBlockFactory<Schema> = NamedBlock(
+  'OutputPropertyBlock',
+  {
+    ...createOutputJsonSchemaFields({
+      includeRequired: true,
+      includeDefault: true,
+    }),
+    items: lazyOutputArrayItems,
+    properties: lazyOutputPropertyCollection,
+  }
+).describe('Output structure property definition.');
+
+const OutputArrayItemsBlock: BlockFactory<Schema> = Block(
+  'OutputArrayItemsBlock',
+  {
     ...createOutputJsonSchemaFields({
       typeDescription:
         'Data type for array items: string, number, integer, boolean, array, object.',
       descriptionDescription: 'Description of this item schema.',
       includeRequired: true,
+      includeDefault: true,
     }),
-    properties: CollectionBlock(
-      NamedBlock(
-        'OutputNestedPropertyBlock',
-        createOutputJsonSchemaFields({ includeDefault: true })
-      )
-    ).describe('Nested object properties map.'),
-    default: ExpressionValue.describe('Default value.'),
-  }).describe('Schema for each array item.'),
-  properties: CollectionBlock(
-    NamedBlock(
-      'OutputObjectPropertyBlock',
-      createOutputJsonSchemaFields({ includeDefault: true })
-    )
-  ).describe('Nested object properties map.'),
-  default: ExpressionValue.describe('Default value.'),
-}).describe('Output structure property definition.');
+    items: lazyOutputArrayItems,
+    properties: lazyOutputPropertyCollection,
+  }
+).describe('Schema for each array item.');
+
+const OutputPropertyCollection: CollectionBlockFactory<Schema> =
+  CollectionBlock(lazyOutputProperty).describe('Nested object properties map.');
 
 export const OutputStructureBlock = Block('OutputStructureBlock', {
   properties: CollectionBlock(OutputPropertyBlock).describe(
@@ -327,7 +362,9 @@ export const SubagentBlock = AgentScriptSubagentBlock.omit(
       ).required(),
       on_exit: ProcedureValue.describe(
         'Procedure executed when node completes. Must contain a transition to statement.'
-      ).required(),
+      )
+        .required()
+        .transitionContainer(),
     },
     {
       capabilities: ['transitionTarget'],
@@ -346,7 +383,9 @@ export const GeneratorBlock = NamedBlock(
   'GeneratorBlock',
   {
     description: StringValue.describe('Description of what this node does.'),
-    label: StringValue.describe('Human-readable display name.'),
+    label: StringValue.describe(
+      'Human-readable display name.'
+    ).displayLabelField(),
     llm: ReferenceValue.describe(
       'Override the default LLM setting.'
     ).allowedNamespaces(['llm']),
@@ -361,7 +400,9 @@ export const GeneratorBlock = NamedBlock(
     ),
     on_exit: ProcedureValue.describe(
       'Procedure executed when node completes. Must contain a transition to statement.'
-    ).required(),
+    )
+      .required()
+      .transitionContainer(),
   },
   {
     capabilities: ['transitionTarget'],
@@ -375,13 +416,15 @@ export const ExecutorBlock = NamedBlock(
   'ExecutorBlock',
   {
     description: StringValue.describe('Description of what this node does.'),
-    label: StringValue.describe('Human-readable display name.'),
+    label: StringValue.describe(
+      'Human-readable display name.'
+    ).displayLabelField(),
     do: ProcedureValue.describe(
       'Deterministic steps: `set @variables.<name> = <expr>` and/or `run @actions.<action_name>` with `with` inputs and optional `set` lines that read `@outputs.<field>` from the action result. For prior graph node results use `@<node_type>.<node_name>.output` (for example `@generate.summary.output`). Use @request.* for trigger payload and @variables.* for declared variables.'
     ).required(),
     on_exit: ProcedureValue.describe(
       'Procedure executed when node completes. Optional for terminal execute nodes; when present, should contain a transition to statement.'
-    ),
+    ).transitionContainer(),
   },
   {
     capabilities: ['transitionTarget'],
@@ -393,6 +436,9 @@ export const ExecutorBlock = NamedBlock(
 
 // ── Switch ──────────────────────────────────────────────────────────
 
+// TODO: derive this list from the schema itself (every top-level namespace
+// whose entry block declares the `'transitionTarget'` capability) so adding
+// a new node kind doesn't require editing this allowlist by hand.
 const ROUTER_TARGET_NAMESPACES = [
   'orchestrator',
   'subagent',
@@ -407,11 +453,16 @@ export const RouterRouteBlock = Block('RouterRouteBlock', {
     'Transition target reference, e.g. @orchestrator.someNode.'
   )
     .allowedNamespaces(ROUTER_TARGET_NAMESPACES)
+    .resolvedType('transitionTarget')
     .required(),
   when: ExpressionValue.describe(
     'Condition expression that enables this route.'
-  ).required(),
-  label: StringValue.describe('Optional UI label for this route.'),
+  )
+    .required()
+    .predicateField(),
+  label: StringValue.describe(
+    'Optional UI label for this route.'
+  ).outputNameField(),
 });
 
 export const RouterOtherwiseBlock = Block('RouterOtherwiseBlock', {
@@ -419,6 +470,7 @@ export const RouterOtherwiseBlock = Block('RouterOtherwiseBlock', {
     'Default transition target when no route condition matches.'
   )
     .allowedNamespaces(ROUTER_TARGET_NAMESPACES)
+    .resolvedType('transitionTarget')
     .required(),
 });
 
@@ -426,7 +478,9 @@ export const RouterBlock = NamedBlock(
   'RouterBlock',
   {
     description: StringValue.describe('Description of what this node does.'),
-    label: StringValue.describe('Human-readable display name.'),
+    label: StringValue.describe(
+      'Human-readable display name.'
+    ).displayLabelField(),
     routes: Sequence(RouterRouteBlock)
       .describe(
         'Ordered conditional routes. Each route has target + when, and optional label for UI.'
@@ -451,7 +505,9 @@ export const EchoBlock = NamedBlock(
   'EchoBlock',
   {
     description: StringValue.describe('Description of what this node does.'),
-    label: StringValue.describe('Human-readable display name.'),
+    label: StringValue.describe(
+      'Human-readable display name.'
+    ).displayLabelField(),
     kind: StringValue.describe(
       'Response type discriminator. Currently only "a2a:response".'
     ).required(),
@@ -463,7 +519,9 @@ export const EchoBlock = NamedBlock(
       'Artifacts expression for the response.'
     ),
     metadata: ExpressionValue.describe('Metadata expression for the response.'),
-    on_exit: ProcedureValue.describe('Procedure executed when node completes.'),
+    on_exit: ProcedureValue.describe(
+      'Procedure executed when node completes.'
+    ).transitionContainer(),
   },
   {
     capabilities: ['transitionTarget'],
@@ -482,7 +540,7 @@ export const AgentFabricSchema = {
   variables: VariablesBlock,
   llm: LLMBlock,
   actions: ActionsBlock,
-  trigger: NamedCollectionBlock(TriggerBlock),
+  trigger: NamedCollectionBlock(TriggerBlock).required(),
   orchestrator: NamedCollectionBlock(OrchestratorBlock),
   subagent: NamedCollectionBlock(SubagentBlock),
   generator: NamedCollectionBlock(GeneratorBlock),

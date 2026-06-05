@@ -239,6 +239,18 @@ function resolveFieldType(ft: FieldType | FieldType[]): FieldType {
   return Array.isArray(ft) ? ft[0] : ft;
 }
 
+/**
+ * Returns true if `schema` was already visited; otherwise records it and
+ * returns false. Used by recursive walkers to short-circuit on self-
+ * referential schemas (e.g., agentfabric's output property block, which
+ * references itself via `items` and `properties`).
+ */
+function alreadyVisited(visited: WeakSet<Schema>, schema: Schema): boolean {
+  if (visited.has(schema)) return true;
+  visited.add(schema);
+  return false;
+}
+
 function buildScopedNamespaces(
   schemaInfo: SchemaInfo
 ): Map<string, Set<string>> {
@@ -253,6 +265,8 @@ function buildScopedNamespaces(
       scopeAlias &&
       schema
     ) {
+      // Fresh visited set per top-level entry: cycles are intra-subtree,
+      // so peer entries that share a sub-schema must each walk it.
       collectScopedFields(schema, scopeAlias, result);
     }
   }
@@ -281,26 +295,38 @@ function addScopedField(
 function collectScopedFields(
   schema: Schema,
   parentScope: string,
-  result: Map<string, Set<string>>
+  result: Map<string, Set<string>>,
+  visited: WeakSet<Schema> = new WeakSet()
 ): void {
+  if (alreadyVisited(visited, schema)) return;
   for (const [fieldName, rawFt] of Object.entries(schema)) {
     const fieldType = resolveFieldType(rawFt);
     if (fieldType.isNamed) {
       addScopedField(result, fieldName, parentScope);
       if (fieldType.scopeAlias && fieldType.schema) {
-        collectScopedFields(fieldType.schema, fieldType.scopeAlias, result);
+        collectScopedFields(
+          fieldType.schema,
+          fieldType.scopeAlias,
+          result,
+          visited
+        );
       }
     } else if (isCollectionField(fieldType)) {
       // CollectionBlock — treat like a NamedBlock for scope purposes
       addScopedField(result, fieldName, parentScope);
       if (fieldType.scopeAlias && fieldType.schema) {
-        collectScopedFields(fieldType.schema, fieldType.scopeAlias, result);
+        collectScopedFields(
+          fieldType.schema,
+          fieldType.scopeAlias,
+          result,
+          visited
+        );
       }
     } else if (isTypedMapField(fieldType)) {
       addScopedField(result, fieldName, parentScope);
     } else if (fieldType.schema && !fieldType.isNamed) {
       // Non-scoped Block (e.g., ReasoningBlock) -- recurse through it
-      collectScopedFields(fieldType.schema, parentScope, result);
+      collectScopedFields(fieldType.schema, parentScope, result, visited);
     }
   }
 }
@@ -316,8 +342,10 @@ function collectReferenceableFields(
 
 function walkForReferenceable(
   schema: Record<string, FieldType>,
-  result: Set<string>
+  result: Set<string>,
+  visited: WeakSet<Schema> = new WeakSet()
 ): void {
+  if (alreadyVisited(visited, schema)) return;
   for (const [fieldName, fieldType] of Object.entries(schema)) {
     if (fieldType.__metadata?.crossBlockReferenceable) {
       result.add(fieldName);
@@ -325,7 +353,8 @@ function walkForReferenceable(
     if (fieldType.schema) {
       walkForReferenceable(
         fieldType.schema as Record<string, FieldType>,
-        result
+        result,
+        visited
       );
     }
   }
@@ -348,6 +377,7 @@ function buildCapabilityNamespaces(
     const fieldType = resolveFieldType(rawFt);
     collectCapabilities(key, fieldType, result);
     if (fieldType.schema) {
+      // Fresh visited set per top-level entry: cycles are intra-subtree.
       walkForCapabilities(fieldType.schema, result);
     }
   }
@@ -369,13 +399,15 @@ function collectCapabilities(
 
 function walkForCapabilities(
   schema: Schema,
-  result: CapabilityNamespaces
+  result: CapabilityNamespaces,
+  visited: WeakSet<Schema> = new WeakSet()
 ): void {
+  if (alreadyVisited(visited, schema)) return;
   for (const [fieldName, rawFt] of Object.entries(schema)) {
     const fieldType = resolveFieldType(rawFt);
     collectCapabilities(fieldName, fieldType, result);
     if (fieldType.schema) {
-      walkForCapabilities(fieldType.schema, result);
+      walkForCapabilities(fieldType.schema, result, visited);
     }
   }
 }
@@ -401,6 +433,7 @@ function buildScopeNavigation(
     }
 
     if (fieldType.schema) {
+      // Fresh visited set per top-level entry: cycles are intra-subtree.
       walkSchemaForNavigation(fieldType.schema, fieldType.scopeAlias, registry);
     }
   }
@@ -412,8 +445,10 @@ function buildScopeNavigation(
 function walkSchemaForNavigation(
   schema: Schema,
   parentScope: string,
-  registry: Map<string, ScopeNavInfo>
+  registry: Map<string, ScopeNavInfo>,
+  visited: WeakSet<Schema> = new WeakSet()
 ): void {
+  if (alreadyVisited(visited, schema)) return;
   for (const [, rawFt] of Object.entries(schema)) {
     const fieldType = resolveFieldType(rawFt);
     if (
@@ -430,11 +465,12 @@ function walkSchemaForNavigation(
         walkSchemaForNavigation(
           fieldType.schema,
           fieldType.scopeAlias,
-          registry
+          registry,
+          visited
         );
       }
     } else if (fieldType.schema && !fieldType.isNamed) {
-      walkSchemaForNavigation(fieldType.schema, parentScope, registry);
+      walkSchemaForNavigation(fieldType.schema, parentScope, registry, visited);
     }
   }
 }

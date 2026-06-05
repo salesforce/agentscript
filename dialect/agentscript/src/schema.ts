@@ -196,9 +196,9 @@ export const ReasoningBlock = Block(
   );
 
 export const baseSubagentFields = {
-  label: StringValue.describe('Display label shown in the UI.').accepts([
-    'StringLiteral',
-  ]),
+  label: StringValue.describe('Display label shown in the UI.')
+    .accepts(['StringLiteral'])
+    .displayLabelField(),
   description: StringValue.describe(
     'Block description. Influences transitions to this block.'
   ).required(),

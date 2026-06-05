@@ -35,6 +35,7 @@ export {
   emitIndent,
   isKeyNode,
   isNamedMap,
+  isAstNodeLike,
   isCollectionFieldType,
   isNamedCollectionFieldType,
   parseCommentNode,

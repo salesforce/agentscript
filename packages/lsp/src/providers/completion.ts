@@ -144,6 +144,7 @@ export function provideCompletion(
       }
 
       const valueCandidates = getValueCompletions(
+        ast,
         line,
         character,
         schemaContext,

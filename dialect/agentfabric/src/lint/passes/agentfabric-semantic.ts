@@ -1,15 +1,11 @@
-/*
- * Copyright (c) 2026, Salesforce, Inc.
- * All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
- */
-
 import { storeKey } from '@agentscript/language';
 import type { LintPass, PassStore } from '@agentscript/language';
+import { checkActionBindingRules } from './rules/action-binding-rules.js';
 import { checkAgenticLlmRules } from './rules/agentic-llm-rules.js';
 import { checkConnectionUriRules } from './rules/connection-rules.js';
+import { checkCycleRules } from './rules/cycle-rules.js';
 import { checkEchoRules } from './rules/echo-rules.js';
+import { checkExecuteRules } from './rules/execute-rules.js';
 import { checkOnExitRules } from './rules/on-exit-rules.js';
 import { checkOutputStructureRules } from './rules/output-structure-rules.js';
 import { checkReasoningInstructionsRules } from './rules/reasoning-instructions-rules.js';
@@ -29,6 +25,9 @@ class AgentFabricSemanticPass implements LintPass {
     checkSwitchRules(store, root);
     checkEchoRules(root);
     checkAgenticLlmRules(root);
+    checkExecuteRules(root);
+    checkActionBindingRules(root);
+    checkCycleRules(root);
   }
 }
 

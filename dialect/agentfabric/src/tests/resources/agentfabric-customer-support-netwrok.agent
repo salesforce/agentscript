@@ -96,6 +96,9 @@ router route_request:
     - target: @subagent.technical_handler
       when: @generator.analyze_request.output.category == "technical"
       label: "Technical"
+    - target: @generator.analyze_request
+      when: @request.headers["Slack-UUID"] != ""
+      label: "Has Slack UUID"
   otherwise:
     target: @orchestrator.general_response
 
@@ -119,6 +122,7 @@ subagent technical_handler:
     actions:
       kb_search: @actions.search_articles
       kb_get_article: @actions.get_article
+        with http_headers = {"Authorization": @request.headers.authorization, "X-CorrelationId": @variables.requestTimestamp}
     max_consecutive_errors: 20
     task_timeout_secs: 10
     max_number_of_loops: 5
@@ -148,7 +152,7 @@ echo send_response:
     state: "completed",
     message: a2a.message({
       parts: [
-        a2a.textPart(@variables.output_response)
+        a2a.textPart(@echo.send_response.input)
       ]
     })
   }

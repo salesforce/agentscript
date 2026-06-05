@@ -144,6 +144,16 @@ unifiedAgentSpec:
         description: Map of action/execute node outputs in state namespace (agent
           outputs are in system.node_outputs)
         default: {}
+      - name: _handoff_source
+        data-type: string
+        default: null
+        label: ""
+        description: ""
+      - name: _node_input
+        data-type: string
+        default: null
+        label: ""
+        description: ""
     initial-node: classifySeverity
     nodes:
       - name: crossPlatformTriage
@@ -247,13 +257,15 @@ unifiedAgentSpec:
             ref: updateIssue-client
             enabled: true
             bound-inputs:
-              ticket_id: system.node_outputs['classifySeverity'].ticket_id
+              ticket_id: parse_json(system.node_outputs['classifySeverity']).ticket_id
             llm-inputs:
               - status
               - comment
         after-reasoning:
           - type: handoff
             target: resolutionRouter
+            state-updates:
+              - _handoff_source: "'crossPlatformTriage'"
       - name: classifySeverity
         label: Classify Severity
         description: Classifies the severity of the support ticket.
@@ -264,7 +276,8 @@ unifiedAgentSpec:
             model: gemini-2.5-pro
           output-structure-ref: os_classifySeverity
         on-init:
-          - ref: IdentityAction
+          - type: action
+            ref: IdentityAction
             state-updates:
               - request: normalize_headers(variables['request'])
         system-prompt: "| {{state.request.payload.message.parts[0].text}}"
@@ -304,6 +317,8 @@ unifiedAgentSpec:
         after-reasoning:
           - type: handoff
             target: severityRouter
+            state-updates:
+              - _handoff_source: "'classifySeverity'"
       - name: helpSummary
         label: null
         description: Generates a summary of the help resolution.
@@ -315,12 +330,15 @@ unifiedAgentSpec:
         on-init: null
         system-prompt: "| Generate a resolution summary for the user. Original request:
           {{state.request.payload.message.parts[0].text}}. Resolution and
-          actions taken: {{system.node_outputs['crossPlatformTriage'].summary}}"
+          actions taken:
+          {{parse_json(system.node_outputs['crossPlatformTriage']).summary}}"
         focus-prompt: You generate clear, friendly summaries of IT help desk resolutions.
         tools: null
         after-reasoning:
           - type: handoff
             target: helpResponse
+            state-updates:
+              - _handoff_source: "'helpSummary'"
       - name: licenseSummary
         label: null
         description: Generates a summary of the license provisioning.
@@ -333,12 +351,14 @@ unifiedAgentSpec:
         system-prompt: "| Generate a license provisioning summary for the user. Original
           request: {{state.request.payload.message.parts[0].text}}. Resolution
           and actions taken:
-          {{system.node_outputs['crossPlatformTriage'].summary}}"
+          {{parse_json(system.node_outputs['crossPlatformTriage']).summary}}"
         focus-prompt: You generate clear, friendly summaries of license provisioning actions.
         tools: null
         after-reasoning:
           - type: handoff
             target: licenseResponse
+            state-updates:
+              - _handoff_source: "'licenseSummary'"
       - name: escalateTicket
         type: action
         label: null
@@ -346,16 +366,18 @@ unifiedAgentSpec:
           - type: action
             ref: escalate-action
             bound-inputs:
-              ticket_id: system.node_outputs['classifySeverity'].ticket_id
+              ticket_id: parse_json(system.node_outputs['classifySeverity']).ticket_id
               severity: '"high"'
-              reason: system.node_outputs['classifySeverity'].reason
+              reason: parse_json(system.node_outputs['classifySeverity']).reason
               description: state.request.payload.message.parts[0].text
             state-updates:
-              - outputs: add(state.outputs, "escalateTicket", result["result"])
+              - outputs: add(state.outputs, "escalateTicket", result["content"])
         on-init: null
         on-exit:
           - type: handoff
             target: escalationResponse
+            state-updates:
+              - _handoff_source: "'escalateTicket'"
         add-tool-result-to-chat-history: false
         output-template: null
       - name: escalateUnresolved
@@ -365,16 +387,18 @@ unifiedAgentSpec:
           - type: action
             ref: escalate-action
             bound-inputs:
-              ticket_id: system.node_outputs['classifySeverity'].ticket_id
+              ticket_id: parse_json(system.node_outputs['classifySeverity']).ticket_id
               severity: '"low"'
-              reason: system.node_outputs['crossPlatformTriage'].summary
+              reason: parse_json(system.node_outputs['crossPlatformTriage']).summary
               description: state.request.payload.message.parts[0].text
             state-updates:
-              - outputs: add(state.outputs, "escalateUnresolved", result["result"])
+              - outputs: add(state.outputs, "escalateUnresolved", result["content"])
         on-init: null
         on-exit:
           - type: handoff
             target: unresolvedResponse
+            state-updates:
+              - _handoff_source: "'escalateUnresolved'"
         add-tool-result-to-chat-history: false
         output-template: null
       - name: severityRouter
@@ -385,7 +409,7 @@ unifiedAgentSpec:
         on-exit:
           - type: handoff
             target: escalateTicket
-            enabled: system.node_outputs['classifySeverity'].severity == "high"
+            enabled: parse_json(system.node_outputs['classifySeverity']).severity == "high"
           - type: handoff
             target: crossPlatformTriage
         add-tool-result-to-chat-history: false
@@ -398,11 +422,12 @@ unifiedAgentSpec:
         on-exit:
           - type: handoff
             target: licenseSummary
-            enabled: system.node_outputs['crossPlatformTriage'].resolution ==
+            enabled: parse_json(system.node_outputs['crossPlatformTriage']).resolution ==
               "license_given"
           - type: handoff
             target: escalateUnresolved
-            enabled: system.node_outputs['crossPlatformTriage'].resolution == "unresolved"
+            enabled: parse_json(system.node_outputs['crossPlatformTriage']).resolution ==
+              "unresolved"
           - type: handoff
             target: helpSummary
         add-tool-result-to-chat-history: false
@@ -416,9 +441,10 @@ unifiedAgentSpec:
               - __escalationResponse_value: "a2a_task(state=\"completed\",
                   message=a2a_message(messageId=uuid(),
                   parts=[a2a_textPart(\"Ticket \" +
-                  system.node_outputs['classifySeverity'].ticket_id + \" has
-                  been escalated to the on-call team due to high severity: \" +
-                  system.node_outputs['classifySeverity'].reason)]),
+                  parse_json(system.node_outputs['classifySeverity']).ticket_id
+                  + \" has been escalated to the on-call team due to high
+                  severity: \" +
+                  parse_json(system.node_outputs['classifySeverity']).reason)]),
                   metadata=None)"
               - outputs: add(state.outputs, "escalationResponse",
                   state.__escalationResponse_value)
@@ -465,11 +491,11 @@ unifiedAgentSpec:
               - __unresolvedResponse_value: "a2a_task(state=\"completed\",
                   message=a2a_message(messageId=uuid(),
                   parts=[a2a_textPart(\"Ticket \" +
-                  system.node_outputs['classifySeverity'].ticket_id + \" could
-                  not be resolved automatically and has been escalated to a
-                  human agent. Summary: \" +
-                  system.node_outputs['crossPlatformTriage'].summary)]),
-                  metadata=None)"
+                  parse_json(system.node_outputs['classifySeverity']).ticket_id
+                  + \" could not be resolved automatically and has been
+                  escalated to a human agent. Summary: \" +
+                  parse_json(system.node_outputs['crossPlatformTriage']).summar\
+                  y)]), metadata=None)"
               - outputs: add(state.outputs, "unresolvedResponse",
                   state.__unresolvedResponse_value)
         on-init: null

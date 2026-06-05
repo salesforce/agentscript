@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026, Salesforce, Inc.
- * All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
- */
-
 import type {
   DialectConfig,
   InferFields,
@@ -86,6 +79,40 @@ export type {
 
 export { defaultRules } from './lint/passes/index.js';
 export { createLintEngine } from './lint/index.js';
+
+// ── Compiler re-exports ─────────────────────────────────────────────
+
+export { compile } from './compiler/index.js';
+export type { CompileResult, CompileOptions } from './compiler/index.js';
+export type { AgentGraph } from './compiler/agent-graph.js';
+export { ObjectTypes } from './compiler/unified-agent-specification.js';
+export type {
+  UnifiedAgentSpecification,
+  AgentNode,
+  ActionNode,
+  RouterNode,
+  HandoffAction,
+  ActionCallableReference,
+  ActionDefinition,
+  LLMRef,
+  StateVariable,
+  GraphConfig,
+  Node,
+} from './compiler/unified-agent-specification.js';
+export type { LLMProvider, InvokableClient } from './compiler/service-types.js';
+
+// ── Graph re-exports ─────────────────────────────────────────────────
+
+export { extractGraph, getGraph } from './graph/index.js';
+export type {
+  GraphNode,
+  GraphEdge,
+  ExtractedGraph,
+  EdgeProvenance,
+  Graph,
+  ProtocolNode,
+  ProtocolEdge,
+} from './graph/index.js';
 
 // ── Dialect config ──────────────────────────────────────────────────
 

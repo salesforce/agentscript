@@ -1,14 +1,8 @@
-/*
- * Copyright (c) 2026, Salesforce, Inc.
- * All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
- */
-
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Diagnostic } from '@agentscript/language';
 import { parseAndLintSource } from './test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -740,6 +734,12 @@ echo successResponse:
 
   it('allows namespaced A2A helper calls in expression fields (a2a.message, a2a.textPart, …)', () => {
     const source = `
+trigger t:
+  kind: "a2a"
+  target: "brokers://generator-procedure-prompt/a2a"
+  on_message: -> 
+    transition to @echo.out
+
 echo out:
   kind: "a2a:response"
   message: a2a.message(a2a.textPart("hello"))
@@ -755,7 +755,10 @@ executor step:
     set @variables.t = a2a.task({ state: "completed" })
 `;
     const result = parseAndLintSource(source);
-    expect(result.diagnostics.length).toBe(0);
+    const relevant = result.diagnostics.filter(
+      d => d.code !== 'unused-node' && d.code !== 'missing-required-field'
+    );
+    expect(relevant.length).toBe(0);
   });
 
   it('accepts generator prompt in procedure form', () => {
@@ -800,5 +803,1055 @@ echo done:
       d => d.severity === 1 && d.source !== 'parser'
     );
     expect(lintErrors).toHaveLength(0);
+  });
+
+  it('does not flag output-structure-items-required for top-level array with items', () => {
+    const source = `
+config:
+  agent_name: "outputs-top-level-array"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://outputs-top-level-array/a2a"
+  on_message: -> transition to @orchestrator.o
+
+orchestrator o:
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | do something
+    outputs:
+      properties:
+        associated_symptoms:
+          type: "array"
+          description: "Additional symptoms"
+          items:
+            type: "string"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.some(d => d.code === 'output-structure-items-required')
+    ).toBe(false);
+  });
+
+  it('does not flag output-structure-items-required for nested array with items under object properties', () => {
+    const source = `
+config:
+  agent_name: "outputs-nested-array"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://outputs-nested-array/a2a"
+  on_message: -> transition to @orchestrator.o
+
+orchestrator o:
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | do something
+    outputs:
+      properties:
+        information_gathered:
+          type: "object"
+          properties:
+            associated_symptoms:
+              type: "array"
+              description: "Additional symptoms"
+              items:
+                type: "string"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const outputStructureErrors = result.diagnostics.filter(
+      d => typeof d.code === 'string' && d.code.startsWith('output-structure')
+    );
+    expect(outputStructureErrors).toEqual([]);
+  });
+
+  it('does not flag output-structure for array-of-objects nested under object properties', () => {
+    const source = `
+config:
+  agent_name: "outputs-array-of-objects"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://outputs-array-of-objects/a2a"
+  on_message: -> transition to @orchestrator.o
+
+orchestrator o:
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | do something
+    outputs:
+      properties:
+        information_gathered:
+          type: "object"
+          properties:
+            top_conditions:
+              type: "array"
+              description: "Top matching conditions"
+              items:
+                type: "object"
+                properties:
+                  condition_name:
+                    type: "string"
+                  score:
+                    type: "number"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const outputStructureErrors = result.diagnostics.filter(
+      d => typeof d.code === 'string' && d.code.startsWith('output-structure')
+    );
+    expect(outputStructureErrors).toEqual([]);
+  });
+
+  it('does not flag output-structure for deeply nested mixed array/object schema', () => {
+    const source = `
+config:
+  agent_name: "outputs-deeply-nested"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://outputs-deeply-nested/a2a"
+  on_message: -> transition to @orchestrator.o
+
+orchestrator o:
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | do something
+    outputs:
+      properties:
+        info:
+          type: "object"
+          properties:
+            top_conditions:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  evidence:
+                    type: "array"
+                    items:
+                      type: "object"
+                      properties:
+                        details:
+                          type: "string"
+            deep:
+              type: "object"
+              properties:
+                inner:
+                  type: "object"
+                  properties:
+                    items_at_depth4:
+                      type: "array"
+                      items:
+                        type: "string"
+        matrix:
+          type: "array"
+          items:
+            type: "array"
+            items:
+              type: "number"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const outputStructureErrors = result.diagnostics.filter(
+      d => typeof d.code === 'string' && d.code.startsWith('output-structure')
+    );
+    expect(outputStructureErrors).toEqual([]);
+  });
+
+  it('still flags output-structure-items-required when items is missing at depth', () => {
+    const source = `
+config:
+  agent_name: "outputs-missing-items-at-depth"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://outputs-missing-items-at-depth/a2a"
+  on_message: -> transition to @orchestrator.o
+
+orchestrator o:
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | do something
+    outputs:
+      properties:
+        information_gathered:
+          type: "object"
+          properties:
+            associated_symptoms:
+              type: "array"
+              description: "Additional symptoms (no items declared)"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const itemsErrors = result.diagnostics.filter(
+      d => d.code === 'output-structure-items-required'
+    );
+    expect(itemsErrors).toHaveLength(1);
+    expect(itemsErrors[0].message).toContain(
+      'information_gathered.properties.associated_symptoms'
+    );
+  });
+});
+
+describe('unused-node rule', () => {
+  function unusedNode(diagnostics: Diagnostic[]): Diagnostic[] {
+    return diagnostics.filter(d => d.code === 'unused-node');
+  }
+
+  it('does not warn when trigger -> A and A.on_exit -> B (terminal echo)', () => {
+    const source = `
+config:
+  agent_name: "unused-node-1"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-1/a2a"
+  on_message: ->
+    transition to @subagent.A
+
+subagent A:
+  llm: @llm.g
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @echo.B
+
+echo B:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('does not warn when a node is the trigger target only', () => {
+    const source = `
+config:
+  agent_name: "unused-node-3"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-3/a2a"
+  on_message: ->
+    transition to @echo.X
+
+echo X:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('does not warn when a node is referenced only inside a reasoning.instructions if branch', () => {
+    const source = `
+config:
+  agent_name: "unused-node-4"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-4/a2a"
+  on_message: ->
+    transition to @subagent.A
+
+subagent A:
+  llm: @llm.g
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | analyze
+      if @variables.ready:
+        transition to @echo.X
+  on_exit: ->
+    transition to @echo.X
+
+echo X:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('does not warn when a node is referenced only by router otherwise.target', () => {
+    const source = `
+config:
+  agent_name: "unused-node-5"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-5/a2a"
+  on_message: ->
+    transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: True
+  otherwise:
+    target: @echo.X
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+
+echo X:
+  kind: "a2a:response"
+  message: "fallback"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('does not warn when a node is referenced only by router routes[].target', () => {
+    const source = `
+config:
+  agent_name: "unused-node-6"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-6/a2a"
+  on_message: ->
+    transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.X
+      when: True
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+
+echo X:
+  kind: "a2a:response"
+  message: "x"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('flags one diagnostic per unused declaration across all node namespaces (subagent, generator, echo, llm, actions)', () => {
+    const source = `
+config:
+  agent_name: "unused-node-positive"
+
+llm:
+  usedLlm:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+  unusedLlm:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+actions:
+  usedAction:
+    target: "mcp://knowledge"
+    kind: "mcp:tool"
+    tool_name: "lookup"
+  unusedAction:
+    target: "mcp://knowledge"
+    kind: "mcp:tool"
+    tool_name: "lookup"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-positive/a2a"
+  on_message: ->
+    transition to @subagent.usedSub
+
+subagent usedSub:
+  llm: @llm.usedLlm
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | work
+    actions:
+      alias: @actions.usedAction
+  on_exit: ->
+    transition to @echo.done
+
+subagent unusedSub:
+  llm: @llm.usedLlm
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @echo.done
+
+generator unusedGen:
+  llm: @llm.usedLlm
+  prompt: ->
+    | summarize
+  on_exit: ->
+    transition to @echo.done
+
+echo unusedEcho:
+  kind: "a2a:response"
+  message: "x"
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    expect(diagnostics).toHaveLength(5);
+    const found = unusedNode(diagnostics);
+    expect(found).toHaveLength(5);
+    const messages = found.map(d => d.message).sort();
+    expect(messages).toEqual([
+      "Actions 'unusedAction' is declared but never referenced",
+      "Echo 'unusedEcho' is declared but never referenced",
+      "Generator 'unusedGen' is declared but never referenced",
+      "LLM 'unusedLlm' is declared but never referenced",
+      "Subagent 'unusedSub' is declared but never referenced",
+    ]);
+    for (const d of found) {
+      expect(d.source).toBe('agentfabric-lint');
+      expect(d.tags).toEqual([1]);
+    }
+  });
+
+  it('does not crash or double-report on a malformed transition target', () => {
+    const source = `
+config:
+  agent_name: "unused-node-10"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unused-node-10/a2a"
+  on_message: ->
+    transition to @subagent.missing
+
+subagent A:
+  llm: @llm.g
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    // info for unused node and error for missing transition target
+    expect(diagnostics).toHaveLength(2);
+    const found = unusedNode(diagnostics);
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toBe(
+      "Subagent 'A' is declared but never referenced"
+    );
+  });
+});
+
+describe('cycle-detected rule', () => {
+  function cycleDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
+    return diagnostics.filter(d => d.code === 'cycle-detected');
+  }
+
+  it('reports no cycle for a DAG (A -> B, A -> C, B -> D, C -> D)', () => {
+    const source = `
+config:
+  agent_name: "cycle-dag"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://cycle-dag/a2a"
+  on_message: ->
+    transition to @orchestrator.A
+
+orchestrator A:
+  description: "node A"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @router.R
+
+router R:
+  routes:
+    - target: @orchestrator.B
+      when: True
+  otherwise:
+    target: @orchestrator.C
+
+orchestrator B:
+  description: "node B"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.D
+
+orchestrator C:
+  description: "node C"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.D
+
+orchestrator D:
+  description: "node D"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(cycleDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('reports a three-node cycle (A -> B -> C -> A) with paths rotated per node', () => {
+    const source = `
+config:
+  agent_name: "cycle-three"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://cycle-three/a2a"
+  on_message: ->
+    transition to @orchestrator.A
+
+orchestrator A:
+  description: "node A"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.B
+
+orchestrator B:
+  description: "node B"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.C
+
+orchestrator C:
+  description: "node C"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.A
+`;
+    const result = parseAndLintSource(source);
+    const cycles = cycleDiagnostics(result.diagnostics);
+    expect(cycles).toHaveLength(3);
+    const messages = cycles.map(d => d.message).sort();
+    expect(messages).toEqual([
+      'Cycle detected in execution flow: @orchestrator.A → @orchestrator.B → @orchestrator.C → @orchestrator.A',
+      'Cycle detected in execution flow: @orchestrator.B → @orchestrator.C → @orchestrator.A → @orchestrator.B',
+      'Cycle detected in execution flow: @orchestrator.C → @orchestrator.A → @orchestrator.B → @orchestrator.C',
+    ]);
+  });
+
+  it('detects an orphan cycle that is unreachable from triggers', () => {
+    const source = `
+config:
+  agent_name: "cycle-orphan"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://cycle-orphan/a2a"
+  on_message: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+
+orchestrator A:
+  description: "orphan A"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.B
+
+orchestrator B:
+  description: "orphan B"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.A
+`;
+    const result = parseAndLintSource(source);
+    const cycles = cycleDiagnostics(result.diagnostics);
+    expect(cycles).toHaveLength(2);
+    const messages = cycles.map(d => d.message).sort();
+    expect(messages).toEqual([
+      'Cycle detected in execution flow: @orchestrator.A → @orchestrator.B → @orchestrator.A',
+      'Cycle detected in execution flow: @orchestrator.B → @orchestrator.A → @orchestrator.B',
+    ]);
+  });
+
+  it('emits two distinct cycle diagnostics on a node shared by two cycles (router fork)', () => {
+    const source = `
+config:
+  agent_name: "cycle-shared"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://cycle-shared/a2a"
+  on_message: ->
+    transition to @orchestrator.A
+
+orchestrator A:
+  description: "shared node"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @router.R
+
+router R:
+  routes:
+    - target: @orchestrator.B
+      when: True
+    - target: @orchestrator.C
+      when: False
+  otherwise:
+    target: @echo.done
+
+orchestrator B:
+  description: "node B"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.A
+
+orchestrator C:
+  description: "node C"
+  llm: @llm.g
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @orchestrator.A
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const cycles = cycleDiagnostics(result.diagnostics);
+    const onA = cycles.filter(
+      d =>
+        typeof d.message === 'string' &&
+        d.message.startsWith(
+          'Cycle detected in execution flow: @orchestrator.A → '
+        )
+    );
+    expect(onA).toHaveLength(2);
+    const aMessages = onA.map(d => d.message).sort();
+    expect(aMessages).toEqual([
+      'Cycle detected in execution flow: @orchestrator.A → @router.R → @orchestrator.B → @orchestrator.A',
+      'Cycle detected in execution flow: @orchestrator.A → @router.R → @orchestrator.C → @orchestrator.A',
+    ]);
+  });
+});
+
+describe('execute rules', () => {
+  it('reports execute-undeclared-input for undeclared with param in executor run', () => {
+    const source = `# @dialect: AGENTFABRIC=1.0-BETA
+
+config:
+  agent_name: "exec-input"
+
+actions:
+  billing:
+    target: "a2a://billing"
+    kind: "a2a:send_message"
+    inputs:
+      message: {}
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://exec-input/a2a"
+  on_message: -> transition to @executor.run_billing
+
+executor run_billing:
+  do: ->
+    run @actions.billing
+      with unknown_param = "x"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.some(d => d.code === 'execute-undeclared-input')
+    ).toBe(true);
+  });
+
+  it('reports execute-action-def for missing action definition', () => {
+    const source = `# @dialect: AGENTFABRIC=1.0-BETA
+
+config:
+  agent_name: "exec-noaction"
+
+actions:
+  other:
+    target: "mcp://conn"
+    kind: "mcp:tool"
+    tool_name: "tool"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://exec-noaction/a2a"
+  on_message: -> transition to @executor.run_it
+
+executor run_it:
+  do: ->
+    run @actions.nonexistent
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(result.diagnostics.some(d => d.code === 'execute-action-def')).toBe(
+      true
+    );
+  });
+
+  it('reports execute-action-def when no actions block is defined', () => {
+    const source = `# @dialect: AGENTFABRIC=1.0-BETA
+
+config:
+  agent_name: "exec-no-actions-block"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://exec-no-actions-block/a2a"
+  on_message: -> transition to @executor.run_it
+
+executor run_it:
+  do: ->
+    run @actions.nonexistent
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(result.diagnostics.some(d => d.code === 'execute-action-def')).toBe(
+      true
+    );
+  });
+});
+
+describe('action-binding rules', () => {
+  it('reports action-binding-undeclared-input for undeclared with param on subagent action', () => {
+    const source = `# @dialect: AGENTFABRIC=1.0-BETA
+
+config:
+  agent_name: "binding-warn"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+actions:
+  my_tool:
+    target: "mcp://conn"
+    kind: "mcp:tool"
+    tool_name: "tool"
+    inputs:
+      foo: {}
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://binding-warn/a2a"
+  on_message: -> transition to @subagent.worker
+
+subagent worker:
+  description: "test"
+  llm: @llm.g
+  reasoning:
+    instructions: -> go
+    actions:
+      invoke: @actions.my_tool
+        with bar = "wrong"
+  on_exit: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.some(d => d.code === 'action-binding-undeclared-input')
+    ).toBe(true);
+  });
+});
+
+describe('unknown-block rules', () => {
+  it('reports error for unknown top-level block', () => {
+    const source = `
+config:
+  agent_name: "unknown-block-test"
+
+foobar:
+  something: "value"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://unknown-block-test/a2a"
+  on_message: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const unknownErrors = result.diagnostics.filter(
+      d => d.code === 'unknown-block'
+    );
+    expect(unknownErrors).toHaveLength(1);
+    expect(unknownErrors[0].severity).toBe(1);
+    expect(unknownErrors[0].message).toContain('foobar');
+  });
+
+  it('reports errors for multiple unknown top-level blocks', () => {
+    const source = `
+config:
+  agent_name: "multi-unknown"
+
+foo:
+  x: "1"
+
+bar:
+  y: "2"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://multi-unknown/a2a"
+  on_message: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const unknownErrors = result.diagnostics.filter(
+      d => d.code === 'unknown-block'
+    );
+    expect(unknownErrors).toHaveLength(2);
+    const messages = unknownErrors.map(d => d.message);
+    expect(messages.some(m => m.includes('foo'))).toBe(true);
+    expect(messages.some(m => m.includes('bar'))).toBe(true);
+  });
+
+  it('does not report unknown-block for valid blocks', () => {
+    const source = `
+config:
+  agent_name: "all-valid"
+
+llm:
+  default_llm:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+actions:
+  lookup:
+    target: "mcp://knowledge"
+    kind: "mcp:tool"
+    tool_name: "lookup"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://all-valid/a2a"
+  on_message: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const unknownErrors = result.diagnostics.filter(
+      d => d.code === 'unknown-block'
+    );
+    expect(unknownErrors).toHaveLength(0);
+  });
+
+  it('reports error for unknown field within a block', () => {
+    const source = `
+config:
+  agent_name: "unknown-field-test"
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+  bogus_field: "should error"
+`;
+    const result = parseAndLintSource(source);
+    const unknownFieldErrors = result.diagnostics.filter(
+      d => d.code === 'unknown-field' && d.severity === 1
+    );
+    expect(unknownFieldErrors).toHaveLength(1);
+    expect(unknownFieldErrors[0].message).toContain('bogus_field');
+  });
+
+  it('reports error for deprecated router.choices as unknown-field', () => {
+    const source = `
+config:
+  agent_name: "deprecated-choices"
+
+router r:
+  choices:
+    - target: @echo.done
+      when: true
+
+echo done:
+  kind: "a2a:response"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const unknownFieldErrors = result.diagnostics.filter(
+      d => d.code === 'unknown-field' && d.severity === 1
+    );
+    expect(unknownFieldErrors.length).toBeGreaterThanOrEqual(1);
+    expect(unknownFieldErrors.some(d => d.message.includes('choices'))).toBe(
+      true
+    );
   });
 });

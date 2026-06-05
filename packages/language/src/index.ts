@@ -35,6 +35,7 @@ export {
   emitIndent,
   isKeyNode,
   isNamedMap,
+  isAstNodeLike,
   isCollectionFieldType,
   isNamedCollectionFieldType,
   parseCommentNode,
@@ -211,6 +212,7 @@ export type {
 } from './core/field-builder.js';
 export type { DocumentationMetadata, KeywordInfo } from './core/types.js';
 export { keywordNames } from './core/types.js';
+export type { Range } from './core/types.js';
 
 export {
   VariablePropertiesBlock,

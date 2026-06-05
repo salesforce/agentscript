@@ -516,6 +516,36 @@ export interface FieldMetadata extends DocumentationMetadata {
    * colinear value (e.g., `@actions.fetch_data`).
    */
   crossBlockReferenceable?: boolean;
+  /**
+   * When true, this ProcedureValue field is a transition container — the
+   * procedure body is expected to contain TransitionStatement(s) that
+   * define edges in a graph extractor. Schema-driven graph extractors use
+   * this to discover transition sites without hardcoding field names.
+   */
+  transitionContainer?: boolean;
+  /**
+   * When true, this primitive field carries a predicate / condition that
+   * gates the sibling transition target (e.g. a router route's `when`
+   * expression). Schema-driven graph extractors surface its source text on
+   * the resulting edge so consumers can render it without knowing the
+   * field's name.
+   */
+  predicateField?: boolean;
+  /**
+   * When true, this primitive field provides the human-readable name of
+   * the *output* a sibling transition target represents (e.g. a router
+   * route's `label` field). Schema-driven graph extractors copy its
+   * StringLiteral value onto the resulting edge so consumers can render
+   * the route name without knowing the field's name.
+   */
+  outputNameField?: boolean;
+  /**
+   * When true, this string-literal primitive field provides a node's
+   * human-readable display label. Schema-driven graph extractors copy
+   * its value onto the node's `label` so consumers can render it
+   * without knowing the field's name.
+   */
+  displayLabelField?: boolean;
   /** When true, the field is valid in the schema but not shown in code completions. */
   hidden?: boolean;
 }

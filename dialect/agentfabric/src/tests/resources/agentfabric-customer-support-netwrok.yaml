@@ -118,6 +118,16 @@ unifiedAgentSpec:
         data-type: string
         description: ""
         default: ""
+      - name: _handoff_source
+        data-type: string
+        default: null
+        label: ""
+        description: ""
+      - name: _node_input
+        data-type: string
+        default: null
+        label: ""
+        description: ""
     initial-node: set_context
     nodes:
       - name: general_response
@@ -211,6 +221,8 @@ unifiedAgentSpec:
         after-reasoning:
           - type: handoff
             target: send_response
+            state-updates:
+              - _handoff_source: "'general_response'"
       - name: technical_handler
         label: null
         description: Handles technical support issues using knowledge-base tools.
@@ -241,9 +253,14 @@ unifiedAgentSpec:
           - type: mcp_tool
             ref: get_article-client
             enabled: true
+            bound-inputs:
+              http_headers: "{\"authorization\": state.request.headers['authorization'],
+                \"x-correlationid\": state.requestTimestamp}"
         after-reasoning:
           - type: handoff
             target: send_response
+            state-updates:
+              - _handoff_source: "'technical_handler'"
         system-limits:
           max-reasoning-iterations: 5
           max-consecutive-errors: 20
@@ -272,6 +289,8 @@ unifiedAgentSpec:
         after-reasoning:
           - type: handoff
             target: route_request
+            state-updates:
+              - _handoff_source: "'analyze_request'"
       - name: set_context
         type: action
         label: null
@@ -282,7 +301,8 @@ unifiedAgentSpec:
               - requestTimestamp: now()
               - customerMessage: state.request.payload.message
         on-init:
-          - ref: IdentityAction
+          - type: action
+            ref: IdentityAction
             state-updates:
               - request: normalize_headers(variables['request'])
         on-exit:
@@ -304,6 +324,8 @@ unifiedAgentSpec:
         on-exit:
           - type: handoff
             target: send_response
+            state-updates:
+              - _handoff_source: "'billing_handler'"
         add-tool-result-to-chat-history: false
         output-template: null
       - name: cleanup
@@ -327,10 +349,15 @@ unifiedAgentSpec:
         on-exit:
           - type: handoff
             target: billing_handler
-            enabled: system.node_outputs['analyze_request'].category == "billing"
+            enabled: parse_json(system.node_outputs['analyze_request']).category ==
+              "billing"
           - type: handoff
             target: technical_handler
-            enabled: system.node_outputs['analyze_request'].category == "technical"
+            enabled: parse_json(system.node_outputs['analyze_request']).category ==
+              "technical"
+          - type: handoff
+            target: analyze_request
+            enabled: state.request.headers[lower("Slack-UUID")] != ""
           - type: handoff
             target: general_response
         add-tool-result-to-chat-history: false
@@ -342,9 +369,13 @@ unifiedAgentSpec:
           - ref: IdentityAction
             state-updates:
               - __send_response_value: a2a_task(state="completed",
-                  message=a2a_message(parts=[a2a_textPart(state.output_response)]))
+                  message=a2a_message(parts=[a2a_textPart(state._node_input)]))
               - outputs: add(state.outputs, "send_response", state.__send_response_value)
-        on-init: null
+        on-init:
+          - type: action
+            ref: IdentityAction
+            state-updates:
+              - _node_input: get(system.node_outputs, state._handoff_source, '')
         on-exit:
           - type: handoff
             target: cleanup
