@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional mental health screening assistant assistant.
+        Help users manage their session requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: intake_survey -> risk_screening -> resource_matching -> followup_plan.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Mental Health Screening Assistant Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "mental_health_agent_v20"
+    default_agent_user: "mental_health@example.com"
+    agent_description: "Assists users with session management through the mental health screening assistant workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    session_record_id: mutable string
+        description: "Record ID of the session"
+    session_status: mutable string = ""
+        description: "Current status of the session"
+    session_tier: mutable string = "standard"
+        description: "Tier classification for the session"
+    session_category: mutable string = ""
+        description: "Category of the session"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    intake_survey_complete: mutable boolean = False
+        description: "Whether the intake_survey stage is complete"
+    intake_survey_result: mutable string = ""
+        description: "Result from the intake_survey stage"
+    risk_screening_complete: mutable boolean = False
+        description: "Whether the risk_screening stage is complete"
+    risk_screening_result: mutable string = ""
+        description: "Result from the risk_screening stage"
+    resource_matching_complete: mutable boolean = False
+        description: "Whether the resource_matching stage is complete"
+    resource_matching_result: mutable string = ""
+        description: "Result from the resource_matching stage"
+    followup_plan_complete: mutable boolean = False
+        description: "Whether the followup_plan stage is complete"
+    followup_plan_result: mutable string = ""
+        description: "Result from the followup_plan stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate session management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a mental health screening assistant assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current session status: {! @variables.session_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_intake_survey} for intake survey requests.
+              Use {!@actions.go_to_risk_screening} for risk screening requests.
+              Use {!@actions.go_to_resource_matching} for resource matching requests.
+              Use {!@actions.go_to_followup_plan} for followup plan requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_intake_survey: @utils.transition to @topic.intake_survey
+                description: "Transition to intake survey topic."
+            go_to_risk_screening: @utils.transition to @topic.risk_screening
+                description: "Transition to risk screening topic."
+                available when @variables.is_verified == True
+            go_to_resource_matching: @utils.transition to @topic.resource_matching
+                description: "Transition to resource matching topic."
+                available when @variables.is_verified == True
+            go_to_followup_plan: @utils.transition to @topic.followup_plan
+                description: "Transition to followup plan topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic intake_survey:
+    description: "Handles the intake survey stage of the session process"
+
+    actions:
+        process_intake_survey_data:
+            description: "Process intake survey stage data for the session"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_IntakeSurvey"
+
+        validate_intake_survey_info:
+            description: "Validate intake survey information for the session"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_IntakeSurvey_Info"
+
+        fetch_intake_survey_details:
+            description: "Fetch intake survey details for the session"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_IntakeSurvey_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_intake_survey_info
+                with record_ref=@variables.session_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.session_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the intake survey stage for the session.
+              Current session status: {! @variables.session_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Intake Survey result: {! @variables.intake_survey_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.session_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_intake_survey} to begin processing.
+        actions:
+            run_intake_survey: @actions.process_intake_survey_data
+                with record_ref=@variables.session_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.session_category
+                set @variables.intake_survey_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.intake_survey_complete = @outputs.is_passed
+            fetch_intake_survey_info: @actions.fetch_intake_survey_details
+                with record_ref=@variables.session_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.session_tier = @outputs.tier_value
+            go_to_risk_screening: @utils.transition to @topic.risk_screening
+                description: "Move to risk screening stage."
+                available when @variables.intake_survey_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.session_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.session_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.session_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.intake_survey_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic risk_screening:
+    description: "Handles the risk screening stage of the session process"
+
+    actions:
+        process_risk_screening_data:
+            description: "Process risk screening stage data for the session"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_RiskScreening"
+
+        validate_risk_screening_info:
+            description: "Validate risk screening information for the session"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RiskScreening_Info"
+
+        fetch_risk_screening_details:
+            description: "Fetch risk screening details for the session"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RiskScreening_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.intake_survey_complete == False:
+            transition to @topic.intake_survey
+
+    reasoning:
+        instructions: ->
+            | Handle the risk screening stage for the session.
+              Current session status: {! @variables.session_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Risk Screening result: {! @variables.risk_screening_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.session_tier }
+              Review the risk screening results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_risk_screening: @actions.process_risk_screening_data
+                with record_ref=@variables.session_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.session_category
+                set @variables.risk_screening_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.risk_screening_complete = @outputs.is_passed
+            fetch_risk_screening_info: @actions.fetch_risk_screening_details
+                with record_ref=@variables.session_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.session_tier = @outputs.tier_value
+                available when @variables.session_record_id is not None
+            go_to_resource_matching: @utils.transition to @topic.resource_matching
+                description: "Move to resource matching stage."
+                available when @variables.risk_screening_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.risk_screening_complete == True:
+            set @variables.session_status = "risk_screening_done"
+        if @variables.risk_screening_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.resource_matching
+        if @variables.attempt_count >= 3 and @variables.risk_screening_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic resource_matching:
+    description: "Handles the resource matching stage of the session process"
+
+    actions:
+        process_resource_matching_data:
+            description: "Process resource matching stage data for the session"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ResourceMatching_Data"
+
+        validate_resource_matching_info:
+            description: "Validate resource matching information for the session"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ResourceMatching_Info"
+
+        fetch_resource_matching_details:
+            description: "Fetch resource matching details for the session"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ResourceMatching_Details"
+
+    before_reasoning:
+        if @variables.resource_matching_complete == False:
+            run @actions.fetch_resource_matching_details
+                with record_ref=@variables.session_record_id
+                with include_history=True
+                set @variables.resource_matching_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.session_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.session_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.session_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the resource matching stage for the session.
+              Current session status: {! @variables.session_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Resource Matching result: {! @variables.resource_matching_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.session_tier }
+              Review the resource matching results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_resource_matching: @actions.process_resource_matching_data
+                with record_ref=@variables.session_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.session_category
+                set @variables.resource_matching_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.resource_matching_complete = @outputs.is_passed
+            fetch_resource_matching_info: @actions.fetch_resource_matching_details
+                with record_ref=@variables.session_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.session_tier = @outputs.tier_value
+                available when @variables.session_record_id is not None
+            go_to_followup_plan: @utils.transition to @topic.followup_plan
+                description: "Move to followup plan stage."
+                available when @variables.resource_matching_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.session_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.session_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.session_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.resource_matching_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic followup_plan:
+    description: "Handles the followup plan stage of the session process"
+
+    actions:
+        process_followup_plan_data:
+            description: "Process followup plan stage data for the session"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_FollowupPlan"
+
+        validate_followup_plan_info:
+            description: "Validate followup plan information for the session"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_FollowupPlan_Info"
+
+        fetch_followup_plan_details:
+            description: "Fetch followup plan details for the session"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_FollowupPlan_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.resource_matching_complete == False:
+            transition to @topic.resource_matching
+        if @variables.eligibility_score >= 80:
+            set @variables.session_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.session_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the followup plan stage for the session.
+              Current session status: {! @variables.session_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Followup Plan result: {! @variables.followup_plan_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.session_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_followup_plan: @actions.process_followup_plan_data
+                with record_ref=@variables.session_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.session_category
+                set @variables.followup_plan_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.followup_plan_complete = @outputs.is_passed
+            fetch_followup_plan_info: @actions.fetch_followup_plan_details
+                with record_ref=@variables.session_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.session_tier = @outputs.tier_value
+                available when @variables.session_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.followup_plan_complete == True:
+            set @variables.session_status = "followup_plan_done"
+        if @variables.attempt_count >= 3 and @variables.followup_plan_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for session issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the session issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the session interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the session request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Session status: {! @variables.session_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.session_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.session_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.session_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.session_status = "escalated"
+        set @variables.escalation_requested = False
+

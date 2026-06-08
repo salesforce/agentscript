@@ -1,0 +1,64 @@
+system:
+    instructions: "You are a helpful assistant for logging and notifications."
+    messages:
+        welcome: "Hello! I can help you log events, send notifications, and record feedback."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "No_Outputs_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with actions that have inputs but no outputs"
+
+start_agent main:
+    description: "Agent with actions that have inputs but no outputs"
+
+    actions:
+        Log_Event:
+            description: "Log an event to the system"
+            target: "flow://Log_Event_Flow"
+            inputs:
+                event_type: string
+                    label: "Event Type"
+                    is_required: True
+                event_data: string
+                    label: "Event Data"
+                    is_required: True
+
+        Send_Notification:
+            description: "Send a push notification"
+            target: "apex://NotificationController.send"
+            inputs:
+                user_id: string
+                    label: "User ID"
+                    is_required: True
+                message: string
+                    label: "Notification Message"
+                    is_required: True
+
+        Record_Feedback:
+            description: "Record user feedback"
+            target: "flow://Record_Feedback_Flow"
+            inputs:
+                rating: number
+                    label: "Rating"
+                    is_required: True
+                comment: string
+                    label: "Comment"
+
+    reasoning:
+        instructions: ->
+            | Help the user log events, send notifications, and record feedback.
+              These actions do not return outputs.
+
+        actions:
+            Log_Action: @actions.Log_Event
+                with event_type=...
+                with event_data=...
+
+            Notify_Action: @actions.Send_Notification
+                with user_id=...
+                with message=...
+
+            Feedback_Action: @actions.Record_Feedback
+                with rating=...
+                with comment=...

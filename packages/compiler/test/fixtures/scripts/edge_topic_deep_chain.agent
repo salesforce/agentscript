@@ -1,0 +1,70 @@
+system:
+    instructions: "You are an onboarding assistant."
+    messages:
+        welcome: "Welcome! Let's get you set up."
+        error: "An error occurred during onboarding."
+
+config:
+    developer_name: "Deep_Chain_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent demonstrating a deep topic chain A to B to C to D to E"
+
+variables:
+    step: mutable string = ""
+        description: "Current step in the process"
+
+start_agent main:
+    description: "Agent demonstrating a deep topic chain A to B to C to D to E"
+
+    reasoning:
+        instructions: ->
+            | Welcome the user and begin the onboarding process.
+              Start by collecting their basic information.
+
+        actions:
+            go_to_step_b: @utils.transition to @topic.step_b
+
+topic step_b:
+    description: "Step B - Verify user identity"
+
+    reasoning:
+        instructions: ->
+            | Verify the user's identity by asking security questions.
+              Once verified, proceed to the next step.
+
+        actions:
+            go_to_step_c: @utils.transition to @topic.step_c
+
+topic step_c:
+    description: "Step C - Collect preferences"
+
+    reasoning:
+        instructions: ->
+            | Collect the user's preferences and settings.
+              Ask about notification preferences and language.
+
+        actions:
+            go_to_step_d: @utils.transition to @topic.step_d
+            back_to_step_b: @utils.transition to @topic.step_b
+
+topic step_d:
+    description: "Step D - Review and confirm"
+
+    reasoning:
+        instructions: ->
+            | Review all collected information with the user.
+              Ask them to confirm everything is correct.
+
+        actions:
+            go_to_step_e: @utils.transition to @topic.step_e
+            back_to_step_c: @utils.transition to @topic.step_c
+
+topic step_e:
+    description: "Step E - Complete onboarding"
+
+    reasoning:
+        instructions: ->
+            | Finalize the onboarding process.
+              Provide the user with a summary and next steps.
+              Thank them for completing the process.
+

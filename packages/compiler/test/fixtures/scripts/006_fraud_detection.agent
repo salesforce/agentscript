@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional fraud detection analyst assistant.
+        Help users manage their fraud requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: alert_triage -> investigation -> evidence_review -> resolution.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Fraud Detection Analyst Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "fraud_detection_agent_v6"
+    default_agent_user: "fraud_detection@example.com"
+    agent_description: "Assists users with fraud management through the fraud detection analyst workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    fraud_record_id: mutable string
+        description: "Record ID of the fraud"
+    fraud_status: mutable string = ""
+        description: "Current status of the fraud"
+    fraud_tier: mutable string = "standard"
+        description: "Tier classification for the fraud"
+    fraud_category: mutable string = ""
+        description: "Category of the fraud"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    alert_triage_complete: mutable boolean = False
+        description: "Whether the alert_triage stage is complete"
+    alert_triage_result: mutable string = ""
+        description: "Result from the alert_triage stage"
+    investigation_complete: mutable boolean = False
+        description: "Whether the investigation stage is complete"
+    investigation_result: mutable string = ""
+        description: "Result from the investigation stage"
+    evidence_review_complete: mutable boolean = False
+        description: "Whether the evidence_review stage is complete"
+    evidence_review_result: mutable string = ""
+        description: "Result from the evidence_review stage"
+    resolution_complete: mutable boolean = False
+        description: "Whether the resolution stage is complete"
+    resolution_result: mutable string = ""
+        description: "Result from the resolution stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate fraud management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a fraud detection analyst assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current fraud status: {! @variables.fraud_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_alert_triage} for alert triage requests.
+              Use {!@actions.go_to_investigation} for investigation requests.
+              Use {!@actions.go_to_evidence_review} for evidence review requests.
+              Use {!@actions.go_to_resolution} for resolution requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_alert_triage: @utils.transition to @topic.alert_triage
+                description: "Transition to alert triage topic."
+            go_to_investigation: @utils.transition to @topic.investigation
+                description: "Transition to investigation topic."
+                available when @variables.is_verified == True
+            go_to_evidence_review: @utils.transition to @topic.evidence_review
+                description: "Transition to evidence review topic."
+                available when @variables.is_verified == True
+            go_to_resolution: @utils.transition to @topic.resolution
+                description: "Transition to resolution topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic alert_triage:
+    description: "Handles the alert triage stage of the fraud process"
+
+    actions:
+        process_alert_triage_data:
+            description: "Process alert triage stage data for the fraud"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_AlertTriage"
+
+        validate_alert_triage_info:
+            description: "Validate alert triage information for the fraud"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_AlertTriage_Info"
+
+        fetch_alert_triage_details:
+            description: "Fetch alert triage details for the fraud"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_AlertTriage_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_alert_triage_info
+                with record_ref=@variables.fraud_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.fraud_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the alert triage stage for the fraud.
+              Current fraud status: {! @variables.fraud_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Alert Triage result: {! @variables.alert_triage_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.fraud_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_alert_triage} to begin processing.
+        actions:
+            run_alert_triage: @actions.process_alert_triage_data
+                with record_ref=@variables.fraud_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.fraud_category
+                set @variables.alert_triage_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.alert_triage_complete = @outputs.is_passed
+            fetch_alert_triage_info: @actions.fetch_alert_triage_details
+                with record_ref=@variables.fraud_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.fraud_tier = @outputs.tier_value
+            go_to_investigation: @utils.transition to @topic.investigation
+                description: "Move to investigation stage."
+                available when @variables.alert_triage_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.fraud_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.fraud_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.fraud_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.alert_triage_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic investigation:
+    description: "Handles the investigation stage of the fraud process"
+
+    actions:
+        process_investigation_data:
+            description: "Process investigation stage data for the fraud"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Investigation_Data"
+
+        validate_investigation_info:
+            description: "Validate investigation information for the fraud"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Investigation_Info"
+
+        fetch_investigation_details:
+            description: "Fetch investigation details for the fraud"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Investigation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.alert_triage_complete == False:
+            transition to @topic.alert_triage
+
+    reasoning:
+        instructions: ->
+            | Handle the investigation stage for the fraud.
+              Current fraud status: {! @variables.fraud_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Investigation result: {! @variables.investigation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.fraud_tier }
+              Review the investigation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_investigation: @actions.process_investigation_data
+                with record_ref=@variables.fraud_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.fraud_category
+                set @variables.investigation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.investigation_complete = @outputs.is_passed
+            fetch_investigation_info: @actions.fetch_investigation_details
+                with record_ref=@variables.fraud_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.fraud_tier = @outputs.tier_value
+                available when @variables.fraud_record_id is not None
+            go_to_evidence_review: @utils.transition to @topic.evidence_review
+                description: "Move to evidence review stage."
+                available when @variables.investigation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.investigation_complete == True:
+            set @variables.fraud_status = "investigation_done"
+        if @variables.investigation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.evidence_review
+        if @variables.attempt_count >= 3 and @variables.investigation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic evidence_review:
+    description: "Handles the evidence review stage of the fraud process"
+
+    actions:
+        process_evidence_review_data:
+            description: "Process evidence review stage data for the fraud"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_EvidenceReview"
+
+        validate_evidence_review_info:
+            description: "Validate evidence review information for the fraud"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_EvidenceReview_Info"
+
+        fetch_evidence_review_details:
+            description: "Fetch evidence review details for the fraud"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_EvidenceReview_Details"
+
+    before_reasoning:
+        if @variables.evidence_review_complete == False:
+            run @actions.fetch_evidence_review_details
+                with record_ref=@variables.fraud_record_id
+                with include_history=True
+                set @variables.evidence_review_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.fraud_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.fraud_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.fraud_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the evidence review stage for the fraud.
+              Current fraud status: {! @variables.fraud_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Evidence Review result: {! @variables.evidence_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.fraud_tier }
+              Review the evidence review results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_evidence_review: @actions.process_evidence_review_data
+                with record_ref=@variables.fraud_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.fraud_category
+                set @variables.evidence_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.evidence_review_complete = @outputs.is_passed
+            fetch_evidence_review_info: @actions.fetch_evidence_review_details
+                with record_ref=@variables.fraud_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.fraud_tier = @outputs.tier_value
+                available when @variables.fraud_record_id is not None
+            go_to_resolution: @utils.transition to @topic.resolution
+                description: "Move to resolution stage."
+                available when @variables.evidence_review_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.fraud_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.fraud_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.fraud_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.evidence_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic resolution:
+    description: "Handles the resolution stage of the fraud process"
+
+    actions:
+        process_resolution_data:
+            description: "Process resolution stage data for the fraud"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Resolution"
+
+        validate_resolution_info:
+            description: "Validate resolution information for the fraud"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Resolution_Info"
+
+        fetch_resolution_details:
+            description: "Fetch resolution details for the fraud"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Resolution_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.evidence_review_complete == False:
+            transition to @topic.evidence_review
+        if @variables.eligibility_score >= 80:
+            set @variables.fraud_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.fraud_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the resolution stage for the fraud.
+              Current fraud status: {! @variables.fraud_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Resolution result: {! @variables.resolution_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.fraud_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_resolution: @actions.process_resolution_data
+                with record_ref=@variables.fraud_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.fraud_category
+                set @variables.resolution_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.resolution_complete = @outputs.is_passed
+            fetch_resolution_info: @actions.fetch_resolution_details
+                with record_ref=@variables.fraud_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.fraud_tier = @outputs.tier_value
+                available when @variables.fraud_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.resolution_complete == True:
+            set @variables.fraud_status = "resolution_done"
+        if @variables.attempt_count >= 3 and @variables.resolution_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for fraud issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the fraud issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the fraud interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the fraud request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Fraud status: {! @variables.fraud_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.fraud_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.fraud_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.fraud_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.fraud_status = "escalated"
+        set @variables.escalation_requested = False
+

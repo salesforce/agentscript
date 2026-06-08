@@ -1,0 +1,144 @@
+system:
+    instructions: "You are a KYC verification agent. You help verify customer identity and ensure regulatory compliance."
+    messages:
+        welcome: "Welcome to our verification center. I'll guide you through the identity verification process."
+        error: "An error occurred during verification. Please try again."
+
+config:
+    developer_name: "KYC_Verification_Agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "kyc_agent@bank.com"
+    description: "Handles KYC identity verification, document checks, and compliance screening."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    customer_id: mutable string = ""
+        description: "Customer identifier"
+    identity_verified: mutable boolean = False
+        description: "Whether identity has been verified"
+    document_verified: mutable boolean = False
+        description: "Whether documents have been verified"
+    compliance_passed: mutable boolean = False
+        description: "Whether compliance checks passed"
+    risk_score: mutable number = 0
+        description: "Customer risk score"
+    verification_status: mutable string = "pending"
+        description: "Overall verification status"
+
+start_agent identity_check:
+    description: "Performs initial identity verification"
+
+    actions:
+        verify_identity:
+            description: "Verifies customer identity against government databases"
+            inputs:
+                customer_id: string
+                    is_required: True
+                full_name: string
+                    is_required: True
+                date_of_birth: string
+                    is_required: True
+            outputs:
+                verified: boolean
+                match_score: number
+                flags: string
+            target: "externalService://VerifyIdentity"
+
+    reasoning:
+        instructions: ->
+            | Collect the customer's full name, date of birth, and ID number.
+              Use the verify_identity action to check against databases.
+
+        actions:
+            verify: @actions.verify_identity
+                with customer_id=@variables.customer_id
+                with full_name=...
+                with date_of_birth=...
+                set @variables.identity_verified = @outputs.verified
+                set @variables.risk_score = @outputs.match_score
+
+            go_documents: @utils.transition to @topic.document_verification
+                description: "Proceed to document verification"
+                available when @variables.identity_verified == True
+
+            go_escalation: @utils.transition to @topic.compliance_review
+                description: "Escalate failed verification"
+
+    after_reasoning:
+        if @variables.identity_verified == True:
+            transition to @topic.document_verification
+        if @variables.identity_verified == False:
+            transition to @topic.compliance_review
+
+topic document_verification:
+    description: "Verifies submitted identity documents"
+
+    actions:
+        check_documents:
+            description: "Verifies uploaded identity documents"
+            inputs:
+                customer_id: string
+                    is_required: True
+                document_type: string
+                    is_required: True
+            outputs:
+                document_valid: boolean
+                expiry_date: string
+            target: "flow://CheckDocuments"
+
+    reasoning:
+        instructions: ->
+            | Verify the customer's identity documents.
+              Accepted documents: passport, driver's license, national ID.
+
+        actions:
+            check: @actions.check_documents
+                with customer_id=@variables.customer_id
+                with document_type=...
+                set @variables.document_verified = @outputs.document_valid
+
+            go_compliance: @utils.transition to @topic.compliance_review
+                description: "Proceed to compliance check"
+
+    after_reasoning:
+        if @variables.document_verified == True:
+            transition to @topic.compliance_review
+
+topic compliance_review:
+    description: "Performs regulatory compliance screening"
+
+    actions:
+        run_compliance_check:
+            description: "Runs AML and sanctions screening"
+            inputs:
+                customer_id: string
+                    is_required: True
+                risk_score: number
+            outputs:
+                passed: boolean
+                compliance_notes: string
+            target: "flow://RunComplianceCheck"
+
+    before_reasoning:
+        if @variables.customer_id != "":
+            run @actions.run_compliance_check
+                with customer_id=@variables.customer_id
+                with risk_score=@variables.risk_score
+                set @variables.compliance_passed = @outputs.passed
+
+    reasoning:
+        instructions: ->
+            | Review the compliance screening results.
+              If all checks pass, approve the customer. Otherwise, escalate.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to compliance officer"
+
+    after_reasoning:
+        if @variables.compliance_passed == True:
+            set @variables.verification_status = "approved"
+        if @variables.compliance_passed == False:
+            set @variables.verification_status = "review_required"

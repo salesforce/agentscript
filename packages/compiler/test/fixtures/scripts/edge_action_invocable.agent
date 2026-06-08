@@ -1,0 +1,83 @@
+system:
+    instructions: "You are a helpful assistant for email, tasks, and reports."
+    messages:
+        welcome: "Hello! I can help you send emails, create tasks, and generate reports."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Invocable_Actions_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with standardInvocableAction:// targets"
+
+start_agent main:
+    description: "Agent with standardInvocableAction:// targets"
+
+    actions:
+        Send_Email:
+            description: "Send an email via standard invocable action"
+            target: "standardInvocableAction://SendEmailAction"
+            inputs:
+                recipient: string
+                    label: "Recipient Email"
+                    is_required: True
+                subject: string
+                    label: "Email Subject"
+                    is_required: True
+                body: string
+                    label: "Email Body"
+                    is_required: True
+            outputs:
+                sent: boolean
+                    label: "Email Sent"
+                message_id: string
+                    label: "Message ID"
+
+        Create_Task:
+            description: "Create a task via standard invocable action"
+            target: "standardInvocableAction://CreateTaskAction"
+            inputs:
+                title: string
+                    label: "Task Title"
+                    is_required: True
+                assignee: string
+                    label: "Assignee"
+                due_date: string
+                    label: "Due Date"
+                    is_required: True
+            outputs:
+                task_id: string
+                    label: "Task ID"
+                status: string
+                    label: "Task Status"
+
+        Generate_Report:
+            description: "Generate a report via standard invocable action"
+            target: "standardInvocableAction://GenerateReportAction"
+            inputs:
+                report_type: string
+                    label: "Report Type"
+                    is_required: True
+                date_range: string
+                    label: "Date Range"
+            outputs:
+                report_url: string
+                    label: "Report URL"
+
+    reasoning:
+        instructions: ->
+            | Help the user with email, tasks, and reports.
+
+        actions:
+            Email_Action: @actions.Send_Email
+                with recipient=...
+                with subject=...
+                with body=...
+
+            Task_Action: @actions.Create_Task
+                with title=...
+                with assignee=...
+                with due_date=...
+
+            Report_Action: @actions.Generate_Report
+                with report_type=...
+                with date_range=...

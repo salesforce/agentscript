@@ -1,0 +1,30 @@
+system:
+    instructions: "You are a customer service agent with secure record access."
+
+config:
+    developer_name: "secure_service_agent"
+    default_agent_user: "service@example.com"
+    enable_enhanced_event_logs: True
+
+security:
+    verified_customer_record_access:
+        use_default_objects: True
+        additional_objects:
+          - CustomOrder.ContactId
+          - Account.OwnerId
+
+variables:
+    customer_id: mutable string
+        description: "Customer identifier"
+    order_status: mutable string = ""
+        description: "Current order status"
+
+start_agent customer_service:
+    description: "Main customer service topic"
+    reasoning:
+        instructions: ->
+            | Help the customer with their order.
+              Current status: {! @variables.order_status }
+        actions:
+            check_status: @utils.escalate
+                description: "Check order status"

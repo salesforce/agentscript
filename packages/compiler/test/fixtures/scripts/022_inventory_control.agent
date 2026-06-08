@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional inventory control agent assistant.
+        Help users manage their inventory requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: stock_check -> reorder_analysis -> supplier_contact -> receiving.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Inventory Control Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "inventory_control_agent_v22"
+    default_agent_user: "inventory_control@example.com"
+    agent_description: "Assists users with inventory management through the inventory control agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    inventory_record_id: mutable string
+        description: "Record ID of the inventory"
+    inventory_status: mutable string = ""
+        description: "Current status of the inventory"
+    inventory_tier: mutable string = "standard"
+        description: "Tier classification for the inventory"
+    inventory_category: mutable string = ""
+        description: "Category of the inventory"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    stock_check_complete: mutable boolean = False
+        description: "Whether the stock_check stage is complete"
+    stock_check_result: mutable string = ""
+        description: "Result from the stock_check stage"
+    reorder_analysis_complete: mutable boolean = False
+        description: "Whether the reorder_analysis stage is complete"
+    reorder_analysis_result: mutable string = ""
+        description: "Result from the reorder_analysis stage"
+    supplier_contact_complete: mutable boolean = False
+        description: "Whether the supplier_contact stage is complete"
+    supplier_contact_result: mutable string = ""
+        description: "Result from the supplier_contact stage"
+    receiving_complete: mutable boolean = False
+        description: "Whether the receiving stage is complete"
+    receiving_result: mutable string = ""
+        description: "Result from the receiving stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate inventory management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a inventory control agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current inventory status: {! @variables.inventory_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_stock_check} for stock check requests.
+              Use {!@actions.go_to_reorder_analysis} for reorder analysis requests.
+              Use {!@actions.go_to_supplier_contact} for supplier contact requests.
+              Use {!@actions.go_to_receiving} for receiving requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_stock_check: @utils.transition to @topic.stock_check
+                description: "Transition to stock check topic."
+            go_to_reorder_analysis: @utils.transition to @topic.reorder_analysis
+                description: "Transition to reorder analysis topic."
+                available when @variables.is_verified == True
+            go_to_supplier_contact: @utils.transition to @topic.supplier_contact
+                description: "Transition to supplier contact topic."
+                available when @variables.is_verified == True
+            go_to_receiving: @utils.transition to @topic.receiving
+                description: "Transition to receiving topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic stock_check:
+    description: "Handles the stock check stage of the inventory process"
+
+    actions:
+        process_stock_check_data:
+            description: "Process stock check stage data for the inventory"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_StockCheck_Data"
+
+        validate_stock_check_info:
+            description: "Validate stock check information for the inventory"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_StockCheck_Info"
+
+        fetch_stock_check_details:
+            description: "Fetch stock check details for the inventory"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_StockCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_stock_check_info
+                with record_ref=@variables.inventory_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.inventory_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the stock check stage for the inventory.
+              Current inventory status: {! @variables.inventory_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Stock Check result: {! @variables.stock_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.inventory_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_stock_check} to begin processing.
+        actions:
+            run_stock_check: @actions.process_stock_check_data
+                with record_ref=@variables.inventory_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.inventory_category
+                set @variables.stock_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.stock_check_complete = @outputs.is_passed
+            fetch_stock_check_info: @actions.fetch_stock_check_details
+                with record_ref=@variables.inventory_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.inventory_tier = @outputs.tier_value
+            go_to_reorder_analysis: @utils.transition to @topic.reorder_analysis
+                description: "Move to reorder analysis stage."
+                available when @variables.stock_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.inventory_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.inventory_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.inventory_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.stock_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic reorder_analysis:
+    description: "Handles the reorder analysis stage of the inventory process"
+
+    actions:
+        process_reorder_analysis_data:
+            description: "Process reorder analysis stage data for the inventory"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_ReorderAnalysis"
+
+        validate_reorder_analysis_info:
+            description: "Validate reorder analysis information for the inventory"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ReorderAnalysis_Info"
+
+        fetch_reorder_analysis_details:
+            description: "Fetch reorder analysis details for the inventory"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ReorderAnalysis_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.stock_check_complete == False:
+            transition to @topic.stock_check
+
+    reasoning:
+        instructions: ->
+            | Handle the reorder analysis stage for the inventory.
+              Current inventory status: {! @variables.inventory_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Reorder Analysis result: {! @variables.reorder_analysis_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.inventory_tier }
+              Review the reorder analysis results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_reorder_analysis: @actions.process_reorder_analysis_data
+                with record_ref=@variables.inventory_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.inventory_category
+                set @variables.reorder_analysis_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.reorder_analysis_complete = @outputs.is_passed
+            fetch_reorder_analysis_info: @actions.fetch_reorder_analysis_details
+                with record_ref=@variables.inventory_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.inventory_tier = @outputs.tier_value
+                available when @variables.inventory_record_id is not None
+            go_to_supplier_contact: @utils.transition to @topic.supplier_contact
+                description: "Move to supplier contact stage."
+                available when @variables.reorder_analysis_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.reorder_analysis_complete == True:
+            set @variables.inventory_status = "reorder_analysis_done"
+        if @variables.reorder_analysis_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.supplier_contact
+        if @variables.attempt_count >= 3 and @variables.reorder_analysis_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic supplier_contact:
+    description: "Handles the supplier contact stage of the inventory process"
+
+    actions:
+        process_supplier_contact_data:
+            description: "Process supplier contact stage data for the inventory"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_SupplierContact"
+
+        validate_supplier_contact_info:
+            description: "Validate supplier contact information for the inventory"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SupplierContact_Info"
+
+        fetch_supplier_contact_details:
+            description: "Fetch supplier contact details for the inventory"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SupplierContact_Details"
+
+    before_reasoning:
+        if @variables.supplier_contact_complete == False:
+            run @actions.fetch_supplier_contact_details
+                with record_ref=@variables.inventory_record_id
+                with include_history=True
+                set @variables.supplier_contact_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.inventory_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.inventory_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.inventory_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the supplier contact stage for the inventory.
+              Current inventory status: {! @variables.inventory_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Supplier Contact result: {! @variables.supplier_contact_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.inventory_tier }
+              Review the supplier contact results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_supplier_contact: @actions.process_supplier_contact_data
+                with record_ref=@variables.inventory_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.inventory_category
+                set @variables.supplier_contact_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.supplier_contact_complete = @outputs.is_passed
+            fetch_supplier_contact_info: @actions.fetch_supplier_contact_details
+                with record_ref=@variables.inventory_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.inventory_tier = @outputs.tier_value
+                available when @variables.inventory_record_id is not None
+            go_to_receiving: @utils.transition to @topic.receiving
+                description: "Move to receiving stage."
+                available when @variables.supplier_contact_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.inventory_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.inventory_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.inventory_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.supplier_contact_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic receiving:
+    description: "Handles the receiving stage of the inventory process"
+
+    actions:
+        process_receiving_data:
+            description: "Process receiving stage data for the inventory"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Receiving_Data"
+
+        validate_receiving_info:
+            description: "Validate receiving information for the inventory"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Receiving_Info"
+
+        fetch_receiving_details:
+            description: "Fetch receiving details for the inventory"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Receiving_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.supplier_contact_complete == False:
+            transition to @topic.supplier_contact
+        if @variables.eligibility_score >= 80:
+            set @variables.inventory_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.inventory_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the receiving stage for the inventory.
+              Current inventory status: {! @variables.inventory_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Receiving result: {! @variables.receiving_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.inventory_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_receiving: @actions.process_receiving_data
+                with record_ref=@variables.inventory_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.inventory_category
+                set @variables.receiving_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.receiving_complete = @outputs.is_passed
+            fetch_receiving_info: @actions.fetch_receiving_details
+                with record_ref=@variables.inventory_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.inventory_tier = @outputs.tier_value
+                available when @variables.inventory_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.receiving_complete == True:
+            set @variables.inventory_status = "receiving_done"
+        if @variables.attempt_count >= 3 and @variables.receiving_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for inventory issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the inventory issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the inventory interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the inventory request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Inventory status: {! @variables.inventory_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.inventory_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.inventory_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.inventory_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.inventory_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,33 @@
+system:
+    instructions: "You are a support agent with routing configured."
+    messages:
+        welcome: "Welcome! You'll be routed to the right team."
+        error: "Something went wrong."
+
+config:
+    developer_name: "EdgeConnRouting"
+    default_agent_user: "routing_bot@example.com"
+    agent_label: "Routing Agent"
+    description: "Agent with outbound routing on messaging and service_email"
+
+connection messaging:
+    adaptive_response_allowed: True
+    escalation_message: "Transferring you to a human agent"
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route_to_Messaging_Agent"
+
+connection service_email:
+    adaptive_response_allowed: True
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route_to_Email_Agent"
+
+start_agent main:
+    description: "Route support requests"
+
+    reasoning:
+        instructions: ->
+            | Help the user and route to appropriate team if needed.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

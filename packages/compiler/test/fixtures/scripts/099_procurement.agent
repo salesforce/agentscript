@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional procurement specialist assistant.
+        Help users manage their procurement_req requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: requirement_definition -> vendor_evaluation -> bid_analysis -> award.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Procurement Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "procurement_agent_v99"
+    default_agent_user: "procurement@example.com"
+    agent_description: "Assists users with procurement_req management through the procurement specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    procurement_req_record_id: mutable string
+        description: "Record ID of the procurement_req"
+    procurement_req_status: mutable string = ""
+        description: "Current status of the procurement_req"
+    procurement_req_tier: mutable string = "standard"
+        description: "Tier classification for the procurement_req"
+    procurement_req_category: mutable string = ""
+        description: "Category of the procurement_req"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    requirement_definition_complete: mutable boolean = False
+        description: "Whether the requirement_definition stage is complete"
+    requirement_definition_result: mutable string = ""
+        description: "Result from the requirement_definition stage"
+    vendor_evaluation_complete: mutable boolean = False
+        description: "Whether the vendor_evaluation stage is complete"
+    vendor_evaluation_result: mutable string = ""
+        description: "Result from the vendor_evaluation stage"
+    bid_analysis_complete: mutable boolean = False
+        description: "Whether the bid_analysis stage is complete"
+    bid_analysis_result: mutable string = ""
+        description: "Result from the bid_analysis stage"
+    award_complete: mutable boolean = False
+        description: "Whether the award stage is complete"
+    award_result: mutable string = ""
+        description: "Result from the award stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate procurement_req management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a procurement specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current procurement_req status: {! @variables.procurement_req_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_requirement_definition} for requirement definition requests.
+              Use {!@actions.go_to_vendor_evaluation} for vendor evaluation requests.
+              Use {!@actions.go_to_bid_analysis} for bid analysis requests.
+              Use {!@actions.go_to_award} for award requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_requirement_definition: @utils.transition to @topic.requirement_definition
+                description: "Transition to requirement definition topic."
+            go_to_vendor_evaluation: @utils.transition to @topic.vendor_evaluation
+                description: "Transition to vendor evaluation topic."
+                available when @variables.is_verified == True
+            go_to_bid_analysis: @utils.transition to @topic.bid_analysis
+                description: "Transition to bid analysis topic."
+                available when @variables.is_verified == True
+            go_to_award: @utils.transition to @topic.award
+                description: "Transition to award topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic requirement_definition:
+    description: "Handles the requirement definition stage of the procurement_req process"
+
+    actions:
+        process_requirement_definition_data:
+            description: "Process requirement definition stage data for the procurement_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_RequirementDefinition"
+
+        validate_requirement_definition_info:
+            description: "Validate requirement definition information for the procurement_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RequirementDefinition_Info"
+
+        fetch_requirement_definition_details:
+            description: "Fetch requirement definition details for the procurement_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RequirementDefinition_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_requirement_definition_info
+                with record_ref=@variables.procurement_req_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.procurement_req_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the requirement definition stage for the procurement_req.
+              Current procurement_req status: {! @variables.procurement_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Requirement Definition result: {! @variables.requirement_definition_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.procurement_req_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_requirement_definition} to begin processing.
+        actions:
+            run_requirement_definition: @actions.process_requirement_definition_data
+                with record_ref=@variables.procurement_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.procurement_req_category
+                set @variables.requirement_definition_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.requirement_definition_complete = @outputs.is_passed
+            fetch_requirement_definition_info: @actions.fetch_requirement_definition_details
+                with record_ref=@variables.procurement_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.procurement_req_tier = @outputs.tier_value
+            go_to_vendor_evaluation: @utils.transition to @topic.vendor_evaluation
+                description: "Move to vendor evaluation stage."
+                available when @variables.requirement_definition_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.procurement_req_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.procurement_req_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.procurement_req_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.requirement_definition_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic vendor_evaluation:
+    description: "Handles the vendor evaluation stage of the procurement_req process"
+
+    actions:
+        process_vendor_evaluation_data:
+            description: "Process vendor evaluation stage data for the procurement_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_VendorEvaluation_Data"
+
+        validate_vendor_evaluation_info:
+            description: "Validate vendor evaluation information for the procurement_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_VendorEvaluation_Info"
+
+        fetch_vendor_evaluation_details:
+            description: "Fetch vendor evaluation details for the procurement_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_VendorEvaluation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.requirement_definition_complete == False:
+            transition to @topic.requirement_definition
+
+    reasoning:
+        instructions: ->
+            | Handle the vendor evaluation stage for the procurement_req.
+              Current procurement_req status: {! @variables.procurement_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Vendor Evaluation result: {! @variables.vendor_evaluation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.procurement_req_tier }
+              Review the vendor evaluation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_vendor_evaluation: @actions.process_vendor_evaluation_data
+                with record_ref=@variables.procurement_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.procurement_req_category
+                set @variables.vendor_evaluation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.vendor_evaluation_complete = @outputs.is_passed
+            fetch_vendor_evaluation_info: @actions.fetch_vendor_evaluation_details
+                with record_ref=@variables.procurement_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.procurement_req_tier = @outputs.tier_value
+                available when @variables.procurement_req_record_id is not None
+            go_to_bid_analysis: @utils.transition to @topic.bid_analysis
+                description: "Move to bid analysis stage."
+                available when @variables.vendor_evaluation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.vendor_evaluation_complete == True:
+            set @variables.procurement_req_status = "vendor_evaluation_done"
+        if @variables.vendor_evaluation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.bid_analysis
+        if @variables.attempt_count >= 3 and @variables.vendor_evaluation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic bid_analysis:
+    description: "Handles the bid analysis stage of the procurement_req process"
+
+    actions:
+        process_bid_analysis_data:
+            description: "Process bid analysis stage data for the procurement_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_BidAnalysis"
+
+        validate_bid_analysis_info:
+            description: "Validate bid analysis information for the procurement_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_BidAnalysis_Info"
+
+        fetch_bid_analysis_details:
+            description: "Fetch bid analysis details for the procurement_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_BidAnalysis_Details"
+
+    before_reasoning:
+        if @variables.bid_analysis_complete == False:
+            run @actions.fetch_bid_analysis_details
+                with record_ref=@variables.procurement_req_record_id
+                with include_history=True
+                set @variables.bid_analysis_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.procurement_req_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.procurement_req_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.procurement_req_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the bid analysis stage for the procurement_req.
+              Current procurement_req status: {! @variables.procurement_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Bid Analysis result: {! @variables.bid_analysis_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.procurement_req_tier }
+              Review the bid analysis results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_bid_analysis: @actions.process_bid_analysis_data
+                with record_ref=@variables.procurement_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.procurement_req_category
+                set @variables.bid_analysis_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.bid_analysis_complete = @outputs.is_passed
+            fetch_bid_analysis_info: @actions.fetch_bid_analysis_details
+                with record_ref=@variables.procurement_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.procurement_req_tier = @outputs.tier_value
+                available when @variables.procurement_req_record_id is not None
+            go_to_award: @utils.transition to @topic.award
+                description: "Move to award stage."
+                available when @variables.bid_analysis_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.procurement_req_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.procurement_req_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.procurement_req_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.bid_analysis_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic award:
+    description: "Handles the award stage of the procurement_req process"
+
+    actions:
+        process_award_data:
+            description: "Process award stage data for the procurement_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Award"
+
+        validate_award_info:
+            description: "Validate award information for the procurement_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Award_Info"
+
+        fetch_award_details:
+            description: "Fetch award details for the procurement_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Award_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.bid_analysis_complete == False:
+            transition to @topic.bid_analysis
+        if @variables.eligibility_score >= 80:
+            set @variables.procurement_req_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.procurement_req_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the award stage for the procurement_req.
+              Current procurement_req status: {! @variables.procurement_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Award result: {! @variables.award_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.procurement_req_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_award: @actions.process_award_data
+                with record_ref=@variables.procurement_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.procurement_req_category
+                set @variables.award_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.award_complete = @outputs.is_passed
+            fetch_award_info: @actions.fetch_award_details
+                with record_ref=@variables.procurement_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.procurement_req_tier = @outputs.tier_value
+                available when @variables.procurement_req_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.award_complete == True:
+            set @variables.procurement_req_status = "award_done"
+        if @variables.attempt_count >= 3 and @variables.award_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for procurement_req issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the procurement_req issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the procurement_req interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the procurement_req request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Procurement Req status: {! @variables.procurement_req_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.procurement_req_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.procurement_req_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.procurement_req_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.procurement_req_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,79 @@
+system:
+    instructions: "You are a helpful account management agent."
+    messages:
+        welcome: "Hello! I can help you manage your account."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Apex_Actions_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with multiple apex:// action targets"
+
+variables:
+    account_id: mutable string = ""
+        description: "Account identifier"
+
+start_agent main:
+    description: "Agent with multiple apex:// action targets"
+
+    actions:
+        Get_Account:
+            description: "Get account details via Apex"
+            target: "apex://AccountController.getAccount"
+            inputs:
+                account_id: string
+                    label: "Account ID"
+                    is_required: True
+            outputs:
+                account_name: string
+                    label: "Account Name"
+                balance: number
+                    label: "Account Balance"
+
+        Create_Transaction:
+            description: "Create a transaction via Apex"
+            target: "apex://TransactionController.createTransaction"
+            inputs:
+                account_id: string
+                    label: "Account ID"
+                    is_required: True
+                amount: number
+                    label: "Amount"
+                    is_required: True
+                type: string
+                    label: "Transaction Type"
+                    is_required: True
+            outputs:
+                transaction_id: string
+                    label: "Transaction ID"
+                new_balance: number
+                    label: "New Balance"
+
+        Validate_Account:
+            description: "Validate account status via Apex"
+            target: "apex://AccountController.validateAccount"
+            inputs:
+                account_id: string
+                    label: "Account ID"
+                    is_required: True
+            outputs:
+                is_valid: boolean
+                    label: "Is Valid"
+                status: string
+                    label: "Account Status"
+
+    reasoning:
+        instructions: ->
+            | Help the user manage their account using Apex controllers.
+
+        actions:
+            Validate_Action: @actions.Validate_Account
+                with account_id=@variables.account_id
+
+            Get_Action: @actions.Get_Account
+                with account_id=@variables.account_id
+
+            Transaction_Action: @actions.Create_Transaction
+                with account_id=@variables.account_id
+                with amount=...
+                with type=...

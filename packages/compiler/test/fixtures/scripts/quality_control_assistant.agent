@@ -1,0 +1,537 @@
+system:
+    instructions: "You are a manufacturing quality control assistant. Your role is to help quality inspectors log defects, track quality metrics, manage non-conforming products, and initiate corrective actions."
+    messages:
+        welcome: "Welcome to the Quality Control System! I'm here to help you manage quality inspections, log defects, and track corrective actions."
+        error: "I'm having trouble accessing the quality control system. Please try again or contact the quality assurance supervisor."
+
+config:
+    developer_name: "Quality_Control_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Assists quality control inspectors with defect logging, quality metrics tracking, and corrective action processes"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Inspector and session information
+    inspector_id: mutable string = ""
+        description: "Quality inspector's employee ID"
+    inspector_name: mutable string = ""
+        description: "Inspector's full name"
+    inspector_verified: mutable boolean = False
+        description: "Whether inspector credentials are verified"
+    shift_number: mutable string = ""
+        description: "Current production shift"
+    inspection_date: mutable string = ""
+        description: "Date of inspection"
+
+    # Product and batch information
+    product_id: mutable string = ""
+        description: "Product being inspected"
+    product_name: mutable string = ""
+        description: "Product name or description"
+    batch_number: mutable string = ""
+        description: "Production batch number"
+    lot_size: mutable number = 0
+        description: "Total units in the batch"
+    sample_size: mutable number = 0
+        description: "Number of units inspected"
+    production_line: mutable string = ""
+        description: "Manufacturing line identifier"
+
+    # Defect tracking
+    defect_count: mutable number = 0
+        description: "Total number of defects found"
+    critical_defects: mutable number = 0
+        description: "Number of critical defects"
+    major_defects: mutable number = 0
+        description: "Number of major defects"
+    minor_defects: mutable number = 0
+        description: "Number of minor defects"
+    defect_types: mutable string = ""
+        description: "Types of defects identified"
+    defect_locations: mutable string = ""
+        description: "Locations where defects were found"
+
+    # Quality assessment
+    quality_status: mutable string = "pending"
+        description: "Quality assessment status"
+    quality_score: mutable number = 0
+        description: "Quality score percentage"
+    acceptance_criteria_met: mutable boolean = False
+        description: "Whether product meets acceptance criteria"
+    inspection_complete: mutable boolean = False
+        description: "Whether inspection is completed"
+
+    # Corrective actions
+    corrective_action_needed: mutable boolean = False
+        description: "Whether corrective action is required"
+    corrective_action_type: mutable string = ""
+        description: "Type of corrective action required"
+    root_cause_analysis_needed: mutable boolean = False
+        description: "Whether root cause analysis is required"
+    quarantine_required: mutable boolean = False
+        description: "Whether batch needs to be quarantined"
+
+    # Documentation
+    inspection_report_id: mutable string = ""
+        description: "Generated inspection report ID"
+    non_conformance_id: mutable string = ""
+        description: "Non-conformance report ID if applicable"
+    corrective_action_id: mutable string = ""
+        description: "Corrective action request ID"
+
+start_agent inspection_setup:
+    description: "Initializes quality inspection session and verifies inspector credentials"
+
+    actions:
+        Verify_Inspector_Credentials:
+            description: "Verifies inspector ID and qualifications for the inspection"
+            label: "Verify Inspector"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                inspector_id: string
+                    label: "Inspector ID"
+                    description: "Quality inspector employee ID"
+                    is_required: True
+                shift_number: string
+                    label: "Shift Number"
+                    description: "Current production shift"
+                    is_required: True
+            outputs:
+                inspector_verified: boolean
+                    label: "Inspector Verified"
+                    is_displayable: True
+                inspector_name: string
+                    label: "Inspector Name"
+                    is_displayable: True
+                certification_valid: boolean
+                    label: "Certification Valid"
+                    is_displayable: False
+                authorized_products: string
+                    label: "Authorized Products"
+                    is_displayable: False
+            target: "flow://VerifyInspectorCredentials"
+
+        Retrieve_Product_Specifications:
+            description: "Retrieves product specifications and quality standards"
+            label: "Get Product Specs"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                product_id: string
+                    label: "Product ID"
+                    description: "Product identifier"
+                    is_required: True
+                batch_number: string
+                    label: "Batch Number"
+                    description: "Production batch identifier"
+                    is_required: True
+            outputs:
+                product_name: string
+                    label: "Product Name"
+                    is_displayable: True
+                quality_standards: string
+                    label: "Quality Standards"
+                    is_displayable: True
+                inspection_requirements: string
+                    label: "Inspection Requirements"
+                    is_displayable: True
+                sampling_plan: string
+                    label: "Sampling Plan"
+                    is_displayable: True
+                lot_size: number
+                    label: "Lot Size"
+                    is_displayable: True
+            target: "flow://RetrieveProductSpecifications"
+
+    before_reasoning:
+        if @variables.inspector_id == "":
+            set @variables.defect_count = 0
+            set @variables.quality_status = "pending"
+
+    reasoning:
+        instructions: ->
+            |   Welcome to the Quality Control System! Let's start your inspection session.
+
+                Please provide:
+                - Inspector ID
+                - Product ID or description
+                - Batch/Lot number
+
+                I'll help you log defects and assess quality status.
+        actions:
+            verify_inspector: @actions.Verify_Inspector_Credentials
+                with inspector_id=@variables.inspector_id
+                with shift_number=@variables.shift_number
+                set @variables.inspector_verified = @outputs.inspector_verified
+                set @variables.inspector_name = @outputs.inspector_name
+
+            get_specs: @actions.Retrieve_Product_Specifications
+                with product_id=@variables.product_id
+                with batch_number=@variables.batch_number
+                set @variables.product_name = @outputs.product_name
+                set @variables.lot_size = @outputs.lot_size
+
+            capture_setup_info: @utils.setVariables
+                with inspector_id=@variables.inspector_id
+                with product_id=@variables.product_id
+                with batch_number=@variables.batch_number
+                with production_line=@variables.production_line
+
+            start_inspection: @utils.transition to @topic.defect_logging
+
+    after_reasoning:
+        if @variables.inspector_id != "" and @variables.shift_number != "":
+            run @actions.Verify_Inspector_Credentials
+                with inspector_id=@variables.inspector_id
+                with shift_number=@variables.shift_number
+                set @variables.inspector_verified = @outputs.inspector_verified
+                set @variables.inspector_name = @outputs.inspector_name
+
+        if @variables.product_id != "" and @variables.batch_number != "":
+            run @actions.Retrieve_Product_Specifications
+                with product_id=@variables.product_id
+                with batch_number=@variables.batch_number
+                set @variables.product_name = @outputs.product_name
+                set @variables.lot_size = @outputs.lot_size
+
+        if @variables.inspector_verified and @variables.product_name != "":
+            transition to @topic.defect_logging
+
+topic defect_logging:
+    description: "Manages defect identification and logging with comprehensive tracking"
+
+    actions:
+        Log_Quality_Defect:
+            description: "Logs a quality defect with detailed classification and location"
+            label: "Log Defect"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                defect_type: string
+                    label: "Defect Type"
+                    description: "Type of defect (visual, dimensional, functional)"
+                    is_required: True
+                defect_severity: string
+                    label: "Defect Severity"
+                    description: "Severity level (critical, major, minor)"
+                    is_required: True
+                defect_description: string
+                    label: "Defect Description"
+                    description: "Detailed description of the defect"
+                    is_required: True
+                defect_location: string
+                    label: "Defect Location"
+                    description: "Location on product where defect was found"
+                    is_required: True
+                unit_number: string
+                    label: "Unit Number"
+                    description: "Specific unit identifier with defect"
+                    is_required: False
+            outputs:
+                defect_logged: boolean
+                    label: "Defect Logged"
+                    is_displayable: True
+                defect_id: string
+                    label: "Defect ID"
+                    is_displayable: True
+                severity_score: number
+                    label: "Severity Score"
+                    is_displayable: False
+                requires_immediate_action: boolean
+                    label: "Immediate Action Required"
+                    is_displayable: True
+            target: "flow://LogQualityDefect"
+
+        Calculate_Sample_Statistics:
+            description: "Calculates statistical metrics for the inspection sample"
+            label: "Calculate Statistics"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                sample_size: number
+                    label: "Sample Size"
+                    description: "Number of units inspected"
+                    is_required: True
+                total_defects: number
+                    label: "Total Defects"
+                    description: "Total number of defects found"
+                    is_required: True
+                critical_defects: number
+                    label: "Critical Defects"
+                    description: "Number of critical defects"
+                    is_required: True
+                major_defects: number
+                    label: "Major Defects"
+                    description: "Number of major defects"
+                    is_required: True
+            outputs:
+                defect_rate: number
+                    label: "Defect Rate"
+                    is_displayable: True
+                quality_score: number
+                    label: "Quality Score"
+                    is_displayable: True
+                statistical_confidence: number
+                    label: "Statistical Confidence"
+                    is_displayable: False
+                pass_fail_recommendation: string
+                    label: "Pass/Fail Recommendation"
+                    is_displayable: True
+            target: "flow://CalculateSampleStatistics"
+
+    before_reasoning:
+        if @variables.defect_count == 0:
+            set @variables.corrective_action_needed = False
+
+    reasoning:
+        instructions: ->
+            |   **Current Inspection Session:**
+                - Inspector: {! @variables.inspector_id }
+                - Product: {! @variables.product_id }
+                - Batch: {! @variables.batch_number }
+                - Defects Found: {! @variables.defect_count }
+
+                **Defect Logging:**
+                Report any defects you identify during inspection. For each defect, provide:
+                1. Defect type and severity
+                2. Description of the defect
+                3. Location on the product
+
+                When inspection is complete, I'll assess the overall quality status.
+        actions:
+            log_defect: @actions.Log_Quality_Defect
+                with defect_type="visual"
+                with defect_severity="major"
+                with defect_description="Surface defect identified"
+                with defect_location="Front panel"
+                with unit_number=""
+                set @variables.defect_count = @variables.defect_count + 1
+
+            calc_stats: @actions.Calculate_Sample_Statistics
+                with sample_size=@variables.sample_size
+                with total_defects=@variables.defect_count
+                with critical_defects=@variables.critical_defects
+                with major_defects=@variables.major_defects
+                set @variables.quality_score = @outputs.quality_score
+
+            capture_defect_details: @utils.setVariables
+                with defect_count=@variables.defect_count
+                with defect_types=@variables.defect_types
+                with defect_locations=@variables.defect_locations
+
+            assess_quality: @utils.transition to @topic.quality_assessment
+
+    after_reasoning:
+        if @variables.sample_size > 0:
+            run @actions.Calculate_Sample_Statistics
+                with sample_size=@variables.sample_size
+                with total_defects=@variables.defect_count
+                with critical_defects=@variables.critical_defects
+                with major_defects=@variables.major_defects
+                set @variables.quality_score = @outputs.quality_score
+
+        if @variables.critical_defects > 0:
+            set @variables.corrective_action_needed = True
+            set @variables.quality_status = "failed"
+            set @variables.quarantine_required = True
+        if @variables.major_defects > 3:
+            set @variables.corrective_action_needed = True
+            set @variables.quality_status = "conditional"
+        if @variables.defect_count == 0:
+            set @variables.quality_status = "passed"
+            set @variables.acceptance_criteria_met = True
+
+        if @variables.defect_count >= 0:
+            set @variables.inspection_complete = True
+            transition to @topic.quality_assessment
+
+topic quality_assessment:
+    description: "Evaluates overall quality and determines corrective actions"
+
+    actions:
+        Generate_Quality_Report:
+            description: "Generates comprehensive quality inspection report"
+            label: "Generate Report"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                inspector_id: string
+                    label: "Inspector ID"
+                    description: "Inspector identifier"
+                    is_required: True
+                product_id: string
+                    label: "Product ID"
+                    description: "Product identifier"
+                    is_required: True
+                batch_number: string
+                    label: "Batch Number"
+                    description: "Batch identifier"
+                    is_required: True
+                quality_score: number
+                    label: "Quality Score"
+                    description: "Calculated quality score"
+                    is_required: True
+                defect_summary: string
+                    label: "Defect Summary"
+                    description: "Summary of defects found"
+                    is_required: True
+            outputs:
+                report_id: string
+                    label: "Report ID"
+                    is_displayable: True
+                report_generated: boolean
+                    label: "Report Generated"
+                    is_displayable: True
+                compliance_status: string
+                    label: "Compliance Status"
+                    is_displayable: True
+                recommendations: string
+                    label: "Recommendations"
+                    is_displayable: True
+            target: "flow://GenerateQualityReport"
+
+        Initiate_Corrective_Action:
+            description: "Initiates corrective action process for quality issues"
+            label: "Initiate Corrective Action"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                batch_number: string
+                    label: "Batch Number"
+                    description: "Affected batch number"
+                    is_required: True
+                defect_severity: string
+                    label: "Defect Severity"
+                    description: "Highest severity defect found"
+                    is_required: True
+                root_cause_suspected: string
+                    label: "Suspected Root Cause"
+                    description: "Suspected root cause of defects"
+                    is_required: False
+                immediate_containment: string
+                    label: "Immediate Containment"
+                    description: "Immediate containment actions required"
+                    is_required: True
+            outputs:
+                corrective_action_id: string
+                    label: "Corrective Action ID"
+                    is_displayable: True
+                containment_actions: string
+                    label: "Containment Actions"
+                    is_displayable: True
+                investigation_required: boolean
+                    label: "Investigation Required"
+                    is_displayable: True
+                escalation_level: string
+                    label: "Escalation Level"
+                    is_displayable: True
+            target: "flow://InitiateCorrectiveAction"
+
+        Quarantine_Batch:
+            description: "Places batch under quarantine for quality issues"
+            label: "Quarantine Batch"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                batch_number: string
+                    label: "Batch Number"
+                    description: "Batch to quarantine"
+                    is_required: True
+                quarantine_reason: string
+                    label: "Quarantine Reason"
+                    description: "Reason for quarantine"
+                    is_required: True
+                inspector_id: string
+                    label: "Inspector ID"
+                    description: "Inspector requesting quarantine"
+                    is_required: True
+            outputs:
+                quarantine_initiated: boolean
+                    label: "Quarantine Initiated"
+                    is_displayable: True
+                quarantine_location: string
+                    label: "Quarantine Location"
+                    is_displayable: True
+                hold_notification_sent: boolean
+                    label: "Hold Notification Sent"
+                    is_displayable: True
+                review_required_by: string
+                    label: "Review Required By"
+                    is_displayable: True
+            target: "flow://QuarantineBatch"
+
+    before_reasoning:
+        if @variables.defect_count > 3:
+            set @variables.quality_status = "failed"
+        if @variables.defect_count <= 3:
+            set @variables.quality_status = "passed"
+
+    reasoning:
+        instructions: ->
+            |   **Quality Assessment Results:**
+                - Product: {! @variables.product_id }
+                - Batch: {! @variables.batch_number }
+                - Total Defects: {! @variables.defect_count }
+                - Quality Status: {! @variables.quality_status }
+
+                Based on the inspection results:
+                - Defect count assessment completed
+                - Quality disposition determined
+
+                What action would you like to take next?
+        actions:
+            create_report: @actions.Generate_Quality_Report
+                with inspector_id=@variables.inspector_id
+                with product_id=@variables.product_id
+                with batch_number=@variables.batch_number
+                with quality_score=@variables.quality_score
+                with defect_summary=@variables.defect_types
+                set @variables.inspection_report_id = @outputs.report_id
+
+            start_corrective_action: @actions.Initiate_Corrective_Action
+                with batch_number=@variables.batch_number
+                with defect_severity="major"
+                with root_cause_suspected="Process variation"
+                with immediate_containment="Hold batch for review"
+                set @variables.corrective_action_id = @outputs.corrective_action_id
+
+            quarantine_product: @actions.Quarantine_Batch
+                with batch_number=@variables.batch_number
+                with quarantine_reason="Quality defects identified"
+                with inspector_id=@variables.inspector_id
+                set @variables.quarantine_required = @outputs.quarantine_initiated
+
+            finalize_assessment: @utils.setVariables
+                with quality_status=@variables.quality_status
+                with corrective_action_needed=@variables.corrective_action_needed
+
+            new_inspection: @utils.transition to @topic.inspection_setup
+
+    after_reasoning:
+        if @variables.inspection_complete:
+            run @actions.Generate_Quality_Report
+                with inspector_id=@variables.inspector_id
+                with product_id=@variables.product_id
+                with batch_number=@variables.batch_number
+                with quality_score=@variables.quality_score
+                with defect_summary=@variables.defect_types
+                set @variables.inspection_report_id = @outputs.report_id
+
+        if @variables.corrective_action_needed:
+            run @actions.Initiate_Corrective_Action
+                with batch_number=@variables.batch_number
+                with defect_severity="major"
+                with root_cause_suspected="Process variation"
+                with immediate_containment="Hold batch for review"
+                set @variables.corrective_action_id = @outputs.corrective_action_id
+                set @variables.quality_status = "requires_action"
+
+        if @variables.quarantine_required:
+            run @actions.Quarantine_Batch
+                with batch_number=@variables.batch_number
+                with quarantine_reason="Critical quality defects identified"
+                with inspector_id=@variables.inspector_id

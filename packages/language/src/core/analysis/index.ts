@@ -1,0 +1,76 @@
+export {
+  LintEngine,
+  PassStore,
+  DependencyResolutionError,
+  storeKey,
+  each,
+  defineRule,
+  schemaContextKey,
+} from './lint-engine.js';
+
+export type {
+  LintPass,
+  StoreKey,
+  EachDep,
+  Dep,
+  ResolveDeps,
+} from './lint-engine.js';
+
+export {
+  createSchemaContext,
+  getSchemaNamespaces,
+  getGlobalScopes,
+  activeScopeForNamespace,
+} from './scope.js';
+
+export type { ScopeContext, SchemaContext } from './scope.js';
+
+export { getDocumentSymbols, getSymbolMembers } from './symbols.js';
+
+export type { DocumentSymbol } from './symbols.js';
+
+export { resolveReference, walkDefinitionKeys } from './references.js';
+
+export {
+  collectDiagnostics,
+  recurseAstChildren,
+  walkAstExpressions,
+  dispatchAstChildren,
+  forEachExpressionChild,
+} from './ast-walkers.js';
+
+export {
+  resolveSchemaField,
+  formatConstraints,
+  formatSchemaHoverMarkdown,
+  formatKeywordHoverMarkdown,
+  findKeywordInfo,
+} from './schema-hover.js';
+
+export type { SchemaFieldInfo, ResolvedSchemaField } from './schema-hover.js';
+
+export { resolveHover } from './hover-resolver.js';
+
+export type {
+  NodeAccessor,
+  HoverRange,
+  SchemaFieldHover,
+  KeywordHover,
+  HoverResult,
+} from './hover-resolver.js';
+
+export {
+  positionIndexKey,
+  queryExpressionAtPosition,
+  queryDefinitionAtPosition,
+  queryScopeAtPosition,
+} from './position-index.js';
+
+export type { PositionIndex } from './position-index.js';
+
+export { positionIndexPass } from './position-index-pass.js';
+
+export { symbolTableAnalyzer, symbolTableKey } from './symbol-table.js';
+
+export { walkSchema } from './schema-walker.js';
+export type { SchemaFieldVisitor } from './schema-walker.js';

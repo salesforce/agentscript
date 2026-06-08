@@ -1,0 +1,148 @@
+{
+  "name": "@agentscript/vscode",
+  "displayName": "Agent Script",
+  "description": "VS Code extension for Agent Script language support",
+  "version": "2.4.0",
+  "private": true,
+  "publisher": "Salesforce",
+  "license": "Apache-2.0",
+  "o11yUploadEndpoint": "https://794testsite.my.site.com/byolwr/webruntime/log/metrics",
+  "enableO11y": "true",
+  "productFeatureId": "aJCEE0000007rcH4AQ",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "icon": "icons/agentforce-dx.png",
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@agentscript/lsp-server": "workspace:*",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.3",
+    "@vscode/vsce": "^3.7.1"
+  },
+  "activationEvents": [],
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "dev": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "prepackage": "node scripts/check-changelog.mjs && pnpm run clean && pnpm run build && node esbuild.mjs --stage",
+    "package": "cd staging && vsce package --no-dependencies -o ../publish/",
+    "package:prerelease": "cd staging && vsce package --no-dependencies -o ../publish/ --pre-release",
+    "clean": "node scripts/clean.mjs"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "agentscript",
+        "aliases": [
+          "Agent Script",
+          "AgentScript",
+          "agentscript"
+        ],
+        "extensions": [
+          ".agent"
+        ],
+        "icon": {
+          "light": "./icons/agent-icon-light.svg",
+          "dark": "./icons/agent-icon-dark.svg"
+        },
+        "firstLine": "^#\\s*@dialect:",
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "agentscript",
+        "scopes": {
+          "keyword": [
+            "keyword.control.agentscript"
+          ],
+          "keyword.modification": [
+            "storage.modifier.agentscript"
+          ],
+          "type": [
+            "entity.name.type.agentscript"
+          ],
+          "function": [
+            "entity.name.function.agentscript"
+          ],
+          "variable": [
+            "variable.other.agentscript"
+          ],
+          "variable.readonly.defaultLibrary": [
+            "constant.language.agentscript"
+          ],
+          "string": [
+            "string.quoted.double.agentscript"
+          ],
+          "number": [
+            "constant.numeric.agentscript"
+          ],
+          "comment": [
+            "comment.line.number-sign.agentscript"
+          ],
+          "namespace": [
+            "entity.name.namespace.agentscript"
+          ],
+          "property": [
+            "variable.other.property.agentscript"
+          ],
+          "operator": [
+            "keyword.operator.agentscript"
+          ],
+          "decorator": [
+            "support.function.agentscript"
+          ],
+          "keyword.block": [
+            "keyword.other.block.agentscript"
+          ],
+          "keyword.blockName": [
+            "entity.name.section.agentscript"
+          ]
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "editor.semanticHighlighting.enabled": true,
+      "[agentscript]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.bracketPairColorization.enabled": false
+      }
+    },
+    "configuration": {
+      "title": "AgentScript",
+      "properties": {
+        "agentscript.dialect": {
+          "type": "string",
+          "default": "agentforce",
+          "enum": [
+            "agentforce",
+            "agentscript"
+          ],
+          "enumDescriptions": [
+            "Agentforce dialect (with compilation support)",
+            "AgentScript dialect"
+          ],
+          "description": "Default dialect for AgentScript files when no @dialect annotation is present"
+        },
+        "agentscript.trace.server": {
+          "type": "string",
+          "default": "off",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "description": "Traces the communication between VS Code and the AgentScript language server"
+        }
+      }
+    }
+  }
+}

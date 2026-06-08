@@ -1,0 +1,124 @@
+system:
+    instructions: "You are a logistics tracking assistant. Help users track shipments, check customs status, and schedule deliveries."
+    messages:
+        welcome: "Hello! I can help you track your shipment and manage deliveries."
+        error: "Sorry, the tracking system is temporarily unavailable."
+
+config:
+    developer_name: "Logistics_Tracking_Agent"
+    default_agent_user: "tracking@logistics.com"
+    description: "Handles shipment tracking, customs clearance, and delivery scheduling."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    tracking_number: mutable string = ""
+        description: "Shipment tracking number"
+    shipment_status: mutable string = ""
+        description: "Current shipment status"
+    customs_cleared: mutable boolean = False
+        description: "Whether customs has been cleared"
+    delivery_date: mutable string = ""
+        description: "Scheduled delivery date"
+    delivery_confirmed: mutable boolean = False
+        description: "Whether delivery is confirmed"
+
+start_agent tracking_lookup:
+    description: "Looks up shipment status by tracking number"
+
+    actions:
+        track_shipment:
+            description: "Gets current shipment status and location"
+            inputs:
+                tracking_number: string
+                    is_required: True
+            outputs:
+                status: string
+                current_location: string
+                estimated_delivery: string
+            target: "externalService://TrackShipment"
+
+    reasoning:
+        instructions: ->
+            | Ask for the tracking number and look up the shipment status.
+
+        actions:
+            track: @actions.track_shipment
+                with tracking_number=@variables.tracking_number
+                set @variables.shipment_status = @outputs.status
+
+            go_customs: @utils.transition to @topic.customs_status
+                description: "Check customs status"
+            go_delivery: @utils.transition to @topic.delivery_scheduling
+                description: "Schedule delivery"
+
+topic customs_status:
+    description: "Checks and manages customs clearance status"
+
+    actions:
+        check_customs:
+            description: "Checks customs clearance status for international shipments"
+            inputs:
+                tracking_number: string
+                    is_required: True
+            outputs:
+                cleared: boolean
+                hold_reason: string
+                documents_needed: string
+            target: "externalService://CheckCustoms"
+
+    reasoning:
+        instructions: ->
+            | Check the customs status for the shipment.
+              If held, explain what documents are needed.
+
+        actions:
+            customs: @actions.check_customs
+                with tracking_number=@variables.tracking_number
+                set @variables.customs_cleared = @outputs.cleared
+
+            go_delivery: @utils.transition to @topic.delivery_scheduling
+                description: "Schedule delivery"
+                available when @variables.customs_cleared == True
+
+topic delivery_scheduling:
+    description: "Schedules final delivery for the shipment"
+
+    actions:
+        schedule_delivery:
+            description: "Schedules delivery for a specific date and time"
+            inputs:
+                tracking_number: string
+                    is_required: True
+                preferred_date: string
+                    is_required: True
+                special_instructions: string
+            outputs:
+                confirmed: boolean
+                delivery_window: string
+            target: "flow://ScheduleDelivery"
+
+        send_confirmation:
+            description: "Sends delivery confirmation notification"
+            inputs:
+                tracking_number: string
+                delivery_window: string
+            outputs:
+                notification_sent: boolean
+            target: "flow://SendDeliveryNotification"
+
+    reasoning:
+        instructions: ->
+            | Help the user schedule their delivery and send a confirmation.
+
+        actions:
+            schedule: @actions.schedule_delivery
+                with tracking_number=@variables.tracking_number
+                with preferred_date=@variables.delivery_date
+                with special_instructions=...
+                set @variables.delivery_confirmed = @outputs.confirmed
+
+            confirm: @actions.send_confirmation
+                with tracking_number=@variables.tracking_number
+                with delivery_window=...

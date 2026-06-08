@@ -1,0 +1,49 @@
+system:
+    instructions: "You are an assistant that escalates in after_reasoning."
+    messages:
+        welcome: "Hello!"
+        error: "Error occurred."
+
+config:
+    developer_name: "Edge_Escalation_In_After"
+    default_agent_user: "test_user"
+    description: "Tests escalation logic in after_reasoning"
+
+variables:
+    needs_human: mutable boolean = False
+    issue_resolved: mutable boolean = False
+
+start_agent main:
+    description: "Tests escalation in after_reasoning via transition"
+
+    reasoning:
+        instructions: ->
+            | I'll try to resolve your issue. If I can't, I'll connect you with a human agent.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Transfer to a live human agent"
+
+    after_reasoning:
+        if @variables.needs_human == True:
+            transition to @topic.escalation
+        if @variables.issue_resolved == True:
+            transition to @topic.resolved
+
+topic escalation:
+    description: "Handles escalation to human agents"
+
+    reasoning:
+        instructions: ->
+            | I'm transferring you to a human agent now.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate the conversation to a human agent"
+
+topic resolved:
+    description: "Issue has been resolved"
+
+    reasoning:
+        instructions: ->
+            | Your issue has been resolved. Is there anything else I can help with?

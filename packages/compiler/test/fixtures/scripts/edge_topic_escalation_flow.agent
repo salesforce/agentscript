@@ -1,0 +1,97 @@
+system:
+    instructions: "You are a support case management agent."
+    messages:
+        welcome: "Hello! I can help you with your support case."
+        error: "An error occurred while processing your case."
+
+config:
+    developer_name: "Escalation_Flow_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent demonstrating escalation flow pattern with happy path and off-topic handling"
+
+variables:
+    case_id: mutable string = ""
+        description: "The support case identifier"
+    severity: mutable string = ""
+        description: "Issue severity level"
+
+start_agent main:
+    description: "Agent demonstrating escalation flow pattern with happy path and off-topic handling"
+
+    actions:
+        Create_Case:
+            description: "Create a new support case"
+            target: "flow://Create_Support_Case"
+            inputs:
+                details: string
+                    label: "Case Description"
+                    is_required: True
+            outputs:
+                case_id: string
+                    label: "Case ID"
+
+    reasoning:
+        instructions: ->
+            | Welcome the user. Determine if their issue can be resolved
+              in the happy path, needs escalation, or is off-topic.
+
+        actions:
+            Create_Case_Action: @actions.Create_Case
+                with details=...
+                set @variables.case_id = @outputs.case_id
+
+            go_to_happy_path: @utils.transition to @topic.happy_path
+            go_to_escalation: @utils.transition to @topic.escalation
+            go_to_off_topic: @utils.transition to @topic.off_topic
+
+topic happy_path:
+    description: "Standard resolution path for common issues"
+
+    actions:
+        Resolve_Case:
+            description: "Resolve the support case"
+            target: "flow://Resolve_Case_Flow"
+            inputs:
+                case_id: string
+                    label: "Case ID"
+                    is_required: True
+                resolution: string
+                    label: "Resolution"
+                    is_required: True
+            outputs:
+                success: boolean
+                    label: "Resolution Success"
+
+    reasoning:
+        instructions: ->
+            | Try to resolve the user's issue using standard procedures.
+              If the issue is too complex, escalate.
+
+        actions:
+            Resolve_Action: @actions.Resolve_Case
+                with case_id=@variables.case_id
+                with resolution=...
+
+            go_to_escalation: @utils.transition to @topic.escalation
+
+topic escalation:
+    description: "Escalation path for complex issues requiring human intervention"
+
+    reasoning:
+        instructions: ->
+            | The issue requires human intervention.
+              Collect all relevant details and escalate to a human agent.
+              Apologize for the inconvenience.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent"
+
+topic off_topic:
+    description: "Handle off-topic or unrelated requests"
+
+    reasoning:
+        instructions: ->
+            | The user's request is not related to our services.
+              Politely redirect them back to the main topic.
+

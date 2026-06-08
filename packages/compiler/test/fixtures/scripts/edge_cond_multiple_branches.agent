@@ -1,0 +1,41 @@
+system:
+    instructions: "You are an assistant that processes multiple condition branches."
+    messages:
+        welcome: "Welcome!"
+        error: "An error occurred."
+
+config:
+    developer_name: "Edge_Cond_Multiple_Branches"
+    default_agent_user: "test_user"
+    description: "Tests many sequential if blocks checking different conditions"
+
+variables:
+    category: mutable string = ""
+    urgency: mutable string = "low"
+    locale: mutable string = "en"
+    channel: mutable string = "web"
+    is_returning: mutable boolean = False
+    priority_score: mutable number = 0
+
+start_agent main:
+    description: "Tests 5+ sequential if blocks in before_reasoning"
+
+    before_reasoning:
+        if @variables.category == "billing":
+            set @variables.priority_score = @variables.priority_score + 10
+        if @variables.category == "technical":
+            set @variables.priority_score = @variables.priority_score + 20
+        if @variables.urgency == "high":
+            set @variables.priority_score = @variables.priority_score + 30
+        if @variables.urgency == "critical":
+            set @variables.priority_score = @variables.priority_score + 50
+        if @variables.is_returning == True:
+            set @variables.priority_score = @variables.priority_score + 5
+        if @variables.channel == "phone":
+            set @variables.priority_score = @variables.priority_score + 15
+        if @variables.locale != "en":
+            set @variables.priority_score = @variables.priority_score + 10
+
+    reasoning:
+        instructions: ->
+            | Assist the user based on their priority score: {! @variables.priority_score }

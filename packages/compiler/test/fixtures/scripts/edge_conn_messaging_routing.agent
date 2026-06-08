@@ -1,0 +1,54 @@
+system:
+    instructions: "You are a messaging agent with advanced routing configuration."
+    messages:
+        welcome: "Hello! I'll connect you with the right team."
+        error: "Something went wrong with routing."
+
+config:
+    developer_name: "EdgeConnMessagingRouting"
+    default_agent_user: "routing_bot@example.com"
+    agent_label: "Routing Messaging Agent"
+    description: "Messaging connection with routing fields"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "End user ID"
+    RoutableId: linked string
+        source: @MessagingSession.Id
+        description: "Session ID"
+    ContactId: linked string
+        source: @MessagingEndUser.ContactId
+        description: "Contact ID"
+
+connection messaging:
+    adaptive_response_allowed: True
+
+start_agent main:
+    description: "Route messaging requests to appropriate teams"
+
+    reasoning:
+        instructions: ->
+            | Determine the customer's need and route appropriately.
+
+        actions:
+            go_to_billing: @utils.transition to @topic.billing
+                description: "Route to billing support"
+            go_to_technical: @utils.transition to @topic.technical
+                description: "Route to technical support"
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"
+
+topic billing:
+    description: "Handle billing inquiries"
+
+    reasoning:
+        instructions: ->
+            | Help the customer with billing questions.
+
+topic technical:
+    description: "Handle technical support"
+
+    reasoning:
+        instructions: ->
+            | Help the customer with technical issues.

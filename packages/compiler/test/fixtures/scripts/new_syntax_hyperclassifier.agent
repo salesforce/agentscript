@@ -1,0 +1,80 @@
+system:
+    instructions: "You are an AI assistant with knowledge search and inline actions on the start_agent."
+    messages:
+        welcome: "Hello! I can search our knowledge base and help with common tasks."
+        error: "Sorry, I encountered an error."
+
+config:
+    developer_name: "Hyperclassifier_Actions_NewSyntax"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Hyperclassifier start_agent with standardInvocableAction actions and knowledge using new syntax"
+
+language:
+    default_locale: "en_US"
+
+knowledge:
+    citations_enabled: True
+
+variables:
+    search_result: mutable string = ""
+        description: "Result from knowledge search"
+    case_id: mutable string = ""
+        description: "Support case identifier"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Routes with knowledge search and inline actions using new syntax"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    actions:
+        knowledge_search:
+            description: "Searches the knowledge base for relevant information"
+            inputs:
+                query: string
+                    is_required: True
+            outputs:
+                result: string
+            target: "standardInvocableAction://searchKnowledge"
+
+        create_quick_case:
+            description: "Creates a quick support case from the router"
+            inputs:
+                subject: string
+                    is_required: True
+                details: string
+                    is_required: True
+                priority: string
+                    is_required: True
+            outputs:
+                case_id: string
+                case_number: string
+            target: "standardInvocableAction://createCase"
+
+    reasoning:
+        instructions: ->
+            | Route the user to the best topic based on their intent.
+        actions:
+            go_detailed_support: @utils.transition to @topic.detailed_support
+                description: "Route to detailed support"
+            go_self_service: @utils.transition to @topic.self_service
+                description: "Route to self-service"
+
+topic detailed_support:
+    label: "Detailed Support"
+    description: "Provides detailed support with agent assistance"
+
+    reasoning:
+        instructions: ->
+            | Provide detailed support for the user's issue.
+              Reference any knowledge base results found during routing.
+
+topic self_service:
+    label: "Self Service"
+    description: "Guides users through self-service options"
+
+    reasoning:
+        instructions: ->
+            | Guide the user through self-service options.
+              Provide step-by-step instructions based on knowledge base articles.

@@ -1,0 +1,406 @@
+system:
+    instructions: "You are an order tracking and fulfillment assistant for an e-commerce platform. Your role is to help customers track their orders, resolve shipping issues, process returns, and provide real-time updates on order status and delivery information."
+    messages:
+        welcome: "Hello! I'm here to help you track your orders, check delivery status, and assist with any shipping or return questions. Please provide your order number or email address to get started."
+        error: "I'm having trouble accessing the order system right now. Please try again in a moment or contact customer service directly."
+
+config:
+    developer_name: "Order_Tracking_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Assists customers with order tracking, delivery updates, shipping issues, returns processing, and provides comprehensive order management support."
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Customer identification
+    customer_email: mutable string = ""
+        description: "Customer's email address"
+    customer_verified: mutable boolean = False
+        description: "Whether customer identity has been verified"
+    customer_name: mutable string = ""
+        description: "Customer's name from lookup"
+    customer_id: mutable string = ""
+        description: "Internal customer ID"
+
+    # Order information
+    order_number: mutable string = ""
+        description: "Order number provided by customer"
+    order_found: mutable boolean = False
+        description: "Whether order was successfully found"
+    order_status: mutable string = ""
+        description: "Current order status"
+    order_total: mutable number = 0
+        description: "Order total amount"
+
+    # Shipping details
+    tracking_number: mutable string = ""
+        description: "Shipping tracking number"
+    delivery_date: mutable string = ""
+        description: "Expected delivery date"
+    shipping_address: mutable string = ""
+        description: "Shipping address"
+
+    # Issue handling
+    issue_type: mutable string = ""
+        description: "Type of shipping issue reported"
+    return_eligible: mutable boolean = False
+        description: "Whether order is eligible for return"
+    case_number: mutable string = ""
+        description: "Support case number for issues"
+
+start_agent order_locator:
+    description: "Locates and validates customer order information by order number or email address"
+
+    actions:
+        Get_Customer_Info:
+            description: "Retrieves customer information using email address"
+            label: "Get Customer Info"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                email: string
+                    label: "Email Address"
+                    description: "Customer's email address"
+                    is_required: True
+            outputs:
+                customer_found: boolean
+                    label: "Customer Found"
+                    is_displayable: False
+                customer_name: string
+                    label: "Customer Name"
+                    is_displayable: True
+                customer_id: string
+                    label: "Customer ID"
+                    is_displayable: False
+                verified: boolean
+                    label: "Customer Verified"
+                    is_displayable: False
+            target: "flow://GetCustomerInfo"
+
+        Find_Order_By_Number:
+            description: "Locates order using order number"
+            label: "Find Order"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                order_number: string
+                    label: "Order Number"
+                    description: "Customer's order number"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier for validation"
+                    is_required: False
+            outputs:
+                order_found: boolean
+                    label: "Order Found"
+                    is_displayable: False
+                order_data: object
+                    label: "Order Data"
+                    is_displayable: False
+                valid_customer: boolean
+                    label: "Valid Customer"
+                    is_displayable: False
+            target: "flow://FindOrderByNumber"
+
+    before_reasoning:
+        if @variables.order_number == "" and @variables.customer_email == "":
+            set @variables.order_found = False
+            set @variables.customer_verified = False
+
+    reasoning:
+        instructions: ->
+            |   Welcome! I'm here to help you with your order.
+
+                To locate your order, I can search by:
+                1. Order number (fastest option)
+                2. Email address used for the order
+
+                Which would you prefer to use? Please provide either your order number or the email address you used when placing the order.
+        actions:
+            lookup_customer: @actions.Get_Customer_Info
+                with email=@variables.customer_email
+                set @variables.customer_verified = @outputs.customer_found
+                set @variables.customer_name = @outputs.customer_name
+                set @variables.customer_id = @outputs.customer_id
+
+            find_order: @actions.Find_Order_By_Number
+                with order_number=@variables.order_number
+                with customer_id=@variables.customer_id
+                set @variables.order_found = @outputs.order_found
+
+            capture_order_info: @utils.setVariables
+                description: "Capture order search information from customer"
+                with order_number=@variables.order_number
+                with customer_email=@variables.customer_email
+
+            show_order_details: @utils.transition to @topic.order_details
+                description: "Show detailed order information"
+
+    after_reasoning:
+        if @variables.customer_email != "":
+            run @actions.Get_Customer_Info
+                with email=@variables.customer_email
+                set @variables.customer_verified = @outputs.customer_found
+                set @variables.customer_name = @outputs.customer_name
+                set @variables.customer_id = @outputs.customer_id
+
+        if @variables.order_number != "":
+            run @actions.Find_Order_By_Number
+                with order_number=@variables.order_number
+                with customer_id=@variables.customer_id
+                set @variables.order_found = @outputs.order_found
+
+        if @variables.order_found or @variables.customer_verified:
+            transition to @topic.order_details
+
+topic order_details:
+    description: "Shows detailed order information including status, tracking, and delivery updates"
+
+    actions:
+        Get_Order_Details:
+            description: "Retrieves comprehensive order information"
+            label: "Get Order Details"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                order_number: string
+                    label: "Order Number"
+                    description: "Order identifier"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+            outputs:
+                order_status: string
+                    label: "Order Status"
+                    is_displayable: True
+                tracking_number: string
+                    label: "Tracking Number"
+                    is_displayable: True
+                delivery_date: string
+                    label: "Delivery Date"
+                    is_displayable: True
+                order_total: number
+                    label: "Order Total"
+                    is_displayable: True
+                shipping_address: string
+                    label: "Shipping Address"
+                    is_displayable: True
+                return_eligible: boolean
+                    label: "Return Eligible"
+                    is_displayable: False
+            target: "flow://GetOrderDetails"
+
+        Get_Tracking_Updates:
+            description: "Gets real-time tracking updates from shipping carrier"
+            label: "Get Tracking Updates"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                tracking_number: string
+                    label: "Tracking Number"
+                    description: "Shipping tracking number"
+                    is_required: True
+            outputs:
+                current_status: string
+                    label: "Current Status"
+                    is_displayable: True
+                location: string
+                    label: "Current Location"
+                    is_displayable: True
+                updated_delivery_date: string
+                    label: "Updated Delivery Date"
+                    is_displayable: True
+                delivery_attempts: number
+                    label: "Delivery Attempts"
+                    is_displayable: True
+            target: "flow://GetTrackingUpdates"
+
+    before_reasoning:
+        if @variables.order_found and @variables.order_status == "":
+            run @actions.Get_Order_Details
+                with order_number=@variables.order_number
+                with customer_id=@variables.customer_id
+                set @variables.order_status = @outputs.order_status
+                set @variables.tracking_number = @outputs.tracking_number
+                set @variables.delivery_date = @outputs.delivery_date
+                set @variables.order_total = @outputs.order_total
+                set @variables.shipping_address = @outputs.shipping_address
+                set @variables.return_eligible = @outputs.return_eligible
+
+    reasoning:
+        instructions: ->
+            |   Great! I found your order. Here are the current details:
+
+                **Order Information:**
+                - Customer: {! @variables.customer_name }
+                - Order Number: {! @variables.order_number }
+                - Order Status: {! @variables.order_status }
+                - Order Total: ${! @variables.order_total }
+
+                **Shipping Details:**
+                - Tracking Number: {! @variables.tracking_number }
+                - Expected Delivery: {! @variables.delivery_date }
+                - Shipping Address: {! @variables.shipping_address }
+
+                Would you like me to:
+                1. Get real-time tracking updates
+                2. Help with a return or exchange
+                3. Report a shipping issue
+                4. Look up another order
+        actions:
+            load_order_details: @actions.Get_Order_Details
+                with order_number=@variables.order_number
+                with customer_id=@variables.customer_id
+                set @variables.order_status = @outputs.order_status
+                set @variables.tracking_number = @outputs.tracking_number
+                set @variables.delivery_date = @outputs.delivery_date
+                set @variables.order_total = @outputs.order_total
+                set @variables.shipping_address = @outputs.shipping_address
+                set @variables.return_eligible = @outputs.return_eligible
+
+            get_live_tracking: @actions.Get_Tracking_Updates
+                with tracking_number=@variables.tracking_number
+                set @variables.delivery_date = @outputs.updated_delivery_date
+
+            capture_next_action: @utils.setVariables
+                description: "Capture customer's next requested action"
+                with issue_type=@variables.issue_type
+
+            handle_issue: @utils.transition to @topic.issue_resolver
+                description: "Handle shipping issues or returns"
+
+            search_another: @utils.transition to @topic.order_locator
+                description: "Search for another order"
+
+    after_reasoning:
+        if @variables.tracking_number != "":
+            run @actions.Get_Tracking_Updates
+                with tracking_number=@variables.tracking_number
+                set @variables.delivery_date = @outputs.updated_delivery_date
+
+        if @variables.issue_type != "":
+            transition to @topic.issue_resolver
+
+topic issue_resolver:
+    description: "Handles shipping issues, returns, and customer concerns"
+
+    actions:
+        Process_Return_Request:
+            description: "Initiates return process for eligible orders"
+            label: "Process Return"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                order_number: string
+                    label: "Order Number"
+                    description: "Order to process return for"
+                    is_required: True
+                return_reason: string
+                    label: "Return Reason"
+                    description: "Reason for return"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+            outputs:
+                return_authorized: boolean
+                    label: "Return Authorized"
+                    is_displayable: True
+                return_label_url: string
+                    label: "Return Label URL"
+                    is_displayable: True
+                refund_amount: number
+                    label: "Refund Amount"
+                    is_displayable: True
+                return_deadline: string
+                    label: "Return Deadline"
+                    is_displayable: True
+            target: "flow://ProcessReturnRequest"
+
+        Report_Shipping_Issue:
+            description: "Reports shipping problem to carrier and customer service"
+            label: "Report Issue"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                tracking_number: string
+                    label: "Tracking Number"
+                    description: "Affected shipment tracking number"
+                    is_required: True
+                issue_description: string
+                    label: "Issue Description"
+                    description: "Description of the shipping problem"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+            outputs:
+                case_number: string
+                    label: "Case Number"
+                    is_displayable: True
+                resolution_timeframe: string
+                    label: "Resolution Timeframe"
+                    is_displayable: True
+                escalated: boolean
+                    label: "Escalated to Carrier"
+                    is_displayable: False
+            target: "flow://ReportShippingIssue"
+
+    before_reasoning:
+        if @variables.issue_type == "return" and @variables.return_eligible == False:
+            set @variables.return_eligible = True
+
+    reasoning:
+        instructions: ->
+            |   I understand you're having an issue with your order. Let me help you resolve this.
+
+                **Issue Type:** {! @variables.issue_type }
+                **Order:** {! @variables.order_number }
+                **Return Eligible:** {! @variables.return_eligible }
+
+                Based on your issue, I can help you with:
+                - Processing a return or exchange (if eligible)
+                - Reporting shipping delays or damage
+                - Contacting the carrier for delivery updates
+                - Escalating to our customer service team
+
+                What specific assistance do you need?
+        actions:
+            initiate_return: @actions.Process_Return_Request
+                with order_number=@variables.order_number
+                with return_reason=@variables.issue_type
+                with customer_id=@variables.customer_id
+                set @variables.return_eligible = @outputs.return_authorized
+
+            report_issue: @actions.Report_Shipping_Issue
+                with tracking_number=@variables.tracking_number
+                with issue_description=@variables.issue_type
+                with customer_id=@variables.customer_id
+                set @variables.case_number = @outputs.case_number
+
+            capture_resolution_action: @utils.setVariables
+                description: "Capture resolution action details"
+                with issue_type=@variables.issue_type
+
+            back_to_order: @utils.transition to @topic.order_details
+                description: "Return to order details"
+
+    after_reasoning:
+        if @variables.issue_type == "return" and @variables.return_eligible:
+            run @actions.Process_Return_Request
+                with order_number=@variables.order_number
+                with return_reason=@variables.issue_type
+                with customer_id=@variables.customer_id
+
+        if @variables.issue_type == "shipping_delay" or @variables.issue_type == "damaged":
+            run @actions.Report_Shipping_Issue
+                with tracking_number=@variables.tracking_number
+                with issue_description=@variables.issue_type
+                with customer_id=@variables.customer_id

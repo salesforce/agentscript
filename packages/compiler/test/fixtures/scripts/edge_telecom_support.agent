@@ -1,0 +1,144 @@
+system:
+    instructions: "You are a telecom billing support agent. Help customers with account lookups, plan changes, billing inquiries, and escalations."
+    messages:
+        welcome: "Welcome to telecom support! I can help with billing, plan changes, and account inquiries."
+        error: "I encountered an issue. Please try again."
+
+config:
+    developer_name: "Telecom_Support_Agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "support@telecom.com"
+    description: "Handles billing support including account lookup, plan changes, and escalation."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    account_number: mutable string = ""
+        description: "Customer account number"
+    customer_name: mutable string = ""
+        description: "Customer name"
+    current_plan: mutable string = ""
+        description: "Current service plan"
+    new_plan: mutable string = ""
+        description: "Selected new plan"
+    balance: mutable number = 0
+        description: "Current account balance"
+    plan_changed: mutable boolean = False
+        description: "Whether plan was successfully changed"
+
+start_agent account_lookup:
+    description: "Looks up the customer account and determines their need"
+
+    actions:
+        find_account:
+            description: "Finds customer account by account number"
+            inputs:
+                account_number: string
+                    is_required: True
+            outputs:
+                customer_name: string
+                current_plan: string
+                balance: number
+                account_status: string
+            target: "flow://FindAccount"
+
+    reasoning:
+        instructions: ->
+            | Ask the customer for their account number and look up their details.
+              Route to the appropriate topic based on their need.
+
+        actions:
+            lookup: @actions.find_account
+                with account_number=@variables.account_number
+                set @variables.customer_name = @outputs.customer_name
+                set @variables.current_plan = @outputs.current_plan
+                set @variables.balance = @outputs.balance
+
+            go_billing: @utils.transition to @topic.billing_inquiry
+                description: "Handle billing questions"
+            go_plans: @utils.transition to @topic.plan_comparison
+                description: "Compare and change plans"
+            go_escalation: @utils.transition to @topic.escalation
+                description: "Escalate complex issues"
+
+topic billing_inquiry:
+    description: "Handles billing questions and payment issues"
+
+    actions:
+        get_billing_details:
+            description: "Gets detailed billing breakdown"
+            inputs:
+                account_number: string
+                    is_required: True
+            outputs:
+                charges: string
+                due_date: string
+                payment_history: string
+            target: "flow://GetBillingDetails"
+
+    reasoning:
+        instructions: ->
+            | Help the customer understand their bill.
+              Current balance: {!@variables.balance}
+              Show the billing breakdown and answer questions.
+
+        actions:
+            details: @actions.get_billing_details
+                with account_number=@variables.account_number
+
+            go_plans: @utils.transition to @topic.plan_comparison
+                description: "Switch to plan changes"
+
+topic plan_comparison:
+    description: "Compares available plans and processes plan changes"
+
+    actions:
+        compare_plans:
+            description: "Gets available plans for comparison"
+            inputs:
+                current_plan: string
+            outputs:
+                available_plans: string
+                savings: string
+            target: "externalService://ComparePlans"
+
+        change_plan:
+            description: "Changes the customer's service plan"
+            inputs:
+                account_number: string
+                    is_required: True
+                new_plan: string
+                    is_required: True
+            outputs:
+                success: boolean
+                effective_date: string
+            target: "flow://ChangePlan"
+
+    reasoning:
+        instructions: ->
+            | Show available plans and help the customer choose.
+              Current plan: {!@variables.current_plan}
+
+        actions:
+            compare: @actions.compare_plans
+                with current_plan=@variables.current_plan
+
+            change: @actions.change_plan
+                with account_number=@variables.account_number
+                with new_plan=@variables.new_plan
+                set @variables.plan_changed = @outputs.success
+
+    after_reasoning:
+        if @variables.plan_changed == False:
+            transition to @topic.escalation
+
+topic escalation:
+    description: "Escalates complex issues to a human agent"
+
+    reasoning:
+        instructions: ->
+            | This issue requires human attention. Escalate the conversation.
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to billing specialist"

@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional investment portfolio advisor assistant.
+        Help users manage their portfolio requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: profiling -> allocation -> rebalancing -> performance_review.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Investment Portfolio Advisor Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "investment_portfolio_agent_v4"
+    default_agent_user: "investment_portfolio@example.com"
+    agent_description: "Assists users with portfolio management through the investment portfolio advisor workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    portfolio_record_id: mutable string
+        description: "Record ID of the portfolio"
+    portfolio_status: mutable string = ""
+        description: "Current status of the portfolio"
+    portfolio_tier: mutable string = "standard"
+        description: "Tier classification for the portfolio"
+    portfolio_category: mutable string = ""
+        description: "Category of the portfolio"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    profiling_complete: mutable boolean = False
+        description: "Whether the profiling stage is complete"
+    profiling_result: mutable string = ""
+        description: "Result from the profiling stage"
+    allocation_complete: mutable boolean = False
+        description: "Whether the allocation stage is complete"
+    allocation_result: mutable string = ""
+        description: "Result from the allocation stage"
+    rebalancing_complete: mutable boolean = False
+        description: "Whether the rebalancing stage is complete"
+    rebalancing_result: mutable string = ""
+        description: "Result from the rebalancing stage"
+    performance_review_complete: mutable boolean = False
+        description: "Whether the performance_review stage is complete"
+    performance_review_result: mutable string = ""
+        description: "Result from the performance_review stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate portfolio management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a investment portfolio advisor assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current portfolio status: {! @variables.portfolio_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_profiling} for profiling requests.
+              Use {!@actions.go_to_allocation} for allocation requests.
+              Use {!@actions.go_to_rebalancing} for rebalancing requests.
+              Use {!@actions.go_to_performance_review} for performance review requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_profiling: @utils.transition to @topic.profiling
+                description: "Transition to profiling topic."
+            go_to_allocation: @utils.transition to @topic.allocation
+                description: "Transition to allocation topic."
+                available when @variables.is_verified == True
+            go_to_rebalancing: @utils.transition to @topic.rebalancing
+                description: "Transition to rebalancing topic."
+                available when @variables.is_verified == True
+            go_to_performance_review: @utils.transition to @topic.performance_review
+                description: "Transition to performance review topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic profiling:
+    description: "Handles the profiling stage of the portfolio process"
+
+    actions:
+        process_profiling_data:
+            description: "Process profiling stage data for the portfolio"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Profiling_Data"
+
+        validate_profiling_info:
+            description: "Validate profiling information for the portfolio"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Profiling_Info"
+
+        fetch_profiling_details:
+            description: "Fetch profiling details for the portfolio"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Profiling_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_profiling_info
+                with record_ref=@variables.portfolio_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.portfolio_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the profiling stage for the portfolio.
+              Current portfolio status: {! @variables.portfolio_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Profiling result: {! @variables.profiling_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.portfolio_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_profiling} to begin processing.
+        actions:
+            run_profiling: @actions.process_profiling_data
+                with record_ref=@variables.portfolio_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.portfolio_category
+                set @variables.profiling_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.profiling_complete = @outputs.is_passed
+            fetch_profiling_info: @actions.fetch_profiling_details
+                with record_ref=@variables.portfolio_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.portfolio_tier = @outputs.tier_value
+            go_to_allocation: @utils.transition to @topic.allocation
+                description: "Move to allocation stage."
+                available when @variables.profiling_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.portfolio_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.portfolio_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.portfolio_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.profiling_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic allocation:
+    description: "Handles the allocation stage of the portfolio process"
+
+    actions:
+        process_allocation_data:
+            description: "Process allocation stage data for the portfolio"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Allocation"
+
+        validate_allocation_info:
+            description: "Validate allocation information for the portfolio"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Allocation_Info"
+
+        fetch_allocation_details:
+            description: "Fetch allocation details for the portfolio"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Allocation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.profiling_complete == False:
+            transition to @topic.profiling
+
+    reasoning:
+        instructions: ->
+            | Handle the allocation stage for the portfolio.
+              Current portfolio status: {! @variables.portfolio_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Allocation result: {! @variables.allocation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.portfolio_tier }
+              Review the allocation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_allocation: @actions.process_allocation_data
+                with record_ref=@variables.portfolio_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.portfolio_category
+                set @variables.allocation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.allocation_complete = @outputs.is_passed
+            fetch_allocation_info: @actions.fetch_allocation_details
+                with record_ref=@variables.portfolio_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.portfolio_tier = @outputs.tier_value
+                available when @variables.portfolio_record_id is not None
+            go_to_rebalancing: @utils.transition to @topic.rebalancing
+                description: "Move to rebalancing stage."
+                available when @variables.allocation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.allocation_complete == True:
+            set @variables.portfolio_status = "allocation_done"
+        if @variables.allocation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.rebalancing
+        if @variables.attempt_count >= 3 and @variables.allocation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic rebalancing:
+    description: "Handles the rebalancing stage of the portfolio process"
+
+    actions:
+        process_rebalancing_data:
+            description: "Process rebalancing stage data for the portfolio"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Rebalancing"
+
+        validate_rebalancing_info:
+            description: "Validate rebalancing information for the portfolio"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Rebalancing_Info"
+
+        fetch_rebalancing_details:
+            description: "Fetch rebalancing details for the portfolio"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Rebalancing_Details"
+
+    before_reasoning:
+        if @variables.rebalancing_complete == False:
+            run @actions.fetch_rebalancing_details
+                with record_ref=@variables.portfolio_record_id
+                with include_history=True
+                set @variables.rebalancing_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.portfolio_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.portfolio_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.portfolio_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the rebalancing stage for the portfolio.
+              Current portfolio status: {! @variables.portfolio_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Rebalancing result: {! @variables.rebalancing_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.portfolio_tier }
+              Review the rebalancing results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_rebalancing: @actions.process_rebalancing_data
+                with record_ref=@variables.portfolio_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.portfolio_category
+                set @variables.rebalancing_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.rebalancing_complete = @outputs.is_passed
+            fetch_rebalancing_info: @actions.fetch_rebalancing_details
+                with record_ref=@variables.portfolio_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.portfolio_tier = @outputs.tier_value
+                available when @variables.portfolio_record_id is not None
+            go_to_performance_review: @utils.transition to @topic.performance_review
+                description: "Move to performance review stage."
+                available when @variables.rebalancing_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.portfolio_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.portfolio_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.portfolio_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.rebalancing_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic performance_review:
+    description: "Handles the performance review stage of the portfolio process"
+
+    actions:
+        process_performance_review_data:
+            description: "Process performance review stage data for the portfolio"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_PerformanceReview_Data"
+
+        validate_performance_review_info:
+            description: "Validate performance review information for the portfolio"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PerformanceReview_Info"
+
+        fetch_performance_review_details:
+            description: "Fetch performance review details for the portfolio"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PerformanceReview_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.rebalancing_complete == False:
+            transition to @topic.rebalancing
+        if @variables.eligibility_score >= 80:
+            set @variables.portfolio_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.portfolio_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the performance review stage for the portfolio.
+              Current portfolio status: {! @variables.portfolio_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Performance Review result: {! @variables.performance_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.portfolio_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_performance_review: @actions.process_performance_review_data
+                with record_ref=@variables.portfolio_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.portfolio_category
+                set @variables.performance_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.performance_review_complete = @outputs.is_passed
+            fetch_performance_review_info: @actions.fetch_performance_review_details
+                with record_ref=@variables.portfolio_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.portfolio_tier = @outputs.tier_value
+                available when @variables.portfolio_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.performance_review_complete == True:
+            set @variables.portfolio_status = "performance_review_done"
+        if @variables.attempt_count >= 3 and @variables.performance_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for portfolio issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the portfolio issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the portfolio interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the portfolio request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Portfolio status: {! @variables.portfolio_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.portfolio_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.portfolio_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.portfolio_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.portfolio_status = "escalated"
+        set @variables.escalation_requested = False
+

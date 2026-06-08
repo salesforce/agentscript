@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional network monitoring agent assistant.
+        Help users manage their network requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: health_check -> alert_processing -> diagnostics -> remediation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Network Monitoring Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "network_monitoring_agent_v39"
+    default_agent_user: "network_monitoring@example.com"
+    agent_description: "Assists users with network management through the network monitoring agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    network_record_id: mutable string
+        description: "Record ID of the network"
+    network_status: mutable string = ""
+        description: "Current status of the network"
+    network_tier: mutable string = "standard"
+        description: "Tier classification for the network"
+    network_category: mutable string = ""
+        description: "Category of the network"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    health_check_complete: mutable boolean = False
+        description: "Whether the health_check stage is complete"
+    health_check_result: mutable string = ""
+        description: "Result from the health_check stage"
+    alert_processing_complete: mutable boolean = False
+        description: "Whether the alert_processing stage is complete"
+    alert_processing_result: mutable string = ""
+        description: "Result from the alert_processing stage"
+    diagnostics_complete: mutable boolean = False
+        description: "Whether the diagnostics stage is complete"
+    diagnostics_result: mutable string = ""
+        description: "Result from the diagnostics stage"
+    remediation_complete: mutable boolean = False
+        description: "Whether the remediation stage is complete"
+    remediation_result: mutable string = ""
+        description: "Result from the remediation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate network management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a network monitoring agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current network status: {! @variables.network_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_health_check} for health check requests.
+              Use {!@actions.go_to_alert_processing} for alert processing requests.
+              Use {!@actions.go_to_diagnostics} for diagnostics requests.
+              Use {!@actions.go_to_remediation} for remediation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_health_check: @utils.transition to @topic.health_check
+                description: "Transition to health check topic."
+            go_to_alert_processing: @utils.transition to @topic.alert_processing
+                description: "Transition to alert processing topic."
+                available when @variables.is_verified == True
+            go_to_diagnostics: @utils.transition to @topic.diagnostics
+                description: "Transition to diagnostics topic."
+                available when @variables.is_verified == True
+            go_to_remediation: @utils.transition to @topic.remediation
+                description: "Transition to remediation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic health_check:
+    description: "Handles the health check stage of the network process"
+
+    actions:
+        process_health_check_data:
+            description: "Process health check stage data for the network"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_HealthCheck"
+
+        validate_health_check_info:
+            description: "Validate health check information for the network"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_HealthCheck_Info"
+
+        fetch_health_check_details:
+            description: "Fetch health check details for the network"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_HealthCheck_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_health_check_info
+                with record_ref=@variables.network_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.network_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the health check stage for the network.
+              Current network status: {! @variables.network_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Health Check result: {! @variables.health_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.network_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_health_check} to begin processing.
+        actions:
+            run_health_check: @actions.process_health_check_data
+                with record_ref=@variables.network_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.network_category
+                set @variables.health_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.health_check_complete = @outputs.is_passed
+            fetch_health_check_info: @actions.fetch_health_check_details
+                with record_ref=@variables.network_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.network_tier = @outputs.tier_value
+            go_to_alert_processing: @utils.transition to @topic.alert_processing
+                description: "Move to alert processing stage."
+                available when @variables.health_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.network_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.network_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.network_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.health_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic alert_processing:
+    description: "Handles the alert processing stage of the network process"
+
+    actions:
+        process_alert_processing_data:
+            description: "Process alert processing stage data for the network"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_AlertProcessing_Data"
+
+        validate_alert_processing_info:
+            description: "Validate alert processing information for the network"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_AlertProcessing_Info"
+
+        fetch_alert_processing_details:
+            description: "Fetch alert processing details for the network"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_AlertProcessing_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.health_check_complete == False:
+            transition to @topic.health_check
+
+    reasoning:
+        instructions: ->
+            | Handle the alert processing stage for the network.
+              Current network status: {! @variables.network_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Alert Processing result: {! @variables.alert_processing_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.network_tier }
+              Review the alert processing results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_alert_processing: @actions.process_alert_processing_data
+                with record_ref=@variables.network_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.network_category
+                set @variables.alert_processing_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.alert_processing_complete = @outputs.is_passed
+            fetch_alert_processing_info: @actions.fetch_alert_processing_details
+                with record_ref=@variables.network_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.network_tier = @outputs.tier_value
+                available when @variables.network_record_id is not None
+            go_to_diagnostics: @utils.transition to @topic.diagnostics
+                description: "Move to diagnostics stage."
+                available when @variables.alert_processing_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.alert_processing_complete == True:
+            set @variables.network_status = "alert_processing_done"
+        if @variables.alert_processing_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.diagnostics
+        if @variables.attempt_count >= 3 and @variables.alert_processing_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic diagnostics:
+    description: "Handles the diagnostics stage of the network process"
+
+    actions:
+        process_diagnostics_data:
+            description: "Process diagnostics stage data for the network"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Diagnostics"
+
+        validate_diagnostics_info:
+            description: "Validate diagnostics information for the network"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Diagnostics_Info"
+
+        fetch_diagnostics_details:
+            description: "Fetch diagnostics details for the network"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Diagnostics_Details"
+
+    before_reasoning:
+        if @variables.diagnostics_complete == False:
+            run @actions.fetch_diagnostics_details
+                with record_ref=@variables.network_record_id
+                with include_history=True
+                set @variables.diagnostics_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.network_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.network_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.network_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the diagnostics stage for the network.
+              Current network status: {! @variables.network_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Diagnostics result: {! @variables.diagnostics_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.network_tier }
+              Review the diagnostics results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_diagnostics: @actions.process_diagnostics_data
+                with record_ref=@variables.network_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.network_category
+                set @variables.diagnostics_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.diagnostics_complete = @outputs.is_passed
+            fetch_diagnostics_info: @actions.fetch_diagnostics_details
+                with record_ref=@variables.network_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.network_tier = @outputs.tier_value
+                available when @variables.network_record_id is not None
+            go_to_remediation: @utils.transition to @topic.remediation
+                description: "Move to remediation stage."
+                available when @variables.diagnostics_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.network_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.network_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.network_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.diagnostics_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic remediation:
+    description: "Handles the remediation stage of the network process"
+
+    actions:
+        process_remediation_data:
+            description: "Process remediation stage data for the network"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Remediation"
+
+        validate_remediation_info:
+            description: "Validate remediation information for the network"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Remediation_Info"
+
+        fetch_remediation_details:
+            description: "Fetch remediation details for the network"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Remediation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.diagnostics_complete == False:
+            transition to @topic.diagnostics
+        if @variables.eligibility_score >= 80:
+            set @variables.network_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.network_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the remediation stage for the network.
+              Current network status: {! @variables.network_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Remediation result: {! @variables.remediation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.network_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_remediation: @actions.process_remediation_data
+                with record_ref=@variables.network_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.network_category
+                set @variables.remediation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.remediation_complete = @outputs.is_passed
+            fetch_remediation_info: @actions.fetch_remediation_details
+                with record_ref=@variables.network_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.network_tier = @outputs.tier_value
+                available when @variables.network_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.remediation_complete == True:
+            set @variables.network_status = "remediation_done"
+        if @variables.attempt_count >= 3 and @variables.remediation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for network issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the network issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the network interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the network request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Network status: {! @variables.network_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.network_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.network_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.network_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.network_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,29 @@
+config:
+    agent_name: "ConstantValuesMixed"
+
+knowledge:
+    citations_url: "https://api.example.com"
+    citations_enabled: True
+    rag_feature_config_id: "WorldKnowledge"
+
+start_agent main:
+    description: "Test mixed constant value types"
+
+    actions:
+        api_call:
+            description: "API call with mixed constant types"
+            inputs:
+                url: string = @knowledge.citations_url
+                enabled: boolean = @knowledge.citations_enabled
+                rag_id: string = @knowledge.rag_feature_config_id
+                custom_header: string = "User-Agent: TestBot"
+                verify_ssl: boolean = False
+            outputs:
+                response: string
+            target: "flow://APICall"
+
+    reasoning:
+        instructions: ->
+            | Test mixed constant value types
+        actions:
+            call_api: @actions.api_call

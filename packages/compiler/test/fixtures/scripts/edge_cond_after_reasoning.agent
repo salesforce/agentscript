@@ -1,0 +1,52 @@
+system:
+    instructions: "You are an assistant that routes users after reasoning."
+    messages:
+        welcome: "Hello!"
+        error: "Error occurred."
+
+config:
+    developer_name: "Edge_Cond_After_Reasoning"
+    default_agent_user: "test_user"
+    description: "Tests after_reasoning with conditionals controlling transitions"
+
+variables:
+    status: mutable string = ""
+    score: mutable number = 0
+    handled: mutable boolean = False
+
+start_agent main:
+    description: "Tests conditional transitions in after_reasoning"
+
+    reasoning:
+        instructions: ->
+            | Help the user and determine the appropriate next step.
+
+    after_reasoning:
+        if @variables.status == "done":
+            transition to @topic.completed
+        if @variables.status == "escalate":
+            set @variables.handled = False
+            transition to @topic.escalation
+        if @variables.score > 80:
+            transition to @topic.high_priority
+
+topic completed:
+    description: "Handles completed interactions"
+
+    reasoning:
+        instructions: ->
+            | The interaction has been completed successfully.
+
+topic escalation:
+    description: "Handles escalated interactions"
+
+    reasoning:
+        instructions: ->
+            | This interaction has been escalated to a human agent.
+
+topic high_priority:
+    description: "Handles high priority cases"
+
+    reasoning:
+        instructions: ->
+            | This is a high priority case requiring immediate attention.

@@ -1,0 +1,66 @@
+system:
+    instructions: "You are a support agent with multiple escalation paths."
+    messages:
+        welcome: "Welcome! How can I help you today?"
+        error: "Something went wrong."
+
+config:
+    developer_name: "Edge_Escalation_Multi_Topic"
+    default_agent_user: "test_user"
+    description: "Tests multiple topics each with their own escalation action"
+
+variables:
+    department: mutable string = ""
+    issue: mutable string = ""
+
+start_agent router:
+    description: "Routes users to the appropriate department"
+
+    reasoning:
+        instructions: ->
+            | I can help route you to the right department.
+              What do you need help with: billing, technical, or general?
+
+        actions:
+            go_billing: @utils.transition to @topic.billing_support
+            go_technical: @utils.transition to @topic.technical_support
+            go_general: @utils.transition to @topic.general_support
+
+topic billing_support:
+    description: "Handles billing inquiries with escalation"
+
+    reasoning:
+        instructions: ->
+            | I can help with billing questions. If I can't resolve your issue, I'll transfer you to a billing specialist.
+
+        actions:
+            escalate_billing: @utils.escalate
+                description: "Escalate to billing specialist"
+
+            back_to_router: @utils.transition to @topic.router
+
+topic technical_support:
+    description: "Handles technical issues with escalation"
+
+    reasoning:
+        instructions: ->
+            | I can help with technical issues. If this requires deeper investigation, I'll transfer you to a tech specialist.
+
+        actions:
+            escalate_technical: @utils.escalate
+                description: "Escalate to technical specialist"
+
+            back_to_router: @utils.transition to @topic.router
+
+topic general_support:
+    description: "Handles general inquiries with escalation"
+
+    reasoning:
+        instructions: ->
+            | I can help with general questions. If you need more specialized help, I can transfer you.
+
+        actions:
+            escalate_general: @utils.escalate
+                description: "Escalate to general support agent"
+
+            back_to_router: @utils.transition to @topic.router

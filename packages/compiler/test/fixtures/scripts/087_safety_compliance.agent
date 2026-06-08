@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional safety compliance agent assistant.
+        Help users manage their safety_report requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: hazard_identification -> assessment -> control_implementation -> audit.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Safety Compliance Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "safety_compliance_agent_v87"
+    default_agent_user: "safety_compliance@example.com"
+    agent_description: "Assists users with safety_report management through the safety compliance agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    safety_report_record_id: mutable string
+        description: "Record ID of the safety_report"
+    safety_report_status: mutable string = ""
+        description: "Current status of the safety_report"
+    safety_report_tier: mutable string = "standard"
+        description: "Tier classification for the safety_report"
+    safety_report_category: mutable string = ""
+        description: "Category of the safety_report"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    hazard_identification_complete: mutable boolean = False
+        description: "Whether the hazard_identification stage is complete"
+    hazard_identification_result: mutable string = ""
+        description: "Result from the hazard_identification stage"
+    assessment_complete: mutable boolean = False
+        description: "Whether the assessment stage is complete"
+    assessment_result: mutable string = ""
+        description: "Result from the assessment stage"
+    control_implementation_complete: mutable boolean = False
+        description: "Whether the control_implementation stage is complete"
+    control_implementation_result: mutable string = ""
+        description: "Result from the control_implementation stage"
+    audit_complete: mutable boolean = False
+        description: "Whether the audit stage is complete"
+    audit_result: mutable string = ""
+        description: "Result from the audit stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate safety_report management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a safety compliance agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current safety_report status: {! @variables.safety_report_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_hazard_identification} for hazard identification requests.
+              Use {!@actions.go_to_assessment} for assessment requests.
+              Use {!@actions.go_to_control_implementation} for control implementation requests.
+              Use {!@actions.go_to_audit} for audit requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_hazard_identification: @utils.transition to @topic.hazard_identification
+                description: "Transition to hazard identification topic."
+            go_to_assessment: @utils.transition to @topic.assessment
+                description: "Transition to assessment topic."
+                available when @variables.is_verified == True
+            go_to_control_implementation: @utils.transition to @topic.control_implementation
+                description: "Transition to control implementation topic."
+                available when @variables.is_verified == True
+            go_to_audit: @utils.transition to @topic.audit
+                description: "Transition to audit topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic hazard_identification:
+    description: "Handles the hazard identification stage of the safety_report process"
+
+    actions:
+        process_hazard_identification_data:
+            description: "Process hazard identification stage data for the safety_report"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_HazardIdentification"
+
+        validate_hazard_identification_info:
+            description: "Validate hazard identification information for the safety_report"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_HazardIdentification_Info"
+
+        fetch_hazard_identification_details:
+            description: "Fetch hazard identification details for the safety_report"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_HazardIdentification_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_hazard_identification_info
+                with record_ref=@variables.safety_report_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.safety_report_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the hazard identification stage for the safety_report.
+              Current safety_report status: {! @variables.safety_report_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Hazard Identification result: {! @variables.hazard_identification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.safety_report_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_hazard_identification} to begin processing.
+        actions:
+            run_hazard_identification: @actions.process_hazard_identification_data
+                with record_ref=@variables.safety_report_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.safety_report_category
+                set @variables.hazard_identification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.hazard_identification_complete = @outputs.is_passed
+            fetch_hazard_identification_info: @actions.fetch_hazard_identification_details
+                with record_ref=@variables.safety_report_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.safety_report_tier = @outputs.tier_value
+            go_to_assessment: @utils.transition to @topic.assessment
+                description: "Move to assessment stage."
+                available when @variables.hazard_identification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.safety_report_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.safety_report_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.safety_report_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.hazard_identification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic assessment:
+    description: "Handles the assessment stage of the safety_report process"
+
+    actions:
+        process_assessment_data:
+            description: "Process assessment stage data for the safety_report"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Assessment_Data"
+
+        validate_assessment_info:
+            description: "Validate assessment information for the safety_report"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Assessment_Info"
+
+        fetch_assessment_details:
+            description: "Fetch assessment details for the safety_report"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Assessment_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.hazard_identification_complete == False:
+            transition to @topic.hazard_identification
+
+    reasoning:
+        instructions: ->
+            | Handle the assessment stage for the safety_report.
+              Current safety_report status: {! @variables.safety_report_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Assessment result: {! @variables.assessment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.safety_report_tier }
+              Review the assessment results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_assessment: @actions.process_assessment_data
+                with record_ref=@variables.safety_report_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.safety_report_category
+                set @variables.assessment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.assessment_complete = @outputs.is_passed
+            fetch_assessment_info: @actions.fetch_assessment_details
+                with record_ref=@variables.safety_report_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.safety_report_tier = @outputs.tier_value
+                available when @variables.safety_report_record_id is not None
+            go_to_control_implementation: @utils.transition to @topic.control_implementation
+                description: "Move to control implementation stage."
+                available when @variables.assessment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.assessment_complete == True:
+            set @variables.safety_report_status = "assessment_done"
+        if @variables.assessment_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.control_implementation
+        if @variables.attempt_count >= 3 and @variables.assessment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic control_implementation:
+    description: "Handles the control implementation stage of the safety_report process"
+
+    actions:
+        process_control_implementation_data:
+            description: "Process control implementation stage data for the safety_report"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_ControlImplementation"
+
+        validate_control_implementation_info:
+            description: "Validate control implementation information for the safety_report"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ControlImplementation_Info"
+
+        fetch_control_implementation_details:
+            description: "Fetch control implementation details for the safety_report"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ControlImplementation_Details"
+
+    before_reasoning:
+        if @variables.control_implementation_complete == False:
+            run @actions.fetch_control_implementation_details
+                with record_ref=@variables.safety_report_record_id
+                with include_history=True
+                set @variables.control_implementation_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.safety_report_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.safety_report_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.safety_report_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the control implementation stage for the safety_report.
+              Current safety_report status: {! @variables.safety_report_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Control Implementation result: {! @variables.control_implementation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.safety_report_tier }
+              Review the control implementation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_control_implementation: @actions.process_control_implementation_data
+                with record_ref=@variables.safety_report_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.safety_report_category
+                set @variables.control_implementation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.control_implementation_complete = @outputs.is_passed
+            fetch_control_implementation_info: @actions.fetch_control_implementation_details
+                with record_ref=@variables.safety_report_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.safety_report_tier = @outputs.tier_value
+                available when @variables.safety_report_record_id is not None
+            go_to_audit: @utils.transition to @topic.audit
+                description: "Move to audit stage."
+                available when @variables.control_implementation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.safety_report_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.safety_report_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.safety_report_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.control_implementation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic audit:
+    description: "Handles the audit stage of the safety_report process"
+
+    actions:
+        process_audit_data:
+            description: "Process audit stage data for the safety_report"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Audit"
+
+        validate_audit_info:
+            description: "Validate audit information for the safety_report"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Audit_Info"
+
+        fetch_audit_details:
+            description: "Fetch audit details for the safety_report"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Audit_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.control_implementation_complete == False:
+            transition to @topic.control_implementation
+        if @variables.eligibility_score >= 80:
+            set @variables.safety_report_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.safety_report_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the audit stage for the safety_report.
+              Current safety_report status: {! @variables.safety_report_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Audit result: {! @variables.audit_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.safety_report_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_audit: @actions.process_audit_data
+                with record_ref=@variables.safety_report_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.safety_report_category
+                set @variables.audit_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.audit_complete = @outputs.is_passed
+            fetch_audit_info: @actions.fetch_audit_details
+                with record_ref=@variables.safety_report_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.safety_report_tier = @outputs.tier_value
+                available when @variables.safety_report_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.audit_complete == True:
+            set @variables.safety_report_status = "audit_done"
+        if @variables.attempt_count >= 3 and @variables.audit_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for safety_report issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the safety_report issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the safety_report interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the safety_report request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Safety Report status: {! @variables.safety_report_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.safety_report_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.safety_report_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.safety_report_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.safety_report_status = "escalated"
+        set @variables.escalation_requested = False
+

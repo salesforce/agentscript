@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional leave management agent assistant.
+        Help users manage their leave_req requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: request_submission -> balance_check -> approval_routing -> calendar_update.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Leave Management Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "leave_management_agent_v44"
+    default_agent_user: "leave_management@example.com"
+    agent_description: "Assists users with leave_req management through the leave management agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    leave_req_record_id: mutable string
+        description: "Record ID of the leave_req"
+    leave_req_status: mutable string = ""
+        description: "Current status of the leave_req"
+    leave_req_tier: mutable string = "standard"
+        description: "Tier classification for the leave_req"
+    leave_req_category: mutable string = ""
+        description: "Category of the leave_req"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    request_submission_complete: mutable boolean = False
+        description: "Whether the request_submission stage is complete"
+    request_submission_result: mutable string = ""
+        description: "Result from the request_submission stage"
+    balance_check_complete: mutable boolean = False
+        description: "Whether the balance_check stage is complete"
+    balance_check_result: mutable string = ""
+        description: "Result from the balance_check stage"
+    approval_routing_complete: mutable boolean = False
+        description: "Whether the approval_routing stage is complete"
+    approval_routing_result: mutable string = ""
+        description: "Result from the approval_routing stage"
+    calendar_update_complete: mutable boolean = False
+        description: "Whether the calendar_update stage is complete"
+    calendar_update_result: mutable string = ""
+        description: "Result from the calendar_update stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate leave_req management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a leave management agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current leave_req status: {! @variables.leave_req_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_request_submission} for request submission requests.
+              Use {!@actions.go_to_balance_check} for balance check requests.
+              Use {!@actions.go_to_approval_routing} for approval routing requests.
+              Use {!@actions.go_to_calendar_update} for calendar update requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_request_submission: @utils.transition to @topic.request_submission
+                description: "Transition to request submission topic."
+            go_to_balance_check: @utils.transition to @topic.balance_check
+                description: "Transition to balance check topic."
+                available when @variables.is_verified == True
+            go_to_approval_routing: @utils.transition to @topic.approval_routing
+                description: "Transition to approval routing topic."
+                available when @variables.is_verified == True
+            go_to_calendar_update: @utils.transition to @topic.calendar_update
+                description: "Transition to calendar update topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic request_submission:
+    description: "Handles the request submission stage of the leave_req process"
+
+    actions:
+        process_request_submission_data:
+            description: "Process request submission stage data for the leave_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_RequestSubmission"
+
+        validate_request_submission_info:
+            description: "Validate request submission information for the leave_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RequestSubmission_Info"
+
+        fetch_request_submission_details:
+            description: "Fetch request submission details for the leave_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RequestSubmission_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_request_submission_info
+                with record_ref=@variables.leave_req_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.leave_req_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the request submission stage for the leave_req.
+              Current leave_req status: {! @variables.leave_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Request Submission result: {! @variables.request_submission_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.leave_req_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_request_submission} to begin processing.
+        actions:
+            run_request_submission: @actions.process_request_submission_data
+                with record_ref=@variables.leave_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.leave_req_category
+                set @variables.request_submission_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.request_submission_complete = @outputs.is_passed
+            fetch_request_submission_info: @actions.fetch_request_submission_details
+                with record_ref=@variables.leave_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.leave_req_tier = @outputs.tier_value
+            go_to_balance_check: @utils.transition to @topic.balance_check
+                description: "Move to balance check stage."
+                available when @variables.request_submission_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.leave_req_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.leave_req_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.leave_req_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.request_submission_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic balance_check:
+    description: "Handles the balance check stage of the leave_req process"
+
+    actions:
+        process_balance_check_data:
+            description: "Process balance check stage data for the leave_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_BalanceCheck"
+
+        validate_balance_check_info:
+            description: "Validate balance check information for the leave_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_BalanceCheck_Info"
+
+        fetch_balance_check_details:
+            description: "Fetch balance check details for the leave_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_BalanceCheck_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.request_submission_complete == False:
+            transition to @topic.request_submission
+
+    reasoning:
+        instructions: ->
+            | Handle the balance check stage for the leave_req.
+              Current leave_req status: {! @variables.leave_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Balance Check result: {! @variables.balance_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.leave_req_tier }
+              Review the balance check results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_balance_check: @actions.process_balance_check_data
+                with record_ref=@variables.leave_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.leave_req_category
+                set @variables.balance_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.balance_check_complete = @outputs.is_passed
+            fetch_balance_check_info: @actions.fetch_balance_check_details
+                with record_ref=@variables.leave_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.leave_req_tier = @outputs.tier_value
+                available when @variables.leave_req_record_id is not None
+            go_to_approval_routing: @utils.transition to @topic.approval_routing
+                description: "Move to approval routing stage."
+                available when @variables.balance_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.balance_check_complete == True:
+            set @variables.leave_req_status = "balance_check_done"
+        if @variables.balance_check_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.approval_routing
+        if @variables.attempt_count >= 3 and @variables.balance_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic approval_routing:
+    description: "Handles the approval routing stage of the leave_req process"
+
+    actions:
+        process_approval_routing_data:
+            description: "Process approval routing stage data for the leave_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ApprovalRouting_Data"
+
+        validate_approval_routing_info:
+            description: "Validate approval routing information for the leave_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ApprovalRouting_Info"
+
+        fetch_approval_routing_details:
+            description: "Fetch approval routing details for the leave_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ApprovalRouting_Details"
+
+    before_reasoning:
+        if @variables.approval_routing_complete == False:
+            run @actions.fetch_approval_routing_details
+                with record_ref=@variables.leave_req_record_id
+                with include_history=True
+                set @variables.approval_routing_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.leave_req_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.leave_req_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.leave_req_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the approval routing stage for the leave_req.
+              Current leave_req status: {! @variables.leave_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Approval Routing result: {! @variables.approval_routing_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.leave_req_tier }
+              Review the approval routing results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_approval_routing: @actions.process_approval_routing_data
+                with record_ref=@variables.leave_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.leave_req_category
+                set @variables.approval_routing_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.approval_routing_complete = @outputs.is_passed
+            fetch_approval_routing_info: @actions.fetch_approval_routing_details
+                with record_ref=@variables.leave_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.leave_req_tier = @outputs.tier_value
+                available when @variables.leave_req_record_id is not None
+            go_to_calendar_update: @utils.transition to @topic.calendar_update
+                description: "Move to calendar update stage."
+                available when @variables.approval_routing_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.leave_req_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.leave_req_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.leave_req_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.approval_routing_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic calendar_update:
+    description: "Handles the calendar update stage of the leave_req process"
+
+    actions:
+        process_calendar_update_data:
+            description: "Process calendar update stage data for the leave_req"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_CalendarUpdate"
+
+        validate_calendar_update_info:
+            description: "Validate calendar update information for the leave_req"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_CalendarUpdate_Info"
+
+        fetch_calendar_update_details:
+            description: "Fetch calendar update details for the leave_req"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_CalendarUpdate_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.approval_routing_complete == False:
+            transition to @topic.approval_routing
+        if @variables.eligibility_score >= 80:
+            set @variables.leave_req_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.leave_req_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the calendar update stage for the leave_req.
+              Current leave_req status: {! @variables.leave_req_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Calendar Update result: {! @variables.calendar_update_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.leave_req_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_calendar_update: @actions.process_calendar_update_data
+                with record_ref=@variables.leave_req_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.leave_req_category
+                set @variables.calendar_update_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.calendar_update_complete = @outputs.is_passed
+            fetch_calendar_update_info: @actions.fetch_calendar_update_details
+                with record_ref=@variables.leave_req_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.leave_req_tier = @outputs.tier_value
+                available when @variables.leave_req_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.calendar_update_complete == True:
+            set @variables.leave_req_status = "calendar_update_done"
+        if @variables.attempt_count >= 3 and @variables.calendar_update_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for leave_req issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the leave_req issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the leave_req interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the leave_req request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Leave Req status: {! @variables.leave_req_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.leave_req_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.leave_req_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.leave_req_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.leave_req_status = "escalated"
+        set @variables.escalation_requested = False
+

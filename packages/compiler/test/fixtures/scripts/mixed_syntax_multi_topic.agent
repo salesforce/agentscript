@@ -1,0 +1,69 @@
+system:
+  instructions: "You are a helpful agent demonstrating mixed old and new syntax"
+  messages:
+    welcome: "Hello! I support both old and new syntax."
+    error: "An error occurred."
+
+config:
+  developer_name: "Mixed_Syntax_Agent"
+  agent_id: "mixed_1"
+  agent_type: "AgentforceServiceAgent"
+  default_agent_user: "test_user"
+
+variables:
+  customer_id: mutable string = ""
+  data_value: mutable string = ""
+
+start_agent old_style:
+  description: "Uses old syntax: actions and reasoning.actions"
+
+  actions:
+    fetch_data:
+      description: "Fetch customer data using old syntax"
+      target: "flow://FetchData"
+      inputs:
+        customer_id: string
+          is_required: True
+      outputs:
+        value: string
+
+  reasoning:
+    instructions: ->
+      | Handle customer requests using old syntax.
+        I can fetch data and transition to the new style topic.
+
+    actions:
+      fetch: @actions.fetch_data
+        with customer_id=@variables.customer_id
+        set @variables.data_value = @outputs.value
+
+      go_new: @utils.transition to @subagent.new_style
+        description: "Transition to new style subagent"
+
+subagent new_style:
+  description: "Uses actions syntax"
+
+  actions:
+    update_data:
+      description: "Update customer data"
+      target: "flow://UpdateData"
+      inputs:
+        customer_id: string
+          is_required: True
+        value: string
+          is_required: True
+      outputs:
+        success: boolean
+
+  reasoning:
+    instructions: ->
+      | Handle updates.
+        I can update data and transition back to old style.
+
+    actions:
+      update: @actions.update_data
+        with customer_id=@variables.customer_id
+        with value=@variables.data_value
+
+      go_old: @utils.transition to @subagent.old_style
+        description: "Transition back to old style"

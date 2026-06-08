@@ -1,0 +1,96 @@
+system:
+    instructions: "You are an intelligent support agent with knowledge base access and escalation capabilities."
+    messages:
+        welcome: "Hello! I can search our knowledge base or connect you with a human agent."
+        error: "An error occurred."
+
+config:
+    developer_name: "Edge_Knowledge_Escalation_Combo"
+    default_agent_user: "test_user"
+    description: "Tests agent with both knowledge block and escalation topics"
+
+variables:
+    query: mutable string = ""
+    answer: mutable string = ""
+    confidence: mutable number = 0
+    needs_human: mutable boolean = False
+
+knowledge:
+    citations_enabled: True
+    citations_url: "https://support.example.com/kb"
+    rag_feature_config_id: "support_rag_config"
+
+start_agent main:
+    description: "Main agent with knowledge search and escalation routing"
+
+    actions:
+        search_kb:
+            description: "Searches the knowledge base"
+            inputs:
+                query: string
+            outputs:
+                answer: string
+                confidence: number
+            target: "flow://SearchKB"
+
+    before_reasoning:
+        if @variables.confidence < 30:
+            set @variables.needs_human = True
+
+    reasoning:
+        instructions: ->
+            | I can search our knowledge base for answers. If I can't find what you need, I'll connect you with a human agent.
+
+        actions:
+            search: @actions.search_kb
+                with query=@variables.query
+                set @variables.answer = @outputs.answer
+                set @variables.confidence = @outputs.confidence
+
+            go_to_results: @utils.transition to @topic.results
+
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent when knowledge base cannot help"
+
+    after_reasoning:
+        if @variables.query != "":
+            run @actions.search_kb
+                with query=@variables.query
+                set @variables.answer = @outputs.answer
+                set @variables.confidence = @outputs.confidence
+        if @variables.confidence < 50:
+            set @variables.needs_human = True
+            transition to @topic.escalation
+        if @variables.confidence >= 50:
+            transition to @topic.results
+
+topic results:
+    description: "Displays knowledge base search results"
+
+    reasoning:
+        instructions: ->
+            | Here's what I found: {! @variables.answer }
+              Confidence: {! @variables.confidence }
+              Would you like to search for something else or speak with a human agent?
+
+        actions:
+            back_to_search: @utils.transition to @topic.main
+            escalate_to_human: @utils.transition to @topic.escalation
+
+topic escalation:
+    description: "Handles escalation to human agents when knowledge base is insufficient"
+
+    before_reasoning:
+        if @variables.confidence == 0:
+            set @variables.needs_human = True
+
+    reasoning:
+        instructions: ->
+            | I wasn't able to find a confident answer in our knowledge base.
+              Let me connect you with a human agent who can help further.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Transfer to human agent for specialized assistance"
+
+            try_again: @utils.transition to @topic.main

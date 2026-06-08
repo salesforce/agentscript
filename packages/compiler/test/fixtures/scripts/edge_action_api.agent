@@ -1,0 +1,81 @@
+system:
+    instructions: "You are a helpful assistant that accesses external services."
+    messages:
+        welcome: "Hello! I can help you with weather, news, and translations."
+        error: "An error occurred while accessing the service."
+
+config:
+    developer_name: "Api_Actions_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with multiple externalService:// action targets"
+
+variables:
+    user_token: mutable string = ""
+        description: "User authentication token"
+
+start_agent main:
+    description: "Agent with multiple externalService:// action targets"
+
+    actions:
+        Fetch_Weather:
+            description: "Fetch current weather data"
+            target: "externalService://WeatherService.getCurrentWeather"
+            inputs:
+                city: string
+                    label: "City Name"
+                    is_required: True
+                units: string
+                    label: "Temperature Units"
+            outputs:
+                temperature: number
+                    label: "Temperature"
+                conditions: string
+                    label: "Weather Conditions"
+
+        Fetch_News:
+            description: "Fetch latest news articles"
+            target: "externalService://NewsService.getLatestNews"
+            inputs:
+                category: string
+                    label: "News Category"
+                    is_required: True
+                limit: number
+                    label: "Result Limit"
+            outputs:
+                articles: string
+                    label: "News Articles"
+
+        Translate_Text:
+            description: "Translate text between languages"
+            target: "externalService://TranslationService.translate"
+            inputs:
+                text: string
+                    label: "Text to Translate"
+                    is_required: True
+                source_lang: string
+                    label: "Source Language"
+                    is_required: True
+                target_lang: string
+                    label: "Target Language"
+                    is_required: True
+            outputs:
+                translated_text: string
+                    label: "Translated Text"
+
+    reasoning:
+        instructions: ->
+            | Help the user access various external services.
+
+        actions:
+            Weather_Action: @actions.Fetch_Weather
+                with city=...
+                with units="metric"
+
+            News_Action: @actions.Fetch_News
+                with category=...
+                with limit=...
+
+            Translate_Action: @actions.Translate_Text
+                with text=...
+                with source_lang=...
+                with target_lang=...

@@ -1,0 +1,49 @@
+# Test fixture demonstrating model_config with params at global and topic levels
+
+config:
+    developer_name: "customer_support_agent"
+    agent_label: "Customer Support Agent"
+    description: "Assists customers with orders and support"
+
+model_config:
+    model: "model://gpt-4"
+    params:
+        temperature: 0.7
+        max_tokens: 2000
+        top_p: 0.95
+        stop_sequences: ["STOP", "END"]
+
+start_agent topic_selector:
+    description: "Routes customer inquiries to the appropriate topic"
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+        params:
+            temperature: 0.9  # Override temperature, inherit other params
+    reasoning:
+        instructions: ->
+            | Welcome the user. Analyze their request and route accordingly:
+              {!@actions.go_to_orders}: For order lookups and updates
+              {!@actions.go_to_support}: For general support questions
+        actions:
+            go_to_orders: @utils.transition to @topic.Order_Management
+                description: "Handle order inquiries"
+            go_to_support: @utils.transition to @topic.General_Support
+                description: "Handle general support questions"
+
+topic Order_Management:
+    description: "Handles order lookups and updates"
+    # This topic inherits config-level model_config (gpt-4 with default params)
+    reasoning:
+        instructions: ->
+            | Help the user with their order. Ask for order number if needed.
+
+topic General_Support:
+    description: "Handles general support questions"
+    model_config:
+        model: "model://gpt-4"
+        params:
+            temperature: 0.5
+            max_tokens: 1500  # Lower temperature for precise support
+    reasoning:
+        instructions: ->
+            | Answer general support questions accurately and concisely.

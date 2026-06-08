@@ -1,0 +1,134 @@
+system:
+    instructions: "You are a student enrollment assistant. Help students search for courses, check financial aid eligibility, and complete registration."
+    messages:
+        welcome: "Welcome! I can help you with course enrollment and financial aid."
+        error: "An error occurred in the enrollment system."
+
+config:
+    developer_name: "Education_Enrollment_Agent"
+    default_agent_user: "enrollment@university.edu"
+    description: "Handles course search, financial aid checks, and student registration."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    student_id: mutable string = ""
+        description: "Student identifier"
+    major: mutable string = ""
+        description: "Student major"
+    selected_courses: mutable string = ""
+        description: "Comma-separated list of selected course IDs"
+    financial_aid_eligible: mutable boolean = False
+        description: "Whether student is eligible for financial aid"
+    registration_complete: mutable boolean = False
+        description: "Whether registration is finalized"
+    total_credits: mutable number = 0
+        description: "Total credits for selected courses"
+
+start_agent enrollment_start:
+    description: "Initiates the enrollment process and gathers student information"
+
+    reasoning:
+        instructions: ->
+            | Welcome the student and ask about their enrollment needs.
+              Collect student ID and major to begin the process.
+
+        actions:
+            save_info: @utils.setVariables
+                description: "Save student information"
+                with student_id=@variables.student_id
+                with major=@variables.major
+
+            go_courses: @utils.transition to @topic.course_search
+                description: "Search for courses"
+            go_aid: @utils.transition to @topic.financial_aid
+                description: "Check financial aid"
+
+topic course_search:
+    description: "Searches for available courses based on major and requirements"
+
+    actions:
+        search_courses:
+            description: "Searches available courses by department and requirements"
+            inputs:
+                major: string
+                semester: string
+                level: string
+            outputs:
+                courses: string
+                total_available: number
+            target: "externalService://SearchCourses"
+
+    reasoning:
+        instructions: ->
+            | Search for courses matching the student's major and present options.
+
+        actions:
+            search: @actions.search_courses
+                with major=@variables.major
+                with semester=...
+                with level=...
+
+            go_aid: @utils.transition to @topic.financial_aid
+                description: "Check financial aid before registering"
+            go_register: @utils.transition to @topic.registration
+                description: "Proceed to registration"
+
+topic financial_aid:
+    description: "Checks financial aid eligibility and award details"
+
+    actions:
+        check_aid:
+            description: "Checks financial aid eligibility"
+            inputs:
+                student_id: string
+                    is_required: True
+                total_credits: number
+            outputs:
+                eligible: boolean
+                award_amount: number
+                aid_type: string
+            target: "flow://CheckFinancialAid"
+
+    reasoning:
+        instructions: ->
+            | Check the student's financial aid eligibility and present results.
+
+        actions:
+            check: @actions.check_aid
+                with student_id=@variables.student_id
+                with total_credits=@variables.total_credits
+                set @variables.financial_aid_eligible = @outputs.eligible
+
+            go_register: @utils.transition to @topic.registration
+                description: "Proceed to registration"
+
+topic registration:
+    description: "Finalizes course registration"
+
+    actions:
+        register_courses:
+            description: "Registers the student for selected courses"
+            inputs:
+                student_id: string
+                    is_required: True
+                course_ids: string
+                    is_required: True
+            outputs:
+                success: boolean
+                schedule: string
+                total_credits: number
+            target: "flow://RegisterCourses"
+
+    reasoning:
+        instructions: ->
+            | Finalize registration for the selected courses.
+              Confirm the schedule with the student.
+
+        actions:
+            register: @actions.register_courses
+                with student_id=@variables.student_id
+                with course_ids=@variables.selected_courses
+                set @variables.registration_complete = @outputs.success
+                set @variables.total_credits = @outputs.total_credits

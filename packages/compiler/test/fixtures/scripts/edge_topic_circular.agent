@@ -1,0 +1,54 @@
+system:
+    instructions: "You are a helpful sales and support agent."
+    messages:
+        welcome: "Hello! I can help with sales or technical support."
+        error: "An error occurred. Please try again."
+
+config:
+    developer_name: "Circular_Topics_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with two topics that transition back and forth"
+
+variables:
+    current_topic: mutable string = ""
+        description: "Tracks which topic is active"
+
+start_agent main:
+    description: "Agent with two topics that transition back and forth"
+
+    reasoning:
+        instructions: ->
+            | Route the user to the appropriate topic.
+              Sales and support work together to help the user.
+
+        actions:
+            go_to_sales: @utils.transition to @topic.sales
+            go_to_support: @utils.transition to @topic.support
+
+topic sales:
+    description: "Handle sales inquiries and product recommendations"
+
+    reasoning:
+        instructions: ->
+            | Help the user with sales inquiries.
+              If they have a technical question about a product,
+              transition to support. Support can send them back here.
+
+        actions:
+            go_to_support: @utils.transition to @topic.support
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent"
+
+topic support:
+    description: "Handle technical support questions"
+
+    reasoning:
+        instructions: ->
+            | Help the user with technical support.
+              If they want to purchase a product or upgrade,
+              transition back to sales.
+
+        actions:
+            go_to_sales: @utils.transition to @topic.sales
+            escalate_to_human: @utils.escalate
+                description: "Escalate to a human agent"

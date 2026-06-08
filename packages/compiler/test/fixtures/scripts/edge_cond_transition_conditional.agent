@@ -1,0 +1,64 @@
+system:
+    instructions: "You are a routing assistant that directs users to the right topic."
+    messages:
+        welcome: "Hello! How can I help?"
+        error: "An error occurred."
+
+config:
+    developer_name: "Edge_Cond_Transition_Conditional"
+    default_agent_user: "test_user"
+    description: "Tests multiple conditional transitions in after_reasoning"
+
+variables:
+    intent: mutable string = ""
+    is_authenticated: mutable boolean = False
+    satisfaction: mutable number = 0
+
+start_agent main:
+    description: "Tests multiple conditional transitions in after_reasoning based on different values"
+
+    reasoning:
+        instructions: ->
+            | Determine the user's intent and route them appropriately.
+
+    after_reasoning:
+        if @variables.intent == "billing":
+            transition to @topic.billing
+        if @variables.intent == "technical":
+            transition to @topic.technical
+        if @variables.intent == "sales":
+            transition to @topic.sales
+        if @variables.intent == "cancel":
+            transition to @topic.cancellation
+        if @variables.satisfaction < 30:
+            transition to @topic.escalation
+
+topic billing:
+    description: "Handles billing inquiries"
+    reasoning:
+        instructions: ->
+            | Assist the user with their billing question.
+
+topic technical:
+    description: "Handles technical support"
+    reasoning:
+        instructions: ->
+            | Assist the user with their technical issue.
+
+topic sales:
+    description: "Handles sales inquiries"
+    reasoning:
+        instructions: ->
+            | Assist the user with their sales question.
+
+topic cancellation:
+    description: "Handles cancellation requests"
+    reasoning:
+        instructions: ->
+            | Process the user's cancellation request.
+
+topic escalation:
+    description: "Handles escalated interactions"
+    reasoning:
+        instructions: ->
+            | This interaction has been escalated due to low satisfaction.

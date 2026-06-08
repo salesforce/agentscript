@@ -1,0 +1,538 @@
+system:
+    instructions: "You are a sales opportunity management assistant. Your role is to help sales representatives manage opportunities, update deal stages, track activities, and provide insights to move deals forward through the sales pipeline."
+    messages:
+        welcome: "Hello! I'm your sales opportunity assistant. I can help you update deal stages, log activities, and provide insights on your active opportunities. What would you like to work on today?"
+        error: "I'm having trouble accessing the CRM system. Please try again or contact your sales manager."
+
+config:
+    developer_name: "Opportunity_Management_Bot_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Manages sales opportunities with deterministic pipeline progression and activity tracking"
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Opportunity identification
+    opportunity_id: mutable string = ""
+        description: "Unique opportunity identifier"
+    opportunity_name: mutable string = ""
+        description: "Name of the sales opportunity"
+    account_name: mutable string = ""
+        description: "Account name for the opportunity"
+    account_id: mutable string = ""
+        description: "Account identifier"
+    deal_value: mutable number = 0
+        description: "Value of the deal in currency"
+    deal_currency: mutable string = "USD"
+        description: "Deal currency"
+    probability: mutable number = 0
+        description: "Win probability percentage"
+    close_date: mutable string = ""
+        description: "Expected close date"
+    created_date: mutable string = ""
+        description: "Opportunity creation date"
+
+    # Sales representative information
+    sales_rep_id: mutable string = ""
+        description: "Sales representative identifier"
+    sales_rep_name: mutable string = ""
+        description: "Sales representative name"
+    sales_manager: mutable string = ""
+        description: "Sales manager name"
+    team_id: mutable string = ""
+        description: "Sales team identifier"
+
+    # Pipeline management
+    current_stage: mutable string = ""
+        description: "Current deal stage"
+    previous_stage: mutable string = ""
+        description: "Previous deal stage"
+    next_stage: mutable string = ""
+        description: "Next logical stage in pipeline"
+    stage_progression_score: mutable number = 0
+        description: "Score for stage progression readiness (0-100)"
+    days_in_stage: mutable number = 0
+        description: "Number of days in current stage"
+    stage_velocity: mutable number = 0
+        description: "Average days per stage"
+
+    # Activity tracking
+    last_activity: mutable string = ""
+        description: "Last recorded activity"
+    last_activity_date: mutable string = ""
+        description: "Date of last activity"
+    next_activity: mutable string = ""
+        description: "Recommended next activity"
+    activity_count: mutable number = 0
+        description: "Total number of activities"
+    engagement_score: mutable number = 0
+        description: "Customer engagement score (0-100)"
+
+    # Deal health and analytics
+    deal_health: mutable string = "healthy"
+        description: "Overall deal health status"
+    risk_factors: mutable string = ""
+        description: "Identified risk factors"
+    competitive_situation: mutable string = ""
+        description: "Competitive landscape"
+    decision_makers_identified: mutable boolean = False
+        description: "Whether decision makers are identified"
+    budget_confirmed: mutable boolean = False
+        description: "Whether budget is confirmed"
+    timeline_confirmed: mutable boolean = False
+        description: "Whether timeline is confirmed"
+
+    # Products and solutions
+    product_line: mutable string = ""
+        description: "Primary product line"
+    solution_type: mutable string = ""
+        description: "Type of solution being proposed"
+    competitors: mutable string = ""
+        description: "Known competitors in this deal"
+
+    # Forecasting
+    forecast_category: mutable string = ""
+        description: "Forecast category (commit, best_case, pipeline)"
+    weighted_value: mutable number = 0
+        description: "Probability-weighted deal value"
+    quarters_to_close: mutable number = 0
+        description: "Estimated quarters until close"
+
+start_agent opportunity_loader:
+    description: "Loads and identifies the opportunity with comprehensive CRM integration"
+
+    actions:
+        Load_Opportunity_Details:
+            description: "Loads comprehensive opportunity details from CRM system"
+            label: "Load Opportunity"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                opportunity_id: string
+                    label: "Opportunity ID"
+                    description: "Unique opportunity identifier"
+                    is_required: False
+                opportunity_name: string
+                    label: "Opportunity Name"
+                    description: "Name of the opportunity"
+                    is_required: False
+                account_name: string
+                    label: "Account Name"
+                    description: "Account name to search"
+                    is_required: False
+                sales_rep_id: string
+                    label: "Sales Rep ID"
+                    description: "Sales representative identifier"
+                    is_required: True
+            outputs:
+                opportunity_found: boolean
+                    label: "Opportunity Found"
+                    is_displayable: True
+                opportunity_data: string
+                    label: "Opportunity Data"
+                    is_displayable: False
+                current_stage: string
+                    label: "Current Stage"
+                    is_displayable: True
+                deal_value: number
+                    label: "Deal Value"
+                    is_displayable: True
+                probability: number
+                    label: "Win Probability"
+                    is_displayable: True
+                close_date: string
+                    label: "Expected Close Date"
+                    is_displayable: True
+            target: "flow://LoadOpportunityDetails"
+
+        Validate_Sales_Rep_Access:
+            description: "Validates sales representative access to the opportunity"
+            label: "Validate Access"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                sales_rep_id: string
+                    label: "Sales Rep ID"
+                    description: "Sales representative identifier"
+                    is_required: True
+                opportunity_id: string
+                    label: "Opportunity ID"
+                    description: "Opportunity to access"
+                    is_required: True
+            outputs:
+                access_granted: boolean
+                    label: "Access Granted"
+                    is_displayable: True
+                sales_rep_name: string
+                    label: "Sales Rep Name"
+                    is_displayable: True
+                team_access_level: string
+                    label: "Access Level"
+                    is_displayable: False
+                manager_name: string
+                    label: "Manager Name"
+                    is_displayable: False
+            target: "flow://ValidateSalesRepAccess"
+
+    before_reasoning:
+        # Initialize opportunity management state
+        if @variables.opportunity_name == "":
+            set @variables.stage_progression_score = 0
+            set @variables.deal_health = "healthy"
+
+    reasoning:
+        instructions: ->
+            |   I'm here to help you manage your sales opportunities and move deals through the pipeline.
+
+                Which opportunity would you like to work on today? Please provide:
+                - Opportunity name or account name
+                - Current deal stage if you know it
+
+                I can help you:
+                - Update deal stages and progression
+                - Log activities and next steps
+                - Assess deal health and provide recommendations
+        actions:
+            validate_access: @actions.Validate_Sales_Rep_Access
+                with sales_rep_id=@variables.sales_rep_id
+                with opportunity_id=@variables.opportunity_id
+                set @variables.sales_rep_name = @outputs.sales_rep_name
+                set @variables.sales_manager = @outputs.manager_name
+
+            load_opportunity: @actions.Load_Opportunity_Details
+                with opportunity_id=@variables.opportunity_id
+                with opportunity_name=@variables.opportunity_name
+                with account_name=@variables.account_name
+                with sales_rep_id=@variables.sales_rep_id
+                set @variables.current_stage = @outputs.current_stage
+                set @variables.deal_value = @outputs.deal_value
+                set @variables.probability = @outputs.probability
+                set @variables.close_date = @outputs.close_date
+
+            capture_opportunity_info: @utils.setVariables
+                with opportunity_name=@variables.opportunity_name
+                with account_name=@variables.account_name
+                with current_stage=@variables.current_stage
+                with sales_rep_id=@variables.sales_rep_id
+
+            manage_pipeline: @utils.transition to @topic.pipeline_management
+
+    after_reasoning:
+        if @variables.sales_rep_id != "":
+            run @actions.Validate_Sales_Rep_Access
+                with sales_rep_id=@variables.sales_rep_id
+                with opportunity_id=@variables.opportunity_id
+                set @variables.sales_rep_name = @outputs.sales_rep_name
+                set @variables.sales_manager = @outputs.manager_name
+
+        if @variables.opportunity_name != "" or @variables.opportunity_id != "":
+            run @actions.Load_Opportunity_Details
+                with opportunity_id=@variables.opportunity_id
+                with opportunity_name=@variables.opportunity_name
+                with account_name=@variables.account_name
+                with sales_rep_id=@variables.sales_rep_id
+                set @variables.current_stage = @outputs.current_stage
+                set @variables.deal_value = @outputs.deal_value
+                set @variables.probability = @outputs.probability
+                set @variables.close_date = @outputs.close_date
+                # multiply and divide not supported - simplified calculation
+                set @variables.weighted_value = @variables.deal_value - @variables.probability
+
+        if @variables.current_stage != "":
+            transition to @topic.pipeline_management
+
+topic pipeline_management:
+    description: "Manages deal progression through sales pipeline with advanced analytics"
+
+    actions:
+        Update_Opportunity_Stage:
+            description: "Updates opportunity stage with validation and audit trail"
+            label: "Update Stage"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                opportunity_id: string
+                    label: "Opportunity ID"
+                    description: "Opportunity identifier"
+                    is_required: True
+                current_stage: string
+                    label: "Current Stage"
+                    description: "Current pipeline stage"
+                    is_required: True
+                new_stage: string
+                    label: "New Stage"
+                    description: "New pipeline stage"
+                    is_required: True
+                stage_change_reason: string
+                    label: "Change Reason"
+                    description: "Reason for stage change"
+                    is_required: True
+                sales_rep_id: string
+                    label: "Sales Rep ID"
+                    description: "Representative making the change"
+                    is_required: True
+            outputs:
+                stage_updated: boolean
+                    label: "Stage Updated"
+                    is_displayable: True
+                new_probability: number
+                    label: "New Probability"
+                    is_displayable: True
+                stage_requirements_met: boolean
+                    label: "Requirements Met"
+                    is_displayable: True
+                next_stage_actions: string
+                    label: "Next Stage Actions"
+                    is_displayable: True
+            target: "flow://UpdateOpportunityStage"
+
+        Calculate_Deal_Score:
+            description: "Calculates comprehensive deal health and progression score"
+            label: "Calculate Deal Score"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                opportunity_data: string
+                    label: "Opportunity Data"
+                    description: "Current opportunity information"
+                    is_required: True
+                activity_count: number
+                    label: "Activity Count"
+                    description: "Number of recent activities"
+                    is_required: True
+                days_in_stage: number
+                    label: "Days in Stage"
+                    description: "Days in current stage"
+                    is_required: True
+                engagement_indicators: string
+                    label: "Engagement Indicators"
+                    description: "Customer engagement signals"
+                    is_required: True
+            outputs:
+                health_score: number
+                    label: "Health Score"
+                    is_displayable: True
+                progression_readiness: number
+                    label: "Progression Readiness"
+                    is_displayable: True
+                risk_factors: string
+                    label: "Risk Factors"
+                    is_displayable: True
+                recommended_actions: string
+                    label: "Recommended Actions"
+                    is_displayable: True
+            target: "flow://CalculateDealScore"
+
+        Generate_Forecast_Update:
+            description: "Generates forecast category and weighted pipeline value"
+            label: "Generate Forecast"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                deal_value: number
+                    label: "Deal Value"
+                    description: "Total deal value"
+                    is_required: True
+                probability: number
+                    label: "Win Probability"
+                    description: "Probability percentage"
+                    is_required: True
+                close_date: string
+                    label: "Close Date"
+                    description: "Expected close date"
+                    is_required: True
+                stage: string
+                    label: "Current Stage"
+                    description: "Current pipeline stage"
+                    is_required: True
+            outputs:
+                forecast_category: string
+                    label: "Forecast Category"
+                    is_displayable: True
+                weighted_value: number
+                    label: "Weighted Value"
+                    is_displayable: True
+                commit_confidence: number
+                    label: "Commit Confidence"
+                    is_displayable: True
+                quarter_projection: string
+                    label: "Quarter Projection"
+                    is_displayable: True
+            target: "flow://GenerateForecastUpdate"
+
+    before_reasoning:
+        # Determine stage progression logic and scoring
+        if @variables.current_stage == "prospecting":
+            set @variables.next_stage = "qualification"
+            set @variables.stage_progression_score = 25
+        if @variables.current_stage == "qualification":
+            set @variables.next_stage = "proposal"
+            set @variables.stage_progression_score = 50
+        if @variables.current_stage == "proposal":
+            set @variables.next_stage = "negotiation"
+            set @variables.stage_progression_score = 75
+        if @variables.current_stage == "negotiation":
+            set @variables.next_stage = "closed_won"
+            set @variables.stage_progression_score = 90
+
+    reasoning:
+        instructions: ->
+            |    **Opportunity Management Dashboard**
+
+                **Deal:** {! @variables.opportunity_name }
+                **Account:** {! @variables.account_name }
+                **Current Stage:** {! @variables.current_stage }
+                **Next Stage:** {! @variables.next_stage }
+                **Progression Score:** {! @variables.stage_progression_score }/100
+                **Deal Health:** {! @variables.deal_health }
+
+                Based on your current stage, here are the recommended next steps to move this deal forward.
+
+                What would you like to do:
+                1. Update deal stage
+                2. Log new activity
+                3. Get stage-specific recommendations
+                4. Assess deal health
+        actions:
+            calculate_score: @actions.Calculate_Deal_Score
+                with opportunity_data=@variables.opportunity_name
+                with activity_count=@variables.activity_count
+                with days_in_stage=@variables.days_in_stage
+                with engagement_indicators="High engagement"
+                set @variables.stage_progression_score = @outputs.progression_readiness
+                set @variables.engagement_score = @outputs.health_score
+                set @variables.risk_factors = @outputs.risk_factors
+
+            update_forecast: @actions.Generate_Forecast_Update
+                with deal_value=@variables.deal_value
+                with probability=@variables.probability
+                with close_date=@variables.close_date
+                with stage=@variables.current_stage
+                set @variables.forecast_category = @outputs.forecast_category
+                set @variables.weighted_value = @outputs.weighted_value
+
+            update_stage: @actions.Update_Opportunity_Stage
+                with opportunity_id=@variables.opportunity_id
+                with current_stage=@variables.current_stage
+                with new_stage=@variables.next_stage
+                with stage_change_reason="Pipeline progression"
+                with sales_rep_id=@variables.sales_rep_id
+                set @variables.current_stage = @variables.next_stage
+                set @variables.probability = @outputs.new_probability
+
+            capture_pipeline_action: @utils.setVariables
+                with deal_value=@variables.deal_value
+                with last_activity=@variables.last_activity
+                with stage_progression_score=@variables.stage_progression_score
+
+            track_activities: @utils.transition to @topic.activity_tracking
+
+            assess_deal: @utils.transition to @topic.deal_assessment
+
+    after_reasoning:
+        if @variables.opportunity_id != "":
+            run @actions.Calculate_Deal_Score
+                with opportunity_data=@variables.opportunity_name
+                with activity_count=@variables.activity_count
+                with days_in_stage=@variables.days_in_stage
+                with engagement_indicators="Customer engaged"
+                set @variables.stage_progression_score = @outputs.progression_readiness
+                set @variables.risk_factors = @outputs.risk_factors
+
+            run @actions.Generate_Forecast_Update
+                with deal_value=@variables.deal_value
+                with probability=@variables.probability
+                with close_date=@variables.close_date
+                with stage=@variables.current_stage
+                set @variables.forecast_category = @outputs.forecast_category
+                set @variables.weighted_value = @outputs.weighted_value
+
+        if @variables.stage_progression_score >= 75:
+            set @variables.deal_health = "excellent"
+        if @variables.stage_progression_score >= 50 and @variables.stage_progression_score < 75:
+            set @variables.deal_health = "good"
+        if @variables.stage_progression_score < 50:
+            set @variables.deal_health = "needs_attention"
+
+topic activity_tracking:
+    description: "Tracks sales activities and recommends next steps"
+
+    system:
+        instructions: "You are now in activity tracking mode. Focus on logging meaningful sales activities and providing specific, actionable next steps based on the current deal stage and customer engagement level."
+
+    before_reasoning:
+        # Determine recommended next activities based on stage
+        if @variables.current_stage == "prospecting":
+            set @variables.next_activity = "Schedule discovery call"
+        if @variables.current_stage == "qualification":
+            set @variables.next_activity = "Send proposal or demo"
+        if @variables.current_stage == "proposal":
+            set @variables.next_activity = "Follow up on proposal feedback"
+        if @variables.current_stage == "negotiation":
+            set @variables.next_activity = "Finalize contract terms"
+
+    reasoning:
+        instructions: ->
+            |   **Activity Tracking for {! @variables.opportunity_name }**
+
+                **Last Activity:** {! @variables.last_activity }
+                **Recommended Next Activity:** {! @variables.next_activity }
+
+                Stage-specific recommendations:
+                - Prospecting: Focus on discovery and needs assessment
+                - Qualification: Demonstrate value and build business case
+                - Proposal: Address objections and refine solution
+                - Negotiation: Close on terms and finalize agreement
+
+                What activity would you like to log or schedule next?
+        actions:
+            log_activity: @utils.setVariables
+                description: "Log sales activity"
+                with last_activity=@variables.last_activity
+                with next_activity=@variables.next_activity
+
+            assess_deal: @utils.transition to @topic.deal_assessment
+                description: "Assess overall deal health"
+
+            work_another_deal: @utils.transition to @topic.opportunity_loader
+                description: "Work on another opportunity"
+
+    after_reasoning:
+        # Update deal health based on activity engagement
+        if @variables.last_activity != "":
+            set @variables.stage_progression_score = @variables.stage_progression_score + 10
+
+topic deal_assessment:
+    description: "Assesses deal health and provides strategic recommendations"
+
+    before_reasoning:
+        # Final deal health assessment
+        if @variables.stage_progression_score >= 80:
+            set @variables.deal_health = "excellent"
+        if @variables.stage_progression_score >= 60:
+            set @variables.deal_health = "good"
+        if @variables.stage_progression_score < 60:
+            set @variables.deal_health = "at_risk"
+
+    reasoning:
+        instructions: ->
+            |   **Deal Health Assessment for {! @variables.opportunity_name }**
+
+                **Overall Health:** {! @variables.deal_health }
+                **Progression Score:** {! @variables.stage_progression_score }/100
+                **Current Stage:** {! @variables.current_stage }
+
+                **Strategic Recommendations:**
+                Based on deal health status, focus on appropriate next steps to move the opportunity forward.
+
+                **Next Steps:** {! @variables.next_activity }
+
+                Would you like to work on another opportunity or get more specific recommendations?
+        actions:
+            manage_another: @utils.transition to @topic.opportunity_loader
+                description: "Manage another opportunity"
+
+            update_pipeline: @utils.transition to @topic.pipeline_management
+                description: "Update pipeline for this deal"

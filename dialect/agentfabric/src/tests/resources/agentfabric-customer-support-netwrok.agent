@@ -1,0 +1,176 @@
+# @dialect: AGENTFABRIC=1.0-BETA
+
+system:
+  instructions: "You are a customer support coordinator."
+
+config:
+  agent_name: "customer-support-flow"
+  label: "Customer Support Workflow"
+  description: "Handles customer support requests with intelligent routing."
+  default_llm: @llm.gemini_2_5_flash
+
+llm:
+  openai_gpt4:
+    target: "llm://openai_connection"
+    kind: "OpenAI"
+    model: "gpt-4o"
+    max_output_tokens: 1024
+  gemini_2_5_flash:
+    target: "llm://gemini_connection"
+    kind: "Gemini"
+    model: "gemini-2.5-flash"
+
+actions:
+  search_articles:
+    target: "mcp://knowledge_base_connection"
+    kind: "mcp:tool"
+    tool_name: "search_articles"
+
+  get_article:
+    target: "mcp://knowledge_base_connection"
+    kind: "mcp:tool"
+    tool_name: "get_article"
+
+  billing_agent:
+    target: "a2a://billing_agent_connection"
+    kind: "a2a:send_message"
+
+variables:
+  requestTimestamp: mutable string = ""
+  customerMessage: mutable string = ""
+
+trigger customerSupportTrigger:
+  kind: "a2a"
+  target: "brokers://customer-support-flow/a2a"
+  on_message: ->
+    transition to @executor.set_context
+
+executor set_context:
+  do: ->
+    set @variables.requestTimestamp = now()
+    set @variables.customerMessage = @request.payload.message
+  on_exit: ->
+    transition to @generator.analyze_request
+
+generator analyze_request:
+  llm: @llm.gemini_2_5_flash
+  system:
+    instructions: |
+      Classify the incoming employee support request into one of the available domains.
+  prompt: ->
+    | Analyze the following customer support request and categorize it as one of: 'billing', 'technical', 'general'. Also extract key entities and sentiment.
+    |
+    | Request: {!@variables.customerMessage}
+  outputs:
+    properties:
+      category:
+        type: "string"
+        description: "The category of the customer request"
+        enum:
+          - "billing"
+          - "technical"
+          - "general"
+      entities:
+        type: "array"
+        description: "Key entities extracted from the request"
+        items:
+          type: "string"
+      sentiment:
+        type: "string"
+        description: "The sentiment of the request"
+        enum:
+          - "positive"
+          - "neutral"
+          - "negative"
+      summary:
+        type: "string"
+        description: "A brief summary of the customer request"
+  on_exit: ->
+    transition to @router.route_request
+
+router route_request:
+  routes:
+    - target: @executor.billing_handler
+      when: @generator.analyze_request.output.category == "billing"
+      label: "Billing"
+    - target: @subagent.technical_handler
+      when: @generator.analyze_request.output.category == "technical"
+      label: "Technical"
+    - target: @generator.analyze_request
+      when: @request.headers["Slack-UUID"] != ""
+      label: "Has Slack UUID"
+  otherwise:
+    target: @orchestrator.general_response
+
+executor billing_handler:
+  do: ->
+    run @actions.billing_agent
+      with message = @variables.customerMessage
+  on_exit: ->
+    transition to @echo.send_response
+
+subagent technical_handler:
+  description: "Handles technical support issues using knowledge-base tools."
+  llm: @llm.openai_gpt4
+  reasoning:
+    instructions: ->
+      | You are a technical support specialist. Help the customer with their technical issue.
+      |
+      | Customer Issue: {!@variables.customerMessage}
+      |
+      | Provide a helpful, clear response addressing their technical concern.
+    actions:
+      kb_search: @actions.search_articles
+      kb_get_article: @actions.get_article
+        with http_headers = {"Authorization": @request.headers.authorization, "X-CorrelationId": @variables.requestTimestamp}
+    max_consecutive_errors: 20
+    task_timeout_secs: 10
+    max_number_of_loops: 5
+  on_exit: ->
+    transition to @echo.send_response
+
+orchestrator general_response:
+  description: "Handles general customer support responses and routing."
+  llm: @llm.openai_gpt4
+  system:
+    instructions: "You are a friendly customer support agent. Help the customer with their inquiry."
+  reasoning:
+    instructions: ->
+      | Customer Message: {!@variables.customerMessage}
+      |
+      | Use the available tools to find relevant information and provide a helpful response.
+    actions:
+      kb_search: @actions.search_articles
+      kb_get_article: @actions.get_article
+      billing_delegate: @actions.billing_agent
+  on_exit: ->
+    transition to @echo.send_response
+
+echo send_response:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: a2a.message({
+    parts: [
+      a2a.textPart(@echo.send_response.input)
+    ]
+  })
+  on_exit: ->
+    transition to @echo.send_artifact
+
+echo send_artifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({
+    name: "support_response",
+    parts: [
+      a2a.textPart(@echo.send_response.input)
+    ]
+  })
+  append: False
+  lastChunk: True
+  on_exit: ->
+    transition to @executor.cleanup
+
+executor cleanup:
+  do: ->
+    set @variables.customerMessage = ""
+    set @variables.requestTimestamp = ""

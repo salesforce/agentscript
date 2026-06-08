@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional patient intake coordinator assistant.
+        Help users manage their patient requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: registration -> insurance_verify -> triage -> assignment.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Patient Intake Coordinator Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "patient_intake_agent_v11"
+    default_agent_user: "patient_intake@example.com"
+    agent_description: "Assists users with patient management through the patient intake coordinator workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    patient_record_id: mutable string
+        description: "Record ID of the patient"
+    patient_status: mutable string = ""
+        description: "Current status of the patient"
+    patient_tier: mutable string = "standard"
+        description: "Tier classification for the patient"
+    patient_category: mutable string = ""
+        description: "Category of the patient"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    registration_complete: mutable boolean = False
+        description: "Whether the registration stage is complete"
+    registration_result: mutable string = ""
+        description: "Result from the registration stage"
+    insurance_verify_complete: mutable boolean = False
+        description: "Whether the insurance_verify stage is complete"
+    insurance_verify_result: mutable string = ""
+        description: "Result from the insurance_verify stage"
+    triage_complete: mutable boolean = False
+        description: "Whether the triage stage is complete"
+    triage_result: mutable string = ""
+        description: "Result from the triage stage"
+    assignment_complete: mutable boolean = False
+        description: "Whether the assignment stage is complete"
+    assignment_result: mutable string = ""
+        description: "Result from the assignment stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate patient management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a patient intake coordinator assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current patient status: {! @variables.patient_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_registration} for registration requests.
+              Use {!@actions.go_to_insurance_verify} for insurance verify requests.
+              Use {!@actions.go_to_triage} for triage requests.
+              Use {!@actions.go_to_assignment} for assignment requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_registration: @utils.transition to @topic.registration
+                description: "Transition to registration topic."
+            go_to_insurance_verify: @utils.transition to @topic.insurance_verify
+                description: "Transition to insurance verify topic."
+                available when @variables.is_verified == True
+            go_to_triage: @utils.transition to @topic.triage
+                description: "Transition to triage topic."
+                available when @variables.is_verified == True
+            go_to_assignment: @utils.transition to @topic.assignment
+                description: "Transition to assignment topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic registration:
+    description: "Handles the registration stage of the patient process"
+
+    actions:
+        process_registration_data:
+            description: "Process registration stage data for the patient"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Registration"
+
+        validate_registration_info:
+            description: "Validate registration information for the patient"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Registration_Info"
+
+        fetch_registration_details:
+            description: "Fetch registration details for the patient"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Registration_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_registration_info
+                with record_ref=@variables.patient_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.patient_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the registration stage for the patient.
+              Current patient status: {! @variables.patient_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Registration result: {! @variables.registration_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.patient_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_registration} to begin processing.
+        actions:
+            run_registration: @actions.process_registration_data
+                with record_ref=@variables.patient_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.patient_category
+                set @variables.registration_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.registration_complete = @outputs.is_passed
+            fetch_registration_info: @actions.fetch_registration_details
+                with record_ref=@variables.patient_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.patient_tier = @outputs.tier_value
+            go_to_insurance_verify: @utils.transition to @topic.insurance_verify
+                description: "Move to insurance verify stage."
+                available when @variables.registration_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.patient_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.patient_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.patient_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.registration_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic insurance_verify:
+    description: "Handles the insurance verify stage of the patient process"
+
+    actions:
+        process_insurance_verify_data:
+            description: "Process insurance verify stage data for the patient"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_InsuranceVerify"
+
+        validate_insurance_verify_info:
+            description: "Validate insurance verify information for the patient"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_InsuranceVerify_Info"
+
+        fetch_insurance_verify_details:
+            description: "Fetch insurance verify details for the patient"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_InsuranceVerify_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.registration_complete == False:
+            transition to @topic.registration
+
+    reasoning:
+        instructions: ->
+            | Handle the insurance verify stage for the patient.
+              Current patient status: {! @variables.patient_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Insurance Verify result: {! @variables.insurance_verify_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.patient_tier }
+              Review the insurance verify results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_insurance_verify: @actions.process_insurance_verify_data
+                with record_ref=@variables.patient_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.patient_category
+                set @variables.insurance_verify_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.insurance_verify_complete = @outputs.is_passed
+            fetch_insurance_verify_info: @actions.fetch_insurance_verify_details
+                with record_ref=@variables.patient_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.patient_tier = @outputs.tier_value
+                available when @variables.patient_record_id is not None
+            go_to_triage: @utils.transition to @topic.triage
+                description: "Move to triage stage."
+                available when @variables.insurance_verify_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.insurance_verify_complete == True:
+            set @variables.patient_status = "insurance_verify_done"
+        if @variables.insurance_verify_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.triage
+        if @variables.attempt_count >= 3 and @variables.insurance_verify_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic triage:
+    description: "Handles the triage stage of the patient process"
+
+    actions:
+        process_triage_data:
+            description: "Process triage stage data for the patient"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Triage_Data"
+
+        validate_triage_info:
+            description: "Validate triage information for the patient"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Triage_Info"
+
+        fetch_triage_details:
+            description: "Fetch triage details for the patient"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Triage_Details"
+
+    before_reasoning:
+        if @variables.triage_complete == False:
+            run @actions.fetch_triage_details
+                with record_ref=@variables.patient_record_id
+                with include_history=True
+                set @variables.triage_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.patient_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.patient_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.patient_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the triage stage for the patient.
+              Current patient status: {! @variables.patient_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Triage result: {! @variables.triage_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.patient_tier }
+              Review the triage results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_triage: @actions.process_triage_data
+                with record_ref=@variables.patient_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.patient_category
+                set @variables.triage_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.triage_complete = @outputs.is_passed
+            fetch_triage_info: @actions.fetch_triage_details
+                with record_ref=@variables.patient_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.patient_tier = @outputs.tier_value
+                available when @variables.patient_record_id is not None
+            go_to_assignment: @utils.transition to @topic.assignment
+                description: "Move to assignment stage."
+                available when @variables.triage_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.patient_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.patient_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.patient_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.triage_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic assignment:
+    description: "Handles the assignment stage of the patient process"
+
+    actions:
+        process_assignment_data:
+            description: "Process assignment stage data for the patient"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Assignment"
+
+        validate_assignment_info:
+            description: "Validate assignment information for the patient"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Assignment_Info"
+
+        fetch_assignment_details:
+            description: "Fetch assignment details for the patient"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Assignment_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.triage_complete == False:
+            transition to @topic.triage
+        if @variables.eligibility_score >= 80:
+            set @variables.patient_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.patient_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the assignment stage for the patient.
+              Current patient status: {! @variables.patient_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Assignment result: {! @variables.assignment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.patient_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_assignment: @actions.process_assignment_data
+                with record_ref=@variables.patient_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.patient_category
+                set @variables.assignment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.assignment_complete = @outputs.is_passed
+            fetch_assignment_info: @actions.fetch_assignment_details
+                with record_ref=@variables.patient_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.patient_tier = @outputs.tier_value
+                available when @variables.patient_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.assignment_complete == True:
+            set @variables.patient_status = "assignment_done"
+        if @variables.attempt_count >= 3 and @variables.assignment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for patient issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the patient issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the patient interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the patient request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Patient status: {! @variables.patient_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.patient_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.patient_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.patient_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.patient_status = "escalated"
+        set @variables.escalation_requested = False
+

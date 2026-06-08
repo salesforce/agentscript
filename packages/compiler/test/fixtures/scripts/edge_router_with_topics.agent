@@ -1,0 +1,81 @@
+system:
+    instructions: "You are a multi-topic routing agent for a software company."
+    messages:
+        welcome: "Welcome to TechCorp Support! I can help with billing, technical issues, account management, or general inquiries."
+        error: "I'm experiencing difficulties. Please try again."
+
+config:
+    developer_name: "Multi_Topic_Router"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Router with 4 topics, transitions, and actions"
+
+variables:
+    customer_id: mutable string = ""
+        description: "Customer identifier"
+    issue_category: mutable string = ""
+        description: "Categorized issue type"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Classifies user intent and routes to the correct topic"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Analyze the user's message and route to the best matching topic.
+              If unsure, ask a clarifying question.
+        actions:
+            go_billing: @utils.transition to @topic.billing
+                description: "Route to billing questions"
+            go_technical: @utils.transition to @topic.technical
+                description: "Route to technical issues"
+            go_account: @utils.transition to @topic.account_management
+                description: "Route to account management"
+            go_general: @utils.transition to @topic.general_inquiry
+                description: "Route to general inquiries"
+
+topic billing:
+    label: "Billing"
+    description: "Handles billing questions, invoice disputes, and payment issues"
+
+    reasoning:
+        instructions: ->
+            | Help the customer with their billing question.
+              Ask clarifying questions about their invoice or payment issue.
+        actions:
+            go_account: @utils.transition to @topic.account_management
+                description: "Switch to account management"
+
+topic technical:
+    label: "Technical Support"
+    description: "Handles technical issues and troubleshooting"
+
+    reasoning:
+        instructions: ->
+            | Troubleshoot the customer's technical issue.
+              Ask for error messages, screenshots, and steps to reproduce.
+
+topic account_management:
+    label: "Account Management"
+    description: "Handles account updates, profile changes, and preferences"
+
+    reasoning:
+        instructions: ->
+            | Help the customer manage their account.
+              Guide them through account changes step by step.
+
+topic general_inquiry:
+    label: "General Inquiry"
+    description: "Handles general questions about products and services"
+
+    reasoning:
+        instructions: ->
+            | Answer the customer's general questions about our products and services.
+              If the question requires specific account access, transition to the appropriate topic.
+        actions:
+            go_billing: @utils.transition to @topic.billing
+                description: "Route to billing if needed"
+            go_technical: @utils.transition to @topic.technical
+                description: "Route to technical if needed"

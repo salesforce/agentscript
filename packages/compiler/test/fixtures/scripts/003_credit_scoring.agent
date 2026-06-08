@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional credit scoring analyst assistant.
+        Help users manage their credit requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: data_collection -> score_calculation -> risk_evaluation -> report_generation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Credit Scoring Analyst Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "credit_scoring_agent_v3"
+    default_agent_user: "credit_scoring@example.com"
+    agent_description: "Assists users with credit management through the credit scoring analyst workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    credit_record_id: mutable string
+        description: "Record ID of the credit"
+    credit_status: mutable string = ""
+        description: "Current status of the credit"
+    credit_tier: mutable string = "standard"
+        description: "Tier classification for the credit"
+    credit_category: mutable string = ""
+        description: "Category of the credit"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    data_collection_complete: mutable boolean = False
+        description: "Whether the data_collection stage is complete"
+    data_collection_result: mutable string = ""
+        description: "Result from the data_collection stage"
+    score_calculation_complete: mutable boolean = False
+        description: "Whether the score_calculation stage is complete"
+    score_calculation_result: mutable string = ""
+        description: "Result from the score_calculation stage"
+    risk_evaluation_complete: mutable boolean = False
+        description: "Whether the risk_evaluation stage is complete"
+    risk_evaluation_result: mutable string = ""
+        description: "Result from the risk_evaluation stage"
+    report_generation_complete: mutable boolean = False
+        description: "Whether the report_generation stage is complete"
+    report_generation_result: mutable string = ""
+        description: "Result from the report_generation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate credit management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a credit scoring analyst assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current credit status: {! @variables.credit_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_data_collection} for data collection requests.
+              Use {!@actions.go_to_score_calculation} for score calculation requests.
+              Use {!@actions.go_to_risk_evaluation} for risk evaluation requests.
+              Use {!@actions.go_to_report_generation} for report generation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_data_collection: @utils.transition to @topic.data_collection
+                description: "Transition to data collection topic."
+            go_to_score_calculation: @utils.transition to @topic.score_calculation
+                description: "Transition to score calculation topic."
+                available when @variables.is_verified == True
+            go_to_risk_evaluation: @utils.transition to @topic.risk_evaluation
+                description: "Transition to risk evaluation topic."
+                available when @variables.is_verified == True
+            go_to_report_generation: @utils.transition to @topic.report_generation
+                description: "Transition to report generation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic data_collection:
+    description: "Handles the data collection stage of the credit process"
+
+    actions:
+        process_data_collection_data:
+            description: "Process data collection stage data for the credit"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_DataCollection"
+
+        validate_data_collection_info:
+            description: "Validate data collection information for the credit"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DataCollection_Info"
+
+        fetch_data_collection_details:
+            description: "Fetch data collection details for the credit"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DataCollection_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_data_collection_info
+                with record_ref=@variables.credit_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.credit_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the data collection stage for the credit.
+              Current credit status: {! @variables.credit_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Data Collection result: {! @variables.data_collection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.credit_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_data_collection} to begin processing.
+        actions:
+            run_data_collection: @actions.process_data_collection_data
+                with record_ref=@variables.credit_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.credit_category
+                set @variables.data_collection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.data_collection_complete = @outputs.is_passed
+            fetch_data_collection_info: @actions.fetch_data_collection_details
+                with record_ref=@variables.credit_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.credit_tier = @outputs.tier_value
+            go_to_score_calculation: @utils.transition to @topic.score_calculation
+                description: "Move to score calculation stage."
+                available when @variables.data_collection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.credit_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.credit_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.credit_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.data_collection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic score_calculation:
+    description: "Handles the score calculation stage of the credit process"
+
+    actions:
+        process_score_calculation_data:
+            description: "Process score calculation stage data for the credit"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ScoreCalculation_Data"
+
+        validate_score_calculation_info:
+            description: "Validate score calculation information for the credit"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ScoreCalculation_Info"
+
+        fetch_score_calculation_details:
+            description: "Fetch score calculation details for the credit"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ScoreCalculation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.data_collection_complete == False:
+            transition to @topic.data_collection
+
+    reasoning:
+        instructions: ->
+            | Handle the score calculation stage for the credit.
+              Current credit status: {! @variables.credit_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Score Calculation result: {! @variables.score_calculation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.credit_tier }
+              Review the score calculation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_score_calculation: @actions.process_score_calculation_data
+                with record_ref=@variables.credit_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.credit_category
+                set @variables.score_calculation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.score_calculation_complete = @outputs.is_passed
+            fetch_score_calculation_info: @actions.fetch_score_calculation_details
+                with record_ref=@variables.credit_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.credit_tier = @outputs.tier_value
+                available when @variables.credit_record_id is not None
+            go_to_risk_evaluation: @utils.transition to @topic.risk_evaluation
+                description: "Move to risk evaluation stage."
+                available when @variables.score_calculation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.score_calculation_complete == True:
+            set @variables.credit_status = "score_calculation_done"
+        if @variables.score_calculation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.risk_evaluation
+        if @variables.attempt_count >= 3 and @variables.score_calculation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic risk_evaluation:
+    description: "Handles the risk evaluation stage of the credit process"
+
+    actions:
+        process_risk_evaluation_data:
+            description: "Process risk evaluation stage data for the credit"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_RiskEvaluation"
+
+        validate_risk_evaluation_info:
+            description: "Validate risk evaluation information for the credit"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RiskEvaluation_Info"
+
+        fetch_risk_evaluation_details:
+            description: "Fetch risk evaluation details for the credit"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RiskEvaluation_Details"
+
+    before_reasoning:
+        if @variables.risk_evaluation_complete == False:
+            run @actions.fetch_risk_evaluation_details
+                with record_ref=@variables.credit_record_id
+                with include_history=True
+                set @variables.risk_evaluation_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.credit_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.credit_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.credit_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the risk evaluation stage for the credit.
+              Current credit status: {! @variables.credit_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Risk Evaluation result: {! @variables.risk_evaluation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.credit_tier }
+              Review the risk evaluation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_risk_evaluation: @actions.process_risk_evaluation_data
+                with record_ref=@variables.credit_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.credit_category
+                set @variables.risk_evaluation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.risk_evaluation_complete = @outputs.is_passed
+            fetch_risk_evaluation_info: @actions.fetch_risk_evaluation_details
+                with record_ref=@variables.credit_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.credit_tier = @outputs.tier_value
+                available when @variables.credit_record_id is not None
+            go_to_report_generation: @utils.transition to @topic.report_generation
+                description: "Move to report generation stage."
+                available when @variables.risk_evaluation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.credit_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.credit_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.credit_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.risk_evaluation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic report_generation:
+    description: "Handles the report generation stage of the credit process"
+
+    actions:
+        process_report_generation_data:
+            description: "Process report generation stage data for the credit"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_ReportGeneration"
+
+        validate_report_generation_info:
+            description: "Validate report generation information for the credit"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ReportGeneration_Info"
+
+        fetch_report_generation_details:
+            description: "Fetch report generation details for the credit"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ReportGeneration_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.risk_evaluation_complete == False:
+            transition to @topic.risk_evaluation
+        if @variables.eligibility_score >= 80:
+            set @variables.credit_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.credit_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the report generation stage for the credit.
+              Current credit status: {! @variables.credit_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Report Generation result: {! @variables.report_generation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.credit_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_report_generation: @actions.process_report_generation_data
+                with record_ref=@variables.credit_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.credit_category
+                set @variables.report_generation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.report_generation_complete = @outputs.is_passed
+            fetch_report_generation_info: @actions.fetch_report_generation_details
+                with record_ref=@variables.credit_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.credit_tier = @outputs.tier_value
+                available when @variables.credit_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.report_generation_complete == True:
+            set @variables.credit_status = "report_generation_done"
+        if @variables.attempt_count >= 3 and @variables.report_generation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for credit issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the credit issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the credit interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the credit request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Credit status: {! @variables.credit_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.credit_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.credit_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.credit_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.credit_status = "escalated"
+        set @variables.escalation_requested = False
+

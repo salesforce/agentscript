@@ -1,0 +1,93 @@
+system:
+    instructions: "You are a helpful customer management agent."
+    messages:
+        welcome: "Hello! I can help you manage customer records."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Flow_Actions_Agent_NewSyntax"
+    default_agent_user: "user@test.com"
+    description: "Agent with multiple flow:// action targets using new syntax"
+
+variables:
+    customer_id: mutable string = ""
+        description: "Customer identifier"
+
+start_agent main:
+    description: "Agent with multiple flow:// action targets using new syntax"
+
+    actions:
+        Get_Customer:
+            description: "Retrieve customer information"
+            target: "flow://Get_Customer_Details"
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    is_required: True
+            outputs:
+                name: string
+                    label: "Customer Name"
+                email: string
+                    label: "Customer Email"
+
+        Update_Customer:
+            description: "Update customer profile"
+            target: "flow://Update_Customer_Profile"
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    is_required: True
+                field_name: string
+                    label: "Field to Update"
+                    is_required: True
+                field_value: string
+                    label: "New Value"
+                    is_required: True
+            outputs:
+                success: boolean
+                    label: "Update Success"
+
+        Delete_Customer:
+            description: "Delete customer record"
+            target: "flow://Delete_Customer_Record"
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    is_required: True
+                reason: string
+                    label: "Deletion Reason"
+                    is_required: True
+            outputs:
+                deleted: boolean
+                    label: "Deletion Confirmed"
+
+        Search_Customers:
+            description: "Search for customers"
+            target: "flow://Search_Customers_Flow"
+            inputs:
+                query: string
+                    label: "Search Query"
+                    is_required: True
+            outputs:
+                results: string
+                    label: "Search Results"
+
+    reasoning:
+        instructions: ->
+            | Help the user manage customer records using the available flows.
+
+        actions:
+            Get_Action: @actions.Get_Customer
+                with customer_id=@variables.customer_id
+
+            Update_Action: @actions.Update_Customer
+                with customer_id=@variables.customer_id
+                with field_name=...
+                with field_value=...
+
+            Delete_Action: @actions.Delete_Customer
+                with customer_id=@variables.customer_id
+                with reason=...
+
+            Search_Action: @actions.Search_Customers
+                with query=...

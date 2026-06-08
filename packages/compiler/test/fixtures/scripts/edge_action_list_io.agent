@@ -1,0 +1,112 @@
+system:
+    instructions: "You are a data processing agent that works with list types."
+
+config:
+    developer_name: "EdgeActionListIO"
+    default_agent_user: "admin@example.com"
+    description: "Tests list[string] and list[object] in action inputs/outputs"
+
+variables:
+    tags: mutable list[string]
+        description: "List of tags"
+    categories: mutable list[string]
+        description: "List of categories"
+    search_results: mutable list[object]
+        description: "Search results"
+    order_items: mutable list[object]
+        description: "Order line items"
+    selected_ids: mutable list[string]
+        description: "Selected item IDs"
+    scores: mutable list[number]
+        description: "Numeric scores"
+    flags: mutable list[boolean]
+        description: "Boolean flags"
+
+start_agent main:
+    description: "Process data with list-typed inputs and outputs"
+
+    actions:
+        search_by_tags:
+            description: "Search items by multiple tags"
+            inputs:
+                tags: list[string]
+                    label: "Search Tags"
+                    description: "Tags to search by"
+                    is_required: True
+                categories: list[string]
+                    label: "Categories"
+                    description: "Categories to filter"
+                    is_required: False
+            outputs:
+                results: list[object]
+                    label: "Search Results"
+                    description: "Matching items"
+                    is_displayable: True
+                result_count: number
+                    label: "Result Count"
+            target: "flow://Search_By_Tags"
+
+        bulk_update:
+            description: "Update multiple items at once"
+            inputs:
+                item_ids: list[string]
+                    label: "Item IDs"
+                    description: "IDs of items to update"
+                    is_required: True
+                new_status: string
+                    label: "New Status"
+                    is_required: True
+            outputs:
+                updated_items: list[object]
+                    label: "Updated Items"
+                failed_ids: list[string]
+                    label: "Failed IDs"
+            target: "apex://BulkService.update"
+
+        get_order_items:
+            description: "Get line items for an order"
+            inputs:
+                order_id: string
+                    is_required: True
+            outputs:
+                items: list[object]
+                    label: "Order Items"
+                    is_displayable: True
+                item_names: list[string]
+                    label: "Item Names"
+            target: "flow://Get_Order_Items"
+
+        compute_scores:
+            description: "Compute scores for items"
+            inputs:
+                items: list[object]
+                    is_required: True
+            outputs:
+                scores: list[number]
+                    label: "Computed Scores"
+                passed: list[boolean]
+                    label: "Pass/Fail Flags"
+            target: "apex://ScoreService.compute"
+
+    reasoning:
+        instructions: ->
+            | Help the user search, update, and process data using list operations.
+
+        actions:
+            search: @actions.search_by_tags
+                with tags=@variables.tags
+                with categories=@variables.categories
+                set @variables.search_results = @outputs.results
+
+            bulk_update: @actions.bulk_update
+                with item_ids=@variables.selected_ids
+                with new_status=...
+
+            get_items: @actions.get_order_items
+                with order_id=...
+                set @variables.order_items = @outputs.items
+
+            compute: @actions.compute_scores
+                with items=@variables.order_items
+                set @variables.scores = @outputs.scores
+                set @variables.flags = @outputs.passed

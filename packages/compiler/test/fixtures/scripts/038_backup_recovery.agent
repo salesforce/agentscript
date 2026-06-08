@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional backup and recovery specialist assistant.
+        Help users manage their backup requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: schedule_review -> integrity_check -> restore_test -> reporting.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Backup And Recovery Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "backup_recovery_agent_v38"
+    default_agent_user: "backup_recovery@example.com"
+    agent_description: "Assists users with backup management through the backup and recovery specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    backup_record_id: mutable string
+        description: "Record ID of the backup"
+    backup_status: mutable string = ""
+        description: "Current status of the backup"
+    backup_tier: mutable string = "standard"
+        description: "Tier classification for the backup"
+    backup_category: mutable string = ""
+        description: "Category of the backup"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    schedule_review_complete: mutable boolean = False
+        description: "Whether the schedule_review stage is complete"
+    schedule_review_result: mutable string = ""
+        description: "Result from the schedule_review stage"
+    integrity_check_complete: mutable boolean = False
+        description: "Whether the integrity_check stage is complete"
+    integrity_check_result: mutable string = ""
+        description: "Result from the integrity_check stage"
+    restore_test_complete: mutable boolean = False
+        description: "Whether the restore_test stage is complete"
+    restore_test_result: mutable string = ""
+        description: "Result from the restore_test stage"
+    reporting_complete: mutable boolean = False
+        description: "Whether the reporting stage is complete"
+    reporting_result: mutable string = ""
+        description: "Result from the reporting stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate backup management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a backup and recovery specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current backup status: {! @variables.backup_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_schedule_review} for schedule review requests.
+              Use {!@actions.go_to_integrity_check} for integrity check requests.
+              Use {!@actions.go_to_restore_test} for restore test requests.
+              Use {!@actions.go_to_reporting} for reporting requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_schedule_review: @utils.transition to @topic.schedule_review
+                description: "Transition to schedule review topic."
+            go_to_integrity_check: @utils.transition to @topic.integrity_check
+                description: "Transition to integrity check topic."
+                available when @variables.is_verified == True
+            go_to_restore_test: @utils.transition to @topic.restore_test
+                description: "Transition to restore test topic."
+                available when @variables.is_verified == True
+            go_to_reporting: @utils.transition to @topic.reporting
+                description: "Transition to reporting topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic schedule_review:
+    description: "Handles the schedule review stage of the backup process"
+
+    actions:
+        process_schedule_review_data:
+            description: "Process schedule review stage data for the backup"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_ScheduleReview"
+
+        validate_schedule_review_info:
+            description: "Validate schedule review information for the backup"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ScheduleReview_Info"
+
+        fetch_schedule_review_details:
+            description: "Fetch schedule review details for the backup"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ScheduleReview_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_schedule_review_info
+                with record_ref=@variables.backup_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.backup_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the schedule review stage for the backup.
+              Current backup status: {! @variables.backup_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Schedule Review result: {! @variables.schedule_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.backup_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_schedule_review} to begin processing.
+        actions:
+            run_schedule_review: @actions.process_schedule_review_data
+                with record_ref=@variables.backup_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.backup_category
+                set @variables.schedule_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.schedule_review_complete = @outputs.is_passed
+            fetch_schedule_review_info: @actions.fetch_schedule_review_details
+                with record_ref=@variables.backup_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.backup_tier = @outputs.tier_value
+            go_to_integrity_check: @utils.transition to @topic.integrity_check
+                description: "Move to integrity check stage."
+                available when @variables.schedule_review_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.backup_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.backup_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.backup_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.schedule_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic integrity_check:
+    description: "Handles the integrity check stage of the backup process"
+
+    actions:
+        process_integrity_check_data:
+            description: "Process integrity check stage data for the backup"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_IntegrityCheck"
+
+        validate_integrity_check_info:
+            description: "Validate integrity check information for the backup"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_IntegrityCheck_Info"
+
+        fetch_integrity_check_details:
+            description: "Fetch integrity check details for the backup"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_IntegrityCheck_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.schedule_review_complete == False:
+            transition to @topic.schedule_review
+
+    reasoning:
+        instructions: ->
+            | Handle the integrity check stage for the backup.
+              Current backup status: {! @variables.backup_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Integrity Check result: {! @variables.integrity_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.backup_tier }
+              Review the integrity check results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_integrity_check: @actions.process_integrity_check_data
+                with record_ref=@variables.backup_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.backup_category
+                set @variables.integrity_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.integrity_check_complete = @outputs.is_passed
+            fetch_integrity_check_info: @actions.fetch_integrity_check_details
+                with record_ref=@variables.backup_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.backup_tier = @outputs.tier_value
+                available when @variables.backup_record_id is not None
+            go_to_restore_test: @utils.transition to @topic.restore_test
+                description: "Move to restore test stage."
+                available when @variables.integrity_check_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.integrity_check_complete == True:
+            set @variables.backup_status = "integrity_check_done"
+        if @variables.integrity_check_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.restore_test
+        if @variables.attempt_count >= 3 and @variables.integrity_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic restore_test:
+    description: "Handles the restore test stage of the backup process"
+
+    actions:
+        process_restore_test_data:
+            description: "Process restore test stage data for the backup"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_RestoreTest_Data"
+
+        validate_restore_test_info:
+            description: "Validate restore test information for the backup"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_RestoreTest_Info"
+
+        fetch_restore_test_details:
+            description: "Fetch restore test details for the backup"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_RestoreTest_Details"
+
+    before_reasoning:
+        if @variables.restore_test_complete == False:
+            run @actions.fetch_restore_test_details
+                with record_ref=@variables.backup_record_id
+                with include_history=True
+                set @variables.restore_test_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.backup_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.backup_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.backup_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the restore test stage for the backup.
+              Current backup status: {! @variables.backup_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Restore Test result: {! @variables.restore_test_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.backup_tier }
+              Review the restore test results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_restore_test: @actions.process_restore_test_data
+                with record_ref=@variables.backup_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.backup_category
+                set @variables.restore_test_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.restore_test_complete = @outputs.is_passed
+            fetch_restore_test_info: @actions.fetch_restore_test_details
+                with record_ref=@variables.backup_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.backup_tier = @outputs.tier_value
+                available when @variables.backup_record_id is not None
+            go_to_reporting: @utils.transition to @topic.reporting
+                description: "Move to reporting stage."
+                available when @variables.restore_test_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.backup_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.backup_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.backup_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.restore_test_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic reporting:
+    description: "Handles the reporting stage of the backup process"
+
+    actions:
+        process_reporting_data:
+            description: "Process reporting stage data for the backup"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Reporting"
+
+        validate_reporting_info:
+            description: "Validate reporting information for the backup"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Reporting_Info"
+
+        fetch_reporting_details:
+            description: "Fetch reporting details for the backup"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Reporting_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.restore_test_complete == False:
+            transition to @topic.restore_test
+        if @variables.eligibility_score >= 80:
+            set @variables.backup_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.backup_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the reporting stage for the backup.
+              Current backup status: {! @variables.backup_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Reporting result: {! @variables.reporting_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.backup_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_reporting: @actions.process_reporting_data
+                with record_ref=@variables.backup_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.backup_category
+                set @variables.reporting_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.reporting_complete = @outputs.is_passed
+            fetch_reporting_info: @actions.fetch_reporting_details
+                with record_ref=@variables.backup_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.backup_tier = @outputs.tier_value
+                available when @variables.backup_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.reporting_complete == True:
+            set @variables.backup_status = "reporting_done"
+        if @variables.attempt_count >= 3 and @variables.reporting_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for backup issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the backup issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the backup interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the backup request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Backup status: {! @variables.backup_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.backup_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.backup_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.backup_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.backup_status = "escalated"
+        set @variables.escalation_requested = False
+

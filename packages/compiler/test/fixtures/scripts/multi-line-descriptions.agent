@@ -1,0 +1,251 @@
+system:
+    instructions: "Agent demonstrating multi-line description support"
+    messages:
+        welcome: "Welcome! This agent tests multi-line description syntax."
+        error: "An error occurred. Please try again."
+
+config:
+    agent_type: "AgentforceServiceAgent"
+    developer_name: "MultiLine_Description_Test_Agent"
+    enable_enhanced_event_logs: True
+    default_agent_user: "admin@test.com"
+    agent_description: "Test agent for verifying multi-line description syntax across all supported contexts"
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Variable with traditional single-line description
+    simple_var: mutable string = ""
+        description: "Simple single-line description for a variable"
+
+    # Variable with multi-line description using | syntax
+    complex_var: mutable string = ""
+        description:|
+            This variable demonstrates the multi-line description syntax.
+            It can span multiple lines without needing escape characters.
+            This is useful for providing detailed context about the variable's purpose.
+
+    # Another multi-line variable description
+    user_context: mutable object = {}
+        description:|
+            Stores the current user's context information including:
+            - User preferences and settings
+            - Session state and history
+            - Any custom attributes collected during the conversation
+
+    # Multi-line description with business logic explanation
+    order_status: mutable string = ""
+        description:|
+            Tracks the current order status throughout the conversation.
+            Valid values include: pending, processing, shipped, delivered, cancelled.
+            This value is updated by various actions in the order_inquiries topic.
+
+start_agent topic_selector:
+    # Topic with multi-line description using | syntax
+    description:|
+        Main entry point for the agent that determines the appropriate topic
+        based on user input. This topic selector analyzes the user's message
+        and routes them to the correct specialized topic for handling.
+
+    system:
+        instructions: |
+            You are a topic router. Analyze user input and determine the best topic.
+
+    reasoning:
+        actions:
+            go_to_main: @utils.transition to @topic.main_topic
+                description:|
+                    Navigate to the main topic when the user has
+                    a general inquiry that doesn't fit specialized topics.
+
+            go_to_orders: @utils.transition to @topic.order_inquiries
+                description:|
+                    Navigate to order inquiries when the user mentions:
+                    - Order status or tracking
+                    - Shipping questions
+                    - Order modifications or cancellations
+
+topic main_topic:
+    # Topic with single-line description for comparison
+    description: "Main topic handling general inquiries and demonstrating action description formats"
+
+    actions:
+        # Action with traditional single-line description
+        simple_action:
+            description: "A simple action with a single-line description"
+            target: "apex://SimpleAction"
+
+        # Action with multi-line description using | syntax
+        complex_action:
+            description:|
+                This action demonstrates the multi-line description format.
+                It can include detailed explanations of what the action does,
+                when it should be used, and any important considerations.
+            inputs:
+                query: string
+            outputs:
+                result: string
+            target: "apex://ComplexAction"
+
+        # Action with multi-line description AND multi-line input/output descriptions
+        fully_documented_action:
+            description:|
+                A comprehensively documented action that showcases
+                all the multi-line description capabilities.
+                This includes the action description itself plus
+                detailed input and output parameter descriptions.
+            inputs:
+                search_query: string
+                    description:|
+                        The search query to process.
+                        Should be a natural language question or keyword phrase.
+                        Maximum length is 500 characters.
+                context_type: string
+                    description:|
+                        Specifies the context for the search.
+                        Valid values: "general", "orders", "products", "support".
+                        Defaults to "general" if not specified.
+                include_history: boolean
+                    description:|
+                        When true, includes conversation history in the search context.
+                        This helps provide more relevant results based on prior interactions.
+            outputs:
+                search_results: object
+                    description:|
+                        Contains the search results as a structured object.
+                        Includes fields: items (array), total_count (number),
+                        and relevance_scores (array of numbers between 0 and 1).
+                success_flag: boolean
+                    description:|
+                        Indicates whether the search completed successfully.
+                        Check this before processing search_results.
+            target: "apex://FullyDocumentedAction"
+
+    reasoning:
+        instructions: ->
+            | Handle general inquiries using the available actions.
+              Use {!@actions.complex_action} for detailed processing.
+        actions:
+            complex_action: @actions.complex_action
+                with query=...
+
+            fully_documented_action: @actions.fully_documented_action
+                with search_query=...
+                with context_type="general"
+                with include_history=True
+
+            transition_to_orders: @utils.transition to @topic.order_inquiries
+                description:|
+                    Transition to order inquiries when the user's question
+                    relates to their orders, shipping, or purchase history.
+
+topic order_inquiries:
+    description:|
+        Handles all order-related inquiries including:
+        - Order status and tracking information
+        - Shipping updates and delivery estimates
+        - Order modifications and cancellations
+        - Price adjustments and refund requests
+        - Missing or damaged items
+
+    actions:
+        get_order_details:
+            description:|
+                Retrieves comprehensive order details based on the order ID.
+                Returns order status, items, shipping info, and pricing.
+                Requires a valid order ID to be provided.
+            inputs:
+                order_id: number
+                    description:|
+                        The unique order identifier.
+                        Must be a positive integer.
+                        Can be found in the order confirmation email.
+                    is_required: True
+            outputs:
+                order_data: object
+                    description:|
+                        Complete order information including:
+                        - Order status (pending, shipped, delivered, etc.)
+                        - List of items with quantities and prices
+                        - Shipping address and tracking information
+                        - Payment details and total amount
+                can_modify: boolean
+                    description:|
+                        Indicates if the order can still be modified.
+                        Orders can only be modified within 60 minutes of placement.
+            target: "apex://GetOrderDetails"
+
+        cancel_order:
+            description:|
+                Attempts to cancel an order if it's still eligible.
+                Orders can only be cancelled within 60 minutes of placement
+                and before they enter the processing stage.
+            inputs:
+                order_id: number
+                    description: "The order ID to cancel"
+                    is_required: True
+                cancellation_reason: string
+                    description:|
+                        The reason for cancellation.
+                        This helps improve our service and is optional.
+            outputs:
+                cancellation_success: boolean
+                    description:|
+                        True if the order was successfully cancelled.
+                        False if the order could not be cancelled.
+                refund_amount: number
+                    description:|
+                        The amount that will be refunded to the customer.
+                        Refunds are typically processed within 5-7 business days.
+            target: "apex://CancelOrder"
+
+    reasoning:
+        instructions: ->
+            |   Assist customers with order-related questions.
+                Always verify the order ID before taking any actions.
+                Use {!@actions.get_order_details} to retrieve order information.
+                Only offer cancellation if the order can still be modified.
+        actions:
+            get_order_details: @actions.get_order_details
+                with order_id=...
+
+            cancel_order: @actions.cancel_order
+                with order_id=...
+                with cancellation_reason=...
+
+            mark_resolved: @utils.transition to @topic.end_interaction
+                description:|
+                    Complete the interaction when the customer's
+                    order inquiry has been fully resolved.
+
+topic end_interaction:
+    description:|
+        Final topic for wrapping up the conversation.
+        Collects feedback and thanks the customer.
+
+    actions:
+        collect_feedback:
+            description:|
+                Collects customer feedback about their experience.
+                The feedback is stored for quality improvement purposes.
+            inputs:
+                rating: number
+                    description:|
+                        Customer satisfaction rating from 1-5.
+                        1 = Very Dissatisfied, 5 = Very Satisfied.
+                comments: string
+                    description:|
+                        Optional additional comments from the customer.
+                        Can include suggestions or detailed feedback.
+            outputs:
+                feedback_saved: boolean
+            target: "flow://CollectFeedback"
+
+    reasoning:
+        instructions: ->
+            | Thank the customer for their interaction and collect feedback.
+        actions:
+            collect_feedback: @actions.collect_feedback
+                with rating=...
+                with comments=...

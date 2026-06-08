@@ -1,0 +1,44 @@
+system:
+    instructions: "You are an omnichannel support agent available on messaging and Slack."
+    messages:
+        welcome: "Hello! I'm available to help on any channel."
+        error: "Something went wrong."
+
+config:
+    developer_name: "EdgeConnMultiple"
+    default_agent_user: "omni_bot@example.com"
+    agent_label: "Omnichannel Agent"
+    description: "Agent with multiple connection blocks"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "Messaging end user ID"
+    RoutableId: linked string
+        source: @MessagingSession.Id
+        description: "Messaging session ID"
+
+connection messaging:
+    adaptive_response_allowed: True
+
+connection slack:
+    adaptive_response_allowed: True
+
+start_agent main:
+    description: "Handle support requests from any channel"
+
+    reasoning:
+        instructions: ->
+            | Help the user regardless of their communication channel.
+
+        actions:
+            go_to_support: @utils.transition to @topic.support
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"
+
+topic support:
+    description: "General support topic"
+
+    reasoning:
+        instructions: ->
+            | Provide general support to the customer.

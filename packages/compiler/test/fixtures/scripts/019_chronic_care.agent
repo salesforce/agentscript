@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional chronic care management agent assistant.
+        Help users manage their care_plan requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: assessment -> plan_creation -> monitoring -> adjustment.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Chronic Care Management Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "chronic_care_agent_v19"
+    default_agent_user: "chronic_care@example.com"
+    agent_description: "Assists users with care_plan management through the chronic care management agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    care_plan_record_id: mutable string
+        description: "Record ID of the care_plan"
+    care_plan_status: mutable string = ""
+        description: "Current status of the care_plan"
+    care_plan_tier: mutable string = "standard"
+        description: "Tier classification for the care_plan"
+    care_plan_category: mutable string = ""
+        description: "Category of the care_plan"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    assessment_complete: mutable boolean = False
+        description: "Whether the assessment stage is complete"
+    assessment_result: mutable string = ""
+        description: "Result from the assessment stage"
+    plan_creation_complete: mutable boolean = False
+        description: "Whether the plan_creation stage is complete"
+    plan_creation_result: mutable string = ""
+        description: "Result from the plan_creation stage"
+    monitoring_complete: mutable boolean = False
+        description: "Whether the monitoring stage is complete"
+    monitoring_result: mutable string = ""
+        description: "Result from the monitoring stage"
+    adjustment_complete: mutable boolean = False
+        description: "Whether the adjustment stage is complete"
+    adjustment_result: mutable string = ""
+        description: "Result from the adjustment stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate care_plan management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a chronic care management agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current care_plan status: {! @variables.care_plan_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_assessment} for assessment requests.
+              Use {!@actions.go_to_plan_creation} for plan creation requests.
+              Use {!@actions.go_to_monitoring} for monitoring requests.
+              Use {!@actions.go_to_adjustment} for adjustment requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_assessment: @utils.transition to @topic.assessment
+                description: "Transition to assessment topic."
+            go_to_plan_creation: @utils.transition to @topic.plan_creation
+                description: "Transition to plan creation topic."
+                available when @variables.is_verified == True
+            go_to_monitoring: @utils.transition to @topic.monitoring
+                description: "Transition to monitoring topic."
+                available when @variables.is_verified == True
+            go_to_adjustment: @utils.transition to @topic.adjustment
+                description: "Transition to adjustment topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic assessment:
+    description: "Handles the assessment stage of the care_plan process"
+
+    actions:
+        process_assessment_data:
+            description: "Process assessment stage data for the care_plan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Assessment_Data"
+
+        validate_assessment_info:
+            description: "Validate assessment information for the care_plan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Assessment_Info"
+
+        fetch_assessment_details:
+            description: "Fetch assessment details for the care_plan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Assessment_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_assessment_info
+                with record_ref=@variables.care_plan_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.care_plan_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the assessment stage for the care_plan.
+              Current care_plan status: {! @variables.care_plan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Assessment result: {! @variables.assessment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.care_plan_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_assessment} to begin processing.
+        actions:
+            run_assessment: @actions.process_assessment_data
+                with record_ref=@variables.care_plan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.care_plan_category
+                set @variables.assessment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.assessment_complete = @outputs.is_passed
+            fetch_assessment_info: @actions.fetch_assessment_details
+                with record_ref=@variables.care_plan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.care_plan_tier = @outputs.tier_value
+            go_to_plan_creation: @utils.transition to @topic.plan_creation
+                description: "Move to plan creation stage."
+                available when @variables.assessment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.care_plan_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.care_plan_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.care_plan_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.assessment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic plan_creation:
+    description: "Handles the plan creation stage of the care_plan process"
+
+    actions:
+        process_plan_creation_data:
+            description: "Process plan creation stage data for the care_plan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_PlanCreation"
+
+        validate_plan_creation_info:
+            description: "Validate plan creation information for the care_plan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PlanCreation_Info"
+
+        fetch_plan_creation_details:
+            description: "Fetch plan creation details for the care_plan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PlanCreation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.assessment_complete == False:
+            transition to @topic.assessment
+
+    reasoning:
+        instructions: ->
+            | Handle the plan creation stage for the care_plan.
+              Current care_plan status: {! @variables.care_plan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Plan Creation result: {! @variables.plan_creation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.care_plan_tier }
+              Review the plan creation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_plan_creation: @actions.process_plan_creation_data
+                with record_ref=@variables.care_plan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.care_plan_category
+                set @variables.plan_creation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.plan_creation_complete = @outputs.is_passed
+            fetch_plan_creation_info: @actions.fetch_plan_creation_details
+                with record_ref=@variables.care_plan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.care_plan_tier = @outputs.tier_value
+                available when @variables.care_plan_record_id is not None
+            go_to_monitoring: @utils.transition to @topic.monitoring
+                description: "Move to monitoring stage."
+                available when @variables.plan_creation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.plan_creation_complete == True:
+            set @variables.care_plan_status = "plan_creation_done"
+        if @variables.plan_creation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.monitoring
+        if @variables.attempt_count >= 3 and @variables.plan_creation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic monitoring:
+    description: "Handles the monitoring stage of the care_plan process"
+
+    actions:
+        process_monitoring_data:
+            description: "Process monitoring stage data for the care_plan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Monitoring"
+
+        validate_monitoring_info:
+            description: "Validate monitoring information for the care_plan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Monitoring_Info"
+
+        fetch_monitoring_details:
+            description: "Fetch monitoring details for the care_plan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Monitoring_Details"
+
+    before_reasoning:
+        if @variables.monitoring_complete == False:
+            run @actions.fetch_monitoring_details
+                with record_ref=@variables.care_plan_record_id
+                with include_history=True
+                set @variables.monitoring_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.care_plan_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.care_plan_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.care_plan_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the monitoring stage for the care_plan.
+              Current care_plan status: {! @variables.care_plan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Monitoring result: {! @variables.monitoring_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.care_plan_tier }
+              Review the monitoring results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_monitoring: @actions.process_monitoring_data
+                with record_ref=@variables.care_plan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.care_plan_category
+                set @variables.monitoring_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.monitoring_complete = @outputs.is_passed
+            fetch_monitoring_info: @actions.fetch_monitoring_details
+                with record_ref=@variables.care_plan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.care_plan_tier = @outputs.tier_value
+                available when @variables.care_plan_record_id is not None
+            go_to_adjustment: @utils.transition to @topic.adjustment
+                description: "Move to adjustment stage."
+                available when @variables.monitoring_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.care_plan_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.care_plan_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.care_plan_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.monitoring_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic adjustment:
+    description: "Handles the adjustment stage of the care_plan process"
+
+    actions:
+        process_adjustment_data:
+            description: "Process adjustment stage data for the care_plan"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Adjustment_Data"
+
+        validate_adjustment_info:
+            description: "Validate adjustment information for the care_plan"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Adjustment_Info"
+
+        fetch_adjustment_details:
+            description: "Fetch adjustment details for the care_plan"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Adjustment_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.monitoring_complete == False:
+            transition to @topic.monitoring
+        if @variables.eligibility_score >= 80:
+            set @variables.care_plan_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.care_plan_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the adjustment stage for the care_plan.
+              Current care_plan status: {! @variables.care_plan_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Adjustment result: {! @variables.adjustment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.care_plan_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_adjustment: @actions.process_adjustment_data
+                with record_ref=@variables.care_plan_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.care_plan_category
+                set @variables.adjustment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.adjustment_complete = @outputs.is_passed
+            fetch_adjustment_info: @actions.fetch_adjustment_details
+                with record_ref=@variables.care_plan_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.care_plan_tier = @outputs.tier_value
+                available when @variables.care_plan_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.adjustment_complete == True:
+            set @variables.care_plan_status = "adjustment_done"
+        if @variables.attempt_count >= 3 and @variables.adjustment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for care_plan issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the care_plan issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the care_plan interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the care_plan request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Care Plan status: {! @variables.care_plan_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.care_plan_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.care_plan_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.care_plan_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.care_plan_status = "escalated"
+        set @variables.escalation_requested = False
+

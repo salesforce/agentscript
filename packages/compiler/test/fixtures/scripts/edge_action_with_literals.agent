@@ -1,0 +1,97 @@
+system:
+    instructions: "You are a service agent that processes requests with specific values."
+
+config:
+    developer_name: "EdgeActionWithLiterals"
+    default_agent_user: "admin@example.com"
+    description: "Tests with clauses using literal string, number, and boolean values"
+
+variables:
+    result: mutable string
+        description: "Result of the operation"
+    count: mutable number = 0
+        description: "Count result"
+    is_active: mutable boolean = False
+        description: "Active status"
+
+start_agent main:
+    description: "Demonstrate literal with clauses"
+
+    actions:
+        greet_user:
+            description: "Greet a user by name"
+            inputs:
+                name: string
+                    is_required: True
+                greeting_type: string
+                    is_required: False
+            outputs:
+                message: string
+            target: "flow://Greet_User"
+
+        process_count:
+            description: "Process a count value"
+            inputs:
+                count: number
+                    is_required: True
+                multiplier: number
+                    is_required: False
+            outputs:
+                total: number
+            target: "flow://Process_Count"
+
+        set_status:
+            description: "Set active status"
+            inputs:
+                active: boolean
+                    is_required: True
+                reason: string
+                    is_required: False
+            outputs:
+                confirmed: boolean
+            target: "flow://Set_Status"
+
+        mixed_literals:
+            description: "Action with mixed literal types"
+            inputs:
+                tag: string
+                    is_required: True
+                threshold: number
+                    is_required: True
+                enabled: boolean
+                    is_required: True
+            outputs:
+                result: string
+            target: "flow://Mixed_Literals"
+
+    reasoning:
+        instructions: ->
+            | Help users by running actions with specific literal values.
+              Use the appropriate action based on the request.
+
+        actions:
+            greet_john: @actions.greet_user
+                with name="John"
+                with greeting_type="formal"
+                set @variables.result = @outputs.message
+
+            process_five: @actions.process_count
+                with count=5
+                with multiplier=10
+                set @variables.count = @outputs.total
+
+            activate: @actions.set_status
+                with active=True
+                with reason="User requested activation"
+                set @variables.is_active = @outputs.confirmed
+
+            deactivate: @actions.set_status
+                with active=False
+                with reason="Scheduled deactivation"
+                set @variables.is_active = @outputs.confirmed
+
+            mixed_action: @actions.mixed_literals
+                with tag="priority_high"
+                with threshold=100
+                with enabled=True
+                set @variables.result = @outputs.result

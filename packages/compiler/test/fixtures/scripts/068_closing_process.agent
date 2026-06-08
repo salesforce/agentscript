@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional closing process coordinator assistant.
+        Help users manage their closing requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: document_preparation -> title_search -> fund_verification -> execution.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Closing Process Coordinator Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "closing_process_agent_v68"
+    default_agent_user: "closing_process@example.com"
+    agent_description: "Assists users with closing management through the closing process coordinator workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    closing_record_id: mutable string
+        description: "Record ID of the closing"
+    closing_status: mutable string = ""
+        description: "Current status of the closing"
+    closing_tier: mutable string = "standard"
+        description: "Tier classification for the closing"
+    closing_category: mutable string = ""
+        description: "Category of the closing"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    document_preparation_complete: mutable boolean = False
+        description: "Whether the document_preparation stage is complete"
+    document_preparation_result: mutable string = ""
+        description: "Result from the document_preparation stage"
+    title_search_complete: mutable boolean = False
+        description: "Whether the title_search stage is complete"
+    title_search_result: mutable string = ""
+        description: "Result from the title_search stage"
+    fund_verification_complete: mutable boolean = False
+        description: "Whether the fund_verification stage is complete"
+    fund_verification_result: mutable string = ""
+        description: "Result from the fund_verification stage"
+    execution_complete: mutable boolean = False
+        description: "Whether the execution stage is complete"
+    execution_result: mutable string = ""
+        description: "Result from the execution stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate closing management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a closing process coordinator assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current closing status: {! @variables.closing_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_document_preparation} for document preparation requests.
+              Use {!@actions.go_to_title_search} for title search requests.
+              Use {!@actions.go_to_fund_verification} for fund verification requests.
+              Use {!@actions.go_to_execution} for execution requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_document_preparation: @utils.transition to @topic.document_preparation
+                description: "Transition to document preparation topic."
+            go_to_title_search: @utils.transition to @topic.title_search
+                description: "Transition to title search topic."
+                available when @variables.is_verified == True
+            go_to_fund_verification: @utils.transition to @topic.fund_verification
+                description: "Transition to fund verification topic."
+                available when @variables.is_verified == True
+            go_to_execution: @utils.transition to @topic.execution
+                description: "Transition to execution topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic document_preparation:
+    description: "Handles the document preparation stage of the closing process"
+
+    actions:
+        process_document_preparation_data:
+            description: "Process document preparation stage data for the closing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_DocumentPreparation"
+
+        validate_document_preparation_info:
+            description: "Validate document preparation information for the closing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DocumentPreparation_Info"
+
+        fetch_document_preparation_details:
+            description: "Fetch document preparation details for the closing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DocumentPreparation_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_document_preparation_info
+                with record_ref=@variables.closing_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.closing_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the document preparation stage for the closing.
+              Current closing status: {! @variables.closing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Document Preparation result: {! @variables.document_preparation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.closing_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_document_preparation} to begin processing.
+        actions:
+            run_document_preparation: @actions.process_document_preparation_data
+                with record_ref=@variables.closing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.closing_category
+                set @variables.document_preparation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.document_preparation_complete = @outputs.is_passed
+            fetch_document_preparation_info: @actions.fetch_document_preparation_details
+                with record_ref=@variables.closing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.closing_tier = @outputs.tier_value
+            go_to_title_search: @utils.transition to @topic.title_search
+                description: "Move to title search stage."
+                available when @variables.document_preparation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.closing_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.closing_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.closing_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.document_preparation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic title_search:
+    description: "Handles the title search stage of the closing process"
+
+    actions:
+        process_title_search_data:
+            description: "Process title search stage data for the closing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_TitleSearch"
+
+        validate_title_search_info:
+            description: "Validate title search information for the closing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_TitleSearch_Info"
+
+        fetch_title_search_details:
+            description: "Fetch title search details for the closing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_TitleSearch_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.document_preparation_complete == False:
+            transition to @topic.document_preparation
+
+    reasoning:
+        instructions: ->
+            | Handle the title search stage for the closing.
+              Current closing status: {! @variables.closing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Title Search result: {! @variables.title_search_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.closing_tier }
+              Review the title search results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_title_search: @actions.process_title_search_data
+                with record_ref=@variables.closing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.closing_category
+                set @variables.title_search_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.title_search_complete = @outputs.is_passed
+            fetch_title_search_info: @actions.fetch_title_search_details
+                with record_ref=@variables.closing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.closing_tier = @outputs.tier_value
+                available when @variables.closing_record_id is not None
+            go_to_fund_verification: @utils.transition to @topic.fund_verification
+                description: "Move to fund verification stage."
+                available when @variables.title_search_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.title_search_complete == True:
+            set @variables.closing_status = "title_search_done"
+        if @variables.title_search_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.fund_verification
+        if @variables.attempt_count >= 3 and @variables.title_search_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic fund_verification:
+    description: "Handles the fund verification stage of the closing process"
+
+    actions:
+        process_fund_verification_data:
+            description: "Process fund verification stage data for the closing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_FundVerification_Data"
+
+        validate_fund_verification_info:
+            description: "Validate fund verification information for the closing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_FundVerification_Info"
+
+        fetch_fund_verification_details:
+            description: "Fetch fund verification details for the closing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_FundVerification_Details"
+
+    before_reasoning:
+        if @variables.fund_verification_complete == False:
+            run @actions.fetch_fund_verification_details
+                with record_ref=@variables.closing_record_id
+                with include_history=True
+                set @variables.fund_verification_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.closing_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.closing_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.closing_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the fund verification stage for the closing.
+              Current closing status: {! @variables.closing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Fund Verification result: {! @variables.fund_verification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.closing_tier }
+              Review the fund verification results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_fund_verification: @actions.process_fund_verification_data
+                with record_ref=@variables.closing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.closing_category
+                set @variables.fund_verification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.fund_verification_complete = @outputs.is_passed
+            fetch_fund_verification_info: @actions.fetch_fund_verification_details
+                with record_ref=@variables.closing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.closing_tier = @outputs.tier_value
+                available when @variables.closing_record_id is not None
+            go_to_execution: @utils.transition to @topic.execution
+                description: "Move to execution stage."
+                available when @variables.fund_verification_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.closing_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.closing_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.closing_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.fund_verification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic execution:
+    description: "Handles the execution stage of the closing process"
+
+    actions:
+        process_execution_data:
+            description: "Process execution stage data for the closing"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Execution"
+
+        validate_execution_info:
+            description: "Validate execution information for the closing"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Execution_Info"
+
+        fetch_execution_details:
+            description: "Fetch execution details for the closing"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Execution_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.fund_verification_complete == False:
+            transition to @topic.fund_verification
+        if @variables.eligibility_score >= 80:
+            set @variables.closing_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.closing_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the execution stage for the closing.
+              Current closing status: {! @variables.closing_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Execution result: {! @variables.execution_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.closing_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_execution: @actions.process_execution_data
+                with record_ref=@variables.closing_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.closing_category
+                set @variables.execution_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.execution_complete = @outputs.is_passed
+            fetch_execution_info: @actions.fetch_execution_details
+                with record_ref=@variables.closing_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.closing_tier = @outputs.tier_value
+                available when @variables.closing_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.execution_complete == True:
+            set @variables.closing_status = "execution_done"
+        if @variables.attempt_count >= 3 and @variables.execution_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for closing issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the closing issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the closing interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the closing request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Closing status: {! @variables.closing_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.closing_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.closing_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.closing_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.closing_status = "escalated"
+        set @variables.escalation_requested = False
+

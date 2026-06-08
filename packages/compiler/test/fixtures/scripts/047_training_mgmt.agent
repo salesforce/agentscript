@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional training management agent assistant.
+        Help users manage their training requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: needs_assessment -> course_assignment -> progress_tracking -> certification.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Training Management Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "training_mgmt_agent_v47"
+    default_agent_user: "training_mgmt@example.com"
+    agent_description: "Assists users with training management through the training management agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    training_record_id: mutable string
+        description: "Record ID of the training"
+    training_status: mutable string = ""
+        description: "Current status of the training"
+    training_tier: mutable string = "standard"
+        description: "Tier classification for the training"
+    training_category: mutable string = ""
+        description: "Category of the training"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    needs_assessment_complete: mutable boolean = False
+        description: "Whether the needs_assessment stage is complete"
+    needs_assessment_result: mutable string = ""
+        description: "Result from the needs_assessment stage"
+    course_assignment_complete: mutable boolean = False
+        description: "Whether the course_assignment stage is complete"
+    course_assignment_result: mutable string = ""
+        description: "Result from the course_assignment stage"
+    progress_tracking_complete: mutable boolean = False
+        description: "Whether the progress_tracking stage is complete"
+    progress_tracking_result: mutable string = ""
+        description: "Result from the progress_tracking stage"
+    certification_complete: mutable boolean = False
+        description: "Whether the certification stage is complete"
+    certification_result: mutable string = ""
+        description: "Result from the certification stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate training management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a training management agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current training status: {! @variables.training_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_needs_assessment} for needs assessment requests.
+              Use {!@actions.go_to_course_assignment} for course assignment requests.
+              Use {!@actions.go_to_progress_tracking} for progress tracking requests.
+              Use {!@actions.go_to_certification} for certification requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_needs_assessment: @utils.transition to @topic.needs_assessment
+                description: "Transition to needs assessment topic."
+            go_to_course_assignment: @utils.transition to @topic.course_assignment
+                description: "Transition to course assignment topic."
+                available when @variables.is_verified == True
+            go_to_progress_tracking: @utils.transition to @topic.progress_tracking
+                description: "Transition to progress tracking topic."
+                available when @variables.is_verified == True
+            go_to_certification: @utils.transition to @topic.certification
+                description: "Transition to certification topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic needs_assessment:
+    description: "Handles the needs assessment stage of the training process"
+
+    actions:
+        process_needs_assessment_data:
+            description: "Process needs assessment stage data for the training"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_NeedsAssessment"
+
+        validate_needs_assessment_info:
+            description: "Validate needs assessment information for the training"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_NeedsAssessment_Info"
+
+        fetch_needs_assessment_details:
+            description: "Fetch needs assessment details for the training"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_NeedsAssessment_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_needs_assessment_info
+                with record_ref=@variables.training_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.training_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the needs assessment stage for the training.
+              Current training status: {! @variables.training_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Needs Assessment result: {! @variables.needs_assessment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.training_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_needs_assessment} to begin processing.
+        actions:
+            run_needs_assessment: @actions.process_needs_assessment_data
+                with record_ref=@variables.training_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.training_category
+                set @variables.needs_assessment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.needs_assessment_complete = @outputs.is_passed
+            fetch_needs_assessment_info: @actions.fetch_needs_assessment_details
+                with record_ref=@variables.training_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.training_tier = @outputs.tier_value
+            go_to_course_assignment: @utils.transition to @topic.course_assignment
+                description: "Move to course assignment stage."
+                available when @variables.needs_assessment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.training_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.training_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.training_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.needs_assessment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic course_assignment:
+    description: "Handles the course assignment stage of the training process"
+
+    actions:
+        process_course_assignment_data:
+            description: "Process course assignment stage data for the training"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_CourseAssignment"
+
+        validate_course_assignment_info:
+            description: "Validate course assignment information for the training"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_CourseAssignment_Info"
+
+        fetch_course_assignment_details:
+            description: "Fetch course assignment details for the training"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_CourseAssignment_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.needs_assessment_complete == False:
+            transition to @topic.needs_assessment
+
+    reasoning:
+        instructions: ->
+            | Handle the course assignment stage for the training.
+              Current training status: {! @variables.training_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Course Assignment result: {! @variables.course_assignment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.training_tier }
+              Review the course assignment results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_course_assignment: @actions.process_course_assignment_data
+                with record_ref=@variables.training_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.training_category
+                set @variables.course_assignment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.course_assignment_complete = @outputs.is_passed
+            fetch_course_assignment_info: @actions.fetch_course_assignment_details
+                with record_ref=@variables.training_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.training_tier = @outputs.tier_value
+                available when @variables.training_record_id is not None
+            go_to_progress_tracking: @utils.transition to @topic.progress_tracking
+                description: "Move to progress tracking stage."
+                available when @variables.course_assignment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.course_assignment_complete == True:
+            set @variables.training_status = "course_assignment_done"
+        if @variables.course_assignment_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.progress_tracking
+        if @variables.attempt_count >= 3 and @variables.course_assignment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic progress_tracking:
+    description: "Handles the progress tracking stage of the training process"
+
+    actions:
+        process_progress_tracking_data:
+            description: "Process progress tracking stage data for the training"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_ProgressTracking_Data"
+
+        validate_progress_tracking_info:
+            description: "Validate progress tracking information for the training"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ProgressTracking_Info"
+
+        fetch_progress_tracking_details:
+            description: "Fetch progress tracking details for the training"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ProgressTracking_Details"
+
+    before_reasoning:
+        if @variables.progress_tracking_complete == False:
+            run @actions.fetch_progress_tracking_details
+                with record_ref=@variables.training_record_id
+                with include_history=True
+                set @variables.progress_tracking_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.training_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.training_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.training_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the progress tracking stage for the training.
+              Current training status: {! @variables.training_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Progress Tracking result: {! @variables.progress_tracking_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.training_tier }
+              Review the progress tracking results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_progress_tracking: @actions.process_progress_tracking_data
+                with record_ref=@variables.training_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.training_category
+                set @variables.progress_tracking_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.progress_tracking_complete = @outputs.is_passed
+            fetch_progress_tracking_info: @actions.fetch_progress_tracking_details
+                with record_ref=@variables.training_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.training_tier = @outputs.tier_value
+                available when @variables.training_record_id is not None
+            go_to_certification: @utils.transition to @topic.certification
+                description: "Move to certification stage."
+                available when @variables.progress_tracking_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.training_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.training_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.training_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.progress_tracking_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic certification:
+    description: "Handles the certification stage of the training process"
+
+    actions:
+        process_certification_data:
+            description: "Process certification stage data for the training"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Certification"
+
+        validate_certification_info:
+            description: "Validate certification information for the training"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Certification_Info"
+
+        fetch_certification_details:
+            description: "Fetch certification details for the training"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Certification_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.progress_tracking_complete == False:
+            transition to @topic.progress_tracking
+        if @variables.eligibility_score >= 80:
+            set @variables.training_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.training_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the certification stage for the training.
+              Current training status: {! @variables.training_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Certification result: {! @variables.certification_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.training_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_certification: @actions.process_certification_data
+                with record_ref=@variables.training_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.training_category
+                set @variables.certification_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.certification_complete = @outputs.is_passed
+            fetch_certification_info: @actions.fetch_certification_details
+                with record_ref=@variables.training_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.training_tier = @outputs.tier_value
+                available when @variables.training_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.certification_complete == True:
+            set @variables.training_status = "certification_done"
+        if @variables.attempt_count >= 3 and @variables.certification_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for training issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the training issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the training interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the training request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Training status: {! @variables.training_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.training_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.training_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.training_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.training_status = "escalated"
+        set @variables.escalation_requested = False
+

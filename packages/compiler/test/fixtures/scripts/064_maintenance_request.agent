@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional maintenance request coordinator assistant.
+        Help users manage their work_order requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: submission -> priority_assessment -> vendor_assignment -> completion_check.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Maintenance Request Coordinator Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "maintenance_request_agent_v64"
+    default_agent_user: "maintenance_request@example.com"
+    agent_description: "Assists users with work_order management through the maintenance request coordinator workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    work_order_record_id: mutable string
+        description: "Record ID of the work_order"
+    work_order_status: mutable string = ""
+        description: "Current status of the work_order"
+    work_order_tier: mutable string = "standard"
+        description: "Tier classification for the work_order"
+    work_order_category: mutable string = ""
+        description: "Category of the work_order"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    submission_complete: mutable boolean = False
+        description: "Whether the submission stage is complete"
+    submission_result: mutable string = ""
+        description: "Result from the submission stage"
+    priority_assessment_complete: mutable boolean = False
+        description: "Whether the priority_assessment stage is complete"
+    priority_assessment_result: mutable string = ""
+        description: "Result from the priority_assessment stage"
+    vendor_assignment_complete: mutable boolean = False
+        description: "Whether the vendor_assignment stage is complete"
+    vendor_assignment_result: mutable string = ""
+        description: "Result from the vendor_assignment stage"
+    completion_check_complete: mutable boolean = False
+        description: "Whether the completion_check stage is complete"
+    completion_check_result: mutable string = ""
+        description: "Result from the completion_check stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate work_order management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a maintenance request coordinator assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current work_order status: {! @variables.work_order_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_submission} for submission requests.
+              Use {!@actions.go_to_priority_assessment} for priority assessment requests.
+              Use {!@actions.go_to_vendor_assignment} for vendor assignment requests.
+              Use {!@actions.go_to_completion_check} for completion check requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_submission: @utils.transition to @topic.submission
+                description: "Transition to submission topic."
+            go_to_priority_assessment: @utils.transition to @topic.priority_assessment
+                description: "Transition to priority assessment topic."
+                available when @variables.is_verified == True
+            go_to_vendor_assignment: @utils.transition to @topic.vendor_assignment
+                description: "Transition to vendor assignment topic."
+                available when @variables.is_verified == True
+            go_to_completion_check: @utils.transition to @topic.completion_check
+                description: "Transition to completion check topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic submission:
+    description: "Handles the submission stage of the work_order process"
+
+    actions:
+        process_submission_data:
+            description: "Process submission stage data for the work_order"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Submission_Data"
+
+        validate_submission_info:
+            description: "Validate submission information for the work_order"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Submission_Info"
+
+        fetch_submission_details:
+            description: "Fetch submission details for the work_order"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Submission_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_submission_info
+                with record_ref=@variables.work_order_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.work_order_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the submission stage for the work_order.
+              Current work_order status: {! @variables.work_order_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Submission result: {! @variables.submission_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.work_order_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_submission} to begin processing.
+        actions:
+            run_submission: @actions.process_submission_data
+                with record_ref=@variables.work_order_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.work_order_category
+                set @variables.submission_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.submission_complete = @outputs.is_passed
+            fetch_submission_info: @actions.fetch_submission_details
+                with record_ref=@variables.work_order_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.work_order_tier = @outputs.tier_value
+            go_to_priority_assessment: @utils.transition to @topic.priority_assessment
+                description: "Move to priority assessment stage."
+                available when @variables.submission_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.work_order_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.work_order_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.work_order_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.submission_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic priority_assessment:
+    description: "Handles the priority assessment stage of the work_order process"
+
+    actions:
+        process_priority_assessment_data:
+            description: "Process priority assessment stage data for the work_order"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_PriorityAssessment"
+
+        validate_priority_assessment_info:
+            description: "Validate priority assessment information for the work_order"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PriorityAssessment_Info"
+
+        fetch_priority_assessment_details:
+            description: "Fetch priority assessment details for the work_order"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PriorityAssessment_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.submission_complete == False:
+            transition to @topic.submission
+
+    reasoning:
+        instructions: ->
+            | Handle the priority assessment stage for the work_order.
+              Current work_order status: {! @variables.work_order_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Priority Assessment result: {! @variables.priority_assessment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.work_order_tier }
+              Review the priority assessment results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_priority_assessment: @actions.process_priority_assessment_data
+                with record_ref=@variables.work_order_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.work_order_category
+                set @variables.priority_assessment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.priority_assessment_complete = @outputs.is_passed
+            fetch_priority_assessment_info: @actions.fetch_priority_assessment_details
+                with record_ref=@variables.work_order_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.work_order_tier = @outputs.tier_value
+                available when @variables.work_order_record_id is not None
+            go_to_vendor_assignment: @utils.transition to @topic.vendor_assignment
+                description: "Move to vendor assignment stage."
+                available when @variables.priority_assessment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.priority_assessment_complete == True:
+            set @variables.work_order_status = "priority_assessment_done"
+        if @variables.priority_assessment_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.vendor_assignment
+        if @variables.attempt_count >= 3 and @variables.priority_assessment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic vendor_assignment:
+    description: "Handles the vendor assignment stage of the work_order process"
+
+    actions:
+        process_vendor_assignment_data:
+            description: "Process vendor assignment stage data for the work_order"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_VendorAssignment"
+
+        validate_vendor_assignment_info:
+            description: "Validate vendor assignment information for the work_order"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_VendorAssignment_Info"
+
+        fetch_vendor_assignment_details:
+            description: "Fetch vendor assignment details for the work_order"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_VendorAssignment_Details"
+
+    before_reasoning:
+        if @variables.vendor_assignment_complete == False:
+            run @actions.fetch_vendor_assignment_details
+                with record_ref=@variables.work_order_record_id
+                with include_history=True
+                set @variables.vendor_assignment_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.work_order_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.work_order_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.work_order_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the vendor assignment stage for the work_order.
+              Current work_order status: {! @variables.work_order_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Vendor Assignment result: {! @variables.vendor_assignment_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.work_order_tier }
+              Review the vendor assignment results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_vendor_assignment: @actions.process_vendor_assignment_data
+                with record_ref=@variables.work_order_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.work_order_category
+                set @variables.vendor_assignment_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.vendor_assignment_complete = @outputs.is_passed
+            fetch_vendor_assignment_info: @actions.fetch_vendor_assignment_details
+                with record_ref=@variables.work_order_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.work_order_tier = @outputs.tier_value
+                available when @variables.work_order_record_id is not None
+            go_to_completion_check: @utils.transition to @topic.completion_check
+                description: "Move to completion check stage."
+                available when @variables.vendor_assignment_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.work_order_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.work_order_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.work_order_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.vendor_assignment_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic completion_check:
+    description: "Handles the completion check stage of the work_order process"
+
+    actions:
+        process_completion_check_data:
+            description: "Process completion check stage data for the work_order"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_CompletionCheck_Data"
+
+        validate_completion_check_info:
+            description: "Validate completion check information for the work_order"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_CompletionCheck_Info"
+
+        fetch_completion_check_details:
+            description: "Fetch completion check details for the work_order"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_CompletionCheck_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.vendor_assignment_complete == False:
+            transition to @topic.vendor_assignment
+        if @variables.eligibility_score >= 80:
+            set @variables.work_order_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.work_order_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the completion check stage for the work_order.
+              Current work_order status: {! @variables.work_order_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Completion Check result: {! @variables.completion_check_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.work_order_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_completion_check: @actions.process_completion_check_data
+                with record_ref=@variables.work_order_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.work_order_category
+                set @variables.completion_check_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.completion_check_complete = @outputs.is_passed
+            fetch_completion_check_info: @actions.fetch_completion_check_details
+                with record_ref=@variables.work_order_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.work_order_tier = @outputs.tier_value
+                available when @variables.work_order_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.completion_check_complete == True:
+            set @variables.work_order_status = "completion_check_done"
+        if @variables.attempt_count >= 3 and @variables.completion_check_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for work_order issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the work_order issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the work_order interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the work_order request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Work Order status: {! @variables.work_order_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.work_order_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.work_order_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.work_order_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.work_order_status = "escalated"
+        set @variables.escalation_requested = False
+

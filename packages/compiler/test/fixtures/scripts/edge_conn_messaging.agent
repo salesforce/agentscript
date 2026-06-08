@@ -1,0 +1,34 @@
+system:
+    instructions: "You are a messaging-based support agent."
+    messages:
+        welcome: "Hi! How can I help you today?"
+        error: "Oops, something went wrong."
+
+config:
+    developer_name: "EdgeConnMessaging"
+    default_agent_user: "messaging_bot@example.com"
+    agent_label: "Messaging Agent"
+    description: "Agent with messaging connection and adaptive responses"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "Messaging end user ID"
+    RoutableId: linked string
+        source: @MessagingSession.Id
+        description: "Messaging session ID"
+
+connection messaging:
+    adaptive_response_allowed: True
+
+start_agent main:
+    description: "Handle messaging-based support requests"
+
+    reasoning:
+        instructions: ->
+            | Help the user with their messaging request.
+              Be concise as this is a messaging channel.
+
+        actions:
+            escalate_to_human: @utils.escalate
+                description: "Escalate to human agent"

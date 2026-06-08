@@ -1,0 +1,549 @@
+system:
+    instructions: "You are a customer service assistant. Your role is to help customers create cases, check order status, and escalate issues when necessary. You must verify customer identity through email before proceeding with sensitive operations."
+    messages:
+        welcome: "Welcome to our customer support! I can help you create a new case, check your order status, or assist with escalating existing issues. How can I help you today?"
+        error: "I apologize, but I'm experiencing technical difficulties. Please try again or contact us directly at support@company.com."
+
+config:
+    developer_name: "Customer_Service_Assistant_v1"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Helps customers create cases, check order status, and escalate issues when necessary with proper authentication and deterministic routing."
+
+
+language:
+    default_locale: "en_US"
+
+variables:
+    # Customer verification
+    customer_email: mutable string = ""
+        description: "Customer's email address for verification"
+    customer_verified: mutable boolean = False
+        description: "Whether customer identity has been verified"
+    customer_name: mutable string = ""
+        description: "Customer's name"
+    customer_id: mutable string = ""
+        description: "Internal customer ID"
+
+    # Case management
+    case_type: mutable string = ""
+        description: "Type of case: order_issue, product_problem, billing, technical"
+    case_priority: mutable string = "normal"
+        description: "Case priority: low, normal, high, urgent"
+    case_description: mutable string = ""
+        description: "Detailed description of the issue"
+    case_number: mutable string = ""
+        description: "Generated case number"
+    case_resolved: mutable boolean = False
+        description: "Whether case has been resolved"
+
+    # Escalation logic
+    escalation_score: mutable number = 0
+        description: "Escalation score based on issue complexity (0-100)"
+    escalation_required: mutable boolean = False
+        description: "Whether case requires escalation"
+    escalation_tier: mutable string = ""
+        description: "Escalation tier: l2_support, manager, senior_manager"
+
+start_agent customer_verification:
+    description: "Verifies customer identity and determines service path"
+
+    actions:
+        Verify_Customer_Identity:
+            description: "Verifies customer identity using email address and security questions"
+            label: "Verify Customer Identity"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                email: string
+                    label: "Email Address"
+                    description: "Customer's registered email address"
+                    is_required: True
+                security_question_answer: string
+                    label: "Security Answer"
+                    description: "Answer to security question"
+                    is_required: False
+            outputs:
+                customer_found: boolean
+                    label: "Customer Found"
+                    is_displayable: False
+                customer_name: string
+                    label: "Customer Name"
+                    is_displayable: True
+                customer_id: string
+                    label: "Customer ID"
+                    is_displayable: False
+                account_status: string
+                    label: "Account Status"
+                    is_displayable: False
+                verification_level: string
+                    label: "Verification Level"
+                    is_displayable: False
+            target: "flow://VerifyCustomerIdentity"
+
+        Get_Customer_Case_History:
+            description: "Retrieves customer's previous case history for context"
+            label: "Get Case History"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+            outputs:
+                previous_cases: number
+                    label: "Previous Cases Count"
+                    is_displayable: True
+                recent_case_type: string
+                    label: "Recent Case Type"
+                    is_displayable: False
+                customer_tier: string
+                    label: "Customer Tier"
+                    is_displayable: False
+                escalation_history: boolean
+                    label: "Has Escalation History"
+                    is_displayable: False
+            target: "flow://GetCustomerCaseHistory"
+
+    before_reasoning:
+        if @variables.customer_verified == False:
+            set @variables.escalation_score = 0
+            set @variables.case_priority = "normal"
+
+    reasoning:
+        instructions: ->
+            |  Welcome to customer support! I'm here to help you with any issues you're experiencing.
+            |  To ensure I can access your account information securely, I'll need to verify your identity first.
+            |  Please provide:
+            |  - Your email address associated with your account
+            |  - Your name as it appears on the account
+            |  What type of issue can I help you with today?
+
+        actions:
+            verify_customer: @actions.Verify_Customer_Identity
+                with email=@variables.customer_email
+                with security_question_answer=""
+                set @variables.customer_verified = @outputs.customer_found
+                set @variables.customer_name = @outputs.customer_name
+                set @variables.customer_id = @outputs.customer_id
+
+            # multiply and divide not supported - using raw value
+            get_case_history: @actions.Get_Customer_Case_History
+                with customer_id=@variables.customer_id
+                set @variables.escalation_score = @outputs.previous_cases
+
+            capture_customer_info: @utils.setVariables
+                description: "Capture customer verification details"
+                with customer_email=@variables.customer_email
+                with customer_name=@variables.customer_name
+                with case_type=@variables.case_type
+
+            create_case: @utils.transition to @topic.case_creation
+                description: "Create a new support case"
+
+    after_reasoning:
+        if @variables.customer_email != "" and @variables.customer_name != "":
+            run @actions.Verify_Customer_Identity
+                with email=@variables.customer_email
+                with security_question_answer=""
+                set @variables.customer_verified = @outputs.customer_found
+                set @variables.customer_name = @outputs.customer_name
+                set @variables.customer_id = @outputs.customer_id
+
+        if @variables.customer_verified:
+            # multiply and divide not supported - using raw value
+            run @actions.Get_Customer_Case_History
+                with customer_id=@variables.customer_id
+                set @variables.escalation_score = @outputs.previous_cases
+
+        if @variables.case_type != "":
+            transition to @topic.case_creation
+
+topic case_creation:
+    description: "Creates and manages customer support cases with deterministic prioritization"
+
+    actions:
+        Create_Support_Case:
+            description: "Creates a new support case in the system"
+            label: "Create Support Case"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+                case_type: string
+                    label: "Case Type"
+                    description: "Type of issue being reported"
+                    is_required: True
+                case_description: string
+                    label: "Case Description"
+                    description: "Detailed description of the issue"
+                    is_required: True
+                priority: string
+                    label: "Priority Level"
+                    description: "Case priority level"
+                    is_required: True
+            outputs:
+                case_number: string
+                    label: "Case Number"
+                    is_displayable: True
+                estimated_resolution: string
+                    label: "Estimated Resolution Time"
+                    is_displayable: True
+                assigned_agent: string
+                    label: "Assigned Agent"
+                    is_displayable: True
+                auto_escalate: boolean
+                    label: "Auto Escalate Required"
+                    is_displayable: False
+            target: "flow://CreateSupportCase"
+
+        Calculate_Escalation_Score:
+            description: "Calculates escalation score based on case details and customer history"
+            label: "Calculate Escalation Score"
+            require_user_confirmation: False
+            include_in_progress_indicator: False
+            inputs:
+                case_type: string
+                    label: "Case Type"
+                    description: "Type of case being created"
+                    is_required: True
+                customer_tier: string
+                    label: "Customer Tier"
+                    description: "Customer's service tier"
+                    is_required: True
+                previous_escalations: number
+                    label: "Previous Escalations"
+                    description: "Number of previous escalations"
+                    is_required: True
+                case_complexity: string
+                    label: "Case Complexity"
+                    description: "Assessed complexity level"
+                    is_required: True
+            outputs:
+                escalation_score: number
+                    label: "Escalation Score"
+                    is_displayable: False
+                recommended_tier: string
+                    label: "Recommended Escalation Tier"
+                    is_displayable: False
+                immediate_escalation: boolean
+                    label: "Immediate Escalation Required"
+                    is_displayable: False
+            target: "flow://CalculateEscalationScore"
+
+    before_reasoning:
+        if @variables.case_type == "billing":
+            set @variables.escalation_score = @variables.escalation_score + 30
+        if @variables.case_type == "technical":
+            set @variables.escalation_score = @variables.escalation_score + 40
+        if @variables.case_type == "product_problem":
+            set @variables.escalation_score = @variables.escalation_score + 50
+        if @variables.case_type == "order_issue":
+            set @variables.escalation_score = @variables.escalation_score + 20
+
+    reasoning:
+        instructions: ->
+            |  Thank you for verifying your identity, {! @variables.customer_name }!
+            |  I see you have a {! @variables.case_type } issue. Let me gather some details to create your case.
+            |  Current escalation score: {! @variables.escalation_score }/100
+            |  Priority level: {! @variables.case_priority }
+            |  Please describe your issue in detail. The more specific information you can provide, the better I can assist you.
+
+        actions:
+            create_case: @actions.Create_Support_Case
+                with customer_id=@variables.customer_id
+                with case_type=@variables.case_type
+                with case_description=@variables.case_description
+                with priority=@variables.case_priority
+                set @variables.case_number = @outputs.case_number
+
+            calculate_escalation: @actions.Calculate_Escalation_Score
+                with case_type=@variables.case_type
+                with customer_tier="standard"
+                with previous_escalations=1
+                with case_complexity="medium"
+                set @variables.escalation_score = @outputs.escalation_score
+                set @variables.escalation_tier = @outputs.recommended_tier
+
+            capture_case_details: @utils.setVariables
+                description: "Capture detailed case information"
+                with case_description=@variables.case_description
+
+            assess_escalation: @utils.transition to @topic.escalation_assessment
+                description: "Assess if escalation is needed"
+
+            resolve_case: @utils.transition to @topic.case_resolution
+                description: "Attempt to resolve case directly"
+
+    after_reasoning:
+        if @variables.case_description != "":
+            run @actions.Create_Support_Case
+                with customer_id=@variables.customer_id
+                with case_type=@variables.case_type
+                with case_description=@variables.case_description
+                with priority=@variables.case_priority
+                set @variables.case_number = @outputs.case_number
+
+            run @actions.Calculate_Escalation_Score
+                with case_type=@variables.case_type
+                with customer_tier="standard"
+                with previous_escalations=1
+                with case_complexity="medium"
+                set @variables.escalation_score = @outputs.escalation_score
+                set @variables.escalation_tier = @outputs.recommended_tier
+
+        if @variables.escalation_score >= 60:
+            set @variables.escalation_required = True
+            set @variables.case_priority = "high"
+            transition to @topic.escalation_assessment
+        if @variables.escalation_score < 60:
+            transition to @topic.case_resolution
+
+topic escalation_assessment:
+    description: "Assesses escalation requirements and routes to appropriate support tier"
+
+    actions:
+        Initiate_Escalation:
+            description: "Initiates escalation to appropriate support tier"
+            label: "Initiate Escalation"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                case_number: string
+                    label: "Case Number"
+                    description: "Case to escalate"
+                    is_required: True
+                escalation_tier: string
+                    label: "Escalation Tier"
+                    description: "Target escalation tier"
+                    is_required: True
+                escalation_reason: string
+                    label: "Escalation Reason"
+                    description: "Reason for escalation"
+                    is_required: True
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer identifier"
+                    is_required: True
+            outputs:
+                escalation_approved: boolean
+                    label: "Escalation Approved"
+                    is_displayable: True
+                assigned_specialist: string
+                    label: "Assigned Specialist"
+                    is_displayable: True
+                response_sla: string
+                    label: "Response SLA"
+                    is_displayable: True
+                escalation_id: string
+                    label: "Escalation ID"
+                    is_displayable: True
+            target: "flow://InitiateEscalation"
+
+        Notify_Customer:
+            description: "Notifies customer about escalation and next steps"
+            label: "Notify Customer"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                customer_id: string
+                    label: "Customer ID"
+                    description: "Customer to notify"
+                    is_required: True
+                case_number: string
+                    label: "Case Number"
+                    description: "Case reference"
+                    is_required: True
+                escalation_details: string
+                    label: "Escalation Details"
+                    description: "Details about the escalation"
+                    is_required: True
+            outputs:
+                notification_sent: boolean
+                    label: "Notification Sent"
+                    is_displayable: True
+                delivery_method: string
+                    label: "Delivery Method"
+                    is_displayable: False
+            target: "flow://NotifyCustomer"
+
+    before_reasoning:
+        if @variables.escalation_score >= 80:
+            set @variables.escalation_tier = "senior_manager"
+            set @variables.case_priority = "urgent"
+        if @variables.escalation_score >= 60:
+            set @variables.escalation_tier = "manager"
+            set @variables.case_priority = "high"
+        if @variables.escalation_score >= 40:
+            set @variables.escalation_tier = "l2_support"
+
+    reasoning:
+        instructions: ->
+            |  Based on the complexity and nature of your issue, I've determined that your case requires escalation.
+            |  Case Details:
+            |  - Case Number: {! @variables.case_number }
+            |  - Priority: {! @variables.case_priority }
+            |  - Escalation Score: {! @variables.escalation_score }/100
+            |  - Escalation Tier: {! @variables.escalation_tier }
+            |  I'm routing your case to our {! @variables.escalation_tier } team who will be better equipped to handle your specific situation.
+            |  You can expect to hear from them within:
+            |  - L2 Support: 2-4 hours
+            |  - Manager: 1-2 hours
+            |  - Senior Manager: 30 minutes
+            |  Is there anything else I can help clarify about your case before the handoff?
+
+        actions:
+            escalate_case: @actions.Initiate_Escalation
+                with case_number=@variables.case_number
+                with escalation_tier=@variables.escalation_tier
+                with escalation_reason="Complex issue requiring specialized expertise"
+                with customer_id=@variables.customer_id
+                set @variables.escalation_required = True
+
+            send_escalation_notification: @actions.Notify_Customer
+                with customer_id=@variables.customer_id
+                with case_number=@variables.case_number
+                with escalation_details="Your case has been escalated to " + @variables.escalation_tier
+
+            capture_additional_info: @utils.setVariables
+                description: "Capture any additional case information"
+                with case_description=@variables.case_description
+
+            help_another: @utils.transition to @topic.customer_verification
+                description: "Help another customer"
+
+    after_reasoning:
+        if @variables.escalation_tier != "":
+            run @actions.Initiate_Escalation
+                with case_number=@variables.case_number
+                with escalation_tier=@variables.escalation_tier
+                with escalation_reason="Complex issue requiring specialized expertise"
+                with customer_id=@variables.customer_id
+                set @variables.escalation_required = True
+
+            run @actions.Notify_Customer
+                with customer_id=@variables.customer_id
+                with case_number=@variables.case_number
+                with escalation_details="Your case has been escalated to " + @variables.escalation_tier
+
+topic case_resolution:
+    description: "Attempts direct case resolution for lower priority issues"
+
+    actions:
+        Provide_Solution:
+            description: "Provides solution recommendation based on case type"
+            label: "Provide Solution"
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            inputs:
+                case_type: string
+                    label: "Case Type"
+                    description: "Type of issue to resolve"
+                    is_required: True
+                case_description: string
+                    label: "Case Description"
+                    description: "Issue details"
+                    is_required: True
+                customer_tier: string
+                    label: "Customer Tier"
+                    description: "Customer service tier"
+                    is_required: True
+            outputs:
+                solution_found: boolean
+                    label: "Solution Found"
+                    is_displayable: False
+                solution_steps: string
+                    label: "Solution Steps"
+                    is_displayable: True
+                resolution_successful: boolean
+                    label: "Resolution Successful"
+                    is_displayable: False
+                followup_needed: boolean
+                    label: "Follow-up Needed"
+                    is_displayable: False
+            target: "flow://ProvideSolution"
+
+        Close_Case:
+            description: "Closes resolved case and gathers customer satisfaction feedback"
+            label: "Close Case"
+            require_user_confirmation: True
+            include_in_progress_indicator: True
+            inputs:
+                case_number: string
+                    label: "Case Number"
+                    description: "Case to close"
+                    is_required: True
+                resolution_summary: string
+                    label: "Resolution Summary"
+                    description: "Summary of how issue was resolved"
+                    is_required: True
+                customer_satisfied: boolean
+                    label: "Customer Satisfied"
+                    description: "Customer satisfaction status"
+                    is_required: True
+            outputs:
+                case_closed: boolean
+                    label: "Case Closed"
+                    is_displayable: True
+                satisfaction_score: number
+                    label: "Satisfaction Score"
+                    is_displayable: True
+                feedback_collected: boolean
+                    label: "Feedback Collected"
+                    is_displayable: False
+            target: "flow://CloseCase"
+
+    before_reasoning:
+        if @variables.case_type != "":
+            run @actions.Provide_Solution
+                with case_type=@variables.case_type
+                with case_description=@variables.case_description
+                with customer_tier="standard"
+
+    reasoning:
+        instructions: ->
+            |  I'll work to resolve your {! @variables.case_type } issue directly.
+            |  Your Case: {! @variables.case_number }
+            |  Priority: {! @variables.case_priority }
+            |  Issue: {! @variables.case_description }
+            |  Based on similar cases, here are the most common solutions:
+            |  1. For order issues: Check order status and tracking information
+            |  2. For billing questions: Review recent charges and payment methods
+            |  3. For technical problems: Verify account settings and try basic troubleshooting
+            |  4. For product issues: Check warranty status and available support options
+            |  Does this help resolve your issue, or do you need me to escalate this to a specialist?
+
+        actions:
+            offer_solution: @actions.Provide_Solution
+                with case_type=@variables.case_type
+                with case_description=@variables.case_description
+                with customer_tier="standard"
+                set @variables.case_resolved = @outputs.resolution_successful
+
+            close_resolved_case: @actions.Close_Case
+                with case_number=@variables.case_number
+                with resolution_summary="Issue resolved through direct support"
+                with customer_satisfied=True
+
+            capture_resolution_feedback: @utils.setVariables
+                description: "Capture customer feedback on resolution attempt"
+                with case_description=@variables.case_description
+
+            escalate_case: @utils.transition to @topic.escalation_assessment
+                description: "Escalate to higher tier support"
+
+            help_another: @utils.transition to @topic.customer_verification
+                description: "Help another customer"
+
+    after_reasoning:
+        if @variables.case_description != "":
+            set @variables.escalation_score = @variables.escalation_score + 20
+
+        if @variables.case_resolved:
+            run @actions.Close_Case
+                with case_number=@variables.case_number
+                with resolution_summary="Issue resolved through direct support"
+                with customer_satisfied=True

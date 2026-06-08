@@ -1,0 +1,56 @@
+system:
+    instructions: "You are an order lookup assistant."
+    messages:
+        welcome: "Hello! I can help you look up your order."
+        error: "Something went wrong."
+
+config:
+    developer_name: "Edge_Cond_Action_Conditional"
+    default_agent_user: "test_user"
+    description: "Tests post-action conditionals in reasoning actions"
+
+variables:
+    order_id: mutable string = ""
+    result: mutable string = ""
+    customer_email: mutable string = ""
+
+start_agent main:
+    description: "Tests action invocation followed by conditional transition"
+
+    actions:
+        lookup_order:
+            description: "Looks up an order by ID"
+            inputs:
+                order_id: string
+                email: string
+            outputs:
+                order_details: string
+            target: "flow://LookupOrder"
+
+    reasoning:
+        instructions: ->
+            | Help the user look up their order status.
+
+        actions:
+            lookup: @actions.lookup_order
+                with order_id=@variables.order_id
+                with email=@variables.customer_email
+                set @variables.result = @outputs.order_details
+                if @variables.result == "":
+                    transition to @topic.not_found
+
+            escalate_to_human: @utils.transition to @topic.escalation
+
+topic not_found:
+    description: "Handles cases where the order was not found"
+
+    reasoning:
+        instructions: ->
+            | I'm sorry, I could not find that order. Let me help you further.
+
+topic escalation:
+    description: "Escalation topic"
+
+    reasoning:
+        instructions: ->
+            | Transferring you to a human agent.

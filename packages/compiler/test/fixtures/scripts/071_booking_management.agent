@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional booking management agent assistant.
+        Help users manage their booking requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: search -> selection -> payment_processing -> confirmation.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Booking Management Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "booking_management_agent_v71"
+    default_agent_user: "booking_management@example.com"
+    agent_description: "Assists users with booking management through the booking management agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    booking_record_id: mutable string
+        description: "Record ID of the booking"
+    booking_status: mutable string = ""
+        description: "Current status of the booking"
+    booking_tier: mutable string = "standard"
+        description: "Tier classification for the booking"
+    booking_category: mutable string = ""
+        description: "Category of the booking"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    search_complete: mutable boolean = False
+        description: "Whether the search stage is complete"
+    search_result: mutable string = ""
+        description: "Result from the search stage"
+    selection_complete: mutable boolean = False
+        description: "Whether the selection stage is complete"
+    selection_result: mutable string = ""
+        description: "Result from the selection stage"
+    payment_processing_complete: mutable boolean = False
+        description: "Whether the payment_processing stage is complete"
+    payment_processing_result: mutable string = ""
+        description: "Result from the payment_processing stage"
+    confirmation_complete: mutable boolean = False
+        description: "Whether the confirmation stage is complete"
+    confirmation_result: mutable string = ""
+        description: "Result from the confirmation stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate booking management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a booking management agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current booking status: {! @variables.booking_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_search} for search requests.
+              Use {!@actions.go_to_selection} for selection requests.
+              Use {!@actions.go_to_payment_processing} for payment processing requests.
+              Use {!@actions.go_to_confirmation} for confirmation requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_search: @utils.transition to @topic.search
+                description: "Transition to search topic."
+            go_to_selection: @utils.transition to @topic.selection
+                description: "Transition to selection topic."
+                available when @variables.is_verified == True
+            go_to_payment_processing: @utils.transition to @topic.payment_processing
+                description: "Transition to payment processing topic."
+                available when @variables.is_verified == True
+            go_to_confirmation: @utils.transition to @topic.confirmation
+                description: "Transition to confirmation topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic search:
+    description: "Handles the search stage of the booking process"
+
+    actions:
+        process_search_data:
+            description: "Process search stage data for the booking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Search"
+
+        validate_search_info:
+            description: "Validate search information for the booking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Search_Info"
+
+        fetch_search_details:
+            description: "Fetch search details for the booking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Search_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_search_info
+                with record_ref=@variables.booking_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.booking_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the search stage for the booking.
+              Current booking status: {! @variables.booking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Search result: {! @variables.search_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.booking_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_search} to begin processing.
+        actions:
+            run_search: @actions.process_search_data
+                with record_ref=@variables.booking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.booking_category
+                set @variables.search_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.search_complete = @outputs.is_passed
+            fetch_search_info: @actions.fetch_search_details
+                with record_ref=@variables.booking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.booking_tier = @outputs.tier_value
+            go_to_selection: @utils.transition to @topic.selection
+                description: "Move to selection stage."
+                available when @variables.search_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.booking_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.booking_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.booking_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.search_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic selection:
+    description: "Handles the selection stage of the booking process"
+
+    actions:
+        process_selection_data:
+            description: "Process selection stage data for the booking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Selection"
+
+        validate_selection_info:
+            description: "Validate selection information for the booking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Selection_Info"
+
+        fetch_selection_details:
+            description: "Fetch selection details for the booking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Selection_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.search_complete == False:
+            transition to @topic.search
+
+    reasoning:
+        instructions: ->
+            | Handle the selection stage for the booking.
+              Current booking status: {! @variables.booking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Selection result: {! @variables.selection_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.booking_tier }
+              Review the selection results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_selection: @actions.process_selection_data
+                with record_ref=@variables.booking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.booking_category
+                set @variables.selection_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.selection_complete = @outputs.is_passed
+            fetch_selection_info: @actions.fetch_selection_details
+                with record_ref=@variables.booking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.booking_tier = @outputs.tier_value
+                available when @variables.booking_record_id is not None
+            go_to_payment_processing: @utils.transition to @topic.payment_processing
+                description: "Move to payment processing stage."
+                available when @variables.selection_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.selection_complete == True:
+            set @variables.booking_status = "selection_done"
+        if @variables.selection_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.payment_processing
+        if @variables.attempt_count >= 3 and @variables.selection_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic payment_processing:
+    description: "Handles the payment processing stage of the booking process"
+
+    actions:
+        process_payment_processing_data:
+            description: "Process payment processing stage data for the booking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_PaymentProcessing_Data"
+
+        validate_payment_processing_info:
+            description: "Validate payment processing information for the booking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_PaymentProcessing_Info"
+
+        fetch_payment_processing_details:
+            description: "Fetch payment processing details for the booking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_PaymentProcessing_Details"
+
+    before_reasoning:
+        if @variables.payment_processing_complete == False:
+            run @actions.fetch_payment_processing_details
+                with record_ref=@variables.booking_record_id
+                with include_history=True
+                set @variables.payment_processing_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.booking_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.booking_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.booking_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the payment processing stage for the booking.
+              Current booking status: {! @variables.booking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Payment Processing result: {! @variables.payment_processing_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.booking_tier }
+              Review the payment processing results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_payment_processing: @actions.process_payment_processing_data
+                with record_ref=@variables.booking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.booking_category
+                set @variables.payment_processing_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.payment_processing_complete = @outputs.is_passed
+            fetch_payment_processing_info: @actions.fetch_payment_processing_details
+                with record_ref=@variables.booking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.booking_tier = @outputs.tier_value
+                available when @variables.booking_record_id is not None
+            go_to_confirmation: @utils.transition to @topic.confirmation
+                description: "Move to confirmation stage."
+                available when @variables.payment_processing_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.booking_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.booking_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.booking_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.payment_processing_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic confirmation:
+    description: "Handles the confirmation stage of the booking process"
+
+    actions:
+        process_confirmation_data:
+            description: "Process confirmation stage data for the booking"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Confirmation"
+
+        validate_confirmation_info:
+            description: "Validate confirmation information for the booking"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Confirmation_Info"
+
+        fetch_confirmation_details:
+            description: "Fetch confirmation details for the booking"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Confirmation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.payment_processing_complete == False:
+            transition to @topic.payment_processing
+        if @variables.eligibility_score >= 80:
+            set @variables.booking_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.booking_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the confirmation stage for the booking.
+              Current booking status: {! @variables.booking_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Confirmation result: {! @variables.confirmation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.booking_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_confirmation: @actions.process_confirmation_data
+                with record_ref=@variables.booking_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.booking_category
+                set @variables.confirmation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.confirmation_complete = @outputs.is_passed
+            fetch_confirmation_info: @actions.fetch_confirmation_details
+                with record_ref=@variables.booking_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.booking_tier = @outputs.tier_value
+                available when @variables.booking_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.confirmation_complete == True:
+            set @variables.booking_status = "confirmation_done"
+        if @variables.attempt_count >= 3 and @variables.confirmation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for booking issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the booking issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the booking interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the booking request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Booking status: {! @variables.booking_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.booking_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.booking_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.booking_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.booking_status = "escalated"
+        set @variables.escalation_requested = False
+

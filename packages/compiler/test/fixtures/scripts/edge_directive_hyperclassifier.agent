@@ -1,0 +1,63 @@
+system:
+    instructions: "You are an agent with hyperclassifier directive and models on multiple topics."
+    messages:
+        welcome: "Hi! I'm here to assist you."
+        error: "Something went wrong."
+
+config:
+    developer_name: "Directive_Hyperclassifier"
+    default_agent_user: "defaultagentuser@example.com"
+    description: "Directive plus model on start_agent and a secondary topic"
+
+language:
+    default_locale: "en_US"
+
+start_agent topic_selector:
+    label: "Topic Selector"
+    description: "Hyperclassifier-powered topic selector"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Route the user to the appropriate topic based on their message.
+        actions:
+            go_premium: @utils.transition to @topic.premium_support
+                description: "Route to premium support with advanced model"
+            go_standard: @utils.transition to @topic.standard_support
+                description: "Route to standard support"
+            go_off_topic: @utils.transition to @topic.off_topic
+                description: "Handle off-topic requests"
+
+topic premium_support:
+    label: "Premium Support"
+    description: "Premium support with advanced model for complex issues"
+
+    reasoning:
+        instructions: ->
+            | Provide premium-level support with detailed, comprehensive responses.
+              Take extra care to fully resolve the customer's issue.
+        actions:
+            escalate_to_human: @utils.transition to @topic.standard_support
+                description: "Escalate to standard support"
+
+topic standard_support:
+    label: "Standard Support"
+    description: "Standard support for common issues"
+
+    reasoning:
+        instructions: ->
+            | Provide helpful support for common issues.
+              If the issue is complex, offer to escalate to premium support.
+        actions:
+            escalate_to_human: @utils.transition to @topic.premium_support
+                description: "Escalate to premium support"
+
+topic off_topic:
+    label: "Off Topic"
+    description: "Redirects off-topic conversations"
+
+    reasoning:
+        instructions: ->
+            | Politely redirect the user to relevant topics.

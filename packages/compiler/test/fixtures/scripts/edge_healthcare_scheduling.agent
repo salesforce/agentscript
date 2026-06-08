@@ -1,0 +1,144 @@
+system:
+    instructions: "You are a healthcare appointment scheduling assistant. Help patients find providers, verify insurance, and book appointments."
+    messages:
+        welcome: "Hello! I can help you schedule a healthcare appointment."
+        error: "Sorry, there was an issue with the scheduling system."
+
+config:
+    developer_name: "Healthcare_Scheduling_Agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "scheduling@clinic.com"
+    description: "Handles appointment scheduling with insurance verification and provider search."
+
+language:
+    default_locale: "en_US"
+
+variables:
+    patient_id: mutable string = ""
+        description: "Patient identifier"
+    insurance_verified: mutable boolean = False
+        description: "Whether insurance is verified"
+    provider_id: mutable string = ""
+        description: "Selected provider ID"
+    appointment_date: mutable string = ""
+        description: "Requested appointment date"
+    appointment_confirmed: mutable boolean = False
+        description: "Whether appointment is confirmed"
+    specialty: mutable string = ""
+        description: "Medical specialty needed"
+
+start_agent scheduling_intake:
+    description: "Gathers patient information and determines scheduling needs"
+
+    reasoning:
+        instructions: ->
+            | Welcome the patient and ask about their scheduling needs.
+              Gather their patient ID, insurance info, and desired specialty.
+
+        actions:
+            go_insurance: @utils.transition to @topic.insurance_verification
+                description: "Verify insurance first"
+            go_provider: @utils.transition to @topic.provider_search
+                description: "Search for providers directly"
+
+topic insurance_verification:
+    description: "Verifies patient insurance coverage"
+
+    actions:
+        verify_insurance:
+            description: "Verifies insurance coverage and benefits"
+            inputs:
+                patient_id: string
+                    is_required: True
+                insurance_id: string
+                    is_required: True
+            outputs:
+                covered: boolean
+                copay_amount: number
+                network_type: string
+            target: "flow://VerifyInsurance"
+
+    before_reasoning:
+        if @variables.patient_id != "":
+            run @actions.verify_insurance
+                with patient_id=@variables.patient_id
+                with insurance_id=@variables.patient_id
+                set @variables.insurance_verified = @outputs.covered
+
+    reasoning:
+        instructions: ->
+            | Review insurance verification results and inform the patient.
+              If covered, proceed to provider search.
+
+        actions:
+            verify: @actions.verify_insurance
+                with patient_id=@variables.patient_id
+                with insurance_id=@variables.patient_id
+                set @variables.insurance_verified = @outputs.covered
+
+            go_provider: @utils.transition to @topic.provider_search
+                description: "Find available providers"
+                available when @variables.insurance_verified == True
+
+    after_reasoning:
+        if @variables.insurance_verified == True:
+            transition to @topic.provider_search
+
+topic provider_search:
+    description: "Searches for available healthcare providers"
+
+    actions:
+        search_providers:
+            description: "Searches for providers by specialty and availability"
+            inputs:
+                specialty: string
+                    is_required: True
+                appointment_date: string
+                insurance_network: string
+            outputs:
+                providers: string
+                available_slots: string
+            target: "externalService://SearchProviders"
+
+    reasoning:
+        instructions: ->
+            | Search for available providers matching the patient's needs.
+              Present options and help them choose.
+
+        actions:
+            search: @actions.search_providers
+                with specialty=@variables.specialty
+                with appointment_date=@variables.appointment_date
+                with insurance_network=...
+
+            go_booking: @utils.transition to @topic.appointment_booking
+                description: "Book the appointment"
+
+topic appointment_booking:
+    description: "Books the appointment with the selected provider"
+
+    actions:
+        book_appointment:
+            description: "Books the appointment and sends confirmation"
+            inputs:
+                patient_id: string
+                    is_required: True
+                provider_id: string
+                    is_required: True
+                appointment_date: string
+                    is_required: True
+            outputs:
+                confirmed: boolean
+                confirmation_number: string
+            target: "flow://BookAppointment"
+
+    reasoning:
+        instructions: ->
+            | Confirm the appointment details with the patient and book it.
+
+        actions:
+            book: @actions.book_appointment
+                with patient_id=@variables.patient_id
+                with provider_id=@variables.provider_id
+                with appointment_date=@variables.appointment_date
+                set @variables.appointment_confirmed = @outputs.confirmed

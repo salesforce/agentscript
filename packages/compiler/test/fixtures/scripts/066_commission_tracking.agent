@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional commission tracking agent assistant.
+        Help users manage their commission requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: deal_registration -> split_calculation -> approval -> disbursement.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Commission Tracking Agent Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "commission_tracking_agent_v66"
+    default_agent_user: "commission_tracking@example.com"
+    agent_description: "Assists users with commission management through the commission tracking agent workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    commission_record_id: mutable string
+        description: "Record ID of the commission"
+    commission_status: mutable string = ""
+        description: "Current status of the commission"
+    commission_tier: mutable string = "standard"
+        description: "Tier classification for the commission"
+    commission_category: mutable string = ""
+        description: "Category of the commission"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    deal_registration_complete: mutable boolean = False
+        description: "Whether the deal_registration stage is complete"
+    deal_registration_result: mutable string = ""
+        description: "Result from the deal_registration stage"
+    split_calculation_complete: mutable boolean = False
+        description: "Whether the split_calculation stage is complete"
+    split_calculation_result: mutable string = ""
+        description: "Result from the split_calculation stage"
+    approval_complete: mutable boolean = False
+        description: "Whether the approval stage is complete"
+    approval_result: mutable string = ""
+        description: "Result from the approval stage"
+    disbursement_complete: mutable boolean = False
+        description: "Whether the disbursement stage is complete"
+    disbursement_result: mutable string = ""
+        description: "Result from the disbursement stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate commission management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a commission tracking agent assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current commission status: {! @variables.commission_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_deal_registration} for deal registration requests.
+              Use {!@actions.go_to_split_calculation} for split calculation requests.
+              Use {!@actions.go_to_approval} for approval requests.
+              Use {!@actions.go_to_disbursement} for disbursement requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_deal_registration: @utils.transition to @topic.deal_registration
+                description: "Transition to deal registration topic."
+            go_to_split_calculation: @utils.transition to @topic.split_calculation
+                description: "Transition to split calculation topic."
+                available when @variables.is_verified == True
+            go_to_approval: @utils.transition to @topic.approval
+                description: "Transition to approval topic."
+                available when @variables.is_verified == True
+            go_to_disbursement: @utils.transition to @topic.disbursement
+                description: "Transition to disbursement topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic deal_registration:
+    description: "Handles the deal registration stage of the commission process"
+
+    actions:
+        process_deal_registration_data:
+            description: "Process deal registration stage data for the commission"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_DealRegistration"
+
+        validate_deal_registration_info:
+            description: "Validate deal registration information for the commission"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_DealRegistration_Info"
+
+        fetch_deal_registration_details:
+            description: "Fetch deal registration details for the commission"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_DealRegistration_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_deal_registration_info
+                with record_ref=@variables.commission_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.commission_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the deal registration stage for the commission.
+              Current commission status: {! @variables.commission_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Deal Registration result: {! @variables.deal_registration_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.commission_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_deal_registration} to begin processing.
+        actions:
+            run_deal_registration: @actions.process_deal_registration_data
+                with record_ref=@variables.commission_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.commission_category
+                set @variables.deal_registration_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.deal_registration_complete = @outputs.is_passed
+            fetch_deal_registration_info: @actions.fetch_deal_registration_details
+                with record_ref=@variables.commission_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.commission_tier = @outputs.tier_value
+            go_to_split_calculation: @utils.transition to @topic.split_calculation
+                description: "Move to split calculation stage."
+                available when @variables.deal_registration_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.commission_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.commission_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.commission_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.deal_registration_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic split_calculation:
+    description: "Handles the split calculation stage of the commission process"
+
+    actions:
+        process_split_calculation_data:
+            description: "Process split calculation stage data for the commission"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_SplitCalculation_Data"
+
+        validate_split_calculation_info:
+            description: "Validate split calculation information for the commission"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_SplitCalculation_Info"
+
+        fetch_split_calculation_details:
+            description: "Fetch split calculation details for the commission"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_SplitCalculation_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.deal_registration_complete == False:
+            transition to @topic.deal_registration
+
+    reasoning:
+        instructions: ->
+            | Handle the split calculation stage for the commission.
+              Current commission status: {! @variables.commission_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Split Calculation result: {! @variables.split_calculation_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.commission_tier }
+              Review the split calculation results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_split_calculation: @actions.process_split_calculation_data
+                with record_ref=@variables.commission_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.commission_category
+                set @variables.split_calculation_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.split_calculation_complete = @outputs.is_passed
+            fetch_split_calculation_info: @actions.fetch_split_calculation_details
+                with record_ref=@variables.commission_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.commission_tier = @outputs.tier_value
+                available when @variables.commission_record_id is not None
+            go_to_approval: @utils.transition to @topic.approval
+                description: "Move to approval stage."
+                available when @variables.split_calculation_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.split_calculation_complete == True:
+            set @variables.commission_status = "split_calculation_done"
+        if @variables.split_calculation_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.approval
+        if @variables.attempt_count >= 3 and @variables.split_calculation_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic approval:
+    description: "Handles the approval stage of the commission process"
+
+    actions:
+        process_approval_data:
+            description: "Process approval stage data for the commission"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_Approval"
+
+        validate_approval_info:
+            description: "Validate approval information for the commission"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Approval_Info"
+
+        fetch_approval_details:
+            description: "Fetch approval details for the commission"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Approval_Details"
+
+    before_reasoning:
+        if @variables.approval_complete == False:
+            run @actions.fetch_approval_details
+                with record_ref=@variables.commission_record_id
+                with include_history=True
+                set @variables.approval_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.commission_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.commission_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.commission_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the approval stage for the commission.
+              Current commission status: {! @variables.commission_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Approval result: {! @variables.approval_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.commission_tier }
+              Review the approval results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_approval: @actions.process_approval_data
+                with record_ref=@variables.commission_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.commission_category
+                set @variables.approval_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.approval_complete = @outputs.is_passed
+            fetch_approval_info: @actions.fetch_approval_details
+                with record_ref=@variables.commission_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.commission_tier = @outputs.tier_value
+                available when @variables.commission_record_id is not None
+            go_to_disbursement: @utils.transition to @topic.disbursement
+                description: "Move to disbursement stage."
+                available when @variables.approval_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.commission_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.commission_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.commission_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.approval_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic disbursement:
+    description: "Handles the disbursement stage of the commission process"
+
+    actions:
+        process_disbursement_data:
+            description: "Process disbursement stage data for the commission"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Disbursement"
+
+        validate_disbursement_info:
+            description: "Validate disbursement information for the commission"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Disbursement_Info"
+
+        fetch_disbursement_details:
+            description: "Fetch disbursement details for the commission"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Disbursement_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.approval_complete == False:
+            transition to @topic.approval
+        if @variables.eligibility_score >= 80:
+            set @variables.commission_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.commission_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the disbursement stage for the commission.
+              Current commission status: {! @variables.commission_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Disbursement result: {! @variables.disbursement_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.commission_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_disbursement: @actions.process_disbursement_data
+                with record_ref=@variables.commission_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.commission_category
+                set @variables.disbursement_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.disbursement_complete = @outputs.is_passed
+            fetch_disbursement_info: @actions.fetch_disbursement_details
+                with record_ref=@variables.commission_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.commission_tier = @outputs.tier_value
+                available when @variables.commission_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.disbursement_complete == True:
+            set @variables.commission_status = "disbursement_done"
+        if @variables.attempt_count >= 3 and @variables.disbursement_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for commission issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the commission issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the commission interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the commission request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Commission status: {! @variables.commission_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.commission_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.commission_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.commission_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.commission_status = "escalated"
+        set @variables.escalation_requested = False
+

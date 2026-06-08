@@ -1,0 +1,576 @@
+system:
+    instructions: |
+        You are a professional grant management specialist assistant.
+        Help users manage their grant requests efficiently and accurately.
+        Always verify the user's identity before proceeding with sensitive operations.
+        Follow the established workflow: application_review -> scoring -> award_processing -> monitoring.
+        Be concise, professional, and confirm next steps at the end of each exchange.
+        If the user is upset or asks for a human, escalate immediately.
+        Never reveal internal record IDs or system identifiers to the user.
+    messages:
+        welcome: "Hello! I am your Grant Management Specialist Assistant. How can I help you today?"
+        error: "I apologize, something went wrong on my end. Could you please rephrase your request?"
+
+
+config:
+    developer_name: "grant_management_agent_v96"
+    default_agent_user: "grant_management@example.com"
+    agent_description: "Assists users with grant management through the grant management specialist workflow."
+    enable_enhanced_event_logs: True
+
+
+language:
+    default_locale: "en_US"
+
+
+variables:
+    grant_record_id: mutable string
+        description: "Record ID of the grant"
+    grant_status: mutable string = ""
+        description: "Current status of the grant"
+    grant_tier: mutable string = "standard"
+        description: "Tier classification for the grant"
+    grant_category: mutable string = ""
+        description: "Category of the grant"
+    contact_name: mutable string
+        description: "Full name of the contact"
+    contact_email: mutable string
+        description: "Email address of the contact"
+    contact_phone: mutable string = ""
+        description: "Phone number of the contact"
+    is_verified: mutable boolean = False
+        description: "Whether the user identity is verified"
+    eligibility_score: mutable number = 0
+        description: "Calculated eligibility score"
+    step_counter: mutable number = 0
+        description: "Current step in the process"
+    attempt_count: mutable number = 0
+        description: "Number of attempts made"
+    total_items_count: mutable number = 0
+        description: "Total number of items to process"
+    application_review_complete: mutable boolean = False
+        description: "Whether the application_review stage is complete"
+    application_review_result: mutable string = ""
+        description: "Result from the application_review stage"
+    scoring_complete: mutable boolean = False
+        description: "Whether the scoring stage is complete"
+    scoring_result: mutable string = ""
+        description: "Result from the scoring stage"
+    award_processing_complete: mutable boolean = False
+        description: "Whether the award_processing stage is complete"
+    award_processing_result: mutable string = ""
+        description: "Result from the award_processing stage"
+    monitoring_complete: mutable boolean = False
+        description: "Whether the monitoring stage is complete"
+    monitoring_result: mutable string = ""
+        description: "Result from the monitoring stage"
+    priority_level: mutable string = "normal"
+        description: "Priority level of the request"
+    notes_text: mutable string = ""
+        description: "Notes and comments"
+    assigned_agent: mutable string = ""
+        description: "Assigned agent name"
+    resolution_summary: mutable string = ""
+        description: "Summary of the resolution"
+    escalation_requested: mutable boolean = False
+        description: "Whether escalation was requested"
+    is_business_hours: mutable boolean = False
+        description: "Whether it is currently business hours"
+    case_ref_number: mutable string = ""
+        description: "Reference number for the support case"
+    next_available_slot: mutable string = ""
+        description: "Next available time slot"
+
+start_agent topic_selector:
+    description: "Welcome the user and route to the appropriate grant management topic"
+
+    reasoning:
+        instructions: ->
+            | You are a topic selector for a grant management specialist assistant.
+              Analyze the user's input and determine the most appropriate topic.
+              Current grant status: {! @variables.grant_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Steps completed: {! @variables.step_counter }
+              Priority: {! @variables.priority_level }
+              Use {!@actions.go_to_application_review} for application review requests.
+              Use {!@actions.go_to_scoring} for scoring requests.
+              Use {!@actions.go_to_award_processing} for award processing requests.
+              Use {!@actions.go_to_monitoring} for monitoring requests.
+              Use {!@actions.go_to_escalation} to escalate if the user is upset or requests a human.
+        actions:
+            go_to_application_review: @utils.transition to @topic.application_review
+                description: "Transition to application review topic."
+            go_to_scoring: @utils.transition to @topic.scoring
+                description: "Transition to scoring topic."
+                available when @variables.is_verified == True
+            go_to_award_processing: @utils.transition to @topic.award_processing
+                description: "Transition to award processing topic."
+                available when @variables.is_verified == True
+            go_to_monitoring: @utils.transition to @topic.monitoring
+                description: "Transition to monitoring topic."
+                available when @variables.is_verified == True
+            go_to_escalation: @utils.transition to @topic.escalation_handling
+                description: "Escalate to a human agent for assistance."
+                available when @variables.is_verified == True
+
+
+topic application_review:
+    description: "Handles the application review stage of the grant process"
+
+    actions:
+        process_application_review_data:
+            description: "Process application review stage data for the grant"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_ApplicationReview"
+
+        validate_application_review_info:
+            description: "Validate application review information for the grant"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_ApplicationReview_Info"
+
+        fetch_application_review_details:
+            description: "Fetch application review details for the grant"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_ApplicationReview_Details"
+
+    before_reasoning:
+        if @variables.is_verified == False:
+            run @actions.validate_application_review_info
+                with record_ref=@variables.grant_record_id
+                with contact_ref=@variables.contact_email
+                set @variables.grant_status = @outputs.updated_status
+                set @variables.is_verified = @outputs.is_valid
+
+    reasoning:
+        instructions: ->
+            | Handle the application review stage for the grant.
+              Current grant status: {! @variables.grant_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Application Review result: {! @variables.application_review_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.grant_tier }
+              If the contact information is missing, ask the user to provide their name and email.
+              After collecting information, use {!@actions.run_application_review} to begin processing.
+        actions:
+            run_application_review: @actions.process_application_review_data
+                with record_ref=@variables.grant_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.grant_category
+                set @variables.application_review_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.application_review_complete = @outputs.is_passed
+            fetch_application_review_info: @actions.fetch_application_review_details
+                with record_ref=@variables.grant_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.grant_tier = @outputs.tier_value
+            go_to_scoring: @utils.transition to @topic.scoring
+                description: "Move to scoring stage."
+                available when @variables.application_review_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.grant_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.grant_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.grant_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.application_review_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic scoring:
+    description: "Handles the scoring stage of the grant process"
+
+    actions:
+        process_scoring_data:
+            description: "Process scoring stage data for the grant"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "flow://Process_Scoring_Data"
+
+        validate_scoring_info:
+            description: "Validate scoring information for the grant"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Scoring_Info"
+
+        fetch_scoring_details:
+            description: "Fetch scoring details for the grant"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Scoring_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.application_review_complete == False:
+            transition to @topic.application_review
+
+    reasoning:
+        instructions: ->
+            | Handle the scoring stage for the grant.
+              Current grant status: {! @variables.grant_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Scoring result: {! @variables.scoring_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.grant_tier }
+              Review the scoring results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_scoring: @actions.process_scoring_data
+                with record_ref=@variables.grant_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.grant_category
+                set @variables.scoring_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.scoring_complete = @outputs.is_passed
+            fetch_scoring_info: @actions.fetch_scoring_details
+                with record_ref=@variables.grant_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.grant_tier = @outputs.tier_value
+                available when @variables.grant_record_id is not None
+            go_to_award_processing: @utils.transition to @topic.award_processing
+                description: "Move to award processing stage."
+                available when @variables.scoring_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.scoring_complete == True:
+            set @variables.grant_status = "scoring_done"
+        if @variables.scoring_complete == True and @variables.eligibility_score >= 50:
+            transition to @topic.award_processing
+        if @variables.attempt_count >= 3 and @variables.scoring_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic award_processing:
+    description: "Handles the award processing stage of the grant process"
+
+    actions:
+        process_award_processing_data:
+            description: "Process award processing stage data for the grant"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "standardInvocableAction://Process_AwardProcessing"
+
+        validate_award_processing_info:
+            description: "Validate award processing information for the grant"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_AwardProcessing_Info"
+
+        fetch_award_processing_details:
+            description: "Fetch award processing details for the grant"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_AwardProcessing_Details"
+
+    before_reasoning:
+        if @variables.award_processing_complete == False:
+            run @actions.fetch_award_processing_details
+                with record_ref=@variables.grant_record_id
+                with include_history=True
+                set @variables.award_processing_result = @outputs.detail_data
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.grant_tier = @outputs.tier_value
+        if @variables.eligibility_score >= 80:
+            set @variables.grant_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.grant_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the award processing stage for the grant.
+              Current grant status: {! @variables.grant_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Award Processing result: {! @variables.award_processing_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.grant_tier }
+              Review the award processing results and determine next steps.
+              Eligibility score: {! @variables.eligibility_score }
+              If the score is sufficient, proceed to the next stage.
+              If the user has concerns, address them before proceeding.
+        actions:
+            run_award_processing: @actions.process_award_processing_data
+                with record_ref=@variables.grant_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.grant_category
+                set @variables.award_processing_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.award_processing_complete = @outputs.is_passed
+            fetch_award_processing_info: @actions.fetch_award_processing_details
+                with record_ref=@variables.grant_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.grant_tier = @outputs.tier_value
+                available when @variables.grant_record_id is not None
+            go_to_monitoring: @utils.transition to @topic.monitoring
+                description: "Move to monitoring stage."
+                available when @variables.award_processing_complete == True and @variables.eligibility_score >= 50
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.eligibility_score >= 70:
+            set @variables.grant_tier = "premium"
+        if @variables.eligibility_score >= 40 and @variables.eligibility_score < 70:
+            set @variables.grant_tier = "standard"
+        if @variables.eligibility_score < 40:
+            set @variables.grant_tier = "basic"
+        if @variables.attempt_count >= 3 and @variables.award_processing_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+topic monitoring:
+    description: "Handles the monitoring stage of the grant process"
+
+    actions:
+        process_monitoring_data:
+            description: "Process monitoring stage data for the grant"
+            inputs:
+                record_ref: string
+                step_num: number
+                category_val: string
+            outputs:
+                result_code: string
+                result_message: string
+                score_value: number
+                is_passed: boolean
+            target: "apex://Process_Monitoring"
+
+        validate_monitoring_info:
+            description: "Validate monitoring information for the grant"
+            inputs:
+                record_ref: string
+                contact_ref: string
+            outputs:
+                is_valid: boolean
+                error_msg: string
+                updated_status: string
+            target: "flow://Validate_Monitoring_Info"
+
+        fetch_monitoring_details:
+            description: "Fetch monitoring details for the grant"
+            inputs:
+                record_ref: string
+                include_history: boolean
+            outputs:
+                detail_data: string
+                item_count: number
+                tier_value: string
+                last_updated: string
+            target: "flow://Fetch_Monitoring_Details"
+
+    before_reasoning:
+        if @variables.attempt_count > 5:
+            set @variables.escalation_requested = True
+        if @variables.award_processing_complete == False:
+            transition to @topic.award_processing
+        if @variables.eligibility_score >= 80:
+            set @variables.grant_tier = "premium"
+        if @variables.eligibility_score < 20:
+            set @variables.grant_tier = "basic"
+
+    reasoning:
+        instructions: ->
+            | Handle the monitoring stage for the grant.
+              Current grant status: {! @variables.grant_status }
+              Step {! @variables.step_counter + 1 } of the process.
+              Attempts so far: {! @variables.attempt_count }
+              Contact: {! @variables.contact_name } ({! @variables.contact_email })
+              Monitoring result: {! @variables.monitoring_result }
+              Priority level: {! @variables.priority_level }
+              Current tier: {! @variables.grant_tier }
+              This is the final stage. Review all results and provide a summary.
+              Total items processed: {! @variables.total_items_count }
+              If all stages passed, confirm completion. Otherwise offer to retry or escalate.
+        actions:
+            run_monitoring: @actions.process_monitoring_data
+                with record_ref=@variables.grant_record_id
+                with step_num=@variables.step_counter
+                with category_val=@variables.grant_category
+                set @variables.monitoring_result = @outputs.result_code
+                set @variables.eligibility_score = @outputs.score_value
+                set @variables.monitoring_complete = @outputs.is_passed
+            fetch_monitoring_info: @actions.fetch_monitoring_details
+                with record_ref=@variables.grant_record_id
+                with include_history=False
+                set @variables.total_items_count = @outputs.item_count
+                set @variables.grant_tier = @outputs.tier_value
+                available when @variables.grant_record_id is not None
+            escalate_now: @utils.transition to @topic.escalation_handling
+                description: "Escalate if issues arise."
+                available when @variables.escalation_requested == True
+            back_to_start: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector."
+
+    after_reasoning:
+        set @variables.step_counter = @variables.step_counter + 1
+        set @variables.attempt_count = @variables.attempt_count + 1
+        if @variables.monitoring_complete == True:
+            set @variables.grant_status = "monitoring_done"
+        if @variables.attempt_count >= 3 and @variables.monitoring_complete == False:
+            set @variables.priority_level = "high"
+        if @variables.attempt_count >= 5:
+            set @variables.escalation_requested = True
+
+
+topic escalation_handling:
+    description: "Handle escalation and case creation for grant issues"
+
+    actions:
+        check_hours:
+            description: "Check whether it is currently business hours"
+            inputs:
+                query_text: string
+            outputs:
+                hours_active: boolean
+                next_available: string
+            target: "flow://Check_Business_Hours"
+
+        create_support_case:
+            description: "Create a support case for the grant issue"
+            inputs:
+                case_subject: string
+                case_detail: string
+                record_ref: string
+                priority_val: string
+            outputs:
+                case_ref: string
+                assigned_to: string
+            target: "flow://Create_Support_Case"
+
+        generate_summary:
+            description: "Generate a summary of the grant interaction"
+            inputs:
+                record_ref: string
+                notes_val: string
+            outputs:
+                summary_text: string
+            target: "flow://Generate_Summary"
+
+    before_reasoning:
+        run @actions.check_hours
+            with query_text="check_availability"
+            set @variables.is_business_hours = @outputs.hours_active
+            set @variables.next_available_slot = @outputs.next_available
+
+    reasoning:
+        instructions: ->
+            | Handle escalation for the grant request.
+              Business hours active: {! @variables.is_business_hours }
+              Next available slot: {! @variables.next_available_slot }
+              Case reference: {! @variables.case_ref_number }
+              Grant status: {! @variables.grant_status }
+              Eligibility score: {! @variables.eligibility_score }
+              Priority: {! @variables.priority_level }
+              If during business hours, offer to connect to a live agent.
+              If outside business hours, create a support case and share the case reference.
+              Use {!@actions.create_case} to create a case.
+              Use {!@actions.get_summary} to generate a summary of the interaction.
+        actions:
+            create_case: @actions.create_support_case
+                with case_subject=@variables.grant_status
+                with case_detail=@variables.notes_text
+                with record_ref=@variables.grant_record_id
+                with priority_val=@variables.priority_level
+                set @variables.case_ref_number = @outputs.case_ref
+                set @variables.assigned_agent = @outputs.assigned_to
+            get_summary: @actions.generate_summary
+                with record_ref=@variables.grant_record_id
+                with notes_val=@variables.notes_text
+                set @variables.resolution_summary = @outputs.summary_text
+            return_to_selector: @utils.transition to @topic.topic_selector
+                description: "Return to topic selector after escalation."
+
+    after_reasoning:
+        if @variables.case_ref_number != "":
+            set @variables.grant_status = "escalated"
+        set @variables.escalation_requested = False
+

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentforceSDK Script Tag Example</title>
+  </head>
+  <body>
+    <h1>AgentforceScriptSDK Script Tag Example</h1>
+    <div id="output"></div>
+
+    <!-- Load the IIFE bundle via script tag - Everything is self-contained! -->
+    <script src="./dist/browser.iife.js"></script>
+
+    <script>
+      // Access AgentforceScriptSDK from window - everything is bundled!
+      const { initParser, parse } = window.AgentforceScriptSDK;
+
+      async function init() {
+        const output = document.getElementById('output');
+        output.innerHTML = '<p>Initializing parser...</p>';
+
+        try {
+          // Initialize parser with bundled WASM (no imports needed!)
+          const parser = await initParser();
+
+          // Parse some AgentScript
+          const source = `system:
+    instructions: "You are a helpful agent."
+
+topic billing:
+    description: "Handle billing inquiries"`;
+
+          const doc = parse(source, parser);
+
+          // Display results
+          output.innerHTML = `
+          <h2>Parse Results:</h2>
+          <p><strong>Has Errors:</strong> ${doc.hasErrors}</p>
+          <p><strong>Diagnostics:</strong> ${doc.diagnostics.length}</p>
+          <h3>Emitted Source:</h3>
+          <pre>${doc.emit()}</pre>
+        `;
+        } catch (error) {
+          output.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+          console.error(error);
+        }
+      }
+
+      // Initialize when page loads
+      init();
+    </script>
+  </body>
+</html>
