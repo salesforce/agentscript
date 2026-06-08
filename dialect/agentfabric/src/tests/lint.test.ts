@@ -41,7 +41,8 @@ trigger t:
   on_message: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -181,7 +182,8 @@ trigger t:
   on_message: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -219,7 +221,8 @@ generator g:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -242,7 +245,8 @@ router r:
     - target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -271,7 +275,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -301,7 +306,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -331,7 +337,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -361,7 +368,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -388,7 +396,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -415,7 +424,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -442,7 +452,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -469,7 +480,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -496,7 +508,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -523,7 +536,8 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -563,7 +577,8 @@ subagent s:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -633,7 +648,8 @@ subagent s:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -708,7 +724,8 @@ router countryRouter:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -726,8 +743,9 @@ echo done:
   it('does not accept A2A global calls with @', () => {
     const source = `
 echo successResponse:
-  kind: "a2a:response"
-  task: @a2a.task({ state: "completed", message: @a2a.message()})
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: @a2a.message()
 `;
     const result = parseAndLintSource(source);
     expect(
@@ -736,7 +754,7 @@ echo successResponse:
           d.code === 'namespace-function-call' &&
           d.message.includes('Only direct namespace function calls are allowed')
       ).length
-    ).toBe(2);
+    ).toBe(1);
   });
 
   it('allows namespaced A2A helper calls in expression fields (a2a.message, a2a.textPart, …)', () => {
@@ -748,7 +766,8 @@ trigger t:
     transition to @echo.out
 
 echo out:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: a2a.message(a2a.textPart("hello"))
 `;
     const result = parseAndLintSource(source);
@@ -759,11 +778,14 @@ echo out:
     const source = `
 executor step:
   do: ->
-    set @variables.t = a2a.task({ state: "completed" })
+    set @variables.t = a2a.message({ parts: [a2a.textPart("hello")] })
 `;
     const result = parseAndLintSource(source);
     const relevant = result.diagnostics.filter(
-      d => d.code !== 'unused-node' && d.code !== 'missing-required-field'
+      d =>
+        d.code !== 'unused-node' &&
+        d.code !== 'missing-required-field' &&
+        d.code !== 'terminal-requires-status-update'
     );
     expect(relevant.length).toBe(0);
   });
@@ -790,7 +812,8 @@ generator g:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -843,7 +866,8 @@ orchestrator o:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -886,7 +910,8 @@ orchestrator o:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -935,7 +960,8 @@ orchestrator o:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1002,7 +1028,8 @@ orchestrator o:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1044,7 +1071,8 @@ orchestrator o:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1090,7 +1118,8 @@ subagent A:
     transition to @echo.B
 
 echo B:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1109,7 +1138,8 @@ trigger t:
     transition to @echo.X
 
 echo X:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1145,7 +1175,8 @@ subagent A:
     transition to @echo.X
 
 echo X:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1171,11 +1202,13 @@ router r:
     target: @echo.X
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 
 echo X:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "fallback"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1201,11 +1234,13 @@ router r:
     target: @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 
 echo X:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "x"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1271,11 +1306,13 @@ generator unusedGen:
     transition to @echo.done
 
 echo unusedEcho:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "x"
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1323,7 +1360,8 @@ subagent A:
     transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const { diagnostics } = parseAndLintSource(source);
@@ -1403,7 +1441,8 @@ orchestrator D:
     transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1483,7 +1522,8 @@ trigger t:
     transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 
 orchestrator A:
@@ -1568,7 +1608,8 @@ orchestrator C:
     transition to @orchestrator.A
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1615,7 +1656,8 @@ executor run_billing:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1647,7 +1689,8 @@ executor run_it:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1673,7 +1716,8 @@ executor run_it:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1720,7 +1764,8 @@ subagent worker:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1745,7 +1790,8 @@ trigger t:
   on_message: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1774,7 +1820,8 @@ trigger t:
   on_message: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1810,7 +1857,8 @@ trigger t:
   on_message: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1826,7 +1874,8 @@ config:
   agent_name: "unknown-field-test"
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
   bogus_field: "should error"
 `;
@@ -1849,7 +1898,8 @@ router r:
       when: true
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "ok"
 `;
     const result = parseAndLintSource(source);
@@ -1858,6 +1908,137 @@ echo done:
     );
     expect(unknownFieldErrors.length).toBeGreaterThanOrEqual(1);
     expect(unknownFieldErrors.some(d => d.message.includes('choices'))).toBe(
+      true
+    );
+  });
+
+  it('reports terminal-requires-status-update when terminal node is not an echo', () => {
+    const source = `
+config:
+  agent_name: "terminal-no-echo"
+
+llm:
+  g:
+    target: "llm://conn"
+    kind: "OpenAI"
+    model: "gpt-4"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://terminal-no-echo/a2a"
+  on_message: -> transition to @subagent.s
+
+subagent s:
+  llm: @llm.g
+  reasoning:
+    instructions: -> do work
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.some(d => d.code === 'terminal-requires-status-update')
+    ).toBe(true);
+  });
+
+  it('reports terminal-requires-status-update when terminal echo has non-terminal state', () => {
+    const source = `
+config:
+  agent_name: "non-terminal-state"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://non-terminal-state/a2a"
+  on_message: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_WORKING"
+  message: "still going"
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.some(d => d.code === 'terminal-requires-status-update')
+    ).toBe(true);
+  });
+
+  it('does not report terminal-requires-status-update for valid terminal echo', () => {
+    const source = `
+config:
+  agent_name: "valid-terminal"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://valid-terminal/a2a"
+  on_message: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(
+      result.diagnostics.some(d => d.code === 'terminal-requires-status-update')
+    ).toBe(false);
+  });
+
+  it('does not report error when status echo is followed by another node', () => {
+    const source = `
+config:
+  agent_name: "echo-then-more"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://echo-then-more/a2a"
+  on_message: -> transition to @echo.status
+
+echo status:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "done"
+  on_exit: ->
+    transition to @echo.artifact
+
+echo artifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({name: "log", parts: [a2a.textPart("cleanup")]})
+`;
+    const result = parseAndLintSource(source);
+    const relevant = result.diagnostics.filter(
+      d => d.code === 'terminal-requires-status-update'
+    );
+    expect(relevant.length).toBe(0);
+  });
+
+  it('reports echo-invalid-state for invalid state value', () => {
+    const source = `
+config:
+  agent_name: "bad-state"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://bad-state/a2a"
+  on_message: -> transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "running"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(result.diagnostics.some(d => d.code === 'echo-invalid-state')).toBe(
+      true
+    );
+  });
+
+  it('reports unknown-variant for removed a2a:response kind', () => {
+    const source = `
+echo done:
+  kind: "a2a:response"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(result.diagnostics.some(d => d.code === 'unknown-variant')).toBe(
       true
     );
   });

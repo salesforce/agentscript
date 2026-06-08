@@ -147,16 +147,26 @@ orchestrator general_response:
     transition to @echo.send_response
 
 echo send_response:
-  kind: "a2a:response"
-  task: a2a.task({
-    state: "completed",
-    message: a2a.message({
-      parts: [
-        a2a.textPart(@echo.send_response.input)
-      ]
-    })
-  }
-  )
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: a2a.message({
+    parts: [
+      a2a.textPart(@echo.send_response.input)
+    ]
+  })
+  on_exit: ->
+    transition to @echo.send_artifact
+
+echo send_artifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({
+    name: "support_response",
+    parts: [
+      a2a.textPart(@echo.send_response.input)
+    ]
+  })
+  append: False
+  lastChunk: True
   on_exit: ->
     transition to @executor.cleanup
 
