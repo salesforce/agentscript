@@ -1,5 +1,5 @@
 import { isNamedMap } from '@agentscript/language';
-import { normalizeId } from '../../../compiler/utils.js';
+import { normalizeId } from '../../utils.js';
 import type { PassStore } from '@agentscript/language';
 import {
   asObjectList,

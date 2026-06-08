@@ -1,5 +1,5 @@
 import { isNamedMap } from '@agentscript/language';
-import { normalizeId } from '../../../compiler/utils.js';
+import { normalizeId } from '../../utils.js';
 import { attachError, hasOwnNonNull, type AstLike } from './shared.js';
 
 export function checkEchoRules(root: Record<string, unknown>): void {

@@ -584,7 +584,7 @@ export function getFieldCompletions(
  *
  * Shared between `getFieldCompletions` (via `inferBlockFromIndentation`) and
  * `getValueCompletions`. Walking parents twice with two slightly divergent
- * implementations was the bug source for W-22415806; both callers now use
+ * implementations was the bug source; both callers now use
  * this single resolver.
  */
 interface IndentSchemaContext {

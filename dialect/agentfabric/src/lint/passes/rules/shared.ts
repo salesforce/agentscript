@@ -8,8 +8,7 @@ import {
   TernaryExpression,
   UnaryExpression,
 } from '@agentscript/language';
-import { normalizeId } from '../../../compiler/utils.js';
-
+import { normalizeId } from '../../utils.js';
 export const AGENTFABRIC_LINT_SOURCE = 'agentfabric-lint';
 const ERROR_SEVERITY = 1;
 const WARNING_SEVERITY = 2;

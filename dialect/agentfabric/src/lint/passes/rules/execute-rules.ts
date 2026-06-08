@@ -32,11 +32,11 @@ import {
   decomposeAtMemberExpression,
 } from '@agentscript/language';
 import type { Expression, Statement } from '@agentscript/language';
-import { normalizeId } from '../../../compiler/utils.js';
 import {
+  normalizeId,
   IMPLICIT_WITH_PARAMS,
   listActionDefInputNames,
-} from '../../../compiler/build-nodes.js';
+} from '../../utils.js';
 import {
   attachError,
   asStatements,

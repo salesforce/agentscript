@@ -80,27 +80,6 @@ export type {
 export { defaultRules } from './lint/passes/index.js';
 export { createLintEngine } from './lint/index.js';
 
-// ── Compiler re-exports ─────────────────────────────────────────────
-
-export { compile } from './compiler/index.js';
-export type { CompileResult, CompileOptions } from './compiler/index.js';
-export type { AgentGraph } from './compiler/agent-graph.js';
-export { ObjectTypes } from './compiler/unified-agent-specification.js';
-export type {
-  UnifiedAgentSpecification,
-  AgentNode,
-  ActionNode,
-  RouterNode,
-  HandoffAction,
-  ActionCallableReference,
-  ActionDefinition,
-  LLMRef,
-  StateVariable,
-  GraphConfig,
-  Node,
-} from './compiler/unified-agent-specification.js';
-export type { LLMProvider, InvokableClient } from './compiler/service-types.js';
-
 // ── Graph re-exports ─────────────────────────────────────────────────
 
 export { extractGraph, getGraph } from './graph/index.js';
