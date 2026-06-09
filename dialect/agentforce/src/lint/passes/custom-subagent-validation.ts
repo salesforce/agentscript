@@ -17,6 +17,7 @@ import {
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { COMMERCE_SHOPPER_SCHEMA } from '../../variants/commerce-cloud-shopper.js';
+import { BYON_SCHEMA_PREFIX } from '../../variants/byon.js';
 import { commerceShopperVariant } from '../../schema.js';
 import { extractStringValue, getBlockRange } from '../utils.js';
 
@@ -73,19 +74,48 @@ class CustomSubagentValidationPass implements LintPass {
     'Validates custom subagent variants against their schema';
 
   run(_store: PassStore, root: AstRoot): void {
-    const collection = (root as Record<string, unknown>)['subagent'];
-    if (!collection || !isNamedMap(collection)) return;
+    for (const key of ['subagent', 'start_agent'] as const) {
+      const collection = (root as Record<string, unknown>)[key];
+      if (!collection || !isNamedMap(collection)) continue;
 
-    for (const [name, block] of collection as NamedMap<unknown>) {
-      if (!block || typeof block !== 'object') continue;
+      for (const [name, block] of collection as NamedMap<unknown>) {
+        if (!block || typeof block !== 'object') continue;
 
-      const rec = block as Record<string, unknown>;
-      const schemaValue = extractStringValue(rec['schema']);
-      if (!schemaValue || !schemaValue.startsWith(NODE_SCHEMA_PREFIX)) continue;
+        const rec = block as Record<string, unknown>;
+        const schemaValue = extractStringValue(rec['schema']);
+        if (!schemaValue || !schemaValue.startsWith(NODE_SCHEMA_PREFIX))
+          continue;
 
-      validateBlock(name, rec, schemaValue);
+        if (schemaValue.startsWith(BYON_SCHEMA_PREFIX)) {
+          warnByonNotForProd(name, rec);
+          continue;
+        }
+
+        validateBlock(name, rec, schemaValue);
+      }
     }
   }
+}
+
+/**
+ * Emit a warning that node://byon/* schemas are intended for test / lower
+ * environments only and not approved for production use.
+ */
+function warnByonNotForProd(
+  name: string,
+  block: Record<string, unknown>
+): void {
+  const range = getBlockRange(block['schema']) ?? getBlockRange(block);
+  attachDiagnostic(
+    block as AstNodeLike,
+    lintDiagnostic(
+      range,
+      `Custom subagent '${name}' uses a node://byon/* schema. ` +
+        `BYON nodes are for test and lower environments only — not for production use.`,
+      DiagnosticSeverity.Warning,
+      'byon-not-for-production'
+    )
+  );
 }
 
 export function customSubagentValidationRule(): LintPass {

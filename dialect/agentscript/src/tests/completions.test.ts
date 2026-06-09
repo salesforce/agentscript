@@ -521,6 +521,7 @@ describe('getCompletionCandidates', () => {
   test('language namespace returns language block fields', () => {
     const source = [
       'language:',
+      '    adaptive: True',
       '    default_locale: "en_US"',
       '    all_additional_locales: True',
     ].join('\n');
@@ -529,6 +530,7 @@ describe('getCompletionCandidates', () => {
     const names = candidates.map(c => c.name);
     expect(names).toContain('default_locale');
     expect(names).toContain('all_additional_locales');
+    expect(names).toContain('adaptive');
   });
 
   test('unknown namespace returns empty', () => {

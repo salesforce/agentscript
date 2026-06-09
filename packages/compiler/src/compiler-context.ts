@@ -19,6 +19,11 @@ export interface ConnectedAgentInputSignature {
   allInputs: Set<string>;
 }
 
+export interface ActionInputSignature {
+  /** Required declared inputs, in declaration order. */
+  requiredInputs: string[];
+}
+
 /**
  * Threaded context for the compilation pipeline.
  * Carries diagnostics, variable lookups, and knowledge data.
@@ -77,6 +82,14 @@ export class CompilerContext {
    * of `with` clauses on @connected_subagent.X tool invocations.
    */
   connectedAgentInputs: Map<string, ConnectedAgentInputSignature> = new Map();
+
+  /**
+   * Action definition input signatures by target name (per-topic).
+   * Populated when compileActionDefinitions runs; consumed by compileTool /
+   * compilePostToolAction to default unbound required declared inputs to
+   * LLM-filled. Cleared at the start of each topic compilation.
+   */
+  actionInputSignatures: Map<string, ActionInputSignature> = new Map();
 
   addDiagnostic(
     severity: DiagnosticSeverity,

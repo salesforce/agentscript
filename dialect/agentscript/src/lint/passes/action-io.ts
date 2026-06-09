@@ -33,10 +33,24 @@ export function actionIoRule(): LintPass {
     deps: { entry: each(reasoningActionsKey) },
 
     run({ entry }) {
-      const { refActionName, sig, statements, actionRefRange, ra } = entry;
+      const { refActionName, namespace, sig, statements, actionRefRange, ra } =
+        entry;
       const inputNames = [...sig.inputs.keys()];
       const outputNames = [...sig.outputs.keys()];
       const providedInputs = new Set<string>();
+
+      // Connected agents have a strict contract — missing required inputs
+      // are real authoring errors. Regular @actions.X references are softer:
+      // the compiler auto-fills missing required slots into llm_inputs at
+      // runtime, so the diagnostic is only an informational note.
+      const missingSeverity =
+        namespace === 'connected_subagent'
+          ? DiagnosticSeverity.Error
+          : DiagnosticSeverity.Information;
+      const missingMessage = (inputName: string) =>
+        namespace === 'connected_subagent'
+          ? `Missing required input '${inputName}' for action '${refActionName}'`
+          : `Input '${inputName}' on action '${refActionName}' has no \`with\` clause and will be filled by the LLM at runtime`;
 
       if (!statements) {
         for (const [inputName, info] of sig.inputs) {
@@ -45,8 +59,8 @@ export function actionIoRule(): LintPass {
               ra,
               lintDiagnostic(
                 actionRefRange,
-                `Missing required input '${inputName}' for action '${refActionName}'`,
-                DiagnosticSeverity.Error,
+                missingMessage(inputName),
+                missingSeverity,
                 'action-missing-input'
               )
             );
@@ -119,8 +133,8 @@ export function actionIoRule(): LintPass {
             ra,
             lintDiagnostic(
               actionRefRange,
-              `Missing required input '${inputName}' for action '${refActionName}'`,
-              DiagnosticSeverity.Error,
+              missingMessage(inputName),
+              missingSeverity,
               'action-missing-input'
             )
           );

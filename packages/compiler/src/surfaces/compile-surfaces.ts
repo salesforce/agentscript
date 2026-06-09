@@ -5,7 +5,7 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import { NamedMap } from '@agentscript/language';
+import { NamedMap, ParameterDeclarationNode } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type { OutboundRouteConfig, ResponseAction } from '../types.js';
 import type { ParsedConnection } from '../parsed-types.js';
@@ -13,28 +13,17 @@ import {
   extractStringValue,
   extractSourcedString,
   extractSourcedBoolean,
+  extractSourcedDescription,
+  getExpressionName,
   iterateNamedMap,
 } from '../ast-helpers.js';
 import { normalizeDeveloperName } from '../utils.js';
 import type { Sourceable } from '../sourced.js';
+import { extractDefaultValue } from '../variables/state-variables.js';
+import { surfaceInputParameter } from '../generated/agent-dsl.js';
+import type { z } from 'zod';
 
-// --- Commented out: new imports from 2001dc63 (connection inputs/formats) ---
-// import { ParameterDeclarationNode } from '@agentscript/language';
-// import type { StateVariable, FormatTool } from '../types.js';
-// import {
-//   extractDescriptionValue,
-//   getExpressionName,
-//   isListType,
-// } from '../ast-helpers.js';
-// import { toStateVariableDataType } from '../variables/variable-utils.js';
-// import { extractDefaultValue } from '../variables/state-variables.js';
-// import { dedent, parseUri } from '../utils.js';
-// import {
-//   compileResponseFormats,
-//   compileAvailableFormats,
-//   type ResponseFormat,
-// } from './compile-response-formats.js';
-// import { compileTemplateValue } from '../expressions/compile-template.js';
+type SurfaceInputParameter = z.infer<typeof surfaceInputParameter>;
 
 /**
  * Surface output type for the compiled AgentJSON.
@@ -50,7 +39,7 @@ interface Surface {
   // additional_system_instructions?: string | null;
   outbound_route_configs?: OutboundRouteConfig[];
   response_actions?: ResponseAction[];
-  // inputs?: StateVariable[];
+  input_parameters?: SurfaceInputParameter[];
   // format_definitions?: ResponseFormat[];
   // tools?: FormatTool[];
 }
@@ -68,6 +57,24 @@ const CONNECTION_TYPES: Record<string, string> = {
 };
 
 // const CUSTOM_CONNECTION_TYPE = 'custom';
+
+/**
+ * Map AgentScript types to surface input parameter data types.
+ */
+const SCALAR_TO_SURFACE_INPUT_TYPE: Record<
+  string,
+  'string' | 'boolean' | 'integer' | 'double'
+> = {
+  string: 'string',
+  boolean: 'boolean',
+  number: 'double',
+};
+
+function toSurfaceInputParameterDataType(
+  scalarType: string
+): 'string' | 'boolean' | 'integer' | 'double' {
+  return SCALAR_TO_SURFACE_INPUT_TYPE[scalarType.toLowerCase()] ?? 'string';
+}
 
 /**
  * Compile connection blocks into Surface[].
@@ -109,6 +116,9 @@ function compileSurface(
   // Compile response actions
   const responseActions = compileResponseActions(def, ctx);
 
+  // Compile inputs (aka surface variables)
+  const inputs = compileInputs(def, ctx);
+
   // Validate connection type constraints
   validateConnection(name, connectionType, def, agentType, ctx);
 
@@ -126,6 +136,9 @@ function compileSurface(
   surface.outbound_route_configs = outboundRouteConfigs;
   if (responseActions.length > 0) {
     surface.response_actions = responseActions;
+  }
+  if (inputs.length > 0) {
+    surface.input_parameters = inputs;
   }
 
   return surface as Surface;
@@ -313,74 +326,63 @@ function compileResponseActions(
   return result;
 }
 
-// --- Commented out: compileInputs / compileConnectionInput from 2001dc63 ---
-// function compileInputs(
-//   def: ParsedConnection,
-//   ctx: CompilerContext
-// ): StateVariable[] {
-//   const inputs = def.inputs;
-//   if (!inputs) return [];
-//
-//   const result: StateVariable[] = [];
-//
-//   for (const [name, decl] of iterateNamedMap(
-//     inputs as NamedMap<ParameterDeclarationNode> | undefined
-//   )) {
-//     const param = compileConnectionInput(name, decl, ctx);
-//     if (param) result.push(param);
-//   }
-//
-//   return result;
-// }
-//
-// /**
-//  * Compile a connection input as a variable
-//  */
-// function compileConnectionInput(
-//   name: string,
-//   decl: ParameterDeclarationNode,
-//   ctx: CompilerContext
-// ): StateVariable | undefined {
-//   const typeStr = getExpressionName(decl.type);
-//   if (!typeStr) return undefined;
-//
-//   // Properties nested under .properties
-//   const props = decl.properties as Record<string, unknown> | undefined;
-//
-//   const isList = isListType(decl.type);
-//   const dataType = toStateVariableDataType(typeStr);
-//
-//   if (!dataType) {
-//     ctx.error(
-//       `Unsupported connection input type: '${typeStr}' for input '${name}'`,
-//       decl.__cst?.range
-//     );
-//     return undefined;
-//   }
-//
-//   // Extract default value
-//   const defaultValue = extractDefaultValue(decl.defaultValue, dataType, isList);
-//
-//   const label =
-//     extractStringValue(props?.['label']) ?? normalizeDeveloperName(name);
-//   const description = extractDescriptionValue(props?.['description']) ?? label;
-//
-//   const stateVar: StateVariable = {
-//     developer_name: name,
-//     label,
-//     description,
-//     data_type: dataType,
-//     is_list: isList,
-//     visibility: 'Internal',
-//   };
-//
-//   // Only include default when it has a value
-//   if (defaultValue !== null) {
-//     stateVar.default = defaultValue as StateVariable['default'];
-//   }
-//
-//   return stateVar;
-// }
+function compileInputs(
+  def: ParsedConnection,
+  ctx: CompilerContext
+): SurfaceInputParameter[] {
+  const inputs = def.inputs;
+  if (!inputs) return [];
+
+  const result: SurfaceInputParameter[] = [];
+
+  for (const [name, decl] of iterateNamedMap(
+    inputs as NamedMap<ParameterDeclarationNode> | undefined
+  )) {
+    const param = compileConnectionInput(name, decl, ctx);
+    if (param) result.push(param);
+  }
+
+  return result;
+}
+
+/**
+ * Compile a connection input as a surface input parameter.
+ */
+function compileConnectionInput(
+  name: string,
+  decl: ParameterDeclarationNode,
+  _ctx: CompilerContext
+): SurfaceInputParameter | undefined {
+  const typeStr = getExpressionName(decl.type);
+  if (!typeStr) return undefined;
+
+  // Properties nested under .properties
+  const props = decl.properties as Record<string, unknown> | undefined;
+
+  const dataType = toSurfaceInputParameterDataType(typeStr);
+
+  // Extract default value
+  const defaultValue = extractDefaultValue(decl.defaultValue, dataType, false);
+
+  const label =
+    extractStringValue(props?.['label']) ?? normalizeDeveloperName(name);
+  const description =
+    extractSourcedDescription(props?.['description']) ?? label;
+
+  const inputParam: Sourceable<SurfaceInputParameter> = {
+    developer_name: name,
+    label,
+    description,
+    data_type: dataType,
+  };
+
+  // Only include default_value when it has a value
+  if (defaultValue !== null) {
+    inputParam.default_value = defaultValue;
+  }
+
+  return inputParam as SurfaceInputParameter;
+}
 
 function validateConnection(
   _name: string,

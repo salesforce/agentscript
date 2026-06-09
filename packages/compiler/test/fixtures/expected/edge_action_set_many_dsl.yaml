@@ -1,22 +1,19 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: EdgeActionSetMany
   label: Edge Action Set Many
   description: Tests setting 3+ output variables from one action
   enable_enhanced_event_logs: false
   agent_type: EinsteinServiceAgent
-  default_agent_user: admin@example.com
   context_variables:
     - developer_name: customer_id
       label: Customer Id
       description: Customer ID
       data_type: string
+  default_agent_user: admin@example.com
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages: []
-  modality_parameters: {}
-  additional_parameters:
-    reset_to_initial_node: true
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -30,7 +27,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -73,8 +70,8 @@ agent_version:
       description: Account balance
       data_type: number
       is_list: false
-      default: 0
       visibility: Internal
+      default: 0
     - developer_name: order_id
       label: Order Id
       description: Order ID
@@ -92,8 +89,8 @@ agent_version:
       description: Order total
       data_type: number
       is_list: false
-      default: 0
       visibility: Internal
+      default: 0
     - developer_name: ship_date
       label: Ship Date
       description: Shipping date
@@ -108,44 +105,9 @@ agent_version:
       visibility: Internal
   initial_node: main
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                You have the customer profile loaded. Help them with order inquiries.
-
-                Use action.get_order to look up order details.'
-      instructions: You are a data retrieval agent.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Retrieve and set multiple output variables from actions
-      before_reasoning:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
-        - type: action
-          target: get_customer_profile
-          bound_inputs:
-            customer_id: variables.customer_id
-          llm_inputs: []
-          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
-          state_updates:
-            - first_name: result.first_name
-            - last_name: result.last_name
-            - email: result.email
-            - phone: result.phone
-            - tier: result.tier
-            - balance: result.balance
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: get_order_details
@@ -158,19 +120,12 @@ agent_version:
             - ship_date: result.ship_date
             - tracking: result.tracking_number
           name: get_order
-          description: Get Order
         - type: action
           target: __state_update_action__
           state_updates:
-            - AgentScriptInternal_next_topic: '''__human__'''
+            - AgentScriptInternal_next_topic: "'__human__'"
           name: escalate_to_human
           description: Escalate to human agent
-      after_all_tool_calls:
-        - type: handoff
-          target: __human__
-          enabled: state.AgentScriptInternal_next_topic == '__human__'
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
       developer_name: main
       label: Main
       action_definitions:
@@ -276,4 +231,50 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
+      instructions: You are a data retrieval agent.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                You have the customer profile loaded. Help them with order
+                inquiries.
+
+                Use get_order to look up order details.
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: get_customer_profile
+          bound_inputs:
+            customer_id: variables.customer_id
+          llm_inputs: []
+          state_updates:
+            - first_name: result.first_name
+            - last_name: result.last_name
+            - email: result.email
+            - phone: result.phone
+            - tier: result.tier
+            - balance: result.balance
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
   surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true

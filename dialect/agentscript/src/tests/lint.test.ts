@@ -2174,7 +2174,7 @@ start_agent main:
     actions:
       call_support: @connected_subagent.Support_Agent
 connected_subagent Support_Agent:
-  target: "agentforce://Support_Agent"
+  target: "agent://Support_Agent"
   label: "Support"
   description: "Support agent"
 `);
@@ -2722,7 +2722,7 @@ subagent main:
     expect(errors[0].data?.suggestion).toBe('verification_code');
   });
 
-  it('reports missing required input', () => {
+  it('reports missing required input on @actions.X as informational (LLM auto-fill)', () => {
     const diagnostics = runLint(
       BASE +
         `      check: @actions.send_code
@@ -2730,10 +2730,12 @@ subagent main:
 `
     );
 
-    const errors = diagnostics.filter(d => d.code === 'action-missing-input');
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'member_number'");
-    expect(errors[0].message).toContain('send_code');
+    const notes = diagnostics.filter(d => d.code === 'action-missing-input');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].severity).toBe(DiagnosticSeverity.Information);
+    expect(notes[0].message).toContain("'member_number'");
+    expect(notes[0].message).toContain('send_code');
+    expect(notes[0].message).toContain('filled by the LLM');
   });
 
   it('does not report missing input when it has a default value', () => {
@@ -2833,6 +2835,10 @@ subagent main:
     expect(names).toHaveLength(2);
     expect(names[0]).toContain("'city'");
     expect(names[1]).toContain("'country'");
+    // @actions.X diagnostics are informational — the compiler auto-fills.
+    expect(
+      missing.every(d => d.severity === DiagnosticSeverity.Information)
+    ).toBe(true);
   });
 
   it('passes valid inputs and outputs', () => {
@@ -2895,7 +2901,7 @@ start_agent main:
         with nonexistent_param=@variables.val
 
 connected_subagent Order_Agent:
-  target: "agentforce://Order_Agent"
+  target: "agent://Order_Agent"
   label: "Order Agent"
   description: "Handles orders"
   inputs:
@@ -2908,7 +2914,9 @@ connected_subagent Order_Agent:
     expect(errors[0].message).toContain('Order_Agent');
   });
 
-  it('reports missing required input on @actions.X for connected_subagent.X', () => {
+  it('reports missing required input on @connected_subagent.X as Error', () => {
+    // Connected agents do not auto-fill, so missing required inputs remain
+    // hard errors (unlike @actions.X which downgrades to Information).
     const diagnostics = runLint(`
 start_agent main:
   description: "Main"
@@ -2920,7 +2928,7 @@ start_agent main:
         description: "Call the agent"
 
 connected_subagent Order_Agent:
-  target: "agentforce://Order_Agent"
+  target: "agent://Order_Agent"
   label: "Order Agent"
   description: "Handles orders"
   inputs:
@@ -2929,6 +2937,8 @@ connected_subagent Order_Agent:
 
     const errors = diagnostics.filter(d => d.code === 'action-missing-input');
     expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('Missing required input');
     expect(errors[0].message).toContain("'order_id'");
     expect(errors[0].message).toContain('Order_Agent');
   });
@@ -2948,7 +2958,7 @@ start_agent main:
         description: "Call the agent"
 
 connected_subagent Order_Agent:
-  target: "agentforce://Order_Agent"
+  target: "agent://Order_Agent"
   label: "Order Agent"
   description: "Handles orders"
   inputs:
@@ -2974,7 +2984,7 @@ start_agent main:
         with order_id=@variables.order_id
 
 connected_subagent Order_Agent:
-  target: "agentforce://Order_Agent"
+  target: "agent://Order_Agent"
   label: "Order Agent"
   description: "Handles orders"
   inputs:
@@ -3000,7 +3010,7 @@ start_agent main:
         with order_id=...
 
 connected_subagent Order_Agent:
-  target: "agentforce://Order_Agent"
+  target: "agent://Order_Agent"
   label: "Order Agent"
   description: "Handles orders"
   inputs:
@@ -3026,7 +3036,7 @@ start_agent main:
         description: "Call simple agent"
 
 connected_subagent Simple_Agent:
-  target: "agentforce://Simple_Agent"
+  target: "agent://Simple_Agent"
   label: "Simple"
   description: "No inputs"
 `);
@@ -4568,5 +4578,184 @@ subagent main:
       expect(funcErrors[0].message).toContain("'unknown_fn'");
       expect(funcErrors[0].message).toContain('a2a');
     });
+  });
+});
+
+// ============================================================================
+// available-when-type-check rule tests
+// ============================================================================
+
+describe('availableWhenTypeCheckRule', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  const BASE = `
+variables:
+  verified: mutable boolean
+  name: mutable string
+  count: mutable number
+  items: mutable list[string] = []
+subagent main:
+  label: "Main"
+  actions:
+    check:
+      description: "Check"
+      target: "flow://Check"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+`;
+
+  it('accepts boolean comparison in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.verified == True
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts boolean literal in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when True
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts logical and/or in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.verified == True and @variables.count > 0
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts not expression in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when not @variables.verified
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts boolean variable reference in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.verified
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts unresolvable reference in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @outputs.some_flag
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts function call in available when (unknown return type)', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when len(@variables.items) > 0
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports string literal in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when "hello"
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a string');
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('reports number literal in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when 42
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a number');
+  });
+
+  it('reports non-boolean variable reference in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.name
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('string');
+  });
+
+  it('reports arithmetic expression in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.count + 1
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a number');
   });
 });

@@ -24,20 +24,25 @@ describe('customSubagentFields', () => {
   });
 
   test('does not include before_reasoning or after_reasoning', () => {
+    // Pre/post reasoning hooks are part of `defaultSubagentFields`, not
+    // custom-subagent variants — BYON nodes use `on_init`/`on_exit` instead.
     expect(customSubagentFields).not.toHaveProperty('before_reasoning');
     expect(customSubagentFields).not.toHaveProperty('after_reasoning');
   });
 
-  test('includes reasoning field (actions only, no instructions)', () => {
+  test('inherits reasoning from baseSubagentFields', () => {
+    // Variants that need a stricter shape (e.g. commerce blacklisting
+    // reasoning.instructions) override `reasoning` themselves.
     expect(customSubagentFields).toHaveProperty('reasoning');
+    expect(customSubagentFields.reasoning).toBe(baseSubagentFields.reasoning);
   });
 
   test('has correct field count', () => {
     const customKeys = Object.keys(customSubagentFields);
     const baseKeys = Object.keys(baseSubagentFields);
 
-    // customSubagentFields = baseSubagentFields + parameters + reasoning + on_init + on_exit
-    expect(customKeys.length).toBe(baseKeys.length + 4);
+    // customSubagentFields = baseSubagentFields + parameters + on_init + on_exit
+    expect(customKeys.length).toBe(baseKeys.length + 3);
   });
 
   test('parameters field has correct structure', () => {

@@ -384,7 +384,7 @@ function compileRouterTransition(
 
   for (const stmt of body) {
     if (stmt instanceof ToClause) {
-      if (warnIfConnectedAgentTransition(stmt.target, ctx)) continue;
+      warnIfConnectedAgentTransition(stmt.target, ctx);
       const resolved = resolveAtReference(
         stmt.target,
         TRANSITION_TARGET_NAMESPACES,
@@ -395,7 +395,7 @@ function compileRouterTransition(
     } else if (stmt instanceof TransitionStatement) {
       for (const clause of stmt.clauses) {
         if (clause instanceof ToClause) {
-          if (warnIfConnectedAgentTransition(clause.target, ctx)) continue;
+          warnIfConnectedAgentTransition(clause.target, ctx);
           const resolved = resolveAtReference(
             clause.target,
             TRANSITION_TARGET_NAMESPACES,

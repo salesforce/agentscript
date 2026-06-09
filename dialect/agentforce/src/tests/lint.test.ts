@@ -821,7 +821,9 @@ topic self_service:
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain('@utils.transition');
+    expect(errors[0].message).toContain(
+      'Only @utils.transition reasoning actions are allowed when using model:'
+    );
   });
 
   it('reports error for each non-transition action', () => {
@@ -873,7 +875,7 @@ topic self_service:
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
     expect(errors[0].message).toContain(
-      'before_reasoning directives are not allowed when using model:'
+      "before_reasoning is not allowed when using model: model://sfdc_ai__DefaultEinsteinHyperClassifier. Use 'reasoning.instructions' to specify inline actions."
     );
   });
 
@@ -894,7 +896,7 @@ topic self_service:
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
     expect(errors[0].message).toContain(
-      'after_reasoning directives are not allowed when using model:'
+      'after_reasoning is not allowed when using model: model://sfdc_ai__DefaultEinsteinHyperClassifier. Use post-action logic attached to reasoning.actions instead.'
     );
   });
 
@@ -1574,7 +1576,7 @@ variables:
     description: "User display name"
 
 connected_subagent support_agent:
-  target: "agentforce://Support_Agent"
+  target: "agent://Support_Agent"
   label: "Support Agent"
   description: "Handles customer support requests"
   inputs:
@@ -1755,13 +1757,13 @@ connected_subagent Support_Agent:
   description: "Handles support"
 `);
 
-    const errors = diagnostics.filter(
+    const warnings = diagnostics.filter(
       d => d.code === 'connected-agent-no-transition'
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain('not yet supported');
-    expect(errors[0].message).toContain('@connected_subagent.Support_Agent');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain('not yet supported');
+    expect(warnings[0].message).toContain('@connected_subagent.Support_Agent');
   });
 
   it('does not flag @connected_subagent.X as a tool invocation', () => {
@@ -2343,6 +2345,364 @@ subagent Order_Management:
     d => d.code === 'object-type-missing-schema'
   );
   expect(warnings.length).toBeGreaterThan(0);
+});
+
+describe('complex data type rule', () => {
+  const wrap = (inputs: string, outputs: string): string => `
+subagent S:
+  description: "S"
+  actions:
+    A:
+      description: "A"
+      inputs:
+${inputs}
+      outputs:
+${outputs}
+  reasoning:
+    instructions: ->
+      |Do it
+`;
+
+  it('warns when a primitive input has complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'amount'");
+    expect(warnings[0].message).toContain("'A'");
+    expect(warnings[0].message).toContain("'number'");
+  });
+
+  it('does not flag primitive inputs without complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          description: "an amount"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(d => d.code === 'complex-data-type-on-primitive')
+    ).toHaveLength(0);
+  });
+
+  it('warns when a primitive output has complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        in_ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        message: string\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'message'");
+    expect(warnings[0].message).toContain("'string'");
+  });
+
+  it.each([
+    ['boolean'],
+    ['integer'],
+    ['id'],
+    ['date'],
+    ['datetime'],
+    ['time'],
+    ['timestamp'],
+    ['currency'],
+    ['long'],
+  ])('warns when primitive type %s has complex_data_type_name', primitive => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        v: ${primitive}\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain(`'${primitive}'`);
+  });
+
+  it('does not flag object input with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        order: object\n          complex_data_type_name: "OrderRecord"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('does not flag object input that uses schema:', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        order: object\n          schema: "schema://order_schema"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('does not flag list[object] output with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        items: list[object]\n          complex_data_type_name: "OrderRecord"\n`
+      )
+    );
+    expect(
+      diagnostics.filter(
+        d =>
+          d.code === 'complex-data-type-on-primitive' ||
+          d.code === 'object-type-missing-schema'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('warns on list[string] input with complex_data_type_name', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        tags: list[string]\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
+      )
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toContain("'list[string]'");
+  });
+
+  it('reports both warnings for mixed declarations', () => {
+    const diagnostics = runSecurityLint(
+      wrap(
+        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
+        `        result: object\n          description: "bare object output"\n`
+      )
+    );
+    const primitiveWarnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    const missingSchemaWarnings = diagnostics.filter(
+      d => d.code === 'object-type-missing-schema'
+    );
+    expect(primitiveWarnings).toHaveLength(1);
+    expect(primitiveWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(primitiveWarnings[0].message).toContain("'amount'");
+    expect(missingSchemaWarnings).toHaveLength(1);
+    expect(missingSchemaWarnings[0].message).toContain("'result'");
+  });
+});
+
+describe('voice-adaptive conflict rule', () => {
+  it('reports warning when language.adaptive is True and modality voice is present', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "ConflictBot"
+
+language:
+    adaptive: True
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(conflicts[0].message).toContain('adaptive');
+    expect(conflicts[0].message).toContain('voice');
+  });
+
+  it('does not report when adaptive is True but no voice modality is present', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "AdaptiveBot"
+
+language:
+    adaptive: True
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(0);
+  });
+
+  it('does not report when voice modality is present but adaptive is False', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "VoiceBot"
+
+language:
+    default_locale: "en_US"
+    adaptive: False
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(0);
+  });
+
+  it('does not report when voice modality is present but no language block exists', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "VoiceOnlyBot"
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const conflicts = diagnostics.filter(
+      d => d.code === 'voice-adaptive-conflict'
+    );
+    expect(conflicts).toHaveLength(0);
+  });
+});
+
+describe('adaptive-language-overrides rule', () => {
+  it('emits one warning per ignored field when adaptive: True is set with other fields', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "OverrideBot"
+
+language:
+    adaptive: True
+    default_locale: "en_US"
+    additional_locales: "fr, de"
+    all_additional_locales: True
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(3);
+    expect(
+      overrides.every(d => d.severity === DiagnosticSeverity.Warning)
+    ).toBe(true);
+    const messages = overrides.map(d => d.message).join('\n');
+    expect(messages).toContain("'default_locale'");
+    expect(messages).toContain("'additional_locales'");
+    expect(messages).toContain("'all_additional_locales'");
+    expect(messages).toContain('language.adaptive is True');
+  });
+
+  it('does not warn when adaptive: True is set alone', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "AdaptiveOnlyBot"
+
+language:
+    adaptive: True
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(0);
+  });
+
+  it('does not warn when adaptive is False even with default_locale', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "NonAdaptiveBot"
+
+language:
+    adaptive: False
+    default_locale: "en_US"
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(0);
+  });
+
+  it('does not warn when adaptive is absent', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "PlainBot"
+
+language:
+    default_locale: "en_US"
+    additional_locales: "fr, de"
+
+start_agent main:
+    description: "test"
+`);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(0);
+  });
+
+  it('anchors each warning to the ignored field range', () => {
+    const source = `
+config:
+    agent_name: "AnchorBot"
+
+language:
+    adaptive: True
+    default_locale: "en_US"
+
+start_agent main:
+    description: "test"
+`;
+    const diagnostics = runSecurityLint(source);
+    const overrides = diagnostics.filter(
+      d => d.code === 'adaptive-language-overrides'
+    );
+    expect(overrides).toHaveLength(1);
+
+    const lines = source.split('\n');
+    const defaultLocaleLine = lines.findIndex(l =>
+      l.includes('default_locale:')
+    );
+    expect(overrides[0].range.start.line).toBe(defaultLocaleLine);
+  });
 });
 
 describe('complex data type rule', () => {

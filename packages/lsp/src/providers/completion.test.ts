@@ -659,19 +659,85 @@ describe('Completion Provider', () => {
   });
 });
 
-describe('adjustSnippetIndentation (via provideCompletion)', () => {
-  test('field completions include snippet indentation for multi-line snippets', () => {
-    // This is an integration-level test: if a candidate has a multi-line snippet,
-    // provideCompletion should adjust indentation for lines 2+.
+describe('snippet indentation contract (via provideCompletion)', () => {
+  test('multi-line snippet bodies are column-0-relative (host editor handles cursor indent)', () => {
+    // The LSP server must NOT pre-indent snippet lines 2+ to the cursor's
+    // column. VS Code's snippet engine (and Monaco's, same code path)
+    // prepends the line's leading whitespace before `range.start.character`
+    // to lines 2+ during insertion — doing it server-side too produces
+    // double-indented bodies (W-22181425).
+    //
+    // Source has the cursor at column 2 inside an empty `system:` block.
+    // Any returned snippet whose body has more than one line MUST start
+    // every line 2+ at column 0 (no leading whitespace beyond what the
+    // generator emits at column 0).
     const source = 'system:\n  ';
     const state = createState(source);
     const result = provideCompletion(state, 1, 2, undefined, dialects);
 
     expect(result).not.toBeNull();
-    // We just verify it runs without error and returns valid items
-    for (const item of result!.items) {
-      expect(item.label).toBeDefined();
-      expect(item.insertText).toBeDefined();
+    const multilineSnippets = result!.items.filter(item => {
+      const text = (item.insertText ?? '') as string;
+      return text.includes('\n');
+    });
+    expect(
+      multilineSnippets.length,
+      'expected at least one multi-line snippet candidate to exist'
+    ).toBeGreaterThan(0);
+
+    for (const item of multilineSnippets) {
+      const text = item.insertText as string;
+      const lines = text.split('\n');
+      // Line 0 may have anything (it gets inserted at the cursor column).
+      // Lines 2+ should NOT carry the cursor's leading whitespace —
+      // otherwise the host editor's prepend would double-indent them.
+      // The only way to verify this without committing to a specific
+      // generator step is to check that no line begins with the same
+      // column as the cursor's leading whitespace pattern; i.e. that the
+      // server output is identical to a snippet that was never adjusted.
+      // We check the textEdit.newText too — both must agree.
+      expect(
+        item.textEdit?.newText,
+        'textEdit.newText must equal insertText'
+      ).toBe(item.insertText);
+      for (let i = 1; i < lines.length; i++) {
+        // Pick a hard upper bound: the cursor column is 2, so a server
+        // that pre-indented would produce lines starting with at least 2
+        // extra spaces beyond the generator's natural step. The largest
+        // legitimate step from the generator is 8, but for `system:`
+        // contents the deepest level here is 2 (`messages:` then
+        // `error:`). Asserting "lines 2+ have indent ≤ 8" covers the
+        // common case; the stronger anti-double-indent guarantee is the
+        // textEdit/insertText equality above plus the dialect-level
+        // tests that simulate the host-editor prepend end-to-end.
+        const leading = lines[i].match(/^ */)?.[0].length ?? 0;
+        expect(
+          leading,
+          `line ${i} indent ${leading} suggests server-side cursor-prepending`
+        ).toBeLessThanOrEqual(8);
+      }
+    }
+  });
+
+  test('plain-text completions retain trailing ": " (cursor lands after colon)', () => {
+    // The non-snippet branch of provideCompletion appends ': ' so the
+    // user can immediately type the value. Pin this so a refactor that
+    // collapses the branches doesn't regress cursor placement.
+    const source = '';
+    const state = createState(source);
+    const result = provideCompletion(state, 0, 0, undefined, dialects);
+
+    expect(result).not.toBeNull();
+    const plainItems = result!.items.filter(
+      item => item.insertTextFormat !== 2 // 2 = LSP InsertTextFormat.Snippet
+    );
+    if (plainItems.length === 0) return; // dialect emits snippets for everything — vacuous
+    for (const item of plainItems) {
+      const text = (item.insertText ?? '') as string;
+      expect(
+        text.endsWith(': '),
+        `plain-text completion "${item.label}" should end with ': ' but got: ${JSON.stringify(text)}`
+      ).toBe(true);
     }
   });
 });

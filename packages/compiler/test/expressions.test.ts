@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DiagnosticSeverity } from '@agentscript/types';
 import {
+  type Expression,
   StringLiteral,
   NumberLiteral,
   BooleanLiteral,
@@ -24,7 +25,10 @@ import {
   CallExpression,
   SpreadExpression,
 } from '@agentscript/language';
-import { compileExpression } from '../src/expressions/compile-expression.js';
+import {
+  compileExpression,
+  compileValueExpression,
+} from '../src/expressions/compile-expression.js';
 import { CompilerContext } from '../src/compiler-context.js';
 
 let ctx: CompilerContext;
@@ -418,6 +422,51 @@ describe('compileExpression', () => {
         ),
       ]);
       expect(compileExpression(expr, ctx)).toBe('a2a_parts(*state.artifacts)');
+    });
+  });
+
+  describe('null expression handling', () => {
+    it('should not throw when expression is null', () => {
+      // Parser may produce null expr nodes for incomplete syntax
+      // (e.g. `set foo = ` with nothing after `=`).
+      expect(() =>
+        compileExpression(null as unknown as Expression, ctx)
+      ).not.toThrow();
+    });
+
+    it('should emit COMPILER_NULL_EXPRESSION diagnostic for null expression', () => {
+      compileExpression(null as unknown as Expression, ctx);
+      expect(
+        ctx.diagnostics.some(
+          d =>
+            d.severity === DiagnosticSeverity.Error &&
+            d.code === 'COMPILER_NULL_EXPRESSION'
+        )
+      ).toBe(true);
+    });
+
+    it('should not throw when nested expression is null (e.g. spread of null)', () => {
+      const expr = new SpreadExpression(null as unknown as Expression);
+      expect(() => compileExpression(expr, ctx)).not.toThrow();
+      expect(
+        ctx.diagnostics.some(d => d.code === 'COMPILER_NULL_EXPRESSION')
+      ).toBe(true);
+    });
+
+    it('compileValueExpression should not throw when expression is null', () => {
+      expect(() =>
+        compileValueExpression(null as unknown as Expression, ctx)
+      ).not.toThrow();
+    });
+
+    it('compileValueExpression should emit only COMPILER_NULL_EXPRESSION for null input', () => {
+      const result = compileValueExpression(null as unknown as Expression, ctx);
+      expect(result).toBe('');
+      const errors = ctx.diagnostics.filter(
+        d => d.severity === DiagnosticSeverity.Error
+      );
+      expect(errors.length).toBe(1);
+      expect(errors[0].code).toBe('COMPILER_NULL_EXPRESSION');
     });
   });
 });

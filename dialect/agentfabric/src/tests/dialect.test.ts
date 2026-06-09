@@ -143,7 +143,8 @@ router route:
   it('parses echo block', () => {
     const source = `
 echo response:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "Done!"
 `;
     const doc = parseDocument(source);
@@ -186,7 +187,8 @@ orchestrator main:
   on_exit: -> transition to @echo.done
 
 echo done:
-  kind: "a2a:response"
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
   message: "All done"
 `;
     const doc = parseDocument(source);

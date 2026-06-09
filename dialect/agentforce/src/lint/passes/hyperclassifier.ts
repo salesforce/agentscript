@@ -167,7 +167,7 @@ export function hyperclassifierConstraintsRule(): LintPass {
             br ?? block,
             lintDiagnostic(
               cst.range,
-              `before_reasoning directives are not allowed when using model: ${model}`,
+              `before_reasoning is not allowed when using model: ${model}. Use 'reasoning.instructions' to specify inline actions.`,
               DiagnosticSeverity.Error,
               'hyperclassifier-before-reasoning'
             )
@@ -186,7 +186,7 @@ export function hyperclassifierConstraintsRule(): LintPass {
             ar ?? block,
             lintDiagnostic(
               cst.range,
-              `after_reasoning directives are not allowed when using model: ${model}`,
+              `after_reasoning is not allowed when using model: ${model}. Use post-action logic attached to reasoning.actions instead.`,
               DiagnosticSeverity.Error,
               'hyperclassifier-after-reasoning'
             )

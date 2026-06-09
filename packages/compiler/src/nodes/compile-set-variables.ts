@@ -13,6 +13,7 @@ import {
   SetClause,
   WithClause,
   Ellipsis,
+  AvailableWhen,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type { Tool, StateUpdate } from '../types.js';
@@ -43,6 +44,7 @@ export function compileSetVariables(
   const llmInputs: string[] = [];
   const stateUpdates: StateUpdate[] = [];
   let hasWithClauses = false;
+  let enabledCondition: string | undefined;
 
   for (const stmt of body) {
     if (stmt instanceof WithClause) {
@@ -67,6 +69,17 @@ export function compileSetVariables(
         });
         stateUpdates.push({ [varName]: compiledValue });
       }
+    } else if (stmt instanceof AvailableWhen) {
+      // encountering the `available when` cluase again will throw a warning for now
+      if (enabledCondition !== undefined) {
+        ctx.warning(
+          'Multiple "available when" clauses on @utils.setVariables; only the last one is applied.',
+          stmt.__cst?.range
+        );
+      }
+      enabledCondition = compileExpression(stmt.condition, ctx, {
+        expressionContext: "'available when' clause",
+      });
     }
   }
 
@@ -79,6 +92,10 @@ export function compileSetVariables(
 
   if (description !== undefined) {
     tool.description = description;
+  }
+
+  if (enabledCondition) {
+    tool.enabled = enabledCondition;
   }
 
   // When the tool has with-clauses, emit the full tool structure

@@ -38,7 +38,16 @@ export const AGENTSCRIPT_PRIMITIVE_TYPES = [
     keyword: 'timestamp',
     description: 'A point in time represented as a Unix epoch value.',
   },
-  { keyword: 'id', description: 'A unique record identifier.' },
+  {
+    keyword: 'id',
+    description: 'A unique record identifier.',
+    metadata: {
+      deprecated: {
+        message: 'Use string instead.',
+        replacement: 'string',
+      },
+    },
+  },
   {
     keyword: 'integer',
     description: 'A whole number with no decimal part (e.g., 42).',
