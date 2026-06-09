@@ -16,9 +16,11 @@
  */
 
 import * as esbuild from 'esbuild';
+import { spawnSync } from 'child_process';
 import {
   copyFileSync,
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -65,10 +67,36 @@ const serverBuild = {
   external: ['vscode', 'tree-sitter', '@agentscript/parser-tree-sitter'],
 };
 
+/**
+ * Ensure the webview output exists and copy flow.html into dist/webview/.
+ * The webview build is owned by @agentscript/vscode-webview (turbo invokes
+ * it as a workspace dep). If webview/dist/flow.html is missing, run a
+ * one-shot vite build here as a fallback so esbuild.mjs can be run directly.
+ */
+function syncWebview() {
+  const src = join(__dirname, 'webview', 'dist', 'flow.html');
+  if (!existsSync(src)) {
+    console.log('webview/dist/flow.html not found — running vite build...');
+    const result = spawnSync(
+      'pnpm',
+      ['--filter', '@agentscript/vscode-webview', 'build'],
+      { cwd: join(__dirname, '../..'), stdio: 'inherit' }
+    );
+    if (result.status !== 0) {
+      throw new Error('Webview build failed');
+    }
+  }
+  const destDir = join(__dirname, 'dist', 'webview');
+  mkdirSync(destDir, { recursive: true });
+  copyFileSync(src, join(destDir, 'flow.html'));
+  console.log('   ✓ dist/webview/flow.html copied');
+}
+
 async function build() {
   if (watch) {
     const extCtx = await esbuild.context(extensionBuild);
     const srvCtx = await esbuild.context(serverBuild);
+    syncWebview();
     await Promise.all([extCtx.watch(), srvCtx.watch()]);
     console.log('Watching for changes...');
   } else {
@@ -76,6 +104,7 @@ async function build() {
       esbuild.build(extensionBuild),
       esbuild.build(serverBuild),
     ]);
+    syncWebview();
   }
 }
 

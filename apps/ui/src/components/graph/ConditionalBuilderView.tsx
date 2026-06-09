@@ -13,8 +13,10 @@
 import { useMemo } from 'react';
 import type { Statement } from '@agentscript/language';
 import type { AgentScriptAST } from '~/lib/parser';
-import { findTopicBlock } from '~/lib/ast-utils';
-import type { ConditionalEdgeData } from '~/lib/ast-to-graph';
+import {
+  findTopicBlock,
+  type ConditionalEdgeData,
+} from '@agentscript/graph-ui';
 import { useAppStore } from '~/store';
 import { IfStatementEditor } from '~/components/builder/statements/IfStatementEditor';
 

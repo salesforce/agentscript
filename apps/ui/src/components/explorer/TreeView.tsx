@@ -7,7 +7,7 @@
 
 import { ChevronRight, Folder, FileCode2 } from 'lucide-react';
 import * as React from 'react';
-import { getBlockTypeConfig } from '~/lib/block-type-config';
+import { getBlockTypeConfig } from '@agentscript/graph-ui';
 import { cn } from '~/lib/utils';
 import {
   Empty,

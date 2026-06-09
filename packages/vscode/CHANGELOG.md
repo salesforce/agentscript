@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-05-22
+
+### Added
+
+- Agent Script flow preview. Open a `.agent` file and click the preview icon in the editor title (or use the "Agent Script: Open Preview to the Side" command) to render the agent's topic flow as a node graph. Live-updates on document changes; click a node to jump to its source range in the editor.
+
 ## [2.4.0] - 2026-5-1
 
 ### Added

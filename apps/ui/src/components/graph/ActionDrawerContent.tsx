@@ -12,7 +12,7 @@
  */
 
 import { useAppStore } from '~/store';
-import type { ActionDrawerData } from '~/lib/ast-to-graph';
+import type { ActionDrawerData } from '@agentscript/graph-ui';
 import { isNamedMap, type Statement } from '@agentscript/language';
 import type { AgentScriptAST } from '~/lib/parser';
 import { Play, Settings2, Shield, ArrowRight, Equal } from 'lucide-react';

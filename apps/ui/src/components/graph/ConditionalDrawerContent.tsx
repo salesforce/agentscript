@@ -12,7 +12,7 @@
  */
 
 import { useState } from 'react';
-import type { ConditionalEdgeData } from '~/lib/ast-to-graph';
+import type { ConditionalEdgeData } from '@agentscript/graph-ui';
 import { ConditionalBuilderView } from './ConditionalBuilderView';
 import { ConditionalCodeView } from './ConditionalCodeView';
 import { cn } from '~/lib/utils';

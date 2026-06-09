@@ -23,7 +23,7 @@ import {
 } from '~/components/explorer/astToTreeData';
 import { AddBlockMenu } from '~/components/builder/AddBlockMenu';
 import { ErrorBoundary } from '~/components/shared/ErrorBoundary';
-import { DiagnosticHoverCard } from '~/components/graph/nodes/DiagnosticHoverCard';
+import { DiagnosticHoverCard } from '@agentscript/graph-ui';
 import { formatFieldName } from '~/lib/schema-introspection';
 
 /**
