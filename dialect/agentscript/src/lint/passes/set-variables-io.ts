@@ -27,23 +27,48 @@ import {
   resolveNamespaceKeys,
   decomposeAtMemberExpression,
   isNamedMap,
+  isAstNodeLike,
   attachDiagnostic,
   findSuggestion,
   lintDiagnostic,
 } from '@agentscript/language';
 import type { PassStore } from '@agentscript/language';
-import type { CstMeta, SyntaxNode } from '@agentscript/types';
+import type { SyntaxNode } from '@agentscript/types';
 import { toRange, DiagnosticSeverity } from '@agentscript/types';
 import { typeMapKey } from './type-map.js';
 
+// ---------------------------------------------------------------------------
+// AST shape interfaces — narrow the loosely-typed AstNodeLike for readability
+// ---------------------------------------------------------------------------
+
+interface ReasoningActionBlock extends AstNodeLike {
+  __kind: 'ReasoningActionBlock';
+  value?: AstNodeLike;
+  statements?: WithClauseNode[];
+}
+
+interface WithClauseNode extends AstNodeLike {
+  __kind: 'WithClause';
+  param: string;
+  __paramCstNode?: SyntaxNode;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 /** Check if a reasoning action value is @utils.setVariables */
-function isSetVariablesAction(value: unknown): boolean {
+function isSetVariablesAction(value: AstNodeLike | undefined): boolean {
   if (!value) return false;
   const decomposed = decomposeAtMemberExpression(value);
   return (
     decomposed?.namespace === 'utils' && decomposed?.property === 'setVariables'
   );
 }
+
+// ---------------------------------------------------------------------------
+// Lint pass
+// ---------------------------------------------------------------------------
 
 class SetVariablesIoValidator implements LintPass {
   readonly id = storeKey('set-variables-io');
@@ -71,45 +96,38 @@ class SetVariablesIoValidator implements LintPass {
       const topicMap = rootObj[topicKey];
       if (!topicMap || !isNamedMap(topicMap)) continue;
 
-      for (const [, block] of topicMap as NamedMap<unknown>) {
-        if (!block || typeof block !== 'object') continue;
-        const topic = block as AstNodeLike;
+      for (const [, block] of topicMap as NamedMap<AstNodeLike>) {
+        if (!isAstNodeLike(block)) continue;
 
-        const reasoning = topic.reasoning;
-        if (!reasoning || typeof reasoning !== 'object') continue;
+        const reasoning = block.reasoning;
+        if (!isAstNodeLike(reasoning)) continue;
 
-        const reasoningObj = reasoning as Record<string, unknown>;
-        const raActions = reasoningObj.actions;
+        const raActions = reasoning.actions;
         if (!raActions || !isNamedMap(raActions)) continue;
 
-        for (const [, raBlock] of raActions as NamedMap<unknown>) {
-          if (!raBlock || typeof raBlock !== 'object') continue;
-          const ra = raBlock as Record<string, unknown>;
-          if (ra.__kind !== 'ReasoningActionBlock') continue;
+        for (const [, raBlock] of raActions as NamedMap<AstNodeLike>) {
+          if (!isAstNodeLike(raBlock)) continue;
+          if (raBlock.__kind !== 'ReasoningActionBlock') continue;
 
-          // Check if this is a @utils.setVariables action
+          const ra = raBlock as ReasoningActionBlock;
           if (!isSetVariablesAction(ra.value)) continue;
 
-          // Validate with clauses
-          const statements = ra.statements as
-            | Array<Record<string, unknown>>
-            | undefined;
+          const statements = ra.statements;
           if (!statements) continue;
 
           for (const stmt of statements) {
             if (stmt.__kind !== 'WithClause') continue;
-            const param = stmt.param as string;
-            if (!param) continue;
+            if (!stmt.param) continue;
 
-            if (!typeMap.variables.has(param)) {
-              const cst = stmt.__cst as CstMeta | undefined;
+            if (!typeMap.variables.has(stmt.param)) {
+              const cst = stmt.__cst;
               if (cst) {
-                const paramCstNode = (stmt as { __paramCstNode?: SyntaxNode })
-                  .__paramCstNode;
-                const range = paramCstNode ? toRange(paramCstNode) : cst.range;
+                const range = stmt.__paramCstNode
+                  ? toRange(stmt.__paramCstNode)
+                  : cst.range;
 
-                const suggestion = findSuggestion(param, variableNames);
-                const msg = `'${param}' is not a defined variable. @utils.setVariables can only assign to declared variables.`;
+                const suggestion = findSuggestion(stmt.param, variableNames);
+                const msg = `'${stmt.param}' is not a defined variable. @utils.setVariables can only assign to declared variables.`;
                 attachDiagnostic(
                   stmt,
                   lintDiagnostic(
