@@ -4759,3 +4759,157 @@ subagent main:
     expect(errors[0].message).toContain('a number');
   });
 });
+
+// ============================================================================
+// set-variables-io rule tests
+// ============================================================================
+
+describe('setVariablesIoRule', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  it('reports error when with clause param is not a defined variable', () => {
+    const diagnostics = runLint(`
+variables:
+  name: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with name=...
+        with ProductName=...
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'ProductName'");
+    expect(errors[0].message).toContain('not a defined variable');
+  });
+
+  it('reports error with suggestion for typo in variable name', () => {
+    const diagnostics = runLint(`
+variables:
+  account_name: mutable string
+  product_name: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with account_name=...
+        with prodcut_name=...
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'prodcut_name'");
+    expect(errors[0].data?.suggestion).toBe('product_name');
+  });
+
+  it('does not report error for multiple mutable variables', () => {
+    const diagnostics = runLint(`
+variables:
+  name: mutable string
+  email: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with name=...
+        with email=...
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('does not report error for linked variables', () => {
+    const diagnostics = runLint(`
+variables:
+  context_val: linked string
+  name: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with name=...
+        with context_val="test"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports multiple undefined variables', () => {
+    const diagnostics = runLint(`
+variables:
+  name: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with FakeVar1=...
+        with FakeVar2=...
+        with name=...
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(errors).toHaveLength(2);
+  });
+
+  it('reports error for direct assignment to undefined variable', () => {
+    const diagnostics = runLint(`
+variables:
+  name: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with name="John"
+        with status="active"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'status'");
+  });
+});
