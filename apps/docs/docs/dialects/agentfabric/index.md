@@ -440,25 +440,36 @@ The router node has these properties.
 
 ### Echo Node
 
-The echo node sends a response back to the client. The number of responses depends on the trigger interface and its configuration. Use this node for the end of a workflow, or anytime you want to emit a response. Currently only supports `a2a:response` (non-streaming). 
+The echo node emits an A2A event to update the stored task. It supports two event types: `a2a:status_update_event` for setting task state and messages, and `a2a:artifact_update_event` for sending artifact updates. All terminal branches must contain a status update echo that sets a terminal state.
 
-**Example**
+**Example (status update)**
 
 ```agentscript
-echo a2a_response:
-  kind: "a2a:response"
-  task: a2a.task({
-    state: "completed",
-    message: a2a.message(
-          {
-            messageId: uuid(),
-            parts:[
-              a2a.textPart("You have been onboarded!your employee ID is" +@orchestrator.hrSystemOnboard.output.employeeId)
-            ]
-          }),
-    artifacts: a2a.parts(*@variables.artifacts),
-    metadata:None
-    })
+echo setStatus:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: a2a.message({
+    messageId: uuid(),
+    parts:[
+      a2a.textPart("You have been onboarded! your employee ID is " + @orchestrator.hrSystemOnboard.output.employeeId)
+    ]
+  })
+```
+
+**Example (artifact update)**
+
+```agentscript
+echo addArtifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({
+    artifactId: uuid(),
+    name: "results",
+    parts: [
+      a2a.textPart("Analysis complete")
+    ]
+  })
+  append: False
+  lastChunk: False
 ```
 
 | Parameter | Description | Type | Required |
@@ -467,16 +478,30 @@ echo a2a_response:
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
 | `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `kind` | Discriminator for the response type. Must be "a2a:response". | String | Yes |
-| `task` | A Task object as defined in the A2A specification. The `id`, `contextId` and `history` attributes are automatically populated by the trigger | Task object | Yes |
+| `kind` | Event type discriminator: `"a2a:status_update_event"` or `"a2a:artifact_update_event"`. | String | Yes |
+| `metadata` | Optional metadata expression for the event. | Expression | No |
+
+**Fields for `a2a:status_update_event`:**
+
+| Parameter | Description | Type | Required |
+| :---- | :---- | :---- | :---- |
+| `state` | A2A v1 task state (e.g. `"TASK_STATE_COMPLETED"`, `"TASK_STATE_WORKING"`, `"TASK_STATE_FAILED"`, `"TASK_STATE_CANCELED"`). | String | Yes |
+| `message` | A2A message expression for the status update. | Expression | No |
+
+**Fields for `a2a:artifact_update_event`:**
+
+| Parameter | Description | Type | Required |
+| :---- | :---- | :---- | :---- |
+| `artifact` | A2A artifact expression via `a2a.artifact()`. | Expression | Yes |
+| `append` | Whether to append to an existing artifact. Default `false`. | Boolean | No |
+| `lastChunk` | Whether this is the last chunk. Default `false`. | Boolean | No |
 
 ### A2A Namespace Functions
 
-The `a2a` namespace provides a set of functions that support A2A Task object creation. Do not prefix these functions with `@` as it's reserved for references such as `@variables`, `@actions`, `@request`, and `@orchestrator.<nodeId>`.
+The `a2a` namespace provides a set of functions that support A2A event object creation. Do not prefix these functions with `@` as it's reserved for references such as `@variables`, `@actions`, `@request`, and `@orchestrator.<nodeId>`.
 
 | Function | Description | Input Arguments | Output | Example |
 | :---- | :---- | :---- | :---- | :---- |
-| `a2a.task` | Builds an A2A Task response object | `state: str` (required) `message` (optional, from `a2a.message`) `artifacts: list` (optional, from `a2a.artifact`) `metadata: dict` (optional) | `dict` (Task) | `a2a.task("completed", message=a2a.message(...), artifacts=[a2a.artifact(...)])` |
 | `a2a.message` | Builds an A2A Message object | `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `role: str` (optional, default: "agent") `metadata: dict` (optional) | `dict` (Message) | `a2a.message([{messageId: uuid(), parts: [a2a.textPart("Hello")]}])` |
 | `a2a.textPart` | Builds a TextPart object (kind: "text") | `text: str` (required) `metadata: dict` (optional) | `dict` (TextPart) | `` a2a.textPart("Employee ID: {!@orchestrator.employee.id}") `a2a.textPart("Status: Complete", metadata={priority: "high"})` `` |
 | `a2a.dataPart` | Builds a DataPart object (kind: "data") | `data: dict` (required) `metadata: dict` (optional) | `dict` (DataPart) | `` a2a.dataPart({employeeId: "E123", department: "Engineering"}) `a2a.dataPart(@orchestrator.result.output)` `` |
@@ -486,7 +511,7 @@ The `a2a` namespace provides a set of functions that support A2A Task object cre
 
 Usage notes:
 
-* Functions are designed to be composed: `a2a.task` accepts `messages` created by `a2a.message`, which accepts `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
+* Functions are designed to be composed: an echo node's `message` accepts a `a2a.message`, which accepts `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
 * `a2a.filePart` requires either `uri` OR `bytes` (base64-encoded), but not both  
 * `a2a.artifact` auto-generates `artifactId` if it's not provided.  
 * Use `a2a.parts` with the `*` operator to unpack arrays, for example, `a2a.parts(*@variables.artifacts)`.

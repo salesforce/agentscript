@@ -368,9 +368,29 @@ unifiedAgentSpec:
         tools:
           - ref: IdentityAction
             state-updates:
-              - __send_response_value: a2a_task(state="completed",
+              - __send_response_value: a2a_status_update(state="TASK_STATE_COMPLETED",
                   message=a2a_message(parts=[a2a_textPart(state._node_input)]))
               - outputs: add(state.outputs, "send_response", state.__send_response_value)
+        on-init:
+          - type: action
+            ref: IdentityAction
+            state-updates:
+              - _node_input: get(system.node_outputs, state._handoff_source, '')
+        on-exit:
+          - type: handoff
+            target: send_artifact
+        add-tool-result-to-chat-history: false
+        output-template: null
+      - name: send_artifact
+        type: action
+        label: null
+        tools:
+          - ref: IdentityAction
+            state-updates:
+              - __send_artifact_value: a2a_artifact_update(artifact=a2a_artifact(name="support_response",
+                  parts=[a2a_textPart(state._node_input)]), append=false,
+                  lastChunk=true)
+              - outputs: add(state.outputs, "send_artifact", state.__send_artifact_value)
         on-init:
           - type: action
             ref: IdentityAction

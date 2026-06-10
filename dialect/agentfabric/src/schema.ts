@@ -13,6 +13,7 @@ import {
   SymbolKind,
   StringValue,
   NumberValue,
+  BooleanValue,
   ExpressionValue,
   ProcedureValue,
   Sequence,
@@ -508,6 +509,29 @@ export const RouterBlock = NamedBlock(
 
 // ── Echo ────────────────────────────────────────────────────────────
 
+/**
+ * A2A v1 TaskState enum values (SCREAMING_SNAKE_CASE with TASK_STATE_ prefix).
+ * Shared across schema, compiler, and linter.
+ */
+export const A2A_TASK_STATES = [
+  'TASK_STATE_SUBMITTED',
+  'TASK_STATE_WORKING',
+  'TASK_STATE_INPUT_REQUIRED',
+  'TASK_STATE_AUTH_REQUIRED',
+  'TASK_STATE_COMPLETED',
+  'TASK_STATE_FAILED',
+  'TASK_STATE_CANCELED',
+  'TASK_STATE_REJECTED',
+] as const;
+
+/** Terminal A2A v1 task states — task lifecycle ends here. */
+export const A2A_TERMINAL_STATES = new Set([
+  'TASK_STATE_COMPLETED',
+  'TASK_STATE_FAILED',
+  'TASK_STATE_CANCELED',
+  'TASK_STATE_REJECTED',
+]);
+
 export const EchoBlock = NamedBlock(
   'EchoBlock',
   {
@@ -516,16 +540,11 @@ export const EchoBlock = NamedBlock(
       'Human-readable display name.'
     ).displayLabelField(),
     kind: StringValue.describe(
-      'Response type discriminator. Currently only "a2a:response".'
+      'Event type discriminator: "a2a:status_update_event" or "a2a:artifact_update_event".'
     ).required(),
-    message: ExpressionValue.describe('Message expression for the response.'),
-    task: ExpressionValue.describe(
-      'Task expression for the A2A response (alternative to message).'
+    metadata: ExpressionValue.describe(
+      'Optional metadata expression for the event.'
     ),
-    artifacts: ExpressionValue.describe(
-      'Artifacts expression for the response.'
-    ),
-    metadata: ExpressionValue.describe('Metadata expression for the response.'),
     on_exit: ProcedureValue.describe(
       'Procedure executed when node completes.'
     ).transitionContainer(),
@@ -536,8 +555,29 @@ export const EchoBlock = NamedBlock(
   }
 )
   .discriminant('kind')
-  .variant('a2a:response', {})
-  .describe('Echo node that sends a response back to the client.');
+  .variant('a2a:status_update_event', {
+    state: StringValue.describe('A2A v1 task state.')
+      .enum([...A2A_TASK_STATES])
+      .required(),
+    message: ExpressionValue.describe(
+      'A2A message expression for the status update.'
+    ),
+  })
+  .variant('a2a:artifact_update_event', {
+    // TODO: ExpressionValue has no type constraint mechanism — we cannot
+    // enforce that this expression evaluates to an A2A Artifact object.
+    // Requires expression-level type inference in the language infrastructure.
+    artifact: ExpressionValue.describe(
+      'A2A artifact expression via a2a.artifact().'
+    ).required(),
+    append: BooleanValue.describe(
+      'Whether to append to an existing artifact (default: False).'
+    ),
+    lastChunk: BooleanValue.describe(
+      'Whether this is the last chunk (default: False).'
+    ),
+  })
+  .describe('Echo node that emits an A2A event to update the stored task.');
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -570,7 +610,6 @@ export const AgentFabricSchemaInfo: SchemaInfo = {
   },
   namespacedFunctions: {
     a2a: new Set([
-      'task',
       'message',
       'textPart',
       'parts',
