@@ -57,14 +57,12 @@ interface WithClauseNode extends AstNodeLike {
 // Type guards
 // ---------------------------------------------------------------------------
 
-function isReasoningActionBlock(
-  node: AstNodeLike
-): node is ReasoningActionBlock {
-  return node.__kind === 'ReasoningActionBlock';
+function isReasoningActionBlock(node: unknown): node is ReasoningActionBlock {
+  return isAstNodeLike(node) && node.__kind === 'ReasoningActionBlock';
 }
 
-function isWithClause(node: AstNodeLike): node is WithClauseNode {
-  return node.__kind === 'WithClause';
+function isWithClause(node: unknown): node is WithClauseNode {
+  return isAstNodeLike(node) && node.__kind === 'WithClause';
 }
 
 /** Check if a reasoning action value is @utils.setVariables */
@@ -93,7 +91,6 @@ class SetVariablesIoValidator implements LintPass {
     const ctx = store.get(schemaContextKey);
     if (!ctx) return;
 
-    const rootObj = root as AstNodeLike;
     const variableNames = [...typeMap.variables.keys()];
 
     // Walk all subagent/topic blocks to find @utils.setVariables reasoning actions
@@ -103,7 +100,7 @@ class SetVariablesIoValidator implements LintPass {
     ]);
 
     for (const topicKey of subagentKeys) {
-      const topicMap = rootObj[topicKey];
+      const topicMap = root[topicKey];
       if (!topicMap || !isNamedMap(topicMap)) continue;
 
       for (const [, block] of topicMap as NamedMap<AstNodeLike>) {
@@ -116,7 +113,6 @@ class SetVariablesIoValidator implements LintPass {
         if (!raActions || !isNamedMap(raActions)) continue;
 
         for (const [, raBlock] of raActions as NamedMap<AstNodeLike>) {
-          if (!isAstNodeLike(raBlock)) continue;
           if (!isReasoningActionBlock(raBlock)) continue;
           if (!isSetVariablesAction(raBlock.value)) continue;
 
