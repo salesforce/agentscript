@@ -29,7 +29,31 @@ import {
   decomposeAtMemberExpression,
   escapeStringValue,
 } from '@agentscript/language';
+import type { Range } from '@agentscript/types';
 import type { CompilerContext } from '../compiler-context.js';
+
+/**
+ * Resolve a `@variables.X` reference to its runtime-namespaced string.
+ *
+ * - Mutable variables → `state.X`
+ * - Linked (context) variables → `variables.X`
+ * - Unknown variables → `state.X` and warn (the runtime treats unknown
+ *   names as state, but flag it so the user catches typos)
+ */
+function resolveVariableRef(
+  varName: string,
+  ctx: CompilerContext,
+  range: Range | undefined
+): string {
+  const ns = ctx.getVariableNamespace(varName);
+  if (ns === 'context') return `variables.${varName}`;
+  if (ns === 'state') return `state.${varName}`;
+  ctx.warning(
+    `Variable '${varName}' not found in known variables, defaulting to state namespace`,
+    range
+  );
+  return `state.${varName}`;
+}
 
 /**
  * Compile an AST Expression into its runtime string representation.
@@ -44,16 +68,9 @@ export function compileExpression(
   // Post-process: Replace any remaining @variables references that weren't
   // properly compiled (e.g., inside function calls like len(@variables.x))
   // This matches agent-dsl's regex-based approach for comprehensive coverage.
-  compiled = compiled.replace(/@variables\.(\w+)/g, (_, varName) => {
-    const ns = ctx.getVariableNamespace(varName);
-    if (ns === 'context') return `variables.${varName}`;
-    if (ns === 'state') return `state.${varName}`;
-    ctx.warning(
-      `Variable '${varName}' not found in known variables, defaulting to state namespace`,
-      expr.__cst?.range
-    );
-    return `state.${varName}`;
-  });
+  compiled = compiled.replace(/@variables\.(\w+)/g, (_, varName) =>
+    resolveVariableRef(varName, ctx, expr.__cst?.range)
+  );
 
   return compiled;
 }
@@ -71,6 +88,18 @@ function compileExprNode(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
+  // Defense-in-depth: the parser may produce null expression nodes for
+  // incomplete syntax (e.g. `set foo = ` with nothing after `=`). Guard
+  // here — the single chokepoint that compileExpression, compileValueExpression,
+  // and recursive callers all funnel through.
+  if ((expr as Expression | null | undefined) == null) {
+    ctx.error(
+      'Internal: expression node was null',
+      undefined,
+      'COMPILER_NULL_EXPRESSION'
+    );
+    return '';
+  }
   if (expr instanceof MemberExpression) {
     return compileMemberExpression(expr, ctx, opts);
   }
@@ -138,14 +167,7 @@ function compileMemberExpression(
         if (opts.isSystemMessage) {
           return `$Context.${property}`;
         }
-        const ns = ctx.getVariableNamespace(property);
-        if (ns === 'context') return `variables.${property}`;
-        if (ns === 'state') return `state.${property}`;
-        ctx.warning(
-          `Variable '${property}' not found in known variables, defaulting to state namespace`,
-          expr.__cst?.range
-        );
-        return `state.${property}`;
+        return resolveVariableRef(property, ctx, expr.__cst?.range);
       }
 
       case 'outputs':

@@ -105,7 +105,6 @@ function TreeNodeItem({
   const isGroup = blockType === 'group';
   const selected = selectedNodeId === node.id;
 
-  // Update isExpanded when defaultExpanded changes
   React.useEffect(() => {
     setIsExpanded(defaultExpanded);
   }, [defaultExpanded]);

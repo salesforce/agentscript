@@ -1,0 +1,75 @@
+system:
+    instructions: "You are a helpful assistant that exercises action target alias translation."
+    messages:
+        welcome: "Hello! I exercise alias translation."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Alias_Targets_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent exercising the four action target alias schemes"
+
+start_agent main:
+    description: "Agent exercising the four action target alias schemes"
+
+    actions:
+        Prompt_Action:
+            description: "Action using the prompt:// alias (maps to generatePromptResponse)"
+            target: "prompt://Confirm_Lead_Attributes"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                prompt_result: string
+                    label: "Prompt Result"
+
+        Service_Catalog_Action:
+            description: "Action using the serviceCatalog:// alias (maps to createCatalogItemRequest)"
+            target: "serviceCatalog://MyCatalogItem"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                catalog_result: string
+                    label: "Catalog Result"
+
+        Integration_Procedure_Action:
+            description: "Action using the integrationProcedureAction:// alias (maps to executeIntegrationProcedure)"
+            target: "integrationProcedureAction://MyIntegrationProcedure"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                ip_result: string
+                    label: "Integration Procedure Result"
+
+        Expression_Set_Action:
+            description: "Action using the expressionSet:// alias (maps to runExpressionSet)"
+            target: "expressionSet://MyExpressionSet"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                expr_result: string
+                    label: "Expression Set Result"
+
+    reasoning:
+        instructions: ->
+            | You have access to four alias-form action targets.
+
+        actions:
+            Use_Prompt: @actions.Prompt_Action
+                with input_val=...
+
+            Use_Catalog: @actions.Service_Catalog_Action
+                with input_val=...
+
+            Use_Integration: @actions.Integration_Procedure_Action
+                with input_val=...
+
+            Use_Expression: @actions.Expression_Set_Action
+                with input_val=...

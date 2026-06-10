@@ -7,6 +7,7 @@
 
 import { expect, test } from 'vitest';
 import {
+  AGENTSCRIPT_PRIMITIVE_TYPES,
   StringLiteral,
   TemplateExpression,
   TemplateText,
@@ -16,6 +17,9 @@ import {
   WithClause,
   SetClause,
 } from '@agentscript/language';
+import { DiagnosticTag } from '@agentscript/types';
+import { parseWithDiagnostics } from './test-utils.js';
+import { AgentScriptSchema } from '../schema.js';
 
 // We test the emit behavior of value-like classes
 // Note: NumberValue and BooleanValue are internal classes accessed through primitives
@@ -126,4 +130,50 @@ test('ExpressionValue emits at-identifier', () => {
 test('ExpressionValue emits string', () => {
   const expr = new StringLiteral('hello');
   expect(expr.__emit(ctx)).toBe('"hello"');
+});
+
+// Deprecated primitive types
+
+test('id primitive is marked deprecated with replacement', () => {
+  const id = AGENTSCRIPT_PRIMITIVE_TYPES.find(t => t.keyword === 'id');
+  expect(id?.metadata?.deprecated?.replacement).toBe('string');
+});
+
+test('using deprecated id type emits deprecated-field diagnostic', () => {
+  const { diagnostics } = parseWithDiagnostics(
+    `variables:
+    customer_id: mutable id
+`,
+    AgentScriptSchema
+  );
+  const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
+  expect(deprecated).toHaveLength(1);
+  expect(deprecated[0].message).toContain("'id' is deprecated");
+  expect(deprecated[0].tags).toContain(DiagnosticTag.Deprecated);
+  expect(deprecated[0].data?.replacement).toBe('string');
+});
+
+test('using deprecated id as list element type emits diagnostic', () => {
+  const { diagnostics } = parseWithDiagnostics(
+    `variables:
+    customer_ids: mutable list[id]
+`,
+    AgentScriptSchema
+  );
+  const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
+  expect(deprecated).toHaveLength(1);
+  expect(deprecated[0].message).toContain("'id' is deprecated");
+});
+
+test('non-deprecated primitive types do not emit diagnostics', () => {
+  const { diagnostics } = parseWithDiagnostics(
+    `variables:
+    name: mutable string
+    age: mutable number
+    active: mutable boolean
+`,
+    AgentScriptSchema
+  );
+  const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
+  expect(deprecated).toHaveLength(0);
 });

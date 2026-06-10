@@ -18,6 +18,13 @@ export interface DiscriminantConfig {
   field: string;
   /** Variant schemas keyed by discriminant value, already merged with base schema */
   variants: Record<string, Record<string, FieldType>>;
+  /** Predicate-keyed variants checked after exact-match lookup fails */
+  variantMatchers?: Array<{
+    name: string;
+    test: (value: string) => boolean;
+    schema: Record<string, FieldType>;
+  }>;
+
   /** Valid variant names for error messages */
   validValues: string[];
 }

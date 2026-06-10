@@ -1,0 +1,54 @@
+system:
+    instructions: "You are a customer service agent with configurable surface parameters."
+    messages:
+        welcome: "Welcome! How can I assist you today?"
+        error: "An error occurred. Please try again."
+
+config:
+    developer_name: "ConnectionInputsTest"
+    default_agent_user: "support@example.com"
+    agent_label: "Connection Inputs Test Agent"
+    description: "Test agent demonstrating connection input parameters"
+
+variables:
+    user_name: mutable string
+        description: "Customer name"
+    issue_resolved: mutable boolean = False
+        description: "Whether the issue has been resolved"
+
+connection service_email:
+    inputs:
+        LegalDisclosure: string = "This conversation may be recorded for quality assurance."
+            description: "Legal disclosure message to include in emails"
+        MaxRetries: number = 3
+            description: "Maximum number of retry attempts"
+        EnableAutoResponse: boolean = True
+            description: "Enable automatic response generation"
+        CustomSignature: string
+            description: "Custom email signature"
+
+    adaptive_response_allowed: True
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://EmailSupport"
+
+start_agent main:
+    description: "Main agent entry point"
+
+    actions:
+        provide_support:
+            description: "Provide support to the customer"
+            inputs:
+                query: string
+                    is_required: True
+            outputs:
+                response: string
+            target: "flow://CustomerSupport"
+
+    reasoning:
+        instructions: ->
+            | Assist customers with their inquiries.
+              Be professional and helpful.
+
+        actions:
+            help_customer: @actions.provide_support
+                description: "Provide customer support"

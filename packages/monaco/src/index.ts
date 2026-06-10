@@ -74,3 +74,11 @@ export type {
   HighlightResult,
   ErrorResult,
 } from './worker-parser';
+
+// LSP Extension (for VSCode API compat layers)
+export { createLspExtension } from './lsp-extension';
+export type {
+  LspExtensionConfig,
+  VscodeWrapper,
+  ExtensionManifest,
+} from './lsp-extension';

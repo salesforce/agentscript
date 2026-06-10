@@ -17,6 +17,7 @@
  * Tests auto/manual transitions, description inheritance, and state variable injection.
  */
 import { describe, it, expect } from 'vitest';
+import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
 import {
@@ -185,6 +186,54 @@ topic destination:
     const handoff = node.after_all_tool_calls![0];
     expect(handoff.target).toBe('destination');
     expect(handoff.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="destination"`);
+  });
+
+  it('should keep the last available when and warn when multiple are specified', () => {
+    const source = `
+config:
+    agent_name: "test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    first_flag: mutable boolean = False
+    second_flag: mutable boolean = False
+
+start_agent test:
+    description: "test"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            transition_dup: @utils.transition to @topic.destination
+                available when @variables.first_flag
+                available when @variables.second_flag
+
+topic destination:
+    description: "destination"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+
+    const stateUpdateTools = node.tools.filter(
+      t => t.target === STATE_UPDATE_ACTION
+    );
+    expect(stateUpdateTools.length).toBe(1);
+    const tool = stateUpdateTools[0];
+    expect(tool.name).toBe('transition_dup');
+    expect(tool.enabled).toBe('state.second_flag');
+
+    const duplicateAvailableWhenWarnings = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Warning &&
+        d.message.includes('Multiple "available when" clauses')
+    );
+    expect(duplicateAvailableWhenWarnings).toHaveLength(1);
+    expect(duplicateAvailableWhenWarnings[0].message).toContain(
+      'only the last one is applied'
+    );
   });
 });
 

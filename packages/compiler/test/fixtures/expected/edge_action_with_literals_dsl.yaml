@@ -1,18 +1,15 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: EdgeActionWithLiterals
   label: Edge Action With Literals
   description: Tests with clauses using literal string, number, and boolean values
   enable_enhanced_event_logs: false
   agent_type: EinsteinServiceAgent
-  default_agent_user: admin@example.com
   context_variables: []
+  default_agent_user: admin@example.com
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages: []
-  modality_parameters: {}
-  additional_parameters:
-    reset_to_initial_node: true
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -26,7 +23,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -45,37 +42,20 @@ agent_version:
       description: Count result
       data_type: number
       is_list: false
-      default: 0
       visibility: Internal
+      default: 0
     - developer_name: is_active
       label: Is Active
       description: Active status
       data_type: boolean
       is_list: false
-      default: false
       visibility: Internal
+      default: false
   initial_node: main
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Help users by running actions with specific literal values.
-
-                Use the appropriate action based on the request.'
-      instructions: You are a service agent that processes requests with specific
-        values.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Demonstrate literal with clauses
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: greet_user
@@ -86,48 +66,43 @@ agent_version:
           state_updates:
             - result: result.message
           name: greet_john
-          description: Greet John
         - type: action
           target: process_count
           bound_inputs:
-            count: '5'
-            multiplier: '10'
+            count: "5"
+            multiplier: "10"
           llm_inputs: []
           state_updates:
             - count: result.total
           name: process_five
-          description: Process Five
         - type: action
           target: set_status
           bound_inputs:
-            active: 'True'
+            active: "True"
             reason: '"User requested activation"'
           llm_inputs: []
           state_updates:
             - is_active: result.confirmed
           name: activate
-          description: Activate
         - type: action
           target: set_status
           bound_inputs:
-            active: 'False'
+            active: "False"
             reason: '"Scheduled deactivation"'
           llm_inputs: []
           state_updates:
             - is_active: result.confirmed
           name: deactivate
-          description: Deactivate
         - type: action
           target: mixed_literals
           bound_inputs:
             tag: '"priority_high"'
-            threshold: '100'
-            enabled: 'True'
+            threshold: "100"
+            enabled: "True"
           llm_inputs: []
           state_updates:
             - result: result.result
           name: mixed_action
-          description: Mixed Action
       developer_name: main
       label: Main
       action_definitions:
@@ -258,4 +233,22 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
+      instructions: You are a service agent that processes requests with specific values.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Help users by running actions with specific literal values.
+                Use the appropriate action based on the request.
   surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true

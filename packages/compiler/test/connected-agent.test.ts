@@ -16,6 +16,12 @@ import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
 import { DiagnosticSeverity } from '../src/diagnostics.js';
 import { parseSource } from './test-utils.js';
+import {
+  NEXT_TOPIC_VARIABLE,
+  EMPTY_TOPIC_VALUE,
+  STATE_UPDATE_ACTION,
+  RUNTIME_CONDITION_VARIABLE,
+} from '../src/constants.js';
 
 /** Helper to find a node by developer_name in compiled output */
 function findNode(output: ReturnType<typeof compile>['output'], name: string) {
@@ -38,7 +44,7 @@ start_agent Main:
     const source = `
 ${baseConfig}
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles order inquiries"
 `;
@@ -47,7 +53,7 @@ connected_subagent Order_Agent:
 
     expect(node).toBeDefined();
     expect(node.type).toBe('related_agent');
-    expect(node.invocation_target_type).toBe('agentforce');
+    expect(node.invocation_target_type).toBe('agent');
     expect(node.invocation_target_name).toBe('Order_Agent');
     expect(node.label).toBe('Order Agent');
     expect(node.description).toBe('Handles order inquiries');
@@ -57,7 +63,7 @@ connected_subagent Order_Agent:
     const source = `
 ${baseConfig}
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     loading_text: "Looking up your order..."
@@ -77,7 +83,7 @@ variables:
     Customer_Name: string
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -101,7 +107,7 @@ variables:
     Session_Id: linked string
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -120,7 +126,7 @@ connected_subagent Order_Agent:
     const source = `
 ${baseConfig}
 connected_subagent Simple_Agent:
-    target: "agentforce://Simple_Agent"
+    target: "agent://Simple_Agent"
     label: "Simple Agent"
     description: "A simple agent"
 `;
@@ -137,12 +143,12 @@ connected_subagent Simple_Agent:
     const source = `
 ${baseConfig}
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
 
 connected_subagent Billing_Agent:
-    target: "agentforce://Billing_Agent"
+    target: "agent://Billing_Agent"
     label: "Billing Agent"
     description: "Handles billing"
 `;
@@ -167,7 +173,7 @@ topic Support:
             | Help customers
 
 connected_subagent External_Agent:
-    target: "agentforce://External_Agent"
+    target: "agent://External_Agent"
     label: "External Agent"
     description: "External system"
 `;
@@ -194,7 +200,7 @@ connected_subagent External_Agent:
     const source = `
 ${baseConfig}
 connected_subagent My_Custom_Agent:
-    target: "agentforce://My_Custom_Agent"
+    target: "agent://My_Custom_Agent"
     description: "Custom agent"
 `;
     const { output } = compile(parseSource(source));
@@ -208,7 +214,7 @@ connected_subagent My_Custom_Agent:
     const source = `
 ${baseConfig}
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -244,7 +250,7 @@ ${baseConfig}
                 description: "Invoke support agent"
 
 connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
+    target: "agent://Support_Agent"
     label: "Support Agent"
     description: "Handles support"
 `;
@@ -269,7 +275,7 @@ ${baseConfig}
                 description: "Invoke billing agent"
 
 connected_subagent Billing_Agent:
-    target: "agentforce://Billing_Agent"
+    target: "agent://Billing_Agent"
     label: "Billing Agent"
     description: "Handles billing"
 `;
@@ -305,7 +311,7 @@ ${baseConfig}
                 description: "Invoke order agent"
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
 `;
@@ -334,16 +340,20 @@ ${baseConfig}
                 description: "Transfer to support"
 
 connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
+    target: "agent://Support_Agent"
     label: "Support Agent"
     description: "Handles support"
 `;
-    const { diagnostics } = compile(parseSource(source));
+    const { output, diagnostics } = compile(parseSource(source));
     const transitionWarnings = diagnostics.filter(d =>
       d.message.includes('Transition to connected agent')
     );
     expect(transitionWarnings.length).toBeGreaterThan(0);
     expect(transitionWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+
+    // Warning should not block compilation — transition tool should still be present
+    const node = findNode(output, 'Main');
+    expect(node?.tools.some(t => t.name === 'transfer')).toBe(true);
   });
 
   it('should warn when transitioning to @connected_subagent.X in after_reasoning', () => {
@@ -356,7 +366,7 @@ ${baseConfig}
             | Help the user.
 
 connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
+    target: "agent://Support_Agent"
     label: "Support Agent"
     description: "Handles support"
 `;
@@ -380,7 +390,7 @@ ${baseConfig}
                 with typo_input = "foo"
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -403,7 +413,7 @@ ${baseConfig}
                 description: "Invoke order agent"
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -431,7 +441,7 @@ variables:
     Default_Id: string
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -455,7 +465,7 @@ ${baseConfig}
                 with customer_id = "abc"
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -496,7 +506,7 @@ variables:
     Cid: string
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -514,6 +524,42 @@ connected_subagent Order_Agent:
     expect(tool!.target).toBe('Order_Agent');
     expect(tool!.bound_inputs).toBeUndefined();
     expect(tool!.llm_inputs).toBeUndefined();
+  });
+
+  it('does not auto-fill llm_inputs for connected agents missing required inputs', () => {
+    // Regression: the default LLM slot-fill for regular @actions.X tools must
+    // not bleed into the @connected_subagent.X path. Connected agents have
+    // their own explicit "Missing required input" warning and intentionally
+    // omit bound_inputs / llm_inputs from the compiled supervision tool.
+    const source = `
+${baseConfig}
+    reasoning:
+        instructions: ->
+            | Route requests
+        actions:
+            call_agent: @connected_subagent.Order_Agent
+                description: "Invoke order agent"
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    inputs:
+        customer_id: string
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const mainNode = output.agent_version.nodes.find(
+      n => n.developer_name === 'Main'
+    )!;
+    const tool = mainNode.tools.find(t => t.name === 'call_agent');
+    expect(tool).toBeDefined();
+    expect(tool!.bound_inputs).toBeUndefined();
+    expect(tool!.llm_inputs).toBeUndefined();
+    expect(
+      diagnostics.some(d =>
+        d.message.includes('Missing required input "customer_id"')
+      )
+    ).toBe(true);
   });
 
   it('should compile connected agent tool alongside a transition', () => {
@@ -535,7 +581,7 @@ topic Billing:
             | Handle billing
 
 connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
+    target: "agent://Support_Agent"
     label: "Support Agent"
     description: "Handles support"
 `;
@@ -623,7 +669,7 @@ start_agent Main:
                 set @variables.Last_Agent = "Support_Agent"
 
 connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
+    target: "agent://Support_Agent"
     label: "Support Agent"
     description: "Handles support"
 `;
@@ -658,7 +704,7 @@ start_agent Main:
             | Handle requests
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
 `;
@@ -682,7 +728,7 @@ start_agent Main:
                 with order_id = "123"
 
 connected_subagent Order_Agent:
-    target: "agentforce://Order_Agent"
+    target: "agent://Order_Agent"
     label: "Order Agent"
     description: "Handles orders"
     inputs:
@@ -690,5 +736,224 @@ connected_subagent Order_Agent:
 `;
     const { diagnostics } = compile(parseSource(source));
     expect(diagnostics).toHaveLength(0);
+  });
+});
+
+describe('connected_subagent after_response', () => {
+  const baseConfig = `
+config:
+    agent_name: "TestBot"
+
+start_agent Main:
+    description: "Main topic"
+    reasoning:
+        instructions: ->
+            | Handle requests
+`;
+
+  it('should not emit after_response when omitted', () => {
+    const source = `
+${baseConfig}
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node).toBeDefined();
+    expect(node.after_response).toBeUndefined();
+  });
+
+  it('should compile a set directive into a state update action', () => {
+    const source = `
+${baseConfig}
+variables:
+    Refund_Done: mutable boolean
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    after_response:
+        set @variables.Refund_Done = True
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node.after_response).toBeDefined();
+    const actions = node.after_response as Record<string, unknown>[];
+
+    const setAction = actions.find(
+      a =>
+        a.target === STATE_UPDATE_ACTION &&
+        Array.isArray(a.state_updates) &&
+        (a.state_updates as Record<string, string>[]).some(
+          su => 'Refund_Done' in su
+        )
+    );
+    expect(setAction).toBeDefined();
+  });
+
+  it('should compile a transition directive into state update + handoff', () => {
+    const source = `
+${baseConfig}
+topic Wrap_Up:
+    description: "Wrap up"
+    reasoning:
+        instructions: ->
+            | Wrap up
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    after_response:
+        transition to @topic.Wrap_Up
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node.after_response).toBeDefined();
+    const actions = node.after_response as Record<string, unknown>[];
+
+    const handoff = actions.find(
+      a => a.type === 'handoff' && a.target === 'Wrap_Up'
+    ) as Record<string, unknown> | undefined;
+    expect(handoff).toBeDefined();
+    expect(handoff!.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="Wrap_Up"`);
+    expect(handoff!.state_updates).toEqual([
+      { [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE },
+    ]);
+  });
+
+  it('should compile if/else directives with runtime condition gating', () => {
+    const source = `
+${baseConfig}
+variables:
+    Refund_Done: mutable boolean
+    Refund_Failed: mutable boolean
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    after_response:
+        if @variables.Refund_Done:
+            set @variables.Refund_Failed = False
+        else:
+            set @variables.Refund_Failed = True
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node.after_response).toBeDefined();
+    const actions = node.after_response as Record<string, unknown>[];
+
+    // Should set the runtime-condition variable from the @variables.Refund_Done expression
+    const condUpdate = actions.find(
+      a =>
+        a.target === STATE_UPDATE_ACTION &&
+        Array.isArray(a.state_updates) &&
+        (a.state_updates as Record<string, string>[]).some(
+          su => RUNTIME_CONDITION_VARIABLE in su
+        )
+    );
+    expect(condUpdate).toBeDefined();
+
+    // Should have one Refund_Failed update gated by positive runtime condition
+    // and one gated by the negation.
+    const refundFailedUpdates = actions.filter(
+      a =>
+        a.target === STATE_UPDATE_ACTION &&
+        Array.isArray(a.state_updates) &&
+        (a.state_updates as Record<string, string>[]).some(
+          su => 'Refund_Failed' in su
+        )
+    );
+    expect(refundFailedUpdates.length).toBe(2);
+    const enabledClauses = refundFailedUpdates.map(a => a.enabled as string);
+    expect(
+      enabledClauses.some(e =>
+        e?.includes(`state.${RUNTIME_CONDITION_VARIABLE}`)
+      )
+    ).toBe(true);
+    expect(
+      enabledClauses.some(e =>
+        e?.includes(`not (state.${RUNTIME_CONDITION_VARIABLE})`)
+      )
+    ).toBe(true);
+  });
+
+  it('should compile after_response with a mix of set and transition', () => {
+    const source = `
+${baseConfig}
+variables:
+    Refund_Done: mutable boolean
+
+topic Wrap_Up:
+    description: "Wrap up"
+    reasoning:
+        instructions: ->
+            | Wrap up
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    after_response:
+        set @variables.Refund_Done = True
+        transition to @topic.Wrap_Up
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node.after_response).toBeDefined();
+    const actions = node.after_response as Record<string, unknown>[];
+
+    expect(
+      actions.some(
+        a =>
+          a.target === STATE_UPDATE_ACTION &&
+          Array.isArray(a.state_updates) &&
+          (a.state_updates as Record<string, string>[]).some(
+            su => 'Refund_Done' in su
+          )
+      )
+    ).toBe(true);
+    expect(
+      actions.some(a => a.type === 'handoff' && a.target === 'Wrap_Up')
+    ).toBe(true);
+  });
+
+  it('should emit a diagnostic for transition to @connected_subagent.X in after_response', () => {
+    const source = `
+${baseConfig}
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    after_response:
+        transition to @connected_subagent.Other_Agent
+
+connected_subagent Other_Agent:
+    target: "agent://Other_Agent"
+    label: "Other Agent"
+    description: "Other connected agent"
+`;
+    const { diagnostics } = compile(parseSource(source));
+    const errors = diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Warning
+    );
+    // The compile-utils warnIfConnectedAgentTransition path issues a warning
+    // when a transition statement targets a connected subagent.
+    expect(
+      errors.some(
+        d =>
+          typeof d.message === 'string' &&
+          d.message.toLowerCase().includes('connected agent')
+      )
+    ).toBe(true);
   });
 });

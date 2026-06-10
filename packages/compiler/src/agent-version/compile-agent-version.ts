@@ -36,8 +36,13 @@ import { compileConnectedAgentNode } from '../nodes/compile-connected-agent-node
 import {
   compileCustomSubagentNode,
   COMMERCE_SHOPPER_BYO_CLIENT,
+  deriveByonClient,
 } from '../nodes/compile-custom-subagent-node.js';
-import { COMMERCE_SHOPPER_SCHEMA } from '@agentscript/agentforce-dialect';
+import type { BYOClientConfig } from '../types.js';
+import {
+  COMMERCE_SHOPPER_SCHEMA,
+  BYON_SCHEMA_PREFIX,
+} from '@agentscript/agentforce-dialect';
 import { compileSurfaces } from '../surfaces/compile-surfaces.js';
 import { extractCompanyAndRole } from '../config/agent-configuration.js';
 import { extractGlobalModelConfiguration } from '../config/model-config.js';
@@ -99,12 +104,13 @@ export function compileAgentVersion(
   const nodes: AgentNode[] = [];
   for (const { name, block } of blocks) {
     const schemaValue = extractStringValue(block.schema);
-    if (schemaValue === COMMERCE_SHOPPER_SCHEMA) {
+    const byoClient = resolveByoClient(schemaValue, name, ctx);
+    if (byoClient) {
       nodes.push(
         compileCustomSubagentNode(
           name,
           block,
-          COMMERCE_SHOPPER_BYO_CLIENT,
+          byoClient,
           topicDescriptions,
           ctx
         )
@@ -269,6 +275,24 @@ function createTopicDescriptions(blocks: TopicEntry[]): Record<string, string> {
 // ---------------------------------------------------------------------------
 // Additional Parameters Merge
 // ---------------------------------------------------------------------------
+
+function resolveByoClient(
+  schemaValue: string | null | undefined,
+  subagentName: string,
+  ctx: CompilerContext
+): BYOClientConfig | undefined {
+  if (!schemaValue) return undefined;
+  if (schemaValue === COMMERCE_SHOPPER_SCHEMA)
+    return COMMERCE_SHOPPER_BYO_CLIENT;
+  if (!schemaValue.startsWith(BYON_SCHEMA_PREFIX)) return undefined;
+  const client = deriveByonClient(schemaValue);
+  if (!client) {
+    ctx.error(
+      `Subagent '${subagentName}' has a malformed BYON schema URI '${schemaValue}'. Expected node://byon/<namespace>/<type>/<version>.`
+    );
+  }
+  return client;
+}
 
 function populateConnectedAgentInputSignature(
   name: string,

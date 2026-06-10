@@ -171,7 +171,9 @@ export function Component() {
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const selectedKindRef = useRef(selectedKind);
-  selectedKindRef.current = selectedKind;
+  useEffect(() => {
+    selectedKindRef.current = selectedKind;
+  }, [selectedKind]);
   const [languageInitialized, setLanguageInitialized] = useState(false);
 
   useEffect(() => {

@@ -356,14 +356,21 @@ export class Dialect {
         if (variantSchema) {
           effectiveSchema = variantSchema as unknown as T;
         } else {
-          discriminantDiags.push(
-            createDiagnostic(
-              scan.cstNode,
-              `Unknown variant '${scan.value}' for discriminant '${discriminant.field}'. Valid values: ${discriminant.validValues.join(', ')}`,
-              DiagnosticSeverity.Error,
-              'unknown-variant'
-            )
+          const matched = discriminant.variantMatchers?.find(m =>
+            m.test(scan.value)
           );
+          if (matched) {
+            effectiveSchema = matched.schema as unknown as T;
+          } else {
+            discriminantDiags.push(
+              createDiagnostic(
+                scan.cstNode,
+                `Unknown variant '${scan.value}' for discriminant '${discriminant.field}'. Valid values: ${discriminant.validValues.join(', ')}`,
+                DiagnosticSeverity.Error,
+                'unknown-variant'
+              )
+            );
+          }
         }
       }
       // If discriminant field not found, use base schema;
@@ -553,7 +560,7 @@ export class Dialect {
           const ownDiag = createDiagnostic(
             keyRange,
             message,
-            DiagnosticSeverity.Warning,
+            DiagnosticSeverity.Error,
             code,
             {
               ...(suggestion ? { suggestion } : {}),

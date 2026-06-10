@@ -18,6 +18,7 @@
  * - Locale validation (valid and invalid)
  */
 import { describe, it, expect } from 'vitest';
+import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
 import type { CompileResult } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
@@ -579,6 +580,127 @@ start_agent main:
       d => d.code === 'schema-validation'
     );
     expect(schemaErrors).toHaveLength(0);
+  });
+
+  it('should omit adaptive from output when not specified in source', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+language:
+    default_locale: "en_US"
+
+start_agent main:
+    description: "desc"
+`;
+    const { output, diagnostics } = compileSource(source);
+    const lang = output.agent_version.modality_parameters.language;
+
+    expect(lang).toBeDefined();
+    expect(JSON.parse(JSON.stringify(lang))).not.toHaveProperty('adaptive');
+
+    const adaptiveWarnings = diagnostics.filter(
+      d => d.code === 'schema-validation' && d.message.includes('adaptive')
+    );
+    expect(adaptiveWarnings).toHaveLength(0);
+  });
+
+  it('should compile adaptive: True without default_locale (relaxed error)', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+language:
+    adaptive: True
+
+start_agent main:
+    description: "desc"
+`;
+    const { output, diagnostics } = compileSource(source);
+    const lang = output.agent_version.modality_parameters.language;
+
+    expect(lang).toBeDefined();
+    expect(lang?.adaptive).toBe(true);
+    expect(lang?.default_locale).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(lang))).not.toHaveProperty(
+      'default_locale'
+    );
+    expect(lang?.additional_locales).toEqual([]);
+    expect(lang?.all_additional_locales).toBe(false);
+
+    // No blocking error about missing default_locale
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        d.message.includes('default_locale')
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should compile adaptive: False with default_locale normally', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+language:
+    adaptive: False
+    default_locale: "fr"
+
+start_agent main:
+    description: "desc"
+`;
+    const { output } = compileSource(source);
+    const lang = output.agent_version.modality_parameters.language;
+
+    expect(lang).toBeDefined();
+    expect(lang?.adaptive).toBe(false);
+    expect(lang?.default_locale).toBe('fr');
+  });
+
+  it('should keep all values in JSON when adaptive: True coexists with other fields', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+language:
+    adaptive: True
+    default_locale: "en_US"
+    additional_locales: "fr, de"
+    all_additional_locales: True
+
+start_agent main:
+    description: "desc"
+`;
+    const { output } = compileSource(source);
+    const lang = output.agent_version.modality_parameters.language;
+
+    expect(lang).toBeDefined();
+    expect(lang?.adaptive).toBe(true);
+    expect(lang?.default_locale).toBe('en_US');
+    expect(lang?.additional_locales).toEqual(
+      expect.arrayContaining(['fr', 'de'])
+    );
+    expect(lang?.all_additional_locales).toBe(true);
+  });
+
+  it('should still error when adaptive: False (or absent) and default_locale is missing', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+language:
+    adaptive: False
+
+start_agent main:
+    description: "desc"
+`;
+    const { diagnostics } = compileSource(source);
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        d.message.includes('default_locale')
+    );
+    expect(errors.length).toBeGreaterThan(0);
   });
 });
 

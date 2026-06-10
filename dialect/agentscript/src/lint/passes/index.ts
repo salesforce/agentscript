@@ -20,11 +20,13 @@ import {
   unusedVariablePass,
   expressionValidationPass,
   spreadContextPass,
+  nullLiteralValidationPass,
 } from '@agentscript/language';
 import { typeMapAnalyzer } from './type-map.js';
 import { reasoningActionsAnalyzer } from './reasoning-actions.js';
 import { actionIoRule } from './action-io.js';
 import { actionTypeCheckRule } from './action-type-check.js';
+import { availableWhenTypeCheckRule } from './available-when-type-check.js';
 
 export { typeMapAnalyzer, typeMapKey } from './type-map.js';
 export type {
@@ -46,6 +48,7 @@ export {
 export type { ReasoningActionEntry } from './reasoning-actions.js';
 export { actionIoRule } from './action-io.js';
 export { actionTypeCheckRule } from './action-type-check.js';
+export { availableWhenTypeCheckRule } from './available-when-type-check.js';
 
 /** All AgentScript lint passes in engine execution order. */
 export function defaultRules(): LintPass[] {
@@ -63,6 +66,7 @@ export function defaultRules(): LintPass[] {
     unusedVariablePass(),
     expressionValidationPass(),
     spreadContextPass(),
+    nullLiteralValidationPass(),
     // AgentScript analyzers
     typeMapAnalyzer(),
     reasoningActionsAnalyzer(),
@@ -70,5 +74,6 @@ export function defaultRules(): LintPass[] {
     undefinedReferencePass(),
     actionIoRule(),
     actionTypeCheckRule(),
+    availableWhenTypeCheckRule(),
   ];
 }

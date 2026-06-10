@@ -636,3 +636,166 @@ describe('enum-like discriminant field', () => {
     expect(backend.method).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// .variantMatch() — predicate-keyed variants (prefix / regex / wildcard)
+// ---------------------------------------------------------------------------
+
+describe('predicate-keyed variants (.variantMatch)', () => {
+  test('Block.resolveSchemaForDiscriminant returns matcher schema when no exact variant matches', () => {
+    const TestBlock = Block('TestBlock', {
+      kind: StringValue,
+      name: StringValue,
+    })
+      .discriminant('kind')
+      .variant('exact', { exact_field: StringValue })
+      .variantMatch('prefixed', (v: string) => v.startsWith('pre/'), {
+        matched_field: NumberValue,
+      });
+
+    const schemaPrefixed =
+      TestBlock.resolveSchemaForDiscriminant!('pre/anything');
+    expect(schemaPrefixed).toHaveProperty('kind');
+    expect(schemaPrefixed).toHaveProperty('name');
+    expect(schemaPrefixed).toHaveProperty('matched_field');
+    expect(schemaPrefixed).not.toHaveProperty('exact_field');
+  });
+
+  test('exact .variant() takes priority over .variantMatch() when both could apply', () => {
+    const TestBlock = Block('TestBlock', { kind: StringValue })
+      .discriminant('kind')
+      .variant('pre/specific', { exact_field: StringValue })
+      .variantMatch('prefixed', (v: string) => v.startsWith('pre/'), {
+        matched_field: NumberValue,
+      });
+
+    // Exact match wins
+    const exact = TestBlock.resolveSchemaForDiscriminant!('pre/specific');
+    expect(exact).toHaveProperty('exact_field');
+    expect(exact).not.toHaveProperty('matched_field');
+
+    // Falls through to matcher
+    const matched =
+      TestBlock.resolveSchemaForDiscriminant!('pre/anything-else');
+    expect(matched).toHaveProperty('matched_field');
+    expect(matched).not.toHaveProperty('exact_field');
+  });
+
+  test('falls back to base schema when neither exact nor matcher applies', () => {
+    const TestBlock = Block('TestBlock', {
+      kind: StringValue,
+      name: StringValue,
+    })
+      .discriminant('kind')
+      .variantMatch('prefixed', (v: string) => v.startsWith('pre/'), {
+        matched_field: NumberValue,
+      });
+
+    const fallback = TestBlock.resolveSchemaForDiscriminant!('something-else');
+    expect(fallback).toHaveProperty('kind');
+    expect(fallback).toHaveProperty('name');
+    expect(fallback).not.toHaveProperty('matched_field');
+  });
+
+  test('multiple matchers: first registered wins', () => {
+    const TestBlock = Block('TestBlock', { kind: StringValue })
+      .discriminant('kind')
+      .variantMatch('first', (v: string) => v.startsWith('pre/'), {
+        first_field: StringValue,
+      })
+      .variantMatch('second', (v: string) => v.includes('/'), {
+        second_field: NumberValue,
+      });
+
+    // 'pre/x' matches both — first registered wins
+    const schema = TestBlock.resolveSchemaForDiscriminant!('pre/x');
+    expect(schema).toHaveProperty('first_field');
+    expect(schema).not.toHaveProperty('second_field');
+
+    // 'other/x' only matches the second
+    const other = TestBlock.resolveSchemaForDiscriminant!('other/x');
+    expect(other).toHaveProperty('second_field');
+    expect(other).not.toHaveProperty('first_field');
+  });
+
+  test('NamedBlock.variantMatch resolves schema during parsing', () => {
+    const Entry = NamedBlock('Entry', {
+      schema: StringValue,
+      base_field: StringValue,
+    })
+      .discriminant('schema')
+      .variantMatch('byon', (v: string) => v.startsWith('node://byon/'), {
+        byon_field: StringValue,
+      });
+
+    const Collection = CollectionBlock(Entry);
+    const result = parseWithSchema(
+      [
+        'items:',
+        '  custom:',
+        '    schema: "node://byon/foo/bar/v1"',
+        '    base_field: "base"',
+        '    byon_field: "extra"',
+      ].join('\n'),
+      { items: Collection }
+    );
+    const items = result.items;
+    const entry = items?.get('custom') as Record<string, unknown>;
+    expect(entry).toBeDefined();
+    expect(entry.schema).toBeDefined();
+    expect(entry.base_field).toBeDefined();
+    expect(entry.byon_field).toBeDefined();
+  });
+
+  test('value not matching any matcher emits unknown-variant diagnostic', () => {
+    const Entry = NamedBlock('Entry', { kind: StringValue })
+      .discriminant('kind')
+      .variant('exact', { exact_field: StringValue })
+      .variantMatch('prefixed', (v: string) => v.startsWith('pre/'), {
+        matched_field: NumberValue,
+      });
+
+    const Collection = CollectionBlock(Entry);
+    const result = parseWithDiagnostics(
+      ['items:', '  e:', '    kind: "no-match"'].join('\n'),
+      { items: Collection }
+    );
+    const diags = collectDiagnostics(result.value);
+    const variantDiag = diags.find(d => d.code === 'unknown-variant');
+    expect(variantDiag).toBeDefined();
+    // validValues should include both exact names and matcher names
+    expect(variantDiag!.message).toContain('exact');
+    expect(variantDiag!.message).toContain('prefixed');
+  });
+
+  test('matcher-only block (no exact variants) still resolves and parses', () => {
+    const TestBlock = Block('TestBlock', { kind: StringValue })
+      .discriminant('kind')
+      .variantMatch('wildcard', (v: string) => v.endsWith('/v1'), {
+        v1_field: BooleanValue,
+      });
+
+    expect(TestBlock.discriminantField).toBe('kind');
+    const schema = TestBlock.resolveSchemaForDiscriminant!('something/v1');
+    expect(schema).toHaveProperty('v1_field');
+  });
+
+  test('matcher schema is merged with base schema (variant fields layered on top)', () => {
+    const TestBlock = Block('TestBlock', {
+      kind: StringValue,
+      name: StringValue, // base field
+    })
+      .discriminant('kind')
+      .variantMatch(
+        'prefixed',
+        (v: string) => v.startsWith('pre/'),
+        { name: NumberValue, extra: StringValue } // overrides base `name`
+      );
+
+    const schema = TestBlock.resolveSchemaForDiscriminant!('pre/anything');
+    // Merged: kind from base, name overridden by variant, extra from variant
+    expect(schema).toHaveProperty('kind');
+    expect(schema).toHaveProperty('name');
+    expect(schema).toHaveProperty('extra');
+  });
+});

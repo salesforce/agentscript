@@ -260,6 +260,18 @@ export function resolveAtReference(
   ctx: CompilerContext,
   errorLabel: string
 ): string | undefined {
+  // Defense-in-depth: the parser may produce a null expression for
+  // incomplete syntax (e.g. an `@` reference with no target). Emit a
+  // diagnostic instead of crashing on `expr.__cst` below.
+  if ((expr as Expression | null | undefined) == null) {
+    ctx.error(
+      `Cannot resolve ${errorLabel}: reference is missing or unresolved`,
+      undefined,
+      'UNRESOLVED_REFERENCE'
+    );
+    return undefined;
+  }
+
   const nsList = Array.isArray(namespaces) ? namespaces : [namespaces];
 
   const decomposed = decomposeAtMemberExpression(expr);

@@ -214,7 +214,7 @@ topic support:
                 description: "Route to self-service"`,
         `
 connected_subagent CRM_Agent:
-    target: "agentforce://CRM_Agent"
+    target: "agent://CRM_Agent"
     label: "CRM Agent"
     description: "Handles CRM operations"
     inputs:

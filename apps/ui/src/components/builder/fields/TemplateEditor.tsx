@@ -321,16 +321,17 @@ export function TemplateEditor({
   }, []);
 
   // ── Pill edit handlers ──
+
   const commitPillEdit = useCallback(
     (newValue: string) => {
       if (!pillEdit || !editorRef.current) return;
-      const { element } = pillEdit;
+      const el = pillEdit.element;
 
       if (!newValue.trim()) {
-        element.remove();
+        el.remove();
       } else {
-        element.dataset.expr = newValue;
-        element.textContent = newValue;
+        el.dataset.expr = newValue;
+        el.textContent = newValue;
       }
 
       setPillEdit(null);

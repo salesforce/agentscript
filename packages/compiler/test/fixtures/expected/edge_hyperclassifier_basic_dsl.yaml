@@ -1,12 +1,12 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: Hyperclassifier_Basic
   label: Hyperclassifier Basic
   description: Basic hyperclassifier with topic selector pattern
   enable_enhanced_event_logs: false
   agent_type: EinsteinServiceAgent
-  default_agent_user: defaultagentuser@example.com
   context_variables: []
+  default_agent_user: defaultagentuser@example.com
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages:
@@ -14,16 +14,6 @@ agent_version:
       message_type: Welcome
     - message: Something went wrong. Please try again.
       message_type: Error
-  modality_parameters:
-    language:
-      default_locale: en_US
-      additional_locales: []
-      all_additional_locales: false
-  additional_parameters:
-    reset_to_initial_node: true
-    system_messages: '[{"message": "Hi there! I''ll route you to the right department.",
-      "messageType": "Welcome"}, {"message": "Something went wrong. Please try again.",
-      "messageType": "Error"}]'
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -37,7 +27,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -49,29 +39,14 @@ agent_version:
   nodes:
     - model_configuration:
         model_ref: sfdc_ai__DefaultEinsteinHyperClassifier
-      before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Select the tool that best matches the user''s message and conversation
-                history.
-
-                If it''s unclear, make your best guess.'
-      instructions: 'You are an intelligent routing agent using hyperclassifier to
-        select topics.
-
-
-        {{state.AgentScriptInternal_agent_instructions}}'
       type: router
-      description: Uses hyperclassifier to determine the best topic for the user's
-        request
+      description: Uses hyperclassifier to determine the best topic for the user's request
+      instructions: >-
+        You are an intelligent routing agent using hyperclassifier to select
+        topics.
+
+
+        {{state.AgentScriptInternal_agent_instructions}}
       tools:
         - name: go_to_orders
           target: order_management
@@ -85,77 +60,105 @@ agent_version:
       developer_name: topic_selector
       label: Topic Selector
       action_definitions: []
-    - before_reasoning_iteration:
+      before_reasoning_iteration:
         - type: action
           target: __state_update_action__
-          enabled: 'True'
+          enabled: "True"
           state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
+            - AgentScriptInternal_agent_instructions: "''"
         - type: action
           target: __state_update_action__
           state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
 
-                Help the user with their order.
+                Select the tool that best matches the user's message and
+                conversation history.
 
-                You can look up order status, modify orders, or process cancellations.'
-      instructions: You are an intelligent routing agent using hyperclassifier to
-        select topics.
-      type: subagent
+                If it's unclear, make your best guess.
+    - type: subagent
       reasoning_type: salesforce.default
       description: Handles order tracking, modifications, and cancellations
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools: []
       developer_name: order_management
       label: Order Management
       action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Guide the user through the return or exchange process.
-
-                Verify eligibility and provide return instructions.'
       instructions: You are an intelligent routing agent using hyperclassifier to
         select topics.
-      type: subagent
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the user with their order.
+
+                You can look up order status, modify orders, or process
+                cancellations.
+    - type: subagent
       reasoning_type: salesforce.default
       description: Processes product returns and exchanges
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools: []
       developer_name: returns
       label: Returns
       action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                The user''s request is off-topic. Politely redirect them to topics
-                we can help with.
-
-                Do not answer general knowledge questions.'
       instructions: You are an intelligent routing agent using hyperclassifier to
         select topics.
-      type: subagent
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Guide the user through the return or exchange process.
+                Verify eligibility and provide return instructions.
+    - type: subagent
       reasoning_type: salesforce.default
       description: Redirects off-topic conversations
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools: []
       developer_name: off_topic
       label: Off Topic
       action_definitions: []
+      instructions: You are an intelligent routing agent using hyperclassifier to
+        select topics.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                The user's request is off-topic. Politely redirect them to
+                topics we can help with.
+
+                Do not answer general knowledge questions.
   surfaces: []
+  modality_parameters:
+    language:
+      default_locale: en_US
+      additional_locales: []
+      all_additional_locales: false
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: "[{\"message\": \"Hi there! I'll route you to the right
+      department.\", \"messageType\": \"Welcome\"}, {\"message\": \"Something
+      went wrong. Please try again.\", \"messageType\": \"Error\"}]"

@@ -67,12 +67,15 @@ function compileLanguageConfiguration(
 ): LanguageConfiguration | null {
   if (!languageBlock) return null;
 
+  const adaptiveSourced = extractSourcedBoolean(languageBlock.adaptive);
+  const adaptive = adaptiveSourced?.value ?? false;
+
   const defaultLocaleSourced = extractSourcedString(
     languageBlock.default_locale
   );
   const defaultLocale = extractStringValue(languageBlock.default_locale) ?? '';
 
-  if (!defaultLocale) {
+  if (!defaultLocale && !adaptive) {
     ctx.error(
       'Language block requires a default_locale',
       languageBlock.__cst?.range
@@ -80,15 +83,12 @@ function compileLanguageConfiguration(
     return null;
   }
 
-  let hasValidationErrors = false;
-
-  if (!supportedLocale.safeParse(defaultLocale).success) {
-    ctx.error(
+  if (defaultLocale && !supportedLocale.safeParse(defaultLocale).success) {
+    ctx.warning(
       `Invalid default_locale '${defaultLocale}'. Must be a supported locale.`,
       languageBlock.__cst?.range,
       'schema-validation'
     );
-    hasValidationErrors = true;
   }
 
   const additionalLocalesStr =
@@ -102,30 +102,31 @@ function compileLanguageConfiguration(
 
   for (const locale of additionalLocales) {
     if (!supportedLocale.safeParse(locale).success) {
-      ctx.error(
+      ctx.warning(
         `Invalid additional_locale '${locale}'. Must be a supported locale.`,
         languageBlock.__cst?.range,
         'schema-validation'
       );
-      hasValidationErrors = true;
     }
-  }
-
-  // Match Python: return null when any locale is invalid to prevent downstream errors
-  if (hasValidationErrors) {
-    return null;
   }
 
   const allAdditionalLocales =
     extractSourcedBoolean(languageBlock.all_additional_locales) ?? false;
 
   const langConfig: Sourceable<LanguageConfiguration> = {
-    default_locale: (defaultLocaleSourced ??
-      defaultLocale) as LanguageConfiguration['default_locale'],
+    default_locale:
+      adaptive && !defaultLocale
+        ? undefined
+        : ((defaultLocaleSourced ??
+            defaultLocale) as LanguageConfiguration['default_locale']),
     additional_locales:
       additionalLocales as LanguageConfiguration['additional_locales'],
     all_additional_locales: allAdditionalLocales,
   };
+
+  if (adaptiveSourced !== undefined) {
+    langConfig.adaptive = adaptiveSourced;
+  }
 
   ctx.setScriptPath(langConfig, 'language');
   return langConfig as LanguageConfiguration;

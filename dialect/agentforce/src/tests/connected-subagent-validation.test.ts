@@ -26,7 +26,7 @@ start_agent Main:
     instructions: -> | Test
 
 connected_subagent Test_Agent:
-  target: "agentforce://${targetName}"
+  target: "agent://${targetName}"
   description: "Test agent"
 `;
 
@@ -113,7 +113,7 @@ describe('connected_subagent scheme validation', () => {
     return diagnostics;
   }
 
-  it('accepts agentforce:// scheme', () => {
+  it('accepts agentforce:// scheme (backwards compatibility)', () => {
     const diagnostics = runLint(`
 start_agent main:
   description: "Main"
@@ -125,6 +125,27 @@ start_agent main:
 
 connected_subagent Support_Agent:
   target: "agentforce://Support_Agent"
+  label: "Support"
+  description: "Support agent"
+`);
+    const schemeErrors = diagnostics.filter(
+      (d: Diagnostic) => d.code === 'connected-agent-unsupported-scheme'
+    );
+    expect(schemeErrors).toHaveLength(0);
+  });
+
+  it('accepts agent:// scheme', () => {
+    const diagnostics = runLint(`
+start_agent main:
+  description: "Main"
+  reasoning:
+    instructions: ->
+      |Route
+    actions:
+      call_agent: @connected_subagent.Support_Agent
+
+connected_subagent Support_Agent:
+  target: "agent://Support_Agent"
   label: "Support"
   description: "Support agent"
 `);
@@ -154,7 +175,7 @@ connected_subagent External_Agent:
     );
     expect(schemeErrors).toHaveLength(1);
     expect(schemeErrors[0].message).toContain('third_party://');
-    expect(schemeErrors[0].message).toContain('agentforce://');
+    expect(schemeErrors[0].message).toContain('agent://');
   });
 
   it('rejects mcp:// scheme', () => {
@@ -208,7 +229,7 @@ config:
   agent_name: "Test"
 
 connected_subagent Support:
-  target: "agentforce://Support"
+  target: "agent://Support"
   description: "Support agent"
 
 start_agent Main:
@@ -236,7 +257,7 @@ config:
   agent_name: "Test"
 
 connected_subagent Support:
-  target: "agentforce://Support"
+  target: "agent://Support"
   description: "Support agent"
 
 start_agent Main:
@@ -263,7 +284,7 @@ config:
   agent_name: "Test"
 
 connected_subagent Support:
-  target: "agentforce://Support"
+  target: "agent://Support"
   description: "Support agent"
 
 start_agent Main:
@@ -289,7 +310,7 @@ config:
   agent_name: "Test"
 
 connected_subagent Support:
-  target: "agentforce://Support"
+  target: "agent://Support"
   description: "Support agent"
 
 start_agent Main:

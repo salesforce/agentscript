@@ -47,6 +47,7 @@ export { unreachableCodePass } from './unreachable-code.js';
 export { unsupportedConditionalsPass } from './unsupported-conditionals.js';
 export { emptyBlockPass } from './empty-block.js';
 export { spreadContextPass } from './spread-context.js';
+export { nullLiteralValidationPass } from './null-literal-validation.js';
 export {
   expressionValidationPass,
   BUILTIN_FUNCTIONS,

@@ -1,5 +1,4 @@
 import { Block, InputsBlock } from '@agentscript/language';
-import { customSubagentFields } from '@agentscript/agentscript-dialect';
 
 /**
  * Schema discriminant value for the Commerce Cloud Shopper subagent variant.
@@ -15,15 +14,13 @@ const CommerceShopperParametersBlock = Block('ParametersBlock', {
 );
 
 /**
- * Variant fields for the Commerce Cloud Shopper subagent.
+ * Variant-specific overrides for the Commerce Cloud Shopper subagent.
  *
- * Uses `customSubagentFields` as the base (label, description, system, actions,
- * schema, parameters, on_init, on_exit).
- *
- * NOTE: AFActionsBlock, ModelConfigBlock, and SecurityBlock are injected by
- * schema.ts when assembling the full variant to avoid circular imports.
+ * Layered over `afCustomSubagentFields` in schema.ts, which provides the base
+ * custom-subagent fields plus AF cross-cutting blocks (actions, model_config,
+ * security). This file owns only what is *specific* to commerce — currently
+ * the `parameters.template` shape.
  */
 export const commerceShopperVariantFields = {
-  ...customSubagentFields,
   parameters: CommerceShopperParametersBlock,
 };

@@ -34,7 +34,6 @@ import {
   resolveAtReference,
 } from '../ast-helpers.js';
 import type { Sourceable } from '../sourced.js';
-import { normalizeDeveloperName } from '../utils.js';
 import { TRANSITION_TARGET_NAMESPACES } from '../constants.js';
 import { warnIfConnectedAgentTransition } from './compile-utils.js';
 
@@ -65,9 +64,11 @@ export function compileTool(
     }
   }
 
-  const description =
-    extractSourcedDescription(actionDef.description) ??
-    normalizeDeveloperName(name);
+  // Tool.description is an explicit *override* of the underlying
+  // ActionConfiguration.description (per DSL schema). Only emit it when the
+  // user supplied `description:` on the reasoning action — otherwise leave
+  // it unset so the runtime falls back to ActionConfiguration.description.
+  const description = extractSourcedDescription(actionDef.description);
   const alias = extractSourcedString(actionDef.label);
   const displayName = alias ?? name;
 
@@ -121,6 +122,13 @@ export function compileTool(
       postActions.push(...result.actions);
       handOffActions.push(...result.handOffs);
     }
+  }
+
+  // Default unbound required declared inputs to LLM-filled.
+  // Skip connected agents: they have a dedicated missing-required-input
+  // warning path below and do not emit llm_inputs in the compiled tool.
+  if (!isConnectedAgent) {
+    setDefaultLlmInputs(target, boundInputs, llmInputs, ctx);
   }
 
   // Validate with clauses against connected agent input signatures
@@ -185,7 +193,7 @@ export function compileTool(
         }),
     state_updates: stateUpdates,
     name: displayName,
-    description,
+    ...(description !== undefined ? { description } : {}),
   };
 
   if (enabledCondition) {
@@ -254,6 +262,8 @@ function compilePostToolAction(
     }
   }
 
+  setDefaultLlmInputs(targetName, boundInputs, llmInputs, ctx);
+
   const action: Action = {
     type: 'action',
     target: targetName,
@@ -262,6 +272,28 @@ function compilePostToolAction(
     state_updates: stateUpdates,
   };
   return action;
+}
+
+/**
+ * Push every required declared input on `target`'s action_definition that is
+ * neither bound nor already LLM-marked into `llmInputs`. Mirrors the slot-fill
+ * default in the AgentFabric dialect compiler (build-nodes.ts), but limited to
+ * required inputs so authors aren't forced to have the LLM fabricate values
+ * for optional fields they didn't reference.
+ */
+function setDefaultLlmInputs(
+  target: string,
+  boundInputs: Record<string, string>,
+  llmInputs: string[],
+  ctx: CompilerContext
+): void {
+  const sig = ctx.actionInputSignatures.get(target);
+  if (!sig) return;
+  for (const name of sig.requiredInputs) {
+    if (Object.prototype.hasOwnProperty.call(boundInputs, name)) continue;
+    if (llmInputs.includes(name)) continue;
+    llmInputs.push(name);
+  }
 }
 
 /**

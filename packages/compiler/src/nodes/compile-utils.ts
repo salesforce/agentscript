@@ -12,7 +12,7 @@ import type { CompilerContext } from '../compiler-context.js';
 /**
  * Check if a transition target expression points to a connected agent
  * and emit a compiler warning if so.
- * Returns true if the target is a connected agent (caller should skip).
+ * Always returns false — the caller should proceed with compilation.
  */
 export function warnIfConnectedAgentTransition(
   targetExpr: Expression,
@@ -24,7 +24,6 @@ export function warnIfConnectedAgentTransition(
       `Transition to connected agent "${decomposed.property}" is not supported. Use @connected_subagent.${decomposed.property} as a tool invocation instead.`,
       targetExpr.__cst?.range
     );
-    return true;
   }
   return false;
 }
