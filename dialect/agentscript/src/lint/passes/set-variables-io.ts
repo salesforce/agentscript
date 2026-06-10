@@ -54,8 +54,18 @@ interface WithClauseNode extends AstNodeLike {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Type guards
 // ---------------------------------------------------------------------------
+
+function isReasoningActionBlock(
+  node: AstNodeLike
+): node is ReasoningActionBlock {
+  return node.__kind === 'ReasoningActionBlock';
+}
+
+function isWithClause(node: AstNodeLike): node is WithClauseNode {
+  return node.__kind === 'WithClause';
+}
 
 /** Check if a reasoning action value is @utils.setVariables */
 function isSetVariablesAction(value: AstNodeLike | undefined): boolean {
@@ -107,16 +117,14 @@ class SetVariablesIoValidator implements LintPass {
 
         for (const [, raBlock] of raActions as NamedMap<AstNodeLike>) {
           if (!isAstNodeLike(raBlock)) continue;
-          if (raBlock.__kind !== 'ReasoningActionBlock') continue;
+          if (!isReasoningActionBlock(raBlock)) continue;
+          if (!isSetVariablesAction(raBlock.value)) continue;
 
-          const ra = raBlock as ReasoningActionBlock;
-          if (!isSetVariablesAction(ra.value)) continue;
-
-          const statements = ra.statements;
+          const statements = raBlock.statements;
           if (!statements) continue;
 
           for (const stmt of statements) {
-            if (stmt.__kind !== 'WithClause') continue;
+            if (!isWithClause(stmt)) continue;
             if (!stmt.param) continue;
 
             if (!typeMap.variables.has(stmt.param)) {
