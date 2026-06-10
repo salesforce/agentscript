@@ -98,10 +98,9 @@ class SetVariablesIoValidator implements LintPass {
       ...resolveNamespaceKeys('topic', ctx),
     ]);
 
-    for (const topicKey of subagentKeys) {
-      const topicMap = root[topicKey];
-      if (!topicMap || !isNamedMap(topicMap)) continue;
-
+    for (const topicMap of [...subagentKeys]
+      .map(key => root[key])
+      .filter(isNamedMap)) {
       for (const reasoningActions of [...topicMap.values()]
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map(block => (block as any).reasoning?.actions)
