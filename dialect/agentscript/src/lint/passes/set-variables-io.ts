@@ -15,12 +15,7 @@
  * Diagnostic: set-variables-unknown-variable
  */
 
-import type {
-  AstNodeLike,
-  AstRoot,
-  LintPass,
-  NamedMap,
-} from '@agentscript/language';
+import type { AstNodeLike, AstRoot, LintPass } from '@agentscript/language';
 import {
   storeKey,
   schemaContextKey,
@@ -44,7 +39,7 @@ import { typeMapKey } from './type-map.js';
 interface ReasoningActionBlock extends AstNodeLike {
   __kind: 'ReasoningActionBlock';
   value?: AstNodeLike;
-  statements?: WithClauseNode[];
+  statements?: AstNodeLike[];
 }
 
 interface WithClauseNode extends AstNodeLike {
@@ -62,7 +57,11 @@ function isReasoningActionBlock(node: unknown): node is ReasoningActionBlock {
 }
 
 function isWithClause(node: unknown): node is WithClauseNode {
-  return isAstNodeLike(node) && node.__kind === 'WithClause';
+  return (
+    isAstNodeLike(node) &&
+    node.__kind === 'WithClause' &&
+    typeof node.param === 'string'
+  );
 }
 
 /** Check if a reasoning action value is @utils.setVariables */
@@ -103,26 +102,16 @@ class SetVariablesIoValidator implements LintPass {
       const topicMap = root[topicKey];
       if (!topicMap || !isNamedMap(topicMap)) continue;
 
-      for (const [, block] of topicMap as NamedMap<AstNodeLike>) {
-        if (!isAstNodeLike(block)) continue;
-
-        const reasoning = block.reasoning;
-        if (!isAstNodeLike(reasoning)) continue;
-
-        const raActions = reasoning.actions;
-        if (!raActions || !isNamedMap(raActions)) continue;
-
-        for (const [, raBlock] of raActions as NamedMap<AstNodeLike>) {
-          if (!isReasoningActionBlock(raBlock)) continue;
-          if (!isSetVariablesAction(raBlock.value)) continue;
-
-          const statements = raBlock.statements;
-          if (!statements) continue;
-
-          for (const stmt of statements) {
-            if (!isWithClause(stmt)) continue;
-            if (!stmt.param) continue;
-
+      for (const reasoningActions of [...topicMap.values()]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map(block => (block as any).reasoning?.actions)
+        .filter(isNamedMap)) {
+        for (const statements of [...reasoningActions.values()]
+          .filter(isReasoningActionBlock)
+          .filter(raBlock => isSetVariablesAction(raBlock.value))
+          .map(raBlock => raBlock.statements)
+          .filter(statements => statements !== undefined)) {
+          for (const stmt of statements.filter(isWithClause)) {
             if (!typeMap.variables.has(stmt.param)) {
               const cst = stmt.__cst;
               if (cst) {
