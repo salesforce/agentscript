@@ -1,5 +1,23 @@
 # @agentscript/agentfabric-dialect
 
+## 0.4.0
+
+### Breaking Changes
+
+- Redesigned the `echo` node around A2A v1 task-update events. The single `kind: "a2a:response"` variant is replaced by two event variants:
+
+  - `a2a:status_update_event` — sets the task `state` (required; one of the A2A v1 `TASK_STATE_*` values) with an optional `message`.
+  - `a2a:artifact_update_event` — emits an `artifact` (required) with optional `append` and `lastChunk` flags.
+
+  The base `task` and `artifacts` fields and the `a2a.task` namespaced function have been removed. Flows using `kind: "a2a:response"`, `task:`, `artifacts:`, or `a2a.task(...)` must migrate to the new event variants.
+
+### Minor Changes
+
+- Added the `terminal-requires-status-update` lint rule: every terminal branch in a graph must reach an `a2a:status_update_event` echo that sets a terminal state (`TASK_STATE_COMPLETED`, `TASK_STATE_FAILED`, or `TASK_STATE_CANCELED`). The echo need not be the leaf node.
+- Added the `echo-invalid-state` lint rule, which validates that an `a2a:status_update_event` echo's `state` is a known A2A v1 task state.
+- Exported `A2A_TASK_STATES` and `A2A_TERMINAL_STATES` from the schema for shared use across the schema, compiler, and linter.
+- Removed the `echo-task-or-message-required` rule, which no longer applies under the new event model.
+
 ## 0.1.24
 
 ### Patch Changes
