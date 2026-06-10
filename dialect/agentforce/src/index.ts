@@ -20,7 +20,9 @@ export {
   ConnectionsBlock,
   SecurityBlock,
   AFActionsBlock,
+  ModelConfigBlock,
   ContextBlock,
+  RecommendedPromptsBlock,
   AgentforceSchema,
   AgentforceKindToSchemaKey,
   AgentforceSchemaAliases,
@@ -32,6 +34,7 @@ export {
 } from './schema.js';
 
 export { COMMERCE_SHOPPER_SCHEMA } from './variants/commerce-cloud-shopper.js';
+export { BYON_SCHEMA_PREFIX } from './variants/byon.js';
 
 export type {
   AgentforceSchema as AgentforceSchemaType,
@@ -67,6 +70,7 @@ import type {
   EndpointingConfigBlock,
   BeepBoopConfigBlock,
   ContextBlock,
+  RecommendedPromptsBlock,
 } from './schema.js';
 
 export type ParsedConfig = InferFieldType<typeof AgentforceSchema.config>;
@@ -87,6 +91,9 @@ export type ParsedEndpointingConfig = InferFieldType<
 >;
 export type ParsedBeepBoopConfig = InferFieldType<typeof BeepBoopConfigBlock>;
 export type ParsedContext = InferFieldType<typeof ContextBlock>;
+export type ParsedRecommendedPrompts = InferFieldType<
+  typeof RecommendedPromptsBlock
+>;
 
 export { defaultRules } from './lint/passes/index.js';
 

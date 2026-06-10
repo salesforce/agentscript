@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: ConstantValuesMixed
   label: Constant Values Mixed
@@ -9,10 +9,6 @@ global_configuration:
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages: []
-  modality_parameters: {}
-  additional_parameters:
-    reset_to_initial_node: true
-    rag_feature_config_id: WorldKnowledge
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -26,7 +22,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -36,22 +32,9 @@ agent_version:
       visibility: Internal
   initial_node: main
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Test mixed constant value types'
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Test mixed constant value types
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: api_call
@@ -59,7 +42,6 @@ agent_version:
           llm_inputs: []
           state_updates: []
           name: call_api
-          description: Call Api
       developer_name: main
       label: Main
       action_definitions:
@@ -78,7 +60,7 @@ agent_version:
               is_list: false
               required: false
               is_user_input: false
-              constant_value: 'https://api.example.com'
+              constant_value: https://api.example.com
             - developer_name: enabled
               label: Enabled
               description: Enabled
@@ -119,4 +101,21 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Test mixed constant value types
   surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    rag_feature_config_id: WorldKnowledge

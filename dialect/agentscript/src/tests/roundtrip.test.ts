@@ -1096,6 +1096,12 @@ describe('normalized round-trips — basic blocks', () => {
     default_locale: "en_US"`);
   });
 
+  test('language block with adaptive', () => {
+    expectNormalizedRoundTrip(`language:
+    adaptive: True
+    default_locale: "en_US"`);
+  });
+
   test('multiple top-level blocks', () => {
     expectNormalizedRoundTrip(`system:
     instructions: "Be helpful"

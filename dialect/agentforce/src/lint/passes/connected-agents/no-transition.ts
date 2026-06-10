@@ -41,7 +41,7 @@ export function noTransitionRule(): LintPass {
           lintDiagnostic(
             target.range,
             `Transition to a connected agent is not yet supported. Use @connected_subagent.${target.property} as a tool invocation instead.`,
-            DiagnosticSeverity.Error,
+            DiagnosticSeverity.Warning,
             'connected-agent-no-transition'
           )
         );

@@ -64,8 +64,16 @@ export function Block<T extends Schema>(
   // -- Discriminant setup --
   const discriminantField = options?.discriminant;
   const rawVariantsBlock = options?.variants;
+  const rawBlockMatchers = options?.variantMatchers;
   let discriminantConfig: DiscriminantConfig | undefined;
   let blockVariants: Record<string, Record<string, FieldType>> | undefined;
+  let blockVariantMatchers:
+    | Array<{
+        name: string;
+        test: (value: string) => boolean;
+        schema: Record<string, FieldType>;
+      }>
+    | undefined;
 
   if (discriminantField) {
     if (!schema[discriminantField]) {
@@ -84,10 +92,27 @@ export function Block<T extends Schema>(
           return [name, merged];
         })
       );
+    }
+    if (rawBlockMatchers && rawBlockMatchers.length > 0) {
+      blockVariantMatchers = rawBlockMatchers.map(m => {
+        const merged = Object.freeze({
+          ...schema,
+          ...normalizeSchema(m.schema),
+        });
+        validateSchemaFields(merged);
+        return { name: m.name, test: m.test, schema: merged };
+      });
+    }
+    if (blockVariants || blockVariantMatchers) {
+      const validValues: string[] = [];
+      if (blockVariants) validValues.push(...Object.keys(blockVariants));
+      if (blockVariantMatchers)
+        validValues.push(...blockVariantMatchers.map(m => m.name));
       discriminantConfig = {
         field: discriminantField,
-        variants: blockVariants,
-        validValues: Object.keys(blockVariants),
+        variants: blockVariants ?? {},
+        variantMatchers: blockVariantMatchers,
+        validValues,
       };
     }
     // When discriminant is set but no variants yet (chained API: .discriminant().variant()),
@@ -244,8 +269,13 @@ export function Block<T extends Schema>(
   dp('discriminantField', discriminantField);
   dp(
     'resolveSchemaForDiscriminant',
-    (value: string): Record<string, FieldType> =>
-      blockVariants?.[value] ?? schema
+    (value: string): Record<string, FieldType> => {
+      const exact = blockVariants?.[value];
+      if (exact) return exact;
+      const matched = blockVariantMatchers?.find(m => m.test(value));
+      if (matched) return matched.schema;
+      return schema;
+    }
   );
   dp('discriminant', (fieldName: string) => {
     return Block(kind, (inputSchema ?? {}) as T, {
@@ -261,6 +291,20 @@ export function Block<T extends Schema>(
       variants: newVariants,
     });
   });
+  dp(
+    'variantMatch',
+    (name: string, test: (value: string) => boolean, variantSchema: Schema) => {
+      const currentMatchers = options?.variantMatchers ?? [];
+      const newMatchers = [
+        ...currentMatchers,
+        { name, test, schema: variantSchema },
+      ];
+      return Block(kind, (inputSchema ?? {}) as T, {
+        ...options,
+        variantMatchers: newMatchers,
+      });
+    }
+  );
 
   // Must run AFTER factory methods (extend/omit/pick) are set, so the
   // override captures the factory's own implementations, not the

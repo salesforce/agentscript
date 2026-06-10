@@ -16,10 +16,10 @@
  * Skips gracefully if tree-sitter native bindings are not available.
  */
 
-import { describe, it, expect, assert } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
-import { parse as parseTS } from '../src/index.js';
+import { parse as parseJavascript } from '../src/index.js';
 import { parseCorpusFile, normalizeSExp } from './test-utils.js';
 
 // ---------------------------------------------------------------------------
@@ -74,42 +74,54 @@ describe.runIf(treeSitterAvailable)(
   'parser parity: tree-sitter vs parser-js',
   () => {
     function assertParity(source: string) {
-      const tsResult = parseTS(source);
-      const treeSitterTree = treeSitterParser!.parse(source);
+      const javascriptResult = parseJavascript(source);
+      const treeSitterResult = treeSitterParser!.parse(source);
 
-      const tsSExp = normalizeSExp(tsResult.rootNode.toSExp());
-      const treeSitterSExp = normalizeSExp(treeSitterTree.rootNode.toString());
+      const javascriptSExp = normalizeSExp(javascriptResult.rootNode.toSExp());
+      const treeSitterSExp = normalizeSExp(
+        treeSitterResult.rootNode.toString()
+      );
 
-      const tsHasError = tsResult.rootNode.hasError;
-      const treeSitterHasError = treeSitterTree.rootNode.hasError;
+      const tsHasError = javascriptResult.rootNode.hasError;
+      const treeSitterHasError = treeSitterResult.rootNode.hasError;
 
       if (!tsHasError && !treeSitterHasError) {
-        if (tsSExp !== treeSitterSExp) {
-          assert.fail(
-            [
-              `S-expression mismatch (both parsers valid)`,
-              `INPUT:\n${source}`,
-              `PARSER-JS:\n${tsSExp}`,
-              `TREE-SITTER:\n${treeSitterSExp}`,
-            ].join('\n\n')
-          );
-        }
-      } else if (tsHasError !== treeSitterHasError) {
-        expect.unreachable(
+        expect(
+          javascriptSExp,
           [
-            `Parser disagreement: parser-js hasError=${tsHasError}, tree-sitter hasError=${treeSitterHasError}`,
+            `S-expression mismatch (both parsers valid)`,
             `INPUT:\n${source}`,
-            `PARSER-JS:\n${tsSExp}`,
-            `TREE-SITTER:\n${treeSitterSExp}`,
+            `PARSER-JAVASCRIPT:\n${javascriptSExp}`,
+            `PARSER-TREE-SITTER:\n${treeSitterSExp}`,
+          ].join('\n\n')
+        ).toBe(treeSitterSExp);
+      } else if (tsHasError !== treeSitterHasError) {
+        expect.fail(
+          [
+            `Parser disagreement: parser-javascript hasError=${tsHasError}, parser-tree-sitter hasError=${treeSitterHasError}`,
+            `INPUT:\n${source}`,
+            `PARSER-JAVASCRIPT:\n${javascriptSExp}`,
+            `PARSER-TREE-SITTER:\n${treeSitterSExp}`,
           ].join('\n\n')
         );
-      } else {
-        expect({
-          parserTs: tsSExp,
-          treeSitter: treeSitterSExp,
-          match: tsSExp === treeSitterSExp,
-        }).toMatchSnapshot();
       }
+
+      const match = javascriptSExp === treeSitterSExp;
+      const snapshot: {
+        parserJavascriptSExp?: string;
+        parserTreeSitterSExp?: string;
+        match: boolean;
+      } = {
+        match,
+      };
+
+      if (match) {
+        snapshot.parserJavascriptSExp = javascriptSExp;
+      } else {
+        snapshot.parserJavascriptSExp = javascriptSExp;
+        snapshot.parserTreeSitterSExp = treeSitterSExp;
+      }
+      expect(snapshot).toMatchSnapshot();
     }
 
     const corpusFiles = loadCorpusFiles(CORPUS_DIR);

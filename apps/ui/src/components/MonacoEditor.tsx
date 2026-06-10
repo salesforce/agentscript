@@ -101,15 +101,14 @@ export function MonacoEditor({
   useEffect(() => {
     try {
       registerAgentScriptLanguage();
-      setLanguageInitialized(true);
     } catch (error) {
       console.error(
         '[MonacoEditor] Failed to initialize AgentScript language:',
         error
       );
-      // Mark as initialized even if it fails so editor can still load
-      setLanguageInitialized(true);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLanguageInitialized(true);
   }, []);
 
   // Create editor

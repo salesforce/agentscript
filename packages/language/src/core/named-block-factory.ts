@@ -93,7 +93,29 @@ export function NamedBlock<T extends Schema>(
           })
         )
       : undefined;
-  const validVariantNames = variants ? Object.keys(variants) : undefined;
+  const rawVariantMatchers = opts?.variantMatchers;
+  const variantMatchers:
+    | Array<{
+        name: string;
+        test: (value: string) => boolean;
+        schema: Record<string, FieldType>;
+      }>
+    | undefined = rawVariantMatchers
+    ? rawVariantMatchers.map(m => {
+        const merged = Object.freeze({
+          ...schema,
+          ...normalizeSchema(m.schema),
+        });
+        validateSchemaFields(merged);
+        return { name: m.name, test: m.test, schema: merged };
+      })
+    : undefined;
+  const validVariantNames = (() => {
+    const names: string[] = [];
+    if (variants) names.push(...Object.keys(variants));
+    if (variantMatchers) names.push(...variantMatchers.map(m => m.name));
+    return names.length > 0 ? names : undefined;
+  })();
 
   // -- Discriminant setup --
   const discriminantField = opts?.discriminant;
@@ -104,11 +126,14 @@ export function NamedBlock<T extends Schema>(
         `NamedBlock '${kind}': discriminant field '${discriminantField}' not found in base schema`
       );
     }
-    if (variants && Object.keys(variants).length > 0) {
+    const hasExact = !!variants && Object.keys(variants).length > 0;
+    const hasMatchers = !!variantMatchers && variantMatchers.length > 0;
+    if (hasExact || hasMatchers) {
       namedDiscriminantConfig = {
         field: discriminantField,
-        variants,
-        validValues: validVariantNames!,
+        variants: variants ?? {},
+        variantMatchers,
+        validValues: validVariantNames ?? [],
       };
     }
     // When discriminant is set but no variants yet (chained API: .discriminant().variant()),
@@ -598,6 +623,20 @@ export function NamedBlock<T extends Schema>(
       variants: newVariants,
     });
   });
+  dp(
+    'variantMatch',
+    (name: string, test: (value: string) => boolean, variantSchema: Schema) => {
+      const currentMatchers = opts?.variantMatchers ?? [];
+      const newMatchers = [
+        ...currentMatchers,
+        { name, test, schema: variantSchema },
+      ];
+      return NamedBlock(kind, (inputSchema ?? {}) as T, {
+        ...opts,
+        variantMatchers: newMatchers,
+      });
+    }
+  );
   dp('discriminant', (fieldName: string) => {
     return NamedBlock(kind, (inputSchema ?? {}) as T, {
       ...opts,
@@ -607,7 +646,13 @@ export function NamedBlock<T extends Schema>(
   dp('discriminantField', discriminantField);
   dp(
     'resolveSchemaForDiscriminant',
-    (value: string): Record<string, FieldType> => variants?.[value] ?? schema
+    (value: string): Record<string, FieldType> => {
+      const exact = variants?.[value];
+      if (exact) return exact;
+      const matched = variantMatchers?.find(m => m.test(value));
+      if (matched) return matched.schema;
+      return schema;
+    }
   );
   dp('__clone', () => NamedBlock(kind, { ...schema }, opts));
   // Must run AFTER factory methods are set (see Block() comment).

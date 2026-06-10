@@ -1,12 +1,12 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: Deep_Chain_Agent
   label: Deep Chain Agent
   description: Agent demonstrating a deep topic chain A to B to C to D to E
   enable_enhanced_event_logs: false
   agent_type: EinsteinServiceAgent
-  default_agent_user: user@test.com
   context_variables: []
+  default_agent_user: user@test.com
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages:
@@ -14,12 +14,6 @@ agent_version:
       message_type: Welcome
     - message: An error occurred during onboarding.
       message_type: Error
-  modality_parameters: {}
-  additional_parameters:
-    reset_to_initial_node: true
-    system_messages: '[{"message": "Welcome! Let''s get you set up.", "messageType":
-      "Welcome"}, {"message": "An error occurred during onboarding.", "messageType":
-      "Error"}]'
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -33,7 +27,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -46,29 +40,13 @@ agent_version:
       description: Current step in the process
       data_type: string
       is_list: false
-      default: ''''''
       visibility: Internal
+      default: "''"
   initial_node: main
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Welcome the user and begin the onboarding process.
-
-                Start by collecting their basic information.'
-      instructions: You are an onboarding assistant.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Agent demonstrating a deep topic chain A to B to C to D to E
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: __state_update_action__
@@ -76,34 +54,33 @@ agent_version:
             - AgentScriptInternal_next_topic: '"step_b"'
           name: go_to_step_b
           description: Step B - Verify user identity
+      developer_name: main
+      label: Main
+      action_definitions: []
+      instructions: You are an onboarding assistant.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Welcome the user and begin the onboarding process.
+                Start by collecting their basic information.
       after_all_tool_calls:
         - type: handoff
           target: step_b
           enabled: state.AgentScriptInternal_next_topic=="step_b"
           state_updates:
             - AgentScriptInternal_next_topic: '"__EMPTY__"'
-      developer_name: main
-      label: Main
-      action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Verify the user''s identity by asking security questions.
-
-                Once verified, proceed to the next step.'
-      instructions: You are an onboarding assistant.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Step B - Verify user identity
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: __state_update_action__
@@ -111,34 +88,33 @@ agent_version:
             - AgentScriptInternal_next_topic: '"step_c"'
           name: go_to_step_c
           description: Step C - Collect preferences
+      developer_name: step_b
+      label: Step B
+      action_definitions: []
+      instructions: You are an onboarding assistant.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Verify the user's identity by asking security questions.
+                Once verified, proceed to the next step.
       after_all_tool_calls:
         - type: handoff
           target: step_c
           enabled: state.AgentScriptInternal_next_topic=="step_c"
           state_updates:
             - AgentScriptInternal_next_topic: '"__EMPTY__"'
-      developer_name: step_b
-      label: Step B
-      action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Collect the user''s preferences and settings.
-
-                Ask about notification preferences and language.'
-      instructions: You are an onboarding assistant.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Step C - Collect preferences
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: __state_update_action__
@@ -152,6 +128,24 @@ agent_version:
             - AgentScriptInternal_next_topic: '"step_b"'
           name: back_to_step_b
           description: Step B - Verify user identity
+      developer_name: step_c
+      label: Step C
+      action_definitions: []
+      instructions: You are an onboarding assistant.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Collect the user's preferences and settings.
+                Ask about notification preferences and language.
       after_all_tool_calls:
         - type: handoff
           target: step_d
@@ -163,28 +157,9 @@ agent_version:
           enabled: state.AgentScriptInternal_next_topic=="step_b"
           state_updates:
             - AgentScriptInternal_next_topic: '"__EMPTY__"'
-      developer_name: step_c
-      label: Step C
-      action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Review all collected information with the user.
-
-                Ask them to confirm everything is correct.'
-      instructions: You are an onboarding assistant.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Step D - Review and confirm
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: __state_update_action__
@@ -198,6 +173,24 @@ agent_version:
             - AgentScriptInternal_next_topic: '"step_c"'
           name: back_to_step_c
           description: Step C - Collect preferences
+      developer_name: step_d
+      label: Step D
+      action_definitions: []
+      instructions: You are an onboarding assistant.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Review all collected information with the user.
+                Ask them to confirm everything is correct.
       after_all_tool_calls:
         - type: handoff
           target: step_e
@@ -209,32 +202,33 @@ agent_version:
           enabled: state.AgentScriptInternal_next_topic=="step_c"
           state_updates:
             - AgentScriptInternal_next_topic: '"__EMPTY__"'
-      developer_name: step_d
-      label: Step D
-      action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Finalize the onboarding process.
-
-                Provide the user with a summary and next steps.
-
-                Thank them for completing the process.'
-      instructions: You are an onboarding assistant.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Step E - Complete onboarding
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools: []
       developer_name: step_e
       label: Step E
       action_definitions: []
+      instructions: You are an onboarding assistant.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Finalize the onboarding process.
+                Provide the user with a summary and next steps.
+                Thank them for completing the process.
   surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: "[{\"message\": \"Welcome! Let's get you set up.\",
+      \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred during
+      onboarding.\", \"messageType\": \"Error\"}]"

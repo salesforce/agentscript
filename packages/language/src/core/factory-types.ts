@@ -109,6 +109,15 @@ export interface BlockFactoryOptions {
   discriminant?: string;
   /** Variant schemas keyed by discriminant value. Requires `discriminant`. */
   variants?: Record<string, Schema>;
+  /**
+   * Predicate-keyed variants checked after exact-match `variants` lookup fails.
+   * Use for prefix/regex/wildcard matches where exact keys don't suffice.
+   */
+  variantMatchers?: ReadonlyArray<{
+    name: string;
+    test: (value: string) => boolean;
+    schema: Schema;
+  }>;
 }
 
 export interface NamedBlockOpts {
@@ -118,6 +127,15 @@ export interface NamedBlockOpts {
   scopeAlias?: string;
   /** Variant schemas keyed by instance name or discriminant value. Prefer the chained `.variant()` API. */
   variants?: Record<string, Schema>;
+  /**
+   * Predicate-keyed variants checked after exact-match `variants` lookup fails.
+   * Use for prefix/regex/wildcard matches where exact keys don't suffice.
+   */
+  variantMatchers?: ReadonlyArray<{
+    name: string;
+    test: (value: string) => boolean;
+    schema: Schema;
+  }>;
   /** Field name whose string value selects the variant schema. When set, variants are resolved by field value instead of instance name. */
   discriminant?: string;
   /** Description set on __metadata at creation time, avoiding the TS7056-prone `.describe()` chain on exports. */
@@ -218,6 +236,10 @@ export interface FactoryBuilderMethods<Self> {
   experimental(): Self;
   required(): Self;
   crossBlockReferenceable(): Self;
+  transitionContainer(): Self;
+  predicateField(): Self;
+  outputNameField(): Self;
+  displayLabelField(): Self;
   singular(): Self;
   accepts(kinds: string[]): Self;
   omitArrow(): Self;
@@ -288,6 +310,15 @@ export interface BlockFactory<T extends Schema>
   discriminant(fieldName: string): BlockFactory<T>;
   /** Add a variant schema keyed by discriminant value. */
   variant(name: string, variantSchema: Schema): BlockFactory<T>;
+  /**
+   * Add a predicate-keyed variant. The matcher is consulted only when no exact
+   * `variant()` matches the discriminant value.
+   */
+  variantMatch(
+    name: string,
+    test: (value: string) => boolean,
+    variantSchema: Schema
+  ): BlockFactory<T>;
 }
 
 /**
@@ -334,6 +365,15 @@ export interface NamedBlockFactory<
   pick<K extends string & keyof T>(keys: K[]): NamedBlockFactory<Pick<T, K>>;
   variant<N extends string, S extends Schema>(
     name: N,
+    variantSchema: S
+  ): NamedBlockFactory<T, V & Record<N, S>>;
+  /**
+   * Add a predicate-keyed variant. The matcher is consulted only when no exact
+   * `variant()` matches the discriminant value.
+   */
+  variantMatch<N extends string, S extends Schema>(
+    name: N,
+    test: (value: string) => boolean,
     variantSchema: S
   ): NamedBlockFactory<T, V & Record<N, S>>;
   /** Set the discriminant field for field-based variant resolution. */

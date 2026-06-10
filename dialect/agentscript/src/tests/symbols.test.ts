@@ -7,7 +7,11 @@
 
 import { expect, test, describe } from 'vitest';
 import { parseDocument, parseWithDiagnostics } from './test-utils.js';
-import { getDocumentSymbols, SymbolKind } from '@agentscript/language';
+import {
+  getDocumentSymbols,
+  SymbolKind,
+  DiagnosticSeverity,
+} from '@agentscript/language';
 import { AgentScriptSchemaAliases, AgentScriptSchema } from '../schema.js';
 
 function symbols(source: string) {
@@ -274,6 +278,29 @@ describe('unknown block handling', () => {
     expect(diag).toBeDefined();
     expect(diag!.data?.expected).toBeDefined();
     expect(Array.isArray(diag!.data?.expected)).toBe(true);
+  });
+
+  test('unknown root block is reported as Error severity', () => {
+    // A misindented `actions:` at root level (instead of under a subagent)
+    // must surface as an Error so compilers can fail fast rather than
+    // silently dropping the block.
+    const source = [
+      'start_agent main:',
+      '    description: "test"',
+      '    reasoning:',
+      '        instructions: ->',
+      '            | hello',
+      '',
+      'actions:',
+      '    Lookup_Order:',
+      '        description: "Retrieve order details"',
+      '        target: "flow://Lookup_Order"',
+    ].join('\n');
+    const result = parseWithDiagnostics(source, AgentScriptSchema);
+    const diag = result.diagnostics.find(d => d.code === 'unknown-block');
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe(DiagnosticSeverity.Error);
+    expect(diag!.message).toContain('actions');
   });
 
   test('singular block with unexpected name produces diagnostic and preserves block', () => {

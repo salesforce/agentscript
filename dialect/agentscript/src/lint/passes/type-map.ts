@@ -76,7 +76,7 @@ export interface ConnectedAgentInputInfo extends ParamInfo {
 
 export interface ConnectedAgentInfo {
   inputs: Map<string, ConnectedAgentInputInfo>;
-  /** The target URI string value, if present (e.g. "agentforce://Agent_Name"). */
+  /** The target URI string value, if present (e.g. "agent://Agent_Name"). */
   target?: string;
   /** The AST node for the target field (for diagnostic attachment). */
   targetNode?: AstNodeLike;

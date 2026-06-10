@@ -7,6 +7,7 @@
 
 import type {
   FieldType,
+  Range,
   SyntaxNode,
   ParseResult,
   Parsed,
@@ -17,17 +18,20 @@ import type {
 import {
   withCst,
   getKeyText,
+  hasCstRange,
   isKeyNode,
   parseResult,
   isSingularFieldType,
   keywordNames,
   parseCommentNode as sharedParseCommentNode,
+  toRange,
 } from './types.js';
 import type { Dialect } from './dialect.js';
 import {
   createDiagnostic,
   DiagnosticSeverity,
   DiagnosticCollector,
+  DeprecatedFieldDiagnostic,
 } from './diagnostics.js';
 import { ErrorValue, Identifier, SubscriptExpression } from './expressions.js';
 import { FieldChild, ErrorBlock } from './children.js';
@@ -623,10 +627,37 @@ export class TypedMapParser<T extends TypedDeclarationBase> {
             { found: typeName, expected: typeNames }
           )
         );
+      } else {
+        this.emitDeprecatedTypeDiagnostic(
+          typeName,
+          declType.__cst ? declType.__cst.range : colinearNode
+        );
       }
     } else if (declType instanceof SubscriptExpression) {
       this.validateSubscriptType(element, declType);
     }
+  }
+
+  /** Emit a Deprecated diagnostic if the type keyword has deprecated metadata. */
+  private emitDeprecatedTypeDiagnostic(
+    typeName: string,
+    rangeOrNode: Range | Parsed<object> | SyntaxNode
+  ): void {
+    const info = this.primitiveTypes.find(k => k.keyword === typeName);
+    const dep = info?.metadata?.deprecated;
+    if (!dep) return;
+    let range: Range;
+    if (hasCstRange(rangeOrNode)) {
+      range = rangeOrNode.__cst.range;
+    } else if ('startPosition' in rangeOrNode) {
+      range = toRange(rangeOrNode);
+    } else {
+      range = rangeOrNode;
+    }
+    const msg = dep.message
+      ? `'${typeName}' is deprecated: ${dep.message}`
+      : `'${typeName}' is deprecated`;
+    this.dc.add(new DeprecatedFieldDiagnostic(range, msg, dep.replacement));
   }
 
   private validateSubscriptType(
@@ -674,6 +705,8 @@ export class TypedMapParser<T extends TypedDeclarationBase> {
             { found: elemType, expected: elemTypeNames }
           )
         );
+      } else {
+        this.emitDeprecatedTypeDiagnostic(elemType, idx as Parsed<object>);
       }
     }
   }

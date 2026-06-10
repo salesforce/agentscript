@@ -43,16 +43,22 @@ import {
   ConfigBlock,
   ConnectedSubagentBlock,
   StartAgentBlock,
+  SystemBlock,
   AgentScriptSchema,
   AgentScriptSchemaAliases,
   AgentScriptSchemaInfo,
   defaultSubagentFields,
+  customSubagentFields,
 } from '@agentscript/agentscript-dialect';
 
 import {
   COMMERCE_SHOPPER_SCHEMA,
   commerceShopperVariantFields,
 } from './variants/commerce-cloud-shopper.js';
+import {
+  BYON_SCHEMA_PREFIX,
+  byonSubagentVariantFields,
+} from './variants/byon.js';
 
 const AFVariablesBlock = VariablesBlock.extendProperties({
   source: ReferenceValue.describe(
@@ -132,6 +138,26 @@ const ContextMemoryBlock = Block('ContextMemoryBlock', {
 export const ContextBlock = Block('ContextBlock', {
   memory: ContextMemoryBlock.describe('Memory configuration.'),
 }).describe('Context configuration for the agent.');
+
+export const RecommendedPromptsBlock = Block('RecommendedPromptsBlock', {
+  in_conversation: BooleanValue.describe(
+    'Whether in-conversation recommendations are enabled for the agent.'
+  ),
+  welcome_screen: BooleanValue.describe(
+    'Whether welcome screen recommendations are enabled for the agent.'
+  ),
+  starter_prompts: ExpressionSequence().describe(
+    'Up to 20 starter prompt strings, each between 1 and 50 characters. Only allowed when welcome_screen is True. Min 3 entries.'
+  ),
+}).describe(
+  'Recommended prompts configuration. Only supported for AgentforceEmployeeAgent.'
+);
+
+const AFSystemBlock = SystemBlock.extend({
+  recommended_prompts: RecommendedPromptsBlock.describe(
+    'Recommended prompts configuration for welcome and in-conversation suggestions.'
+  ),
+});
 
 const AFConfigBlock = ConfigBlock.extend(
   {
@@ -319,16 +345,46 @@ export const AFTopicBlock = NamedBlock(
 // ---------------------------------------------------------------------------
 
 /**
- * Pre-merge variant fields for commerce shopper subagents.
- * Exported so the lint pass can check allowed fields before NamedBlock merges with the base.
+ * Cross-cutting fields available to ALL custom subagent (BYON) variants.
+ * Adds the AF-specific blocks (`actions`, `model_config`, `security`) on top
+ * of base agentscript `customSubagentFields` (`label`, `description`,
+ * `system`, `actions`, `reasoning`, `schema` discriminator, `parameters`,
+ * `on_init`, `on_exit`). Variants may override `parameters` or `reasoning`.
  */
-export const commerceShopperVariant = {
-  ...commerceShopperVariantFields,
+const afCustomSubagentFields = {
+  ...customSubagentFields,
   actions: AFActionsBlock,
   model_config: ModelConfigBlock.describe(
     'Model configuration for this block.'
   ),
   security: SecurityBlock,
+};
+
+/**
+ * Pre-merge variant fields for commerce shopper subagents.
+ * Exported so the lint pass can check allowed fields before NamedBlock merges with the base.
+ *
+ * `reasoning.instructions` is blacklisted: commerce shopper runs deterministic
+ * server-side flows and the LLM-instructions surface isn't applicable. Authors
+ * may still bind tools via `reasoning.actions`.
+ */
+export const commerceShopperVariant = {
+  ...afCustomSubagentFields,
+  ...commerceShopperVariantFields,
+  reasoning: ReasoningBlock.omit('instructions').describe(
+    'Reasoning block containing actions available to the agent. ' +
+      'Note: `instructions` is not supported on the commerce shopper variant.'
+  ),
+};
+
+/**
+ * Pre-merge variant fields for generic BYON subagents.
+ * Inherits the full `reasoning` block (instructions + actions) from
+ * afCustomSubagentFields — no overrides beyond the variant's parameters shape.
+ */
+const byonSubagentVariant = {
+  ...afCustomSubagentFields,
+  ...byonSubagentVariantFields,
 };
 
 export const AFSubagentBlock = NamedBlock(
@@ -341,7 +397,12 @@ export const AFSubagentBlock = NamedBlock(
 )
   .describe('A subagent defining agent logic with actions and reasoning.')
   .discriminant('schema')
-  .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant);
+  .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant)
+  .variantMatch(
+    'byon',
+    (value: string) => value.startsWith(BYON_SCHEMA_PREFIX),
+    byonSubagentVariant
+  );
 
 // ---------------------------------------------------------------------------
 // StartAgent block
@@ -358,7 +419,14 @@ export const AFStartAgentBlock = StartAgentBlock.extend(
     security: SecurityBlock,
   },
   { scopeAlias: 'topic' }
-).discriminant('schema');
+)
+  .discriminant('schema')
+  .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant)
+  .variantMatch(
+    'byon',
+    (value: string) => value.startsWith(BYON_SCHEMA_PREFIX),
+    byonSubagentVariant
+  );
 
 export const KnowledgeBlock = Block('KnowledgeBlock', {
   citations_url: StringValue.describe('URL prefix for citation links.'),
@@ -711,6 +779,7 @@ const ModalitiesBlock = NamedCollectionBlock(ModalityBlock);
 
 export const AgentforceSchema = {
   ...AgentScriptSchema,
+  system: AFSystemBlock,
   config: AFConfigBlock,
   variables: AFVariablesBlock,
   model_config: ModelConfigBlock.describe(

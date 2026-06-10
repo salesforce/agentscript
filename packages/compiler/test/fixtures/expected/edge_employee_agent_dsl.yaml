@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: Employee_Helper
   label: Employee Helper
@@ -13,12 +13,6 @@ agent_version:
       message_type: Welcome
     - message: Something went wrong. Please try again.
       message_type: Error
-  modality_parameters: {}
-  additional_parameters:
-    reset_to_initial_node: true
-    system_messages: '[{"message": "Hello! I''m your employee assistant.", "messageType":
-      "Welcome"}, {"message": "Something went wrong. Please try again.", "messageType":
-      "Error"}]'
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -32,7 +26,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -42,46 +36,52 @@ agent_version:
       visibility: Internal
   initial_node: main
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Route the employee to the right topic based on their request'
-      instructions: You are an employee assistant for handling internal requests.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Handles employee inquiries and routes to appropriate topics
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools: []
       developer_name: main
       label: Main
       action_definitions: []
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Process the employee support request'
       instructions: You are an employee assistant for handling internal requests.
-      type: subagent
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Route the employee to the right topic based on their request
+    - type: subagent
       reasoning_type: salesforce.default
       description: Handles general employee support requests
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools: []
       developer_name: EmployeeSupport
       label: Employee Support
       action_definitions: []
+      instructions: You are an employee assistant for handling internal requests.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: |-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+                Process the employee support request
   surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true
+    system_messages: "[{\"message\": \"Hello! I'm your employee assistant.\",
+      \"messageType\": \"Welcome\"}, {\"message\": \"Something went wrong.
+      Please try again.\", \"messageType\": \"Error\"}]"

@@ -9,7 +9,7 @@
  * Connected agent target validation.
  *
  * Enforces validation rules for `connected_subagent` target URIs:
- * 1. Scheme must be `agentforce://` (platform restriction)
+ * 1. Scheme must be `agent://` (or `agentforce://` for backwards compatibility)
  * 2. Target name must follow naming rules:
  *    - Start with a letter (a-z, A-Z)
  *    - Contain only alphanumeric characters and underscores
@@ -30,7 +30,7 @@ import {
 import { DiagnosticSeverity } from '@agentscript/types';
 import { typeMapKey } from '@agentscript/agentscript-dialect';
 
-const ALLOWED_SCHEMES = ['agentforce'];
+const ALLOWED_SCHEMES = ['agent', 'agentforce'];
 
 // Validation pattern for target names
 function validateTargetName(targetName: string): string | null {

@@ -142,7 +142,7 @@ start_agent main:
             | Help the user.
 
 connected_subagent Support_Agent:
-    target: "agentforce://Support_Agent"
+    target: "agent://Support_Agent"
     label: "Support Agent"
     description: "Handles support"
 `;

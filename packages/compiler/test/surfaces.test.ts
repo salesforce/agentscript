@@ -566,6 +566,75 @@ connection slack:
 });
 
 // ===========================================================================
+// Connection Input Parameters
+// ===========================================================================
+
+describe('connection input parameters', () => {
+  it('should compile connection input parameters with all data types', () => {
+    const source = agentSource(`
+connection service_email:
+    inputs:
+        LegalDisclosure: string = "This message is recorded."
+            description: "Legal disclaimer text"
+        MaxRetries: number = 3
+            description: "Maximum retry attempts"
+        EnableFeature: boolean = True
+            description: "Enable feature flag"
+        OptionalField: string
+            description: "Optional configuration"
+
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Support"
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'service_email');
+    expect(surface).toBeDefined();
+    expect(surface?.input_parameters).toHaveLength(4);
+
+    // Check string input with default
+    const legalDisclosure = surface?.input_parameters?.find(
+      p => p.developer_name === 'LegalDisclosure'
+    );
+    expect(legalDisclosure).toBeDefined();
+    expect(legalDisclosure?.data_type).toBe('string');
+    expect(legalDisclosure?.label).toBe('Legal Disclosure');
+    expect(legalDisclosure?.description).toBe('Legal disclaimer text');
+    expect(legalDisclosure?.default_value).toBe("'This message is recorded.'");
+
+    // Check number input with default (maps to double)
+    const maxRetries = surface?.input_parameters?.find(
+      p => p.developer_name === 'MaxRetries'
+    );
+    expect(maxRetries).toBeDefined();
+    expect(maxRetries?.data_type).toBe('double');
+    expect(maxRetries?.label).toBe('Max Retries');
+    expect(maxRetries?.description).toBe('Maximum retry attempts');
+    expect(maxRetries?.default_value).toBe(3);
+
+    // Check boolean input with default
+    const enableFeature = surface?.input_parameters?.find(
+      p => p.developer_name === 'EnableFeature'
+    );
+    expect(enableFeature).toBeDefined();
+    expect(enableFeature?.data_type).toBe('boolean');
+    expect(enableFeature?.label).toBe('Enable Feature');
+    expect(enableFeature?.description).toBe('Enable feature flag');
+    expect(enableFeature?.default_value).toBe(true);
+
+    // Check optional input without default
+    const optionalField = surface?.input_parameters?.find(
+      p => p.developer_name === 'OptionalField'
+    );
+    expect(optionalField).toBeDefined();
+    expect(optionalField?.data_type).toBe('string');
+    expect(optionalField?.label).toBe('Optional Field');
+    expect(optionalField?.description).toBe('Optional configuration');
+    expect(optionalField?.default_value).toBeUndefined();
+  });
+});
+
+// ===========================================================================
 // Custom connection types
 // Connection blocks with names not in the standard list (messaging, service_email,
 // slack, telephony, voice) are compiled as custom types with:

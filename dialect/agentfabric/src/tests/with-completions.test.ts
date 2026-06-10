@@ -70,7 +70,7 @@ describe('getWithCompletions with agentfabric', () => {
       '    transition to @echo.done',
       'echo:',
       '  done:',
-      '    kind: "a2a:response"',
+      '    kind: "a2a:status_update_event"',
     ].join('\n');
 
     const result = parseAndLintSource(source);

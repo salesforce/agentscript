@@ -14,18 +14,21 @@ import { compileActionDefinitions } from './compile-actions.js';
 import { compileDeterministicDirectives } from './compile-directives.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
 import { extractStatements } from './compile-subagent-node.js';
+import { compileExpression } from '../expressions/compile-expression.js';
 
 /**
- * If `decl.type` is a `@variables.X` member expression, returns `"variables.X"`.
- * Otherwise returns undefined.
+ * If `decl.type` is a `@variables.X` member expression, compile it to its
+ * runtime reference (`state.X` or `variables.X`). Returns undefined for any
+ * other parameter shape (regular type identifiers like `string`, etc.).
  */
 function extractVariableRef(
-  decl: ParameterDeclarationNode
+  decl: ParameterDeclarationNode,
+  ctx: CompilerContext
 ): string | undefined {
   if (!(decl.type instanceof MemberExpression)) return undefined;
   const decomposed = decomposeAtMemberExpression(decl.type);
   if (decomposed?.namespace !== 'variables') return undefined;
-  return `variables.${decomposed.property}`;
+  return compileExpression(decl.type, ctx);
 }
 
 /**
@@ -39,6 +42,36 @@ export const COMMERCE_SHOPPER_BYO_CLIENT: BYOClientConfig = {
     node_namespace: 'commerceshopperagent',
   },
 };
+
+const NODE_URI_SCHEME = 'node://';
+const BYON_PATH_PREFIX = 'byon/';
+
+/**
+ * Derive a BYOClientConfig from a generic BYON schema URI of the shape
+ * `node://byon/<namespace>/<type>/<version>`. Returns undefined if the URI
+ * doesn't match that exact 3-segment shape under `node://byon/`.
+ *
+ * The version segment is required (so it can be wired into byo_client.configuration
+ * later without a breaking change) but is currently discarded.
+ */
+export function deriveByonClient(
+  schemaUri: string
+): BYOClientConfig | undefined {
+  if (!schemaUri.startsWith(NODE_URI_SCHEME)) return undefined;
+  const path = schemaUri.slice(NODE_URI_SCHEME.length);
+  if (!path.startsWith(BYON_PATH_PREFIX)) return undefined;
+  const segments = path.slice(BYON_PATH_PREFIX.length).split('/');
+  if (segments.length !== 3) return undefined;
+  const [namespace, typeId] = segments;
+  if (!namespace || !typeId || !segments[2]) return undefined;
+  return {
+    client_ref: 'icr-default',
+    configuration: {
+      node_type_id: typeId,
+      node_namespace: namespace,
+    },
+  };
+}
 
 /**
  * Compile a custom subagent block into a BYONNode.
@@ -59,7 +92,8 @@ export function compileCustomSubagentNode(
 
   // Compile input_parameters from parameters.template
   const inputParameters = compileInputParameters(
-    block.parameters as Record<string, unknown> | undefined
+    block.parameters as Record<string, unknown> | undefined,
+    ctx
   );
 
   const actionsBlock = block.actions as
@@ -70,7 +104,7 @@ export function compileCustomSubagentNode(
   const actionDefinitions = compileActionDefinitions(actionsBlock, ctx);
 
   // Derive tools from action inputs with @variables.X bindings
-  const boundInputTools = compileTools(actionsBlock);
+  const boundInputTools = compileTools(actionsBlock, ctx);
 
   // Compile reasoning.actions into tools
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- compiler handles both topic and subagent reasoning shapes generically
@@ -150,20 +184,23 @@ export function compileCustomSubagentNode(
 // ---------------------------------------------------------------------------
 
 function compileInputParameters(
-  parametersBlock: Record<string, unknown> | undefined
+  parametersBlock: Record<string, unknown> | undefined,
+  ctx: CompilerContext
 ): Record<string, unknown> | undefined {
   if (!parametersBlock) return undefined;
 
-  const template = parametersBlock['template'] as
-    | NamedMap<ParameterDeclarationNode>
-    | undefined;
-  if (!template || template.size === 0) return undefined;
-
   const result: Record<string, unknown> = {};
 
-  for (const [key, rawDecl] of iterateNamedMap(template)) {
-    const ref = extractVariableRef(rawDecl as ParameterDeclarationNode);
-    if (ref) result[key] = ref;
+  for (const key of Object.keys(parametersBlock)) {
+    if (key.startsWith('__')) continue;
+    const group = parametersBlock[key];
+    if (!(group instanceof NamedMap)) continue;
+    for (const [paramKey, rawDecl] of iterateNamedMap(
+      group as NamedMap<ParameterDeclarationNode>
+    )) {
+      const ref = extractVariableRef(rawDecl as ParameterDeclarationNode, ctx);
+      if (ref) result[paramKey] = ref;
+    }
   }
 
   return Object.keys(result).length > 0 ? result : undefined;
@@ -174,7 +211,8 @@ function compileInputParameters(
 // ---------------------------------------------------------------------------
 
 function compileTools(
-  actions: NamedMap<Record<string, unknown>> | undefined
+  actions: NamedMap<Record<string, unknown>> | undefined,
+  ctx: CompilerContext
 ): Array<{
   type: 'action';
   target: string;
@@ -199,7 +237,7 @@ function compileTools(
     const boundInputs: Record<string, unknown> = {};
 
     for (const [inputName, rawDecl] of iterateNamedMap(inputs)) {
-      const ref = extractVariableRef(rawDecl as ParameterDeclarationNode);
+      const ref = extractVariableRef(rawDecl as ParameterDeclarationNode, ctx);
       if (ref) boundInputs[inputName] = ref;
     }
 

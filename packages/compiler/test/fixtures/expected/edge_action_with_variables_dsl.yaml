@@ -1,22 +1,19 @@
-schema_version: '2.0'
+schema_version: "2.0"
 global_configuration:
   developer_name: EdgeActionWithVariables
   label: Edge Action With Variables
   description: Tests with clauses using @variables references
   enable_enhanced_event_logs: false
   agent_type: EinsteinServiceAgent
-  default_agent_user: admin@example.com
   context_variables:
     - developer_name: customer_id
       label: Customer Id
       description: The customer ID from context
       data_type: string
+  default_agent_user: admin@example.com
 agent_version:
   planner_type: Atlas__ConcurrentMultiAgentOrchestration
   system_messages: []
-  modality_parameters: {}
-  additional_parameters:
-    reset_to_initial_node: true
   state_variables:
     - developer_name: AgentScriptInternal_next_topic
       label: Next Topic
@@ -30,7 +27,7 @@ agent_version:
       description: The agent instructions
       data_type: string
       is_list: false
-      default: ''''''
+      default: "''"
       visibility: Internal
     - developer_name: AgentScriptInternal_condition
       label: Runtime Condition
@@ -55,8 +52,8 @@ agent_version:
       description: Customer preferred language
       data_type: string
       is_list: false
-      default: '''en_US'''
       visibility: Internal
+      default: "'en_US'"
     - developer_name: case_number
       label: Case Number
       description: Active case number
@@ -68,8 +65,8 @@ agent_version:
       description: Case priority
       data_type: string
       is_list: false
-      default: '''medium'''
       visibility: Internal
+      default: "'medium'"
     - developer_name: response
       label: Response
       description: Action response
@@ -78,40 +75,9 @@ agent_version:
       visibility: Internal
   initial_node: main
   nodes:
-    - before_reasoning_iteration:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_agent_instructions: ''''''
-        - type: action
-          target: __state_update_action__
-          state_updates:
-            - AgentScriptInternal_agent_instructions: 'template::{{state.AgentScriptInternal_agent_instructions}}
-
-                Help the customer with their request using their personal information.
-
-                Create cases and send emails as needed.'
-      instructions: You are a personalized service agent.
-      type: subagent
+    - type: subagent
       reasoning_type: salesforce.default
       description: Personalized service using variable references
-      before_reasoning:
-        - type: action
-          target: __state_update_action__
-          enabled: 'True'
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
-        - type: action
-          target: lookup_customer
-          bound_inputs:
-            customer_ref: variables.customer_id
-          llm_inputs: []
-          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
-          state_updates:
-            - customer_name: result.name
-            - customer_email: result.email
-      focus_prompt: '{{state.AgentScriptInternal_agent_instructions}}'
       tools:
         - type: action
           target: create_case
@@ -125,7 +91,6 @@ agent_version:
           state_updates:
             - case_number: result.case_number
           name: create_case
-          description: Create Case
         - type: action
           target: send_email
           bound_inputs:
@@ -135,19 +100,12 @@ agent_version:
             - body
           state_updates: []
           name: send_email
-          description: Send Email
         - type: action
           target: __state_update_action__
           state_updates:
-            - AgentScriptInternal_next_topic: '''__human__'''
+            - AgentScriptInternal_next_topic: "'__human__'"
           name: escalate_to_human
           description: Escalate to human agent
-      after_all_tool_calls:
-        - type: handoff
-          target: __human__
-          enabled: state.AgentScriptInternal_next_topic == '__human__'
-          state_updates:
-            - AgentScriptInternal_next_topic: '"__EMPTY__"'
       developer_name: main
       label: Main
       action_definitions:
@@ -269,4 +227,46 @@ agent_version:
               is_list: false
               is_used_by_planner: true
               is_displayable: false
+      instructions: You are a personalized service agent.
+      focus_prompt: "{{state.AgentScriptInternal_agent_instructions}}"
+      before_reasoning_iteration:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_agent_instructions: "''"
+        - type: action
+          target: __state_update_action__
+          state_updates:
+            - AgentScriptInternal_agent_instructions: >-
+                template::{{state.AgentScriptInternal_agent_instructions}}
+
+                Help the customer with their request using their personal
+                information.
+
+                Create cases and send emails as needed.
+      before_reasoning:
+        - type: action
+          target: __state_update_action__
+          enabled: "True"
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
+        - type: action
+          target: lookup_customer
+          bound_inputs:
+            customer_ref: variables.customer_id
+          llm_inputs: []
+          state_updates:
+            - customer_name: result.name
+            - customer_email: result.email
+          enabled: state.AgentScriptInternal_next_topic=="__EMPTY__"
+      after_all_tool_calls:
+        - type: handoff
+          target: __human__
+          enabled: state.AgentScriptInternal_next_topic == '__human__'
+          state_updates:
+            - AgentScriptInternal_next_topic: '"__EMPTY__"'
   surfaces: []
+  modality_parameters: {}
+  additional_parameters:
+    reset_to_initial_node: true

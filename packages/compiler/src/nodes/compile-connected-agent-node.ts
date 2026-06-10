@@ -18,6 +18,8 @@ import {
 } from '../ast-helpers.js';
 import { normalizeDeveloperName, parseUri } from '../utils.js';
 import { compileExpression } from '../expressions/compile-expression.js';
+import { extractStatements } from './compile-subagent-node.js';
+import { compileDeterministicDirectives } from './compile-directives.js';
 
 /**
  * Compile a connected_subagent block into a RelatedAgentNode.
@@ -34,7 +36,16 @@ export function compileConnectedAgentNode(
 
   const boundInputs = compileBoundInputs(block.inputs, ctx);
 
-  // Parse target URI (e.g. "agentforce://Sales_Agent") to derive invocation type/name
+  const afterResponseStmts = extractStatements(block.after_response);
+  const afterResponse =
+    afterResponseStmts && afterResponseStmts.length > 0
+      ? compileDeterministicDirectives(afterResponseStmts, ctx, {
+          addNextTopicResetAction: true,
+          gateOnNextTopicEmpty: true,
+        })
+      : undefined;
+
+  // Parse target URI (e.g. "agent://Sales_Agent") to derive invocation type/name
   const targetUri = extractStringValue(block.target);
   let invocationTargetType = 'externalService';
   let invocationTargetName = name;
@@ -59,6 +70,9 @@ export function compileConnectedAgentNode(
   }
   if (boundInputs !== undefined) {
     node.bound_inputs = boundInputs;
+  }
+  if (afterResponse !== undefined && afterResponse.length > 0) {
+    node.after_response = afterResponse;
   }
 
   ctx.setScriptPath(node, name);
