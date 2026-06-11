@@ -12,12 +12,14 @@ import { checkReasoningInstructionsRules } from './rules/reasoning-instructions-
 import { checkSwitchRules } from './rules/switch-rules.js';
 import { checkTerminalStatusRules } from './rules/terminal-status-rules.js';
 import { checkTriggerRules } from './rules/trigger-rules.js';
+import { checkVersionRules } from './rules/version-rules.js';
 
 class AgentFabricSemanticPass implements LintPass {
   readonly id = storeKey('agentfabric-semantic');
   readonly description = 'AgentFabric-specific semantic lint validations';
 
   finalize(store: PassStore, root: Record<string, unknown>): void {
+    checkVersionRules(root);
     checkTriggerRules(root);
     checkConnectionUriRules(root);
     checkOutputStructureRules(root);
