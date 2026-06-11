@@ -194,6 +194,13 @@ const AFConfigBlock = ConfigBlock.extend(
     additional_parameter__DISABLE_GROUNDEDNESS: BooleanValue.describe(
       'Whether to disable groundedness checking.'
     ).hidden(),
+    additional_parameter__disable_graph_runtime: BooleanValue.describe(
+      'Whether to disable the graph runtime.'
+    )
+      .hidden()
+      .deprecated(
+        'Disabling graph runtime is deprecated and will not be permitted starting July 1, 2026.'
+      ),
     debug: BooleanValue.describe('Whether to enable debug mode.'),
     max_tokens: NumberValue.describe('Maximum number of tokens for responses.'),
     temperature: NumberValue.describe(

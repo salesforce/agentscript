@@ -56,6 +56,28 @@ start_agent main:
     expect(config['additional_parameter__custom_flag']).toBeDefined();
   });
 
+  it('should emit a deprecation warning for additional_parameter__disable_graph_runtime', () => {
+    const source = `
+config:
+    developer_name: "test"
+    additional_parameter__disable_graph_runtime: True
+
+start_agent main:
+    description: "desc"
+`;
+    const { diagnostics } = parseWithDiagnostics(source);
+    const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
+    expect(deprecated).toHaveLength(1);
+    expect(deprecated[0].message).toContain(
+      "'additional_parameter__disable_graph_runtime'"
+    );
+    expect(deprecated[0].message).toContain('graph runtime');
+    const unknownFieldDiags = diagnostics.filter(
+      d => d.code === 'unknown-field'
+    );
+    expect(unknownFieldDiags).toHaveLength(0);
+  });
+
   it('should not include additional_parameter__ fields in completions', () => {
     const source = `
 config:
