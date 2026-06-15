@@ -18,12 +18,11 @@ import { TransitionStatement, ToClause } from '../core/statements.js';
 import { toRange } from '@agentscript/types';
 
 const MISSING_TARGET_MESSAGE =
-  "'transition' requires a target. Use 'transition to <target>' " +
-  '(SPEC §5.10).';
+  "'transition' requires a target. Use 'transition to <target>'.";
 
 const MULTIPLE_TARGETS_MESSAGE =
   "'transition' accepts a single 'to' target. " +
-  "Multiple 'to' clauses are not allowed (SPEC §5.10).";
+  "Multiple 'to' clauses are not allowed.";
 
 class TransitionTargetPass implements LintPass {
   readonly id = storeKey('transition-target');
