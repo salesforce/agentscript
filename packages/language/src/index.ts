@@ -347,6 +347,7 @@ export {
 export { positionIndexPass } from './core/analysis/position-index-pass.js';
 export { unreachableCodePass } from './lint/unreachable-code.js';
 export { unsupportedConditionalsPass } from './lint/unsupported-conditionals.js';
+export { transitionTargetPass } from './lint/transition-target.js';
 export { emptyBlockPass } from './lint/empty-block.js';
 export { spreadContextPass } from './lint/spread-context.js';
 export { nullLiteralValidationPass } from './lint/null-literal-validation.js';

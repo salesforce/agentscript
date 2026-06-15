@@ -45,6 +45,7 @@ export { constraintValidationPass } from './constraint-validation.js';
 export { positionIndexPass } from '../core/analysis/position-index-pass.js';
 export { unreachableCodePass } from './unreachable-code.js';
 export { unsupportedConditionalsPass } from './unsupported-conditionals.js';
+export { transitionTargetPass } from './transition-target.js';
 export { emptyBlockPass } from './empty-block.js';
 export { spreadContextPass } from './spread-context.js';
 export { nullLiteralValidationPass } from './null-literal-validation.js';
