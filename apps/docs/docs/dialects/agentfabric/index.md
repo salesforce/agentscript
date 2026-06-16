@@ -440,25 +440,34 @@ The router node has these properties.
 
 ### Echo Node
 
-The echo node sends a response back to the client. The number of responses depends on the trigger interface and its configuration. Use this node for the end of a workflow, or anytime you want to emit a response. Currently only supports `a2a:response` (non-streaming). 
+The echo node sends a response back to the client. The number of responses depends on the trigger interface and its configuration. Use this node for the end of a workflow, or anytime you want to emit a response.
 
 **Example**
 
 ```agentscript
-echo a2a_response:
-  kind: "a2a:response"
-  task: a2a.task({
-    state: "completed",
-    message: a2a.message(
-          {
-            messageId: uuid(),
-            parts:[
-              a2a.textPart("You have been onboarded!your employee ID is" +@orchestrator.hrSystemOnboard.output.employeeId)
-            ]
-          }),
-    artifacts: a2a.parts(*@variables.artifacts),
-    metadata:None
-    })
+echo addArtifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({
+    artifactId: uuid(),
+    name: "myArtifact",
+    description: "this is optional",
+    parts: [
+      a2a.textPart("You have been onboarded! Your employee ID is " + @orchestrator.hrSystemOnboard.output.employeeId)
+    ],
+    metadata: {},
+  }),
+  append: false
+  lastChunk: false
+
+echo setStatus:
+  kind: "a2a:status_update_event"
+  state: "completed",
+  message: a2a.message({
+    messageId: uuid(),
+    parts: [
+      a2a.textPart("You have been onboarded! Your employee ID is " + @orchestrator.hrSystemOnboard.output.employeeId)
+    ]
+  })
 ```
 
 | Parameter | Description | Type | Required |
@@ -467,8 +476,31 @@ echo a2a_response:
 | `label` | An optional short, human-readable display name for the node. | String | No |
 | `description` | A CommonMark string providing a description of the node. | String | No |
 | `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `kind` | Discriminator for the response type. Must be "a2a:response". | String | Yes |
-| `task` | A Task object as defined in the A2A specification. The `id`, `contextId` and `history` attributes are automatically populated by the trigger | Task object | Yes |
+| `kind` | Discriminator for the event type. Valid values: `a2a:status_update_event`, `a2a:artifact_update_event`. | String | Yes |
+| `state` | The task state. Used with `a2a:status_update_event` kind. | String | Yes (for `status_update_event`) |
+| `message` | A message object created via `a2a.message()`. Used with `a2a:status_update_event` kind. | Message object | Yes (for `status_update_event`) |
+| `artifact` | An artifact object created via `a2a.artifact()`. Used with `a2a:artifact_update_event` kind. | Artifact object | Yes (for `artifact_update_event`) |
+| `append` | Whether to append to an existing artifact. Used with `a2a:artifact_update_event` kind. | Boolean | No |
+| `lastChunk` | Whether this is the last chunk of the artifact. Used with `a2a:artifact_update_event` kind. | Boolean | No |
+| `metadata` | Optional metadata dictionary. | dict | No |
+
+The following table summarizes echo node parameters organized by `kind`.
+
+| Kind | Required Parameters | Optional Parameters |
+| :---- | :---- | :---- |
+| `a2a:artifact_update_event` | `artifact` (object created via `a2a.artifact()`) | `append` (boolean), `lastChunk` (boolean) |
+| `a2a:status_update_event` | `state` (string), `message` (object created via `a2a.message()`) | `metadata` (dict) |
+
+#### Echo Node Behavior 
+
+The following table describes echo node behavior based on the A2A operation used by the client.
+
+| Operation / Condition | Echo Behavior |
+| :---- | :---- |
+| `SendMessage` with `returnImmediately = false` | Each echo invocation updates the stored task. Each echo invocation emits a push notification payload for all created push notifications. A consolidated response is emitted when the graph ends or is suspended. |
+| `SendMessage` with `returnImmediately = true` | An immediate response is sent before graph execution is triggered. The response includes the task and context ID. A stored task entry with the response already exists before graph execution begins. All echo invocations update the stored task atomically (including consolidated and individual events). Each echo invocation emits a push notification payload for all created push notifications. |
+| `SendStreamingMessage` | All echo invocations update the stored task atomically (including consolidated and individual events). All individual events are sent through the event stream. Each echo invocation emits a push notification payload for all created push notifications. |
+| `SubscribeToTask` | This condition works on top of the scenarios above. Any task in a non-terminal state can be subscribed to. Whenever echo is executed, events are pushed to all subscribed clients. |
 
 ### A2A Namespace Functions
 
@@ -476,21 +508,18 @@ The `a2a` namespace provides a set of functions that support A2A Task object cre
 
 | Function | Description | Input Arguments | Output | Example |
 | :---- | :---- | :---- | :---- | :---- |
-| `a2a.task` | Builds an A2A Task response object | `state: str` (required) `message` (optional, from `a2a.message`) `artifacts: list` (optional, from `a2a.artifact`) `metadata: dict` (optional) | `dict` (Task) | `a2a.task("completed", message=a2a.message(...), artifacts=[a2a.artifact(...)])` |
-| `a2a.message` | Builds an A2A Message object | `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `role: str` (optional, default: "agent") `metadata: dict` (optional) | `dict` (Message) | `a2a.message([{messageId: uuid(), parts: [a2a.textPart("Hello")]}])` |
+| `a2a.message` | Builds an A2A Message object | `messageId: str` (required) `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `role: str` (optional, default: "agent") `metadata: dict` (optional) | `dict` (Message) | `a2a.message({messageId: uuid(), parts: [a2a.textPart("Hello")]})` |
 | `a2a.textPart` | Builds a TextPart object (kind: "text") | `text: str` (required) `metadata: dict` (optional) | `dict` (TextPart) | `` a2a.textPart("Employee ID: {!@orchestrator.employee.id}") `a2a.textPart("Status: Complete", metadata={priority: "high"})` `` |
 | `a2a.dataPart` | Builds a DataPart object (kind: "data") | `data: dict` (required) `metadata: dict` (optional) | `dict` (DataPart) | `` a2a.dataPart({employeeId: "E123", department: "Engineering"}) `a2a.dataPart(@orchestrator.result.output)` `` |
 | `a2a.filePart` | Builds a FilePart object (kind: "file") | `uri: str` (optional, required if bytes not provided) `bytes: str` (optional, base64-encoded) `name: str` (optional) `mime_type: str` (optional) `metadata: dict` (optional) | `dict` (FilePart) | `a2a.filePart(uri="https://example.com/report.pdf", name="report.pdf", mime_type="application/pdf") a2a.filePart(bytes="SGVsbG8gV29ybGQ=", name="data.txt")` |
-| `a2a.artifact` | Builds an A2A Artifact object with auto-generated ID | `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`)  `artifact_id: str` (optional, auto-generated)  `name: str` (optional)  `description: str` (optional) `metadata: dict` (optional) | `dict` (Artifact) | `` a2a.artifact([a2a.dataPart(...)], name="Results", description="Analysis results") `a2a.artifact([a2a.filePart(...)], artifact_id="custom-id")` `` |
-| `a2a.parts` | Collects multiple items into a list for composing parts/artifacts arrays | `*args: Any` (variable arguments) | `list` | `` a2a.parts(*@variables.artifacts) `a2a.parts(a2a.textPart("Part 1"), a2a.dataPart({key: "value"}))` `` |
+| `a2a.artifact` | Builds an A2A Artifact object | `artifactId: str` (optional, auto-generated) `name: str` (optional) `description: str` (optional) `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `metadata: dict` (optional) | `dict` (Artifact) | `a2a.artifact({artifactId: uuid(), name: "Results", parts: [a2a.dataPart(...)]})` |
 
 Usage notes:
 
-* Functions are designed to be composed: `a2a.task` accepts `messages` created by `a2a.message`, which accepts `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
-* `a2a.filePart` requires either `uri` OR `bytes` (base64-encoded), but not both  
-* `a2a.artifact` auto-generates `artifactId` if it's not provided.  
-* Use `a2a.parts` with the `*` operator to unpack arrays, for example, `a2a.parts(*@variables.artifacts)`.
-* All `metadata` parameters are optional and accept arbitrary dictionaries  
+* Functions are designed to be composed: `a2a.message` and `a2a.artifact` accept `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
+* `a2a.filePart` requires either `uri` OR `bytes` (base64-encoded), but not both.
+* `a2a.artifact` auto-generates `artifactId` if it's not provided.
+* All `metadata` parameters are optional and accept arbitrary dictionaries.
 * For tasks, it's not necessary to define the `id`, `contextId` and `history` attributes, those are automatically populated by the trigger.
 
 ## Built-in Functions {#built-in-functions}
