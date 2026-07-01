@@ -60,6 +60,20 @@ interface RawReasoningAction {
 export const reasoningActionsKey =
   storeKey<ReasoningActionEntry[]>('reasoning-actions');
 
+export interface SetVariablesEntry {
+  topicName: string;
+  /** The ReasoningActionBlock AST node. */
+  ra: Record<string, unknown>;
+  /** WithClause statements within the setVariables block. */
+  statements: Array<Record<string, unknown>> | undefined;
+  /** Range of the @utils.setVariables expression. */
+  actionRefRange: Range | undefined;
+}
+
+export const setVariablesEntriesKey = storeKey<SetVariablesEntry[]>(
+  'set-variables-entries'
+);
+
 class ReasoningActionsAnalyzer implements LintPass {
   readonly id = reasoningActionsKey;
   readonly description =
@@ -74,6 +88,7 @@ class ReasoningActionsAnalyzer implements LintPass {
     if (!ctx) return;
 
     const raw: RawReasoningAction[] = [];
+    const setVarEntries: SetVariablesEntry[] = [];
     const rootObj = root as AstNodeLike;
 
     // Support both 'subagent' (base dialect) and 'topic' (agentforce dialect)
@@ -155,6 +170,12 @@ class ReasoningActionsAnalyzer implements LintPass {
               statements,
               actionRefRange,
             });
+          } else if (
+            decomposed &&
+            decomposed.namespace === 'utils' &&
+            decomposed.property === 'setVariables'
+          ) {
+            setVarEntries.push({ topicName, ra, statements, actionRefRange });
           }
         }
       }
@@ -187,6 +208,7 @@ class ReasoningActionsAnalyzer implements LintPass {
     }
 
     store.set(reasoningActionsKey, entries);
+    store.set(setVariablesEntriesKey, setVarEntries);
   }
 }
 
