@@ -36,23 +36,22 @@ export function setVariablesIoRule(): LintPass {
       const { statements } = entry;
       if (!statements) return;
 
-      const variableNames = [...typeMap.variables.keys()];
-
       for (const stmt of statements) {
         if (stmt.__kind !== 'WithClause') continue;
         const param = stmt.param as string;
         if (!param) continue;
 
-        const cst = stmt.__cst as CstMeta | undefined;
-        if (!cst) continue;
-
-        const paramCstNode = (stmt as { __paramCstNode?: SyntaxNode })
-          .__paramCstNode;
-        const range = paramCstNode ? toRange(paramCstNode) : cst.range;
-
         const varInfo = typeMap.variables.get(param);
         if (!varInfo) {
-          const suggestion = findSuggestion(param, variableNames);
+          const cst = stmt.__cst as CstMeta | undefined;
+          if (!cst) continue;
+          const paramCstNode = (stmt as { __paramCstNode?: SyntaxNode })
+            .__paramCstNode;
+          const range = paramCstNode ? toRange(paramCstNode) : cst.range;
+
+          const suggestion = findSuggestion(param, [
+            ...typeMap.variables.keys(),
+          ]);
           const msg = `'${param}' is not a defined variable. @utils.setVariables can only assign to declared variables.`;
           attachDiagnostic(
             stmt,
@@ -68,6 +67,12 @@ export function setVariablesIoRule(): LintPass {
         }
 
         if (varInfo.modifier !== 'mutable') {
+          const cst = stmt.__cst as CstMeta | undefined;
+          if (!cst) continue;
+          const paramCstNode = (stmt as { __paramCstNode?: SyntaxNode })
+            .__paramCstNode;
+          const range = paramCstNode ? toRange(paramCstNode) : cst.range;
+
           const qualifier = varInfo.modifier ?? 'non-mutable';
           const msg = `'${param}' is a ${qualifier} variable. @utils.setVariables can only assign to mutable variables.`;
           attachDiagnostic(
