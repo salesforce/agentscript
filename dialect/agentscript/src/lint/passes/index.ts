@@ -47,7 +47,11 @@ export {
   reasoningActionsAnalyzer,
   reasoningActionsKey,
 } from './reasoning-actions.js';
-export type { ReasoningActionEntry } from './reasoning-actions.js';
+export type {
+  ReasoningActionEntry,
+  SetVariablesEntry,
+} from './reasoning-actions.js';
+export { setVariablesEntriesKey } from './reasoning-actions.js';
 export { actionIoRule } from './action-io.js';
 export { actionTypeCheckRule } from './action-type-check.js';
 export { availableWhenTypeCheckRule } from './available-when-type-check.js';

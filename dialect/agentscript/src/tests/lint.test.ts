@@ -4844,7 +4844,7 @@ subagent main:
     expect(errors).toHaveLength(0);
   });
 
-  it('does not report error for linked variables', () => {
+  it('reports error for linked variables', () => {
     const diagnostics = runLint(`
 variables:
   context_val: linked string
@@ -4861,10 +4861,42 @@ subagent main:
         with context_val="test"
 `);
 
-    const errors = diagnostics.filter(
+    const unknownErrors = diagnostics.filter(
       d => d.code === 'set-variables-unknown-variable'
     );
-    expect(errors).toHaveLength(0);
+    expect(unknownErrors).toHaveLength(0);
+
+    const immutableErrors = diagnostics.filter(
+      d => d.code === 'set-variables-immutable-target'
+    );
+    expect(immutableErrors).toHaveLength(1);
+    expect(immutableErrors[0].message).toContain("'context_val'");
+    expect(immutableErrors[0].message).toContain('linked');
+  });
+
+  it('reports error for non-mutable variables (no modifier)', () => {
+    const diagnostics = runLint(`
+variables:
+  name: string
+  email: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      update: @utils.setVariables
+        description: "Update"
+        with name="John"
+        with email=...
+`);
+
+    const immutableErrors = diagnostics.filter(
+      d => d.code === 'set-variables-immutable-target'
+    );
+    expect(immutableErrors).toHaveLength(1);
+    expect(immutableErrors[0].message).toContain("'name'");
+    expect(immutableErrors[0].message).toContain('non-mutable');
   });
 
   it('reports multiple undefined variables', () => {

@@ -7,138 +7,80 @@
 
 /**
  * setVariables I/O validation — validates that `with` clause parameters in
- * @utils.setVariables reasoning actions reference defined variables.
+ * @utils.setVariables reasoning actions reference defined mutable variables.
  *
- * When a `with param=value` or `with param=...` clause uses a param name
- * that does not correspond to a declared variable, this produces an error.
- *
- * Diagnostic: set-variables-unknown-variable
+ * Diagnostics: set-variables-unknown-variable, set-variables-immutable-target
  */
 
-import type { AstNodeLike, AstRoot, LintPass } from '@agentscript/language';
+import type { LintPass } from '@agentscript/language';
 import {
-  storeKey,
-  schemaContextKey,
-  resolveNamespaceKeys,
-  decomposeAtMemberExpression,
-  isNamedMap,
-  isAstNodeLike,
+  defineRule,
+  each,
   attachDiagnostic,
   findSuggestion,
   lintDiagnostic,
 } from '@agentscript/language';
-import type { PassStore } from '@agentscript/language';
-import type { SyntaxNode } from '@agentscript/types';
+import type { CstMeta, SyntaxNode } from '@agentscript/types';
 import { toRange, DiagnosticSeverity } from '@agentscript/types';
+import { setVariablesEntriesKey } from './reasoning-actions.js';
 import { typeMapKey } from './type-map.js';
 
-// ---------------------------------------------------------------------------
-// AST shape interfaces — narrow the loosely-typed AstNodeLike for readability
-// ---------------------------------------------------------------------------
+export function setVariablesIoRule(): LintPass {
+  return defineRule({
+    id: 'set-variables-io',
+    description:
+      'Validates with clause params in @utils.setVariables reference defined mutable variables',
+    deps: { entry: each(setVariablesEntriesKey), typeMap: typeMapKey },
 
-interface ReasoningActionBlock extends AstNodeLike {
-  __kind: 'ReasoningActionBlock';
-  value?: AstNodeLike;
-  statements?: AstNodeLike[];
-}
+    run({ entry, typeMap }) {
+      const { statements } = entry;
+      if (!statements) return;
 
-interface WithClauseNode extends AstNodeLike {
-  __kind: 'WithClause';
-  param: string;
-  __paramCstNode?: SyntaxNode;
-}
+      const variableNames = [...typeMap.variables.keys()];
 
-// ---------------------------------------------------------------------------
-// Type guards
-// ---------------------------------------------------------------------------
+      for (const stmt of statements) {
+        if (stmt.__kind !== 'WithClause') continue;
+        const param = stmt.param as string;
+        if (!param) continue;
 
-function isReasoningActionBlock(node: unknown): node is ReasoningActionBlock {
-  return isAstNodeLike(node) && node.__kind === 'ReasoningActionBlock';
-}
+        const cst = stmt.__cst as CstMeta | undefined;
+        if (!cst) continue;
 
-function isWithClause(node: unknown): node is WithClauseNode {
-  return (
-    isAstNodeLike(node) &&
-    node.__kind === 'WithClause' &&
-    typeof node.param === 'string'
-  );
-}
+        const paramCstNode = (stmt as { __paramCstNode?: SyntaxNode })
+          .__paramCstNode;
+        const range = paramCstNode ? toRange(paramCstNode) : cst.range;
 
-/** Check if a reasoning action value is @utils.setVariables */
-function isSetVariablesAction(value: AstNodeLike | undefined): boolean {
-  if (!value) return false;
-  const decomposed = decomposeAtMemberExpression(value);
-  return (
-    decomposed?.namespace === 'utils' && decomposed?.property === 'setVariables'
-  );
-}
+        const varInfo = typeMap.variables.get(param);
+        if (!varInfo) {
+          const suggestion = findSuggestion(param, variableNames);
+          const msg = `'${param}' is not a defined variable. @utils.setVariables can only assign to declared variables.`;
+          attachDiagnostic(
+            stmt,
+            lintDiagnostic(
+              range,
+              msg,
+              DiagnosticSeverity.Error,
+              'set-variables-unknown-variable',
+              { suggestion }
+            )
+          );
+          continue;
+        }
 
-// ---------------------------------------------------------------------------
-// Lint pass
-// ---------------------------------------------------------------------------
-
-class SetVariablesIoValidator implements LintPass {
-  readonly id = storeKey('set-variables-io');
-  readonly description =
-    'Validates with clause params in @utils.setVariables reference defined variables';
-  readonly requires = [typeMapKey] as const;
-
-  run(store: PassStore, root: AstRoot): void {
-    const typeMap = store.get(typeMapKey);
-    if (!typeMap) return;
-
-    const ctx = store.get(schemaContextKey);
-    if (!ctx) return;
-
-    const variableNames = [...typeMap.variables.keys()];
-
-    // Walk all subagent/topic blocks to find @utils.setVariables reasoning actions
-    const subagentKeys = new Set([
-      ...resolveNamespaceKeys('subagent', ctx),
-      ...resolveNamespaceKeys('topic', ctx),
-    ]);
-
-    for (const topicMap of [...subagentKeys]
-      .map(key => root[key])
-      .filter(isNamedMap)) {
-      for (const reasoningActions of [...topicMap.values()]
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map(block => (block as any).reasoning?.actions)
-        .filter(isNamedMap)) {
-        for (const statements of [...reasoningActions.values()]
-          .filter(isReasoningActionBlock)
-          .filter(raBlock => isSetVariablesAction(raBlock.value))
-          .map(raBlock => raBlock.statements)
-          .filter(statements => statements !== undefined)) {
-          for (const stmt of statements.filter(isWithClause)) {
-            if (!typeMap.variables.has(stmt.param)) {
-              const cst = stmt.__cst;
-              if (cst) {
-                const range = stmt.__paramCstNode
-                  ? toRange(stmt.__paramCstNode)
-                  : cst.range;
-
-                const suggestion = findSuggestion(stmt.param, variableNames);
-                const msg = `'${stmt.param}' is not a defined variable. @utils.setVariables can only assign to declared variables.`;
-                attachDiagnostic(
-                  stmt,
-                  lintDiagnostic(
-                    range,
-                    msg,
-                    DiagnosticSeverity.Error,
-                    'set-variables-unknown-variable',
-                    { suggestion }
-                  )
-                );
-              }
-            }
-          }
+        if (varInfo.modifier !== 'mutable') {
+          const qualifier = varInfo.modifier ?? 'non-mutable';
+          const msg = `'${param}' is a ${qualifier} variable. @utils.setVariables can only assign to mutable variables.`;
+          attachDiagnostic(
+            stmt,
+            lintDiagnostic(
+              range,
+              msg,
+              DiagnosticSeverity.Error,
+              'set-variables-immutable-target'
+            )
+          );
         }
       }
-    }
-  }
-}
-
-export function setVariablesIoRule(): LintPass {
-  return new SetVariablesIoValidator();
+    },
+  });
 }
