@@ -47,6 +47,12 @@ export {
   validateStrictSchema,
   type MutateComponentOptions,
 } from './mutate-component.js';
+export {
+  getBlockFieldDefinitions,
+  getSchemaDefinitions,
+  type FieldDefinition,
+  type BlockSchemaDefinition,
+} from './schema-introspection.js';
 export { Document } from './document.js';
 export { compileSource } from './compile.js';
 export type { AgentforceCompileResult } from './compile.js';
