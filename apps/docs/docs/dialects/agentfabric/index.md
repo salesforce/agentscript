@@ -277,6 +277,9 @@ subagent profile-extractor:
             type: "string"
           minItems: 1
           maxItems: 10
+    max_number_of_loops: 5
+    max_consecutive_errors: 5
+    task_timeout_secs: 30
   on_exit: -> transition to @orchestrator.process_profile
 ```
 
@@ -294,6 +297,8 @@ The subagent node has these properties.
 | `reasoning.actions` | The available actions | Array\[actions\] | No |
 | `reasoning.outputs` | Schema definition describing the expected structure of the agent's output | Outputs See [Node Outputs](#node-outputs) | No |
 | `reasoning.max_number_of_loops` | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25 | Integer | No |
+| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed during execution. Useful for keeping the node from running too long and consuming too many tokens. | Integer | No |
+| `reasoning.task_timeout_secs` | A timeout (in seconds) for the total node execution. | Integer | No |
 | `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
 
 ### Orchestrator Node
@@ -324,6 +329,9 @@ orchestrator flight-booking-agent:
       
       concur: @actions.concur-agent
         with http_headers = {"Authorization": @request.headers["Authorization"]}
+    max_number_of_loops: 10
+    max_consecutive_errors: 10
+    task_timeout_secs: 60
   outputs:
     properties:
       flightNumber:
@@ -332,8 +340,6 @@ orchestrator flight-booking-agent:
       airline:
         type: "string"
         description: "The airline name"
-    max_number_of_loops: 10
-    task_timeout_secs: 60
   
   on_exit: ->
     transition to @executor.send_summary
@@ -353,6 +359,8 @@ The orchestrator node has these properties.
 | `reasoning.actions` | The available actions | Array\[actions\] | No |
 | `reasoning.outputs` | Schema definition describing the expected structure of the agent's output | Outputs See [Node Outputs](#node-outputs) | No |
 | `reasoning.max_number_of_loops` | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25 | Integer | No |
+| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed during execution. Useful for keeping the node from running too long and consuming too many tokens. | Integer | No |
+| `reasoning.task_timeout_secs` | A timeout (in seconds) for the total node execution. | Integer | No |
 | `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
 
 ### Generator Node
