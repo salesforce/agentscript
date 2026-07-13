@@ -46,14 +46,31 @@ function isInsideStaticRoot(absPath) {
   return absPath === STATIC_ROOT || absPath.startsWith(STATIC_ROOT + sep);
 }
 
+// Detect build-time content-hashed assets so they can be cached immutably for a
+// year. Vite emits `name-<base64url>.ext` (e.g. index-FMgzpBhJ.js) and Docusaurus
+// emits `name.<hex>.ext` / `name-<hex>.ext`. A genuine hash is either hex or a
+// mixed-case/digit-bearing base64url segment of >=8 chars — this deliberately
+// excludes plain kebab-case names (e.g. tree-sitter-agentscript.wasm,
+// agent-script-recipes.png) so unhashed files are not frozen in caches. HTML is
+// always revalidated so new deploys are picked up.
+function isContentHashed(filePath) {
+  if (extname(filePath) === '.html') return false;
+  const match = filePath.match(/[-.]([A-Za-z0-9_-]{8,})\.\w+$/);
+  if (!match) return false;
+  const hash = match[1];
+  const isHex = /^[0-9a-fA-F]{8,}$/.test(hash);
+  const isBase64WithDigit = /[0-9]/.test(hash) && /[a-zA-Z]/.test(hash);
+  const isMixedCase = /[a-z]/.test(hash) && /[A-Z]/.test(hash);
+  return isHex || isBase64WithDigit || isMixedCase;
+}
+
 async function serveFile(res, filePath) {
   try {
     const data = await readFile(filePath);
     const ext = extname(filePath);
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    const isHashed = /\.[a-f0-9]{8,}\.\w+$/.test(filePath);
-    const cacheControl = isHashed
+    const cacheControl = isContentHashed(filePath)
       ? 'public, max-age=31536000, immutable'
       : 'public, max-age=60';
 
