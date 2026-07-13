@@ -47,6 +47,25 @@ export class CompilerContext {
   /** State (mutable) variables compiled from the AST. */
   stateVariables: StateVariable[] = [];
 
+  /**
+   * The graph's initial node (the start_agent developer name, i.e. the router).
+   * Resolved once in compileAgentVersion (`agent_version.initial_node`) and read
+   * by collect lowering to target the deterministic completion handoff at the
+   * router rather than hardcoding "router".
+   */
+  initialNode: string | undefined;
+
+  /** True once the one-time `collect` experimental notice has been emitted. */
+  collectExperimentalNoticeEmitted: boolean = false;
+
+  /**
+   * Highest chain-link condition slot index used during node compilation.
+   * Populated by `compileChainIfDirective` as it walks `else if` chains.
+   * The agent_version assembler reads this after node compilation to declare
+   * `AgentScriptInternal_condition_1 .. _N` in `state_variables`.
+   */
+  maxChainConditionSlot: number = 0;
+
   /** Knowledge block field values for eager resolution. */
   knowledgeFields: Map<string, string | boolean> = new Map();
 
@@ -112,6 +131,10 @@ export class CompilerContext {
 
   warning(message: string, range?: Range, code?: string): void {
     this.addDiagnostic(DiagnosticSeverity.Warning, message, range, code);
+  }
+
+  info(message: string, range?: Range, code?: string): void {
+    this.addDiagnostic(DiagnosticSeverity.Information, message, range, code);
   }
 
   /**

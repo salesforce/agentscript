@@ -1,0 +1,661 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Telecom_Support_Agent",
+    "label": "Telecom Support Agent",
+    "description": "Handles billing support including account lookup, plan changes, and escalation.",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "support@telecom.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome to telecom support! I can help with billing, plan changes, and account inquiries.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I encountered an issue. Please try again.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "account_number",
+        "label": "Account Number",
+        "description": "Customer account number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "current_plan",
+        "label": "Current Plan",
+        "description": "Current service plan",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "new_plan",
+        "label": "New Plan",
+        "description": "Selected new plan",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "balance",
+        "label": "Balance",
+        "description": "Current account balance",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "plan_changed",
+        "label": "Plan Changed",
+        "description": "Whether plan was successfully changed",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "account_lookup",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Looks up the customer account and determines their need",
+        "tools": [
+          {
+            "type": "action",
+            "target": "find_account",
+            "boundInputs": {
+              "account_number": "state.account_number"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "customer_name": "result.customer_name"
+              },
+              {
+                "current_plan": "result.current_plan"
+              },
+              {
+                "balance": "result.balance"
+              }
+            ],
+            "name": "lookup"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"billing_inquiry\""
+              }
+            ],
+            "name": "go_billing",
+            "description": "Handle billing questions"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"plan_comparison\""
+              }
+            ],
+            "name": "go_plans",
+            "description": "Compare and change plans"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation\""
+              }
+            ],
+            "name": "go_escalation",
+            "description": "Escalate complex issues"
+          }
+        ],
+        "developerName": "account_lookup",
+        "label": "Account Lookup",
+        "actionDefinitions": [
+          {
+            "developerName": "find_account",
+            "label": "Find Account",
+            "description": "Finds customer account by account number",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "FindAccount",
+            "inputType": [
+              {
+                "developerName": "account_number",
+                "label": "Account Number",
+                "description": "Account Number",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "customer_name",
+                "label": "Customer Name",
+                "description": "Customer Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "current_plan",
+                "label": "Current Plan",
+                "description": "Current Plan",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "balance",
+                "label": "Balance",
+                "description": "Balance",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "account_status",
+                "label": "Account Status",
+                "description": "Account Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a telecom billing support agent. Help customers with account lookups, plan changes, billing inquiries, and escalations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAsk the customer for their account number and look up their details.\nRoute to the appropriate topic based on their need."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "billing_inquiry",
+            "enabled": "state.AgentScriptInternal_next_topic==\"billing_inquiry\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "plan_comparison",
+            "enabled": "state.AgentScriptInternal_next_topic==\"plan_comparison\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles billing questions and payment issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "get_billing_details",
+            "boundInputs": {
+              "account_number": "state.account_number"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "details"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"plan_comparison\""
+              }
+            ],
+            "name": "go_plans",
+            "description": "Switch to plan changes"
+          }
+        ],
+        "developerName": "billing_inquiry",
+        "label": "Billing Inquiry",
+        "actionDefinitions": [
+          {
+            "developerName": "get_billing_details",
+            "label": "Get Billing Details",
+            "description": "Gets detailed billing breakdown",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "GetBillingDetails",
+            "inputType": [
+              {
+                "developerName": "account_number",
+                "label": "Account Number",
+                "description": "Account Number",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "charges",
+                "label": "Charges",
+                "description": "Charges",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "due_date",
+                "label": "Due Date",
+                "description": "Due Date",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "payment_history",
+                "label": "Payment History",
+                "description": "Payment History",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a telecom billing support agent. Help customers with account lookups, plan changes, billing inquiries, and escalations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer understand their bill.\nCurrent balance: {{state.balance}}\nShow the billing breakdown and answer questions."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "plan_comparison",
+            "enabled": "state.AgentScriptInternal_next_topic==\"plan_comparison\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Compares available plans and processes plan changes",
+        "tools": [
+          {
+            "type": "action",
+            "target": "compare_plans",
+            "boundInputs": {
+              "current_plan": "state.current_plan"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "compare"
+          },
+          {
+            "type": "action",
+            "target": "change_plan",
+            "boundInputs": {
+              "account_number": "state.account_number",
+              "new_plan": "state.new_plan"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "plan_changed": "result.success"
+              }
+            ],
+            "name": "change"
+          }
+        ],
+        "developerName": "plan_comparison",
+        "label": "Plan Comparison",
+        "actionDefinitions": [
+          {
+            "developerName": "compare_plans",
+            "label": "Compare Plans",
+            "description": "Gets available plans for comparison",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "ComparePlans",
+            "inputType": [
+              {
+                "developerName": "current_plan",
+                "label": "Current Plan",
+                "description": "Current Plan",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "available_plans",
+                "label": "Available Plans",
+                "description": "Available Plans",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "savings",
+                "label": "Savings",
+                "description": "Savings",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "change_plan",
+            "label": "Change Plan",
+            "description": "Changes the customer's service plan",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "ChangePlan",
+            "inputType": [
+              {
+                "developerName": "account_number",
+                "label": "Account Number",
+                "description": "Account Number",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "new_plan",
+                "label": "New Plan",
+                "description": "New Plan",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "success",
+                "label": "Success",
+                "description": "Success",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "effective_date",
+                "label": "Effective Date",
+                "description": "Effective Date",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a telecom billing support agent. Help customers with account lookups, plan changes, billing inquiries, and escalations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nShow available plans and help the customer choose.\nCurrent plan: {{state.current_plan}}"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.plan_changed == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Escalates complex issues to a human agent",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "'__human__'"
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Escalate to billing specialist"
+          }
+        ],
+        "developerName": "escalation",
+        "label": "Escalation",
+        "actionDefinitions": [],
+        "instructions": "You are a telecom billing support agent. Help customers with account lookups, plan changes, billing inquiries, and escalations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nThis issue requires human attention. Escalate the conversation."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "__human__",
+            "enabled": "state.AgentScriptInternal_next_topic == '__human__'",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to telecom support! I can help with billing, plan changes, and account inquiries.\", \"messageType\": \"Welcome\"}, {\"message\": \"I encountered an issue. Please try again.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

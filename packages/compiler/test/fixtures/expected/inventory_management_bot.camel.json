@@ -1,0 +1,1772 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Inventory_Management_Bot_v1",
+    "label": "Inventory Management Bot V 1",
+    "description": "Assists retail managers with inventory tracking, stock updates, and restocking operations",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome to the Inventory Management System! I can help you track inventory, process stock updates, and manage restocking operations.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I'm having trouble accessing the inventory system. Please try again or contact the system administrator.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "store_id",
+        "label": "Store Id",
+        "description": "Store identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "store_name",
+        "label": "Store Name",
+        "description": "Store name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "manager_id",
+        "label": "Manager Id",
+        "description": "Store manager identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "manager_verified",
+        "label": "Manager Verified",
+        "description": "Whether manager credentials are verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "warehouse_location",
+        "label": "Warehouse Location",
+        "description": "Warehouse or storage location",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "product_sku",
+        "label": "Product Sku",
+        "description": "Product SKU being tracked",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "product_name",
+        "label": "Product Name",
+        "description": "Product name or description",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "product_category",
+        "label": "Product Category",
+        "description": "Product category",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "unit_cost",
+        "label": "Unit Cost",
+        "description": "Cost per unit",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "selling_price",
+        "label": "Selling Price",
+        "description": "Retail selling price",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "supplier_id",
+        "label": "Supplier Id",
+        "description": "Primary supplier identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "current_stock",
+        "label": "Current Stock",
+        "description": "Current stock level",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "reserved_stock",
+        "label": "Reserved Stock",
+        "description": "Stock reserved for pending orders",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "available_stock",
+        "label": "Available Stock",
+        "description": "Available stock for sale",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "incoming_stock",
+        "label": "Incoming Stock",
+        "description": "Stock expected from pending orders",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "reorder_level",
+        "label": "Reorder Level",
+        "description": "Minimum stock level for reordering",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 10
+      },
+      {
+        "developerName": "max_stock_level",
+        "label": "Max Stock Level",
+        "description": "Maximum stock level to maintain",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 100
+      },
+      {
+        "developerName": "safety_stock",
+        "label": "Safety Stock",
+        "description": "Safety stock buffer",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 5
+      },
+      {
+        "developerName": "stock_status",
+        "label": "Stock Status",
+        "description": "Stock status (normal, low, critical, out_of_stock)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developerName": "stock_turnover_rate",
+        "label": "Stock Turnover Rate",
+        "description": "Stock turnover rate per month",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "last_stock_check",
+        "label": "Last Stock Check",
+        "description": "Date of last stock verification",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "stock_accuracy",
+        "label": "Stock Accuracy",
+        "description": "Inventory accuracy percentage",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 100
+      },
+      {
+        "developerName": "stockout_risk",
+        "label": "Stockout Risk",
+        "description": "Risk of stockout (low, medium, high)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'low'"
+      },
+      {
+        "developerName": "restock_needed",
+        "label": "Restock Needed",
+        "description": "Whether restocking is needed",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "recommended_order_quantity",
+        "label": "Recommended Order Quantity",
+        "description": "Recommended reorder quantity",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "purchase_order_id",
+        "label": "Purchase Order Id",
+        "description": "Generated purchase order ID",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "supplier_lead_time",
+        "label": "Supplier Lead Time",
+        "description": "Supplier lead time in days",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 7
+      },
+      {
+        "developerName": "order_placed",
+        "label": "Order Placed",
+        "description": "Whether purchase order has been placed",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "inventory_value",
+        "label": "Inventory Value",
+        "description": "Total inventory value",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "days_of_supply",
+        "label": "Days Of Supply",
+        "description": "Days of supply remaining",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "demand_forecast",
+        "label": "Demand Forecast",
+        "description": "Forecasted demand for next period",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "inventory_tracker",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Tracks inventory levels with comprehensive stock monitoring and verification",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Verify_Manager_Access",
+            "boundInputs": {
+              "manager_id": "state.manager_id",
+              "store_id": "state.store_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "manager_verified": "result.manager_verified"
+              },
+              {
+                "store_name": "result.manager_name"
+              }
+            ],
+            "name": "verify_manager"
+          },
+          {
+            "type": "action",
+            "target": "Lookup_Product_Information",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "store_id": "state.store_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "product_name": "result.product_name"
+              },
+              {
+                "current_stock": "result.current_stock"
+              },
+              {
+                "reserved_stock": "result.reserved_stock"
+              }
+            ],
+            "name": "lookup_product"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "store_id": "state.store_id"
+              },
+              {
+                "product_sku": "state.product_sku"
+              },
+              {
+                "manager_id": "state.manager_id"
+              }
+            ],
+            "name": "capture_store_info",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"stock_management\""
+              }
+            ],
+            "name": "manage_stock",
+            "description": "Manages stock levels with real-time updates and automated analysis"
+          }
+        ],
+        "developerName": "inventory_tracker",
+        "label": "Inventory Tracker",
+        "actionDefinitions": [
+          {
+            "developerName": "Verify_Manager_Access",
+            "label": "Verify Manager",
+            "description": "Verifies store manager access and permissions",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "VerifyManagerAccess",
+            "inputType": [
+              {
+                "developerName": "manager_id",
+                "label": "Manager ID",
+                "description": "Store manager identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "store_id",
+                "label": "Store ID",
+                "description": "Store identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "manager_verified",
+                "label": "Manager Verified",
+                "description": "Manager Verified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "manager_name",
+                "label": "Manager Name",
+                "description": "Manager Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "access_level",
+                "label": "Access Level",
+                "description": "Access Level",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "authorized_locations",
+                "label": "Authorized Locations",
+                "description": "Authorized Locations",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Lookup_Product_Information",
+            "label": "Lookup Product",
+            "description": "Retrieves comprehensive product information and current stock levels",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "LookupProductInformation",
+            "inputType": [
+              {
+                "developerName": "product_sku",
+                "label": "Product SKU",
+                "description": "Product identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "store_id",
+                "label": "Store ID",
+                "description": "Store location",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "product_found",
+                "label": "Product Found",
+                "description": "Product Found",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "product_name",
+                "label": "Product Name",
+                "description": "Product Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "current_stock",
+                "label": "Current Stock",
+                "description": "Current Stock",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "reserved_stock",
+                "label": "Reserved Stock",
+                "description": "Reserved Stock",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "supplier_info",
+                "label": "Supplier Info",
+                "description": "Supplier Info",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a retail inventory management assistant. Your role is to help store managers track inventory levels, process stock updates, and manage restocking operations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome to the Inventory Management System!\n\nI can help you:\n- Check current inventory levels\n- Update stock counts\n- Identify products needing restocking\n- Process inventory adjustments\n\nPlease provide:\n- Store ID\n- Product SKU to check or update"
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.store_id == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "current_stock": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "stock_status": "\"normal\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.manager_id != \"\" and state.store_id != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Verify_Manager_Access",
+            "boundInputs": {
+              "manager_id": "state.manager_id",
+              "store_id": "state.store_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "manager_verified": "result.manager_verified"
+              },
+              {
+                "store_name": "result.manager_name"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.product_sku != \"\" and state.manager_verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Lookup_Product_Information",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "store_id": "state.store_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "product_name": "result.product_name"
+              },
+              {
+                "current_stock": "result.current_stock"
+              },
+              {
+                "reserved_stock": "result.reserved_stock"
+              },
+              {
+                "available_stock": "state.current_stock - state.reserved_stock"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock >= 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"stock_management\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "stock_management",
+            "enabled": "state.AgentScriptInternal_next_topic==\"stock_management\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "stock_management",
+            "enabled": "state.AgentScriptInternal_next_topic==\"stock_management\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Manages stock levels with real-time updates and automated analysis",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Update_Stock_Level",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "new_stock_count": "state.current_stock",
+              "adjustment_reason": "\"Routine stock check\"",
+              "manager_id": "state.manager_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "update_stock"
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Inventory_Metrics",
+            "boundInputs": {
+              "current_stock": "state.current_stock",
+              "unit_cost": "state.unit_cost",
+              "monthly_sales": "30",
+              "lead_time_days": "state.supplier_lead_time"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "inventory_value": "result.inventory_value"
+              },
+              {
+                "stock_turnover_rate": "result.turnover_rate"
+              },
+              {
+                "days_of_supply": "result.days_of_supply"
+              },
+              {
+                "stockout_risk": "result.stockout_risk"
+              }
+            ],
+            "name": "calc_metrics"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "current_stock": "state.current_stock"
+              },
+              {
+                "reorder_level": "state.reorder_level"
+              },
+              {
+                "available_stock": "state.available_stock"
+              }
+            ],
+            "name": "capture_stock_data",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"restocking_alerts\""
+              }
+            ],
+            "name": "check_restocking",
+            "description": "Manages automated restocking with supplier integration and purchase order generation"
+          }
+        ],
+        "developerName": "stock_management",
+        "label": "Stock Management",
+        "actionDefinitions": [
+          {
+            "developerName": "Update_Stock_Level",
+            "label": "Update Stock",
+            "description": "Updates stock levels with audit trail and validation",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "UpdateStockLevel",
+            "inputType": [
+              {
+                "developerName": "product_sku",
+                "label": "Product SKU",
+                "description": "Product identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "new_stock_count",
+                "label": "New Stock Count",
+                "description": "Updated stock quantity",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "adjustment_reason",
+                "label": "Adjustment Reason",
+                "description": "Reason for stock adjustment",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "manager_id",
+                "label": "Manager ID",
+                "description": "Manager making the update",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "update_successful",
+                "label": "Update Successful",
+                "description": "Update Successful",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "previous_stock",
+                "label": "Previous Stock",
+                "description": "Previous Stock",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "variance_amount",
+                "label": "Variance Amount",
+                "description": "Variance Amount",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "audit_trail_updated",
+                "label": "Audit Trail Updated",
+                "description": "Audit Trail Updated",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Calculate_Inventory_Metrics",
+            "label": "Calculate Metrics",
+            "description": "Calculates key inventory metrics and performance indicators",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "CalculateInventoryMetrics",
+            "inputType": [
+              {
+                "developerName": "current_stock",
+                "label": "Current Stock",
+                "description": "Current inventory level",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "unit_cost",
+                "label": "Unit Cost",
+                "description": "Cost per unit",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "monthly_sales",
+                "label": "Monthly Sales",
+                "description": "Average monthly sales volume",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "lead_time_days",
+                "label": "Lead Time",
+                "description": "Supplier lead time in days",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "inventory_value",
+                "label": "Inventory Value",
+                "description": "Inventory Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "turnover_rate",
+                "label": "Turnover Rate",
+                "description": "Turnover Rate",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "days_of_supply",
+                "label": "Days of Supply",
+                "description": "Days Of Supply",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "stockout_risk",
+                "label": "Stockout Risk",
+                "description": "Stockout Risk",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a retail inventory management assistant. Your role is to help store managers track inventory levels, process stock updates, and manage restocking operations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Current Inventory Status:**\n- Store: {{state.store_id}}\n- Product SKU: {{state.product_sku}}\n- Current Stock: {{state.current_stock}}\n- Reorder Level: {{state.reorder_level}}\n- Status: {{state.stock_status}}\n\n**Available Actions:**\n1. Update stock count\n2. Adjust reorder levels\n3. Generate restocking report\n4. Check another product\n\nWhat would you like to do?"
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock <= state.reorder_level"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "stock_status": "\"low\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock == 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "stock_status": "\"out_of_stock\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Calculate_Inventory_Metrics",
+            "boundInputs": {
+              "current_stock": "state.current_stock",
+              "unit_cost": "state.unit_cost",
+              "monthly_sales": "30",
+              "lead_time_days": "state.supplier_lead_time"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "inventory_value": "result.inventory_value"
+              },
+              {
+                "stock_turnover_rate": "result.turnover_rate"
+              },
+              {
+                "days_of_supply": "result.days_of_supply"
+              },
+              {
+                "stockout_risk": "result.stockout_risk"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock <= state.reorder_level"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "stock_status": "\"low\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "restock_needed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock == 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "stock_status": "\"out_of_stock\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "restock_needed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_stock <= state.safety_stock"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "stock_status": "\"critical\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "restock_needed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.restock_needed or state.stockout_risk == \"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"restocking_alerts\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "restocking_alerts",
+            "enabled": "state.AgentScriptInternal_next_topic==\"restocking_alerts\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "restocking_alerts",
+            "enabled": "state.AgentScriptInternal_next_topic==\"restocking_alerts\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Manages automated restocking with supplier integration and purchase order generation",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Generate_Restock_Recommendation",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "current_stock": "state.current_stock",
+              "demand_forecast": "state.demand_forecast",
+              "lead_time": "state.supplier_lead_time",
+              "safety_stock": "state.safety_stock"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "recommended_order_quantity": "result.recommended_quantity"
+              }
+            ],
+            "name": "generate_recommendation"
+          },
+          {
+            "type": "action",
+            "target": "Create_Purchase_Order",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "quantity": "state.recommended_order_quantity",
+              "supplier_id": "state.supplier_id",
+              "manager_id": "state.manager_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "purchase_order_id": "result.purchase_order_id"
+              },
+              {
+                "order_placed": "result.order_submitted"
+              }
+            ],
+            "name": "create_po"
+          },
+          {
+            "type": "action",
+            "target": "Send_Stock_Alert",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "alert_type": "state.stock_status",
+              "current_stock": "state.current_stock",
+              "recipients": "\"Store Management\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "send_alert"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "stock_status": "state.stock_status"
+              },
+              {
+                "recommended_order_quantity": "state.recommended_order_quantity"
+              },
+              {
+                "purchase_order_id": "state.purchase_order_id"
+              }
+            ],
+            "name": "process_restock",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"inventory_tracker\""
+              }
+            ],
+            "name": "check_more_inventory",
+            "description": "Tracks inventory levels with comprehensive stock monitoring and verification"
+          }
+        ],
+        "developerName": "restocking_alerts",
+        "label": "Restocking Alerts",
+        "actionDefinitions": [
+          {
+            "developerName": "Generate_Restock_Recommendation",
+            "label": "Generate Recommendation",
+            "description": "Generates intelligent restocking recommendations based on demand patterns",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "GenerateRestockRecommendation",
+            "inputType": [
+              {
+                "developerName": "product_sku",
+                "label": "Product SKU",
+                "description": "Product requiring restock",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "current_stock",
+                "label": "Current Stock",
+                "description": "Current inventory level",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "demand_forecast",
+                "label": "Demand Forecast",
+                "description": "Forecasted demand",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "lead_time",
+                "label": "Lead Time",
+                "description": "Supplier lead time in days",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "safety_stock",
+                "label": "Safety Stock",
+                "description": "Required safety stock level",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "recommended_quantity",
+                "label": "Recommended Quantity",
+                "description": "Recommended Quantity",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "order_urgency",
+                "label": "Order Urgency",
+                "description": "Order Urgency",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "total_cost",
+                "label": "Total Cost",
+                "description": "Total Cost",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "supplier_recommendation",
+                "label": "Supplier Recommendation",
+                "description": "Supplier Recommendation",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Create_Purchase_Order",
+            "label": "Create Purchase Order",
+            "description": "Creates and submits purchase order to supplier",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "CreatePurchaseOrder",
+            "inputType": [
+              {
+                "developerName": "product_sku",
+                "label": "Product SKU",
+                "description": "Product to order",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "quantity",
+                "label": "Order Quantity",
+                "description": "Quantity to order",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "supplier_id",
+                "label": "Supplier ID",
+                "description": "Supplier identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "manager_id",
+                "label": "Manager ID",
+                "description": "Manager approving the order",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "purchase_order_id",
+                "label": "Purchase Order ID",
+                "description": "Purchase Order Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "order_submitted",
+                "label": "Order Submitted",
+                "description": "Order Submitted",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "expected_delivery",
+                "label": "Expected Delivery",
+                "description": "Expected Delivery",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "approval_required",
+                "label": "Approval Required",
+                "description": "Approval Required",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Send_Stock_Alert",
+            "label": "Send Alert",
+            "description": "Sends stock alerts to relevant stakeholders",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "SendStockAlert",
+            "inputType": [
+              {
+                "developerName": "product_sku",
+                "label": "Product SKU",
+                "description": "Product with stock issue",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "alert_type",
+                "label": "Alert Type",
+                "description": "Type of stock alert",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "current_stock",
+                "label": "Current Stock",
+                "description": "Current inventory level",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "recipients",
+                "label": "Recipients",
+                "description": "Alert recipients",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "alert_sent",
+                "label": "Alert Sent",
+                "description": "Alert Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "notification_method",
+                "label": "Notification Method",
+                "description": "Notification Method",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "escalation_triggered",
+                "label": "Escalation Triggered",
+                "description": "Escalation Triggered",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a retail inventory management assistant. Your role is to help store managers track inventory levels, process stock updates, and manage restocking operations.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Restocking Alert for {{state.product_sku}}**\n\nCurrent Status: {{state.stock_status}}\nCurrent Stock: {{state.current_stock}}\nRecommended Reorder Quantity: {{state.reorder_level}}\n\n**Action Required:**\nThis product requires immediate restocking to maintain inventory levels.\n\nWould you like to:\n1. Generate purchase order\n2. Update reorder parameters\n3. Check inventory for other products\n4. Return to main menu"
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.stock_status == \"out_of_stock\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "reorder_level": "state.reorder_level + 5"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.restock_needed"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Generate_Restock_Recommendation",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "current_stock": "state.current_stock",
+              "demand_forecast": "state.demand_forecast",
+              "lead_time": "state.supplier_lead_time",
+              "safety_stock": "state.safety_stock"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "recommended_order_quantity": "result.recommended_quantity"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.stock_status == \"critical\" or state.stock_status == \"out_of_stock\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Send_Stock_Alert",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "alert_type": "state.stock_status",
+              "current_stock": "state.current_stock",
+              "recipients": "\"Store Management\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.recommended_order_quantity > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Create_Purchase_Order",
+            "boundInputs": {
+              "product_sku": "state.product_sku",
+              "quantity": "state.recommended_order_quantity",
+              "supplier_id": "state.supplier_id",
+              "manager_id": "state.manager_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "purchase_order_id": "result.purchase_order_id"
+              },
+              {
+                "order_placed": "result.order_submitted"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "inventory_tracker",
+            "enabled": "state.AgentScriptInternal_next_topic==\"inventory_tracker\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to the Inventory Management System! I can help you track inventory, process stock updates, and manage restocking operations.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm having trouble accessing the inventory system. Please try again or contact the system administrator.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

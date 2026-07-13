@@ -787,13 +787,17 @@ start_agent test:
   // Non-alias schemes pass through unchanged. (Scheme validity itself is
   // enforced by the agentforce dialect's actionTargetSchemeRule lint pass,
   // not by the compiler.)
-  it.each(['apex', 'mcpTool', 'slack', 'namedQuery', 'retriever'])(
-    'passes through non-alias scheme "%s://" unchanged',
-    scheme => {
-      const actionDef = compileAndGetActionDef(scheme, 'X');
-      expect(actionDef?.invocation_target_type).toBe(scheme);
-    }
-  );
+  it.each([
+    'apex',
+    'mcpTool',
+    'slack',
+    'namedQuery',
+    'retriever',
+    'decisionTableAction',
+  ])('passes through non-alias scheme "%s://" unchanged', scheme => {
+    const actionDef = compileAndGetActionDef(scheme, 'X');
+    expect(actionDef?.invocation_target_type).toBe(scheme);
+  });
 });
 
 // Tool.description is an explicit override of ActionConfiguration.description
@@ -872,6 +876,74 @@ start_agent test:
     expect(tools[0].name).toBe('tidy_up');
     expect(tools[0].target).toBe('CleanZoo');
     expect(tools[0].description).toBeUndefined();
+  });
+});
+
+describe('action definition description default', () => {
+  it('defaults description to normalized name and emits info diagnostic when unset', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        clean_zoo:
+            target: "flow://CleanZoo"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            clean_zoo: @actions.clean_zoo
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const actionDef = node.action_definitions!.find(
+      a => a.developer_name === 'clean_zoo'
+    )!;
+    expect(actionDef.label).toBe('Clean Zoo');
+    expect(actionDef.description).toBe('Clean Zoo');
+    const info = diagnostics.find(
+      d =>
+        d.severity === DiagnosticSeverity.Information &&
+        d.message.includes("Action 'clean_zoo' has no description")
+    );
+    expect(info).toBeDefined();
+  });
+
+  it('preserves explicit description when supplied without info diagnostic', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        clean_zoo:
+            description: "Use this action to clean the zoo"
+            target: "flow://CleanZoo"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            clean_zoo: @actions.clean_zoo
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const actionDef = node.action_definitions!.find(
+      a => a.developer_name === 'clean_zoo'
+    )!;
+    expect(actionDef.description).toBe('Use this action to clean the zoo');
+    const info = diagnostics.find(
+      d =>
+        d.severity === DiagnosticSeverity.Information &&
+        d.message.includes("Action 'clean_zoo' has no description")
+    );
+    expect(info).toBeUndefined();
   });
 });
 

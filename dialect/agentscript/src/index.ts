@@ -39,6 +39,7 @@ export {
   AgentScriptSchema,
   AgentScriptSchemaAliases,
   AgentScriptSchemaInfo,
+  NodeMemberAccess,
   agentScriptSchemaContext,
   baseSubagentFields,
   defaultSubagentFields,

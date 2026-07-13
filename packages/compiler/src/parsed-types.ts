@@ -20,7 +20,7 @@ export type {
   ParsedModality,
   ParsedVoiceModality,
   ParsedKnowledge,
-  ParsedSecurity,
+  ParsedAccess,
   ParsedTopic,
   ParsedSubagent,
   ParsedStartAgent,

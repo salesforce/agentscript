@@ -12,7 +12,7 @@ The main highlighting query file that defines how different syntax elements shou
 
 The query uses standard Tree-sitter capture names that can be mapped to colors:
 
-- **Keywords**: `@keyword` - Control flow (`if`, `elif`, `else`, `run`, `set`, `with`, `as`, `to`, `available`, `when`)
+- **Keywords**: `@keyword` - Control flow (`if`, `else`, `run`, `set`, `with`, `as`, `to`, `available`, `when`)
 - **Keyword Modifiers**: `@keyword.modifier` - Variable modifiers (`mutable`, `linked`)
 - **Types**: `@type.builtin` - Built-in types (`string`, `number`, `boolean`, `object`, `list`)
 - **Block Types**: `@type` - Custom block types (e.g., `topic`, `config`)

@@ -1,0 +1,259 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Complex_Types_Agent",
+    "label": "Complex Types Agent",
+    "description": "Agent with actions using complex_data_type_name on inputs and outputs",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help with orders, profiles, and products.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while processing your request.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with actions using complex_data_type_name on inputs and outputs",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Process_Order",
+            "boundInputs": {},
+            "llmInputs": [
+              "order",
+              "line_items"
+            ],
+            "stateUpdates": [],
+            "name": "Order_Action"
+          },
+          {
+            "type": "action",
+            "target": "Update_Profile",
+            "boundInputs": {},
+            "llmInputs": [
+              "profile",
+              "preferences"
+            ],
+            "stateUpdates": [],
+            "name": "Profile_Action"
+          },
+          {
+            "type": "action",
+            "target": "Search_Products",
+            "boundInputs": {},
+            "llmInputs": [
+              "filters"
+            ],
+            "stateUpdates": [],
+            "name": "Search_Action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Process_Order",
+            "label": "Process Order",
+            "description": "Process an order with complex types",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_Order_Flow",
+            "inputType": [
+              {
+                "developerName": "order",
+                "label": "Order Object",
+                "description": "Order Object",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": true,
+                "isUserInput": false,
+                "complexDataTypeName": "OrderRecord"
+              },
+              {
+                "developerName": "line_items",
+                "label": "Line Items",
+                "description": "Line Items",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "required": true,
+                "isUserInput": false,
+                "complexDataTypeName": "LineItemRecord"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "processed_order",
+                "label": "Processed Order",
+                "description": "Processed Order",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "OrderRecord"
+              },
+              {
+                "developerName": "invoice",
+                "label": "Invoice",
+                "description": "Invoice",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "InvoiceRecord"
+              }
+            ]
+          },
+          {
+            "developerName": "Update_Profile",
+            "label": "Update Profile",
+            "description": "Update user profile with complex data",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "ProfileController.updateProfile",
+            "inputType": [
+              {
+                "developerName": "profile",
+                "label": "Profile Data",
+                "description": "Profile Data",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": true,
+                "isUserInput": false,
+                "complexDataTypeName": "UserProfile"
+              },
+              {
+                "developerName": "preferences",
+                "label": "User Preferences",
+                "description": "User Preferences",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": false,
+                "isUserInput": false,
+                "complexDataTypeName": "PreferencesRecord"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "updated_profile",
+                "label": "Updated Profile",
+                "description": "Updated Profile",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "UserProfile"
+              }
+            ]
+          },
+          {
+            "developerName": "Search_Products",
+            "label": "Search Products",
+            "description": "Search products with complex filters",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "ProductService.search",
+            "inputType": [
+              {
+                "developerName": "filters",
+                "label": "Search Filters",
+                "description": "Search Filters",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": true,
+                "isUserInput": false,
+                "complexDataTypeName": "SearchFilters"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "products",
+                "label": "Product Results",
+                "description": "Products",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "ProductRecord"
+              },
+              {
+                "developerName": "facets",
+                "label": "Search Facets",
+                "description": "Facets",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "FacetResults"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful assistant for orders, profiles, and product searches.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user with orders, profiles, and product searches.\nThese actions use complex data types."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help with orders, profiles, and products.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while processing your request.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

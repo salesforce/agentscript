@@ -17,6 +17,7 @@ import {
   getAvailableNamespaces,
   getCompletionCandidates,
   getFieldCompletions,
+  getNodeMemberAccessCompletions,
   getValueCompletions,
   getWithCompletions,
   positionIndexKey,
@@ -98,6 +99,64 @@ export function provideCompletion(
     const symbols = store.get(symbolTableKey);
 
     let items: CompletionItem[] = [];
+
+    // Map a dialect completion candidate to an LSP item whose textEdit
+    // replaces the partial token between `replaceStartChar` and the cursor.
+    const toItem = (
+      candidate: { name: string; kind: SymbolKind; detail?: string },
+      idx: number,
+      replaceStartChar: number,
+      documentation?: string
+    ): CompletionItem => ({
+      label: candidate.name,
+      kind: toCompletionItemKind(candidate.kind),
+      detail: candidate.detail,
+      documentation,
+      insertText: candidate.name,
+      textEdit: {
+        range: {
+          start: { line, character: replaceStartChar },
+          end: { line, character },
+        },
+        newText: candidate.name,
+      },
+      sortText: String(idx).padStart(4, '0'),
+    });
+
+    // ── Node-result member access ─────────────────────────────────
+    //
+    // Member access on a resolved node reference inside an expression:
+    //   @<node_type>.<node_name>.<member>…<partial>
+    //
+    // This captures the `@`-expression as N dot-separated parts of arbitrary
+    // depth and delegates resolution to the language layer, which owns all
+    // member-name knowledge (the names come from the dialect schema). The LSP
+    // holds no member-name literal and assumes no fixed depth.
+    //
+    // The general `@ns.name` regex below captures only two dot-separated
+    // parts, so member access (three or more parts) never matched there.
+    // This dispatch is tried first; on an empty result it falls through to
+    // the general expression flow, preserving its fall-through-on-empty
+    // semantics (e.g. a node with no outputs).
+    const memberAccessMatch = textBeforeCursor.match(/@(\w+(?:\.\w*)+)$/);
+    if (memberAccessMatch) {
+      const parts = memberAccessMatch[1].split('.');
+      const candidates = getNodeMemberAccessCompletions(
+        ast,
+        parts,
+        schemaContext
+      );
+      if (candidates.length > 0) {
+        const partial = parts[parts.length - 1];
+        const replaceStartChar = character - partial.length;
+        return {
+          isIncomplete: false,
+          items: candidates.map((candidate, idx) =>
+            toItem(candidate, idx, replaceStartChar, candidate.documentation)
+          ),
+        };
+      }
+    }
 
     // Handle @expression completions (same flow as master Monaco provider)
     const exprMatch = textBeforeCursor.match(/@(\w*)\.?(\w*)$/);

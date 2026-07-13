@@ -48,6 +48,7 @@ export function overrideFactoryBuilderMethods(factory: object): void {
   f.predicateField = () => applyMeta({ predicateField: true });
   f.outputNameField = () => applyMeta({ outputNameField: true });
   f.displayLabelField = () => applyMeta({ displayLabelField: true });
+  f.structuredOutputField = () => applyMeta({ structuredOutputField: true });
   f.singular = () => applyMeta({ singular: true });
 
   // clone — create an independent copy with its own __metadata.

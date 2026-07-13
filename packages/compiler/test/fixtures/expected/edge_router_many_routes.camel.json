@@ -1,0 +1,353 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Router_Many_Routes",
+    "label": "Router Many Routes",
+    "description": "Router with transitions to 6+ topics",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome to Enterprise Support! I can help with sales, support, billing, HR, IT, legal, or compliance.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred. Please try again.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Routes users to one of many enterprise departments",
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "go_sales",
+            "target": "sales",
+            "description": "Route to sales department"
+          },
+          {
+            "name": "go_support",
+            "target": "support",
+            "description": "Route to customer support"
+          },
+          {
+            "name": "go_billing",
+            "target": "billing",
+            "description": "Route to billing department"
+          },
+          {
+            "name": "go_hr",
+            "target": "human_resources",
+            "description": "Route to HR department"
+          },
+          {
+            "name": "go_it",
+            "target": "it_helpdesk",
+            "description": "Route to IT helpdesk"
+          },
+          {
+            "name": "go_legal",
+            "target": "legal",
+            "description": "Route to legal department"
+          },
+          {
+            "name": "go_compliance",
+            "target": "compliance",
+            "description": "Route to compliance department"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nClassify the user's request and route to the most appropriate department.\nConsider the full context of the conversation."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles sales inquiries, quotes, and product demonstrations",
+        "tools": [],
+        "developerName": "sales",
+        "label": "Sales",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssist the user with sales questions.\nProvide product information, pricing, and demo scheduling."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles customer support tickets and troubleshooting",
+        "tools": [],
+        "developerName": "support",
+        "label": "Customer Support",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer resolve their support issue.\nFollow standard troubleshooting procedures."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles billing inquiries, payments, and invoice disputes",
+        "tools": [],
+        "developerName": "billing",
+        "label": "Billing",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssist with billing questions, payment processing, and invoice disputes."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles HR inquiries, benefits, and employee relations",
+        "tools": [],
+        "developerName": "human_resources",
+        "label": "Human Resources",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp with HR-related questions including benefits, policies, and employee matters."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles IT support requests, password resets, and system access",
+        "tools": [],
+        "developerName": "it_helpdesk",
+        "label": "IT Helpdesk",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssist with IT issues including password resets, system access, and technical problems."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles legal inquiries and contract questions",
+        "tools": [],
+        "developerName": "legal",
+        "label": "Legal",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssist with legal questions. Note that this is general guidance only.\nFor specific legal advice, recommend consulting with a legal professional."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles compliance inquiries and regulatory questions",
+        "tools": [],
+        "developerName": "compliance",
+        "label": "Compliance",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive routing agent for a large enterprise with many departments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp with compliance-related questions and regulatory requirements.\nProvide guidance on company policies and procedures."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to Enterprise Support! I can help with sales, support, billing, HR, IT, legal, or compliance.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred. Please try again.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

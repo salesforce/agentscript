@@ -13,3 +13,8 @@ export {
   variableValidationRule,
   complexDataTypeWarningRule,
 } from './passes/index.js';
+export {
+  ALLOWED_AGENT_TYPES,
+  isAllowedAgentType,
+  type AllowedAgentType,
+} from './agent-types.js';

@@ -534,7 +534,7 @@ describe('programmatic construction and emit', () => {
       );
     });
 
-    test('IfStatement with elif chain', () => {
+    test('IfStatement with else if chain', () => {
       const stmt = new IfStatement(
         new ComparisonExpression(
           new Identifier('x'),
@@ -559,7 +559,7 @@ describe('programmatic construction and emit', () => {
         [
           'if x == 1:',
           '    run One',
-          'elif x == 2:',
+          'else if x == 2:',
           '    run Two',
           'else:',
           '    run Other',
@@ -896,8 +896,8 @@ describe('programmatic construction and emit', () => {
         );
       });
 
-      test('deeply nested IfStatement (elif chain)', () => {
-        // Build if/elif/elif/.../elif — no else at the end
+      test('deeply nested IfStatement (else if chain)', () => {
+        // Build if / else if / else if / ... — no else at the end
         let stmt: IfStatement = new IfStatement(
           new ComparisonExpression(
             new Identifier('x'),
@@ -921,13 +921,13 @@ describe('programmatic construction and emit', () => {
         const lines = emitted.split('\n');
         expect(lines[0]).toBe('if x == 0:');
         expect(lines[1]).toBe('    run Action0');
-        expect(lines[2]).toBe('elif x == 1:');
+        expect(lines[2]).toBe('else if x == 1:');
         // The deepest nested IfStatement has no else, so it emits as
-        // the final elif (not else:)
-        expect(lines[lines.length - 2]).toBe('elif x == 5:');
+        // the final `else if` (not `else:`)
+        expect(lines[lines.length - 2]).toBe('else if x == 5:');
         expect(lines[lines.length - 1]).toBe('    run Last');
-        // Should produce exactly 6 elif lines + 1 if line
-        expect(lines.filter(l => l.startsWith('elif')).length).toBe(5);
+        // Should produce exactly 5 `else if` lines + 1 `if` line
+        expect(lines.filter(l => l.startsWith('else if')).length).toBe(5);
       });
 
       test('RunStatement nested 3 levels deep', () => {

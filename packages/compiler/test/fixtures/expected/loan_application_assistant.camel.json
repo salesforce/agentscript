@@ -1,0 +1,2097 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Loan_Application_Assistant_v1",
+    "label": "Loan Application Assistant V 1",
+    "description": "Processes loan applications with deterministic eligibility assessment and routing",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome to our loan application system! I'll help you through the application process. Let's start by gathering some basic information.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I'm experiencing technical difficulties. Please contact our loan office directly.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "applicant_name",
+        "label": "Applicant Name",
+        "description": "Applicant's name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "ssn",
+        "label": "Ssn",
+        "description": "Social Security Number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "date_of_birth",
+        "label": "Date Of Birth",
+        "description": "Date of birth",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "phone_number",
+        "label": "Phone Number",
+        "description": "Contact phone number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "email",
+        "label": "Email",
+        "description": "Email address",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "address",
+        "label": "Address",
+        "description": "Home address",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "employment_status",
+        "label": "Employment Status",
+        "description": "Current employment status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "employer_name",
+        "label": "Employer Name",
+        "description": "Current employer",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "annual_income",
+        "label": "Annual Income",
+        "description": "Annual income",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "employment_duration",
+        "label": "Employment Duration",
+        "description": "Length of employment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "additional_income",
+        "label": "Additional Income",
+        "description": "Additional income sources",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "credit_score",
+        "label": "Credit Score",
+        "description": "Credit score",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "existing_debt",
+        "label": "Existing Debt",
+        "description": "Current debt obligations",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "monthly_expenses",
+        "label": "Monthly Expenses",
+        "description": "Monthly living expenses",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "savings_amount",
+        "label": "Savings Amount",
+        "description": "Current savings",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "assets_value",
+        "label": "Assets Value",
+        "description": "Total asset value",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "loan_type",
+        "label": "Loan Type",
+        "description": "Type of loan requested",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "loan_amount",
+        "label": "Loan Amount",
+        "description": "Requested loan amount",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "loan_purpose",
+        "label": "Loan Purpose",
+        "description": "Purpose of the loan",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "collateral_offered",
+        "label": "Collateral Offered",
+        "description": "Collateral being offered",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "loan_term",
+        "label": "Loan Term",
+        "description": "Requested loan term in months",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "eligibility_score",
+        "label": "Eligibility Score",
+        "description": "Loan eligibility score (0-100)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "debt_to_income_ratio",
+        "label": "Debt To Income Ratio",
+        "description": "Debt-to-income ratio percentage",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "risk_level",
+        "label": "Risk Level",
+        "description": "Risk assessment level",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "application_status",
+        "label": "Application Status",
+        "description": "Current application status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'pending'"
+      },
+      {
+        "developerName": "approved_amount",
+        "label": "Approved Amount",
+        "description": "Approved loan amount",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "interest_rate",
+        "label": "Interest Rate",
+        "description": "Offered interest rate",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "documents_required",
+        "label": "Documents Required",
+        "description": "Required documentation list",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "documents_received",
+        "label": "Documents Received",
+        "description": "Documents already submitted",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "application_complete",
+        "label": "Application Complete",
+        "description": "Whether application is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "identity_verified",
+        "label": "Identity Verified",
+        "description": "Whether applicant identity has been verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "application_intake",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Collects initial loan application information and applicant details",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Verify_Identity",
+            "boundInputs": {
+              "ssn": "state.ssn",
+              "full_name": "state.applicant_name",
+              "date_of_birth": "state.date_of_birth",
+              "address": "state.address"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "identity_verified": "result.identity_verified"
+              }
+            ],
+            "name": "verify_applicant"
+          },
+          {
+            "type": "action",
+            "target": "Pull_Credit_Report",
+            "boundInputs": {
+              "ssn": "state.ssn",
+              "consent_given": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "credit_score": "result.credit_score"
+              },
+              {
+                "existing_debt": "result.total_debt"
+              }
+            ],
+            "name": "get_credit_report"
+          },
+          {
+            "type": "action",
+            "target": "Validate_Income",
+            "boundInputs": {
+              "employer_name": "state.employer_name",
+              "annual_income": "state.annual_income",
+              "employment_duration": "state.employment_duration",
+              "employment_type": "state.employment_status"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "annual_income": "result.verified_income"
+              }
+            ],
+            "name": "verify_income"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "applicant_name": "state.applicant_name"
+              },
+              {
+                "ssn": "state.ssn"
+              },
+              {
+                "date_of_birth": "state.date_of_birth"
+              },
+              {
+                "phone_number": "state.phone_number"
+              },
+              {
+                "email": "state.email"
+              },
+              {
+                "address": "state.address"
+              },
+              {
+                "loan_type": "state.loan_type"
+              },
+              {
+                "loan_amount": "state.loan_amount"
+              },
+              {
+                "loan_purpose": "state.loan_purpose"
+              }
+            ],
+            "name": "capture_application_info",
+            "description": "Capture loan application details",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"financial_assessment\""
+              }
+            ],
+            "name": "assess_finances",
+            "description": "Assess financial eligibility"
+          }
+        ],
+        "developerName": "application_intake",
+        "label": "Application Intake",
+        "actionDefinitions": [
+          {
+            "developerName": "Verify_Identity",
+            "label": "Verify Identity",
+            "description": "Verifies applicant identity using SSN and personal information",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "VerifyIdentity",
+            "inputType": [
+              {
+                "developerName": "ssn",
+                "label": "Social Security Number",
+                "description": "Applicant's SSN for identity verification",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "full_name",
+                "label": "Full Name",
+                "description": "Applicant's legal name",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "date_of_birth",
+                "label": "Date of Birth",
+                "description": "Date of birth (MM/DD/YYYY)",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "address",
+                "label": "Address",
+                "description": "Current home address",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "identity_verified",
+                "label": "Identity Verified",
+                "description": "Identity Verified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "applicant_id",
+                "label": "Applicant ID",
+                "description": "Applicant Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "existing_customer",
+                "label": "Existing Customer",
+                "description": "Existing Customer",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "fraud_alert",
+                "label": "Fraud Alert",
+                "description": "Fraud Alert",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Pull_Credit_Report",
+            "label": "Pull Credit Report",
+            "description": "Retrieves comprehensive credit report and score",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "PullCreditReport",
+            "inputType": [
+              {
+                "developerName": "ssn",
+                "label": "SSN",
+                "description": "Social Security Number for credit check",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "consent_given",
+                "label": "Credit Check Consent",
+                "description": "Applicant consent for credit check",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "credit_score",
+                "label": "Credit Score",
+                "description": "Credit Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "credit_history_length",
+                "label": "Credit History Length",
+                "description": "Credit History Length",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "payment_history",
+                "label": "Payment History",
+                "description": "Payment History",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "existing_accounts",
+                "label": "Existing Accounts",
+                "description": "Existing Accounts",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "total_debt",
+                "label": "Total Existing Debt",
+                "description": "Total Debt",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "derogatory_marks",
+                "label": "Derogatory Marks",
+                "description": "Derogatory Marks",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Validate_Income",
+            "label": "Validate Income",
+            "description": "Validates employment and income information",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "ValidateIncome",
+            "inputType": [
+              {
+                "developerName": "employer_name",
+                "label": "Employer Name",
+                "description": "Current employer",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "annual_income",
+                "label": "Annual Income",
+                "description": "Stated annual income",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "employment_duration",
+                "label": "Employment Duration",
+                "description": "Length of current employment",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "employment_type",
+                "label": "Employment Type",
+                "description": "Type of employment (full-time, part-time, etc.)",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "income_verified",
+                "label": "Income Verified",
+                "description": "Income Verified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "verified_income",
+                "label": "Verified Income",
+                "description": "Verified Income",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "employment_stable",
+                "label": "Employment Stable",
+                "description": "Employment Stable",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "income_documentation_required",
+                "label": "Income Docs Required",
+                "description": "Income Documentation Required",
+                "dataType": "String",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a loan application processing assistant for a financial institution. Guide customers through the loan application process, collect documentation, and perform eligibility assessments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome to our loan application system! I'll help you through the application process step by step.\n\n**Getting Started:**\nTo begin your loan application, I'll need to collect some personal information and verify your identity.\n\n**Information I'll Need:**\n- Personal details (name, SSN, date of birth, address)\n- Contact information (phone and email)\n- Employment information\n- Income details\n- Loan requirements\n\n**Privacy & Security:**\nAll information is encrypted and handled according to banking regulations. I'll need your consent before running any credit checks.\n\nLet's start with your basic information."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.applicant_name == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "eligibility_score": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "application_status": "\"pending\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "application_complete": "False"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.applicant_name != \"\" and state.ssn != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Verify_Identity",
+            "boundInputs": {
+              "ssn": "state.ssn",
+              "full_name": "state.applicant_name",
+              "date_of_birth": "state.date_of_birth",
+              "address": "state.address"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Pull_Credit_Report",
+            "boundInputs": {
+              "ssn": "state.ssn",
+              "consent_given": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "credit_score": "result.credit_score"
+              },
+              {
+                "existing_debt": "result.total_debt"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.employer_name != \"\" and state.annual_income > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Validate_Income",
+            "boundInputs": {
+              "employer_name": "state.employer_name",
+              "annual_income": "state.annual_income",
+              "employment_duration": "state.employment_duration",
+              "employment_type": "state.employment_status"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "annual_income": "result.verified_income"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"financial_assessment\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "financial_assessment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"financial_assessment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "financial_assessment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"financial_assessment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Performs comprehensive financial analysis and eligibility scoring",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Calculate_DTI_Ratio",
+            "boundInputs": {
+              "monthly_income": "state.annual_income",
+              "existing_monthly_debt": "state.existing_debt",
+              "new_loan_payment": "state.loan_amount",
+              "monthly_expenses": "state.monthly_expenses"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "debt_to_income_ratio": "result.new_dti_ratio"
+              }
+            ],
+            "name": "calculate_dti"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Risk_Profile",
+            "boundInputs": {
+              "credit_score": "state.credit_score",
+              "dti_ratio": "state.debt_to_income_ratio",
+              "employment_stability": "state.employment_duration",
+              "loan_to_value": "80",
+              "savings_ratio": "10"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "risk_level": "result.risk_category"
+              },
+              {
+                "eligibility_score": "result.approval_probability"
+              }
+            ],
+            "name": "assess_risk"
+          },
+          {
+            "type": "action",
+            "target": "Generate_Loan_Options",
+            "boundInputs": {
+              "requested_amount": "state.loan_amount",
+              "risk_profile": "state.risk_level",
+              "loan_type": "state.loan_type",
+              "max_affordable_payment": "5000"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "approved_amount": "result.approved_amount"
+              },
+              {
+                "interest_rate": "result.interest_rate"
+              }
+            ],
+            "name": "create_options"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "employment_status": "state.employment_status"
+              },
+              {
+                "employer_name": "state.employer_name"
+              },
+              {
+                "annual_income": "state.annual_income"
+              },
+              {
+                "monthly_expenses": "state.monthly_expenses"
+              },
+              {
+                "savings_amount": "state.savings_amount"
+              }
+            ],
+            "name": "capture_financial_details",
+            "description": "Capture additional financial information",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"application_decision\""
+              }
+            ],
+            "name": "make_decision",
+            "description": "Make loan decision"
+          }
+        ],
+        "developerName": "financial_assessment",
+        "label": "Financial Assessment",
+        "actionDefinitions": [
+          {
+            "developerName": "Calculate_DTI_Ratio",
+            "label": "Calculate DTI Ratio",
+            "description": "Calculates debt-to-income ratio and affordability metrics",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "CalculateDTIRatio",
+            "inputType": [
+              {
+                "developerName": "monthly_income",
+                "label": "Monthly Income",
+                "description": "Monthly gross income",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "existing_monthly_debt",
+                "label": "Existing Monthly Debt",
+                "description": "Current monthly debt payments",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "new_loan_payment",
+                "label": "New Loan Payment",
+                "description": "Estimated new loan payment",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "monthly_expenses",
+                "label": "Monthly Expenses",
+                "description": "Monthly living expenses",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "current_dti_ratio",
+                "label": "Current DTI Ratio",
+                "description": "Current Dti Ratio",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "new_dti_ratio",
+                "label": "New DTI Ratio",
+                "description": "New Dti Ratio",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "affordability_score",
+                "label": "Affordability Score",
+                "description": "Affordability Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "max_affordable_payment",
+                "label": "Max Affordable Payment",
+                "description": "Max Affordable Payment",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Assess_Risk_Profile",
+            "label": "Assess Risk Profile",
+            "description": "Comprehensive risk assessment based on financial profile",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "AssessRiskProfile",
+            "inputType": [
+              {
+                "developerName": "credit_score",
+                "label": "Credit Score",
+                "description": "Applicant's credit score",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "dti_ratio",
+                "label": "DTI Ratio",
+                "description": "Debt-to-income ratio",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "employment_stability",
+                "label": "Employment Stability",
+                "description": "Employment history stability",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "loan_to_value",
+                "label": "Loan to Value",
+                "description": "LTV ratio for secured loans",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "savings_ratio",
+                "label": "Savings Ratio",
+                "description": "Savings as percentage of income",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "risk_score",
+                "label": "Risk Score",
+                "description": "Risk Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "risk_category",
+                "label": "Risk Category",
+                "description": "Risk Category",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "approval_probability",
+                "label": "Approval Probability",
+                "description": "Approval Probability",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "recommended_terms",
+                "label": "Recommended Terms",
+                "description": "Recommended Terms",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ]
+          },
+          {
+            "developerName": "Generate_Loan_Options",
+            "label": "Generate Loan Options",
+            "description": "Generates personalized loan options based on assessment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "GenerateLoanOptions",
+            "inputType": [
+              {
+                "developerName": "requested_amount",
+                "label": "Requested Amount",
+                "description": "Amount requested by applicant",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "risk_profile",
+                "label": "Risk Profile",
+                "description": "Assessed risk category",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "loan_type",
+                "label": "Loan Type",
+                "description": "Type of loan requested",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "max_affordable_payment",
+                "label": "Max Affordable Payment",
+                "description": "Maximum affordable monthly payment",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "approved_amount",
+                "label": "Approved Amount",
+                "description": "Approved Amount",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "interest_rate",
+                "label": "Interest Rate",
+                "description": "Interest Rate",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "loan_terms_options",
+                "label": "Loan Terms Options",
+                "description": "Loan Terms Options",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "monthly_payment",
+                "label": "Monthly Payment",
+                "description": "Monthly Payment",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "conditions",
+                "label": "Loan Conditions",
+                "description": "Conditions",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a loan application processing assistant for a financial institution. Guide customers through the loan application process, collect documentation, and perform eligibility assessments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Financial Assessment in Progress**\n\n**Applicant:** {{state.applicant_name}}\n**Loan Request:** ${{state.loan_amount}} {{state.loan_type}}\n**Purpose:** {{state.loan_purpose}}\n\n**Financial Profile:**\n- Annual Income: ${{state.annual_income}}\n- Credit Score: {{state.credit_score}}\n- Existing Debt: ${{state.existing_debt}}\n- Debt-to-Income Ratio: {{state.debt_to_income_ratio}}%\n- Risk Level: {{state.risk_level}}\n\n**Assessment Progress:** {{state.eligibility_score}}/100\n\nI'm analyzing your financial profile to determine the best loan options available to you."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.annual_income > 0 and state.existing_debt >= 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "debt_to_income_ratio": "0.5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.credit_score >= 750"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "risk_level": "\"low\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "eligibility_score": "state.eligibility_score + 25"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.credit_score >= 650 and state.credit_score < 750"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "risk_level": "\"medium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "eligibility_score": "state.eligibility_score + 15"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.credit_score < 650"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "risk_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "eligibility_score": "state.eligibility_score + 5"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.annual_income > 0 and state.credit_score > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Calculate_DTI_Ratio",
+            "boundInputs": {
+              "monthly_income": "state.annual_income",
+              "existing_monthly_debt": "state.existing_debt",
+              "new_loan_payment": "state.loan_amount",
+              "monthly_expenses": "state.monthly_expenses"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "debt_to_income_ratio": "result.new_dti_ratio"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Risk_Profile",
+            "boundInputs": {
+              "credit_score": "state.credit_score",
+              "dti_ratio": "state.debt_to_income_ratio",
+              "employment_stability": "state.employment_duration",
+              "loan_to_value": "80",
+              "savings_ratio": "10"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "risk_level": "result.risk_category"
+              },
+              {
+                "eligibility_score": "result.approval_probability"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Generate_Loan_Options",
+            "boundInputs": {
+              "requested_amount": "state.loan_amount",
+              "risk_profile": "state.risk_level",
+              "loan_type": "state.loan_type",
+              "max_affordable_payment": "5000"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "approved_amount": "result.approved_amount"
+              },
+              {
+                "interest_rate": "result.interest_rate"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "application_status": "\"approved\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 70 and state.eligibility_score >= 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "application_status": "\"conditional_approval\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "application_status": "\"declined\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"application_decision\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "application_decision",
+            "enabled": "state.AgentScriptInternal_next_topic==\"application_decision\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "application_decision",
+            "enabled": "state.AgentScriptInternal_next_topic==\"application_decision\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides final loan decision and next steps",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Generate_Approval_Letter",
+            "boundInputs": {
+              "applicant_name": "state.applicant_name",
+              "approved_amount": "state.approved_amount",
+              "interest_rate": "state.interest_rate",
+              "loan_terms": "\"Standard terms apply\"",
+              "conditions": "\"Subject to final verification\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "create_approval"
+          },
+          {
+            "type": "action",
+            "target": "Schedule_Closing",
+            "boundInputs": {
+              "applicant_id": "\"APP-001\"",
+              "preferred_date": "\"\"",
+              "location_preference": "\"Main Branch\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "book_closing"
+          },
+          {
+            "type": "action",
+            "target": "Send_Decline_Letter",
+            "boundInputs": {
+              "applicant_name": "state.applicant_name",
+              "decline_reasons": "\"Credit score below threshold\"",
+              "credit_score": "state.credit_score",
+              "adverse_action_required": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "send_decline"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "application_status": "state.application_status"
+              }
+            ],
+            "name": "capture_next_steps",
+            "description": "Capture next step preferences",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"application_intake\""
+              }
+            ],
+            "name": "new_application",
+            "description": "Process new application"
+          }
+        ],
+        "developerName": "application_decision",
+        "label": "Application Decision",
+        "actionDefinitions": [
+          {
+            "developerName": "Generate_Approval_Letter",
+            "label": "Generate Approval Letter",
+            "description": "Creates formal loan approval documentation",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "GenerateApprovalLetter",
+            "inputType": [
+              {
+                "developerName": "applicant_name",
+                "label": "Applicant Name",
+                "description": "Name of approved applicant",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "approved_amount",
+                "label": "Approved Amount",
+                "description": "Final approved loan amount",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "interest_rate",
+                "label": "Interest Rate",
+                "description": "Approved interest rate",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "loan_terms",
+                "label": "Loan Terms",
+                "description": "Complete loan terms",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "conditions",
+                "label": "Conditions",
+                "description": "Any approval conditions",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "approval_letter_id",
+                "label": "Approval Letter ID",
+                "description": "Approval Letter Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "expiration_date",
+                "label": "Offer Expiration",
+                "description": "Expiration Date",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "next_steps",
+                "label": "Next Steps",
+                "description": "Next Steps",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "closing_requirements",
+                "label": "Closing Requirements",
+                "description": "Closing Requirements",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Schedule_Closing",
+            "label": "Schedule Closing",
+            "description": "Schedules loan closing appointment",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "ScheduleClosing",
+            "inputType": [
+              {
+                "developerName": "applicant_id",
+                "label": "Applicant ID",
+                "description": "Application identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "preferred_date",
+                "label": "Preferred Date",
+                "description": "Preferred closing date",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "location_preference",
+                "label": "Location Preference",
+                "description": "Preferred closing location",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "closing_scheduled",
+                "label": "Closing Scheduled",
+                "description": "Closing Scheduled",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "closing_date",
+                "label": "Closing Date",
+                "description": "Closing Date",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "closing_location",
+                "label": "Closing Location",
+                "description": "Closing Location",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "documents_to_bring",
+                "label": "Documents to Bring",
+                "description": "Documents To Bring",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Send_Decline_Letter",
+            "label": "Send Decline Letter",
+            "description": "Sends formal loan decline notification with reasons",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "SendDeclineLetter",
+            "inputType": [
+              {
+                "developerName": "applicant_name",
+                "label": "Applicant Name",
+                "description": "Name of declined applicant",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "decline_reasons",
+                "label": "Decline Reasons",
+                "description": "Specific reasons for decline",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "credit_score",
+                "label": "Credit Score",
+                "description": "Applicant's credit score",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "adverse_action_required",
+                "label": "Adverse Action Required",
+                "description": "Whether adverse action notice is required",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "decline_letter_sent",
+                "label": "Decline Letter Sent",
+                "description": "Decline Letter Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "reapplication_eligible",
+                "label": "Reapplication Eligible",
+                "description": "Reapplication Eligible",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "improvement_suggestions",
+                "label": "Improvement Suggestions",
+                "description": "Improvement Suggestions",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a loan application processing assistant for a financial institution. Guide customers through the loan application process, collect documentation, and perform eligibility assessments.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Loan Application Decision**\n\n**Applicant:** {{state.applicant_name}}\n**Application Status:** {{state.application_status}}\n**Eligibility Score:** {{state.eligibility_score}}/100\n\n**Decision Details:**\n- Approved Amount: ${{state.approved_amount}}\n- Interest Rate: {{state.interest_rate}}%\n- Risk Assessment: {{state.risk_level}}\n\n**Required Documentation:** {{state.documents_required}}\n\nYour loan application has been processed. Next steps will depend on your approval status.\n\nWould you like to proceed with the next steps or need assistance with anything else?"
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.application_status == \"approved\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "documents_required": "\"Income verification, Asset documentation, Insurance information\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.application_status == \"conditional_approval\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "documents_required": "\"Additional income verification, Explanation of credit items\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.application_status == \"declined\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "documents_required": "\"N/A\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.application_status == \"approved\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Generate_Approval_Letter",
+            "boundInputs": {
+              "applicant_name": "state.applicant_name",
+              "approved_amount": "state.approved_amount",
+              "interest_rate": "state.interest_rate",
+              "loan_terms": "\"Standard terms apply\"",
+              "conditions": "\"Subject to final verification\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Schedule_Closing",
+            "boundInputs": {
+              "applicant_id": "\"APP-001\"",
+              "preferred_date": "\"\"",
+              "location_preference": "\"Main Branch\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.application_status == \"declined\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Send_Decline_Letter",
+            "boundInputs": {
+              "applicant_name": "state.applicant_name",
+              "decline_reasons": "\"Credit score below threshold\"",
+              "credit_score": "state.credit_score",
+              "adverse_action_required": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "application_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"application_intake\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to our loan application system! I'll help you through the application process. Let's start by gathering some basic information.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm experiencing technical difficulties. Please contact our loan office directly.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

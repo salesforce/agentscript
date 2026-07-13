@@ -12,6 +12,7 @@ import {
   hasOwnNonNull,
   type AstLike,
 } from './shared.js';
+import { Namespace } from '../../../constants.js';
 
 export function checkAgenticLlmRules(root: Record<string, unknown>): void {
   if (configHasDefaultLlm(root)) return;
@@ -22,7 +23,7 @@ export function checkAgenticLlmRules(root: Record<string, unknown>): void {
     for (const [, entry] of group) {
       if (entry == null || typeof entry !== 'object') continue;
       const record = entry as Record<string, unknown>;
-      if (hasOwnNonNull(record, 'llm')) continue;
+      if (hasOwnNonNull(record, Namespace.LLM)) continue;
 
       attachError(
         entry as AstLike,

@@ -1,0 +1,211 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "CustomizableConnectionWithMessagingAndCustom",
+    "label": "Customizable Connection With Messaging and Custom",
+    "description": "Contains Messaging connection and a custom connection",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "NEW AGENT USER"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hi, I'm an AI assistant. How can I help you?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "Sorry, it looks like something has gone wrong.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "pet_placeholder_name",
+        "label": "Pet Placeholder Name",
+        "description": "a pet placeholder name",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'penguin'"
+      },
+      {
+        "developer_name": "Users",
+        "label": "Users",
+        "description": "A list of user records",
+        "data_type": "string",
+        "is_list": true,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "defaultDate",
+        "label": "Default Date",
+        "description": "Default date",
+        "data_type": "date",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "start_agent",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "start agent block",
+        "tools": [],
+        "developer_name": "start_agent",
+        "label": "Start Agent",
+        "action_definitions": [],
+        "instructions": "You are an AI Agent"
+      }
+    ],
+    "surfaces": [
+      {
+        "surface_type": "messaging",
+        "instructions": "Do not use any of the * response formats when none of the instructions below are met.\nDo not use below instructions where the response contains more than 10 choices.\nDo not use any of the Messaging* type formatting where the response that contains only a single, text-only choice and does not include images or URLs.\nAlways use messaging_rich_link when showing choice text responses with GREATER THAN 1 choice and LESSER THAN 11 choices to the user as it employs the rich UI renditions, except when the response contains only two choices with clear binary intent (e.g., Yes/No, Continue/Cancel, Proceed/Exit, etc.). Such responses should be returned as plain text to preserve context and tone.\nUse messaging_choices only when the prompt explicitly references the preceding list and asks the user to make a selection from it. Key phrases include \"Which of these would you like?\" or \"Let me know which option you're interested in\".\nDO NOT use messaging_choices if the prompt is a generic offer of help that could be used in any context, even if it follows a list. Phrases like \"Let me know if you need further assistance\", \"Feel free to reach out if you have any more questions\" or \"Let me know if there's anything else I can do\" fall into this category because they do not require a choice from the list.\nAlways use messaging_choices when showing choice image response to the user as it employs the rich UI renditions.\nAlways use messaging_rich_link when the response contains only one choice AND contains BOTH of the following elements in any combination or order for that choice:\n1. A Website/Web page URL: A clearly identifiable, fully qualified URL or a short URL, including a resolvable domain name\n2. An image URL (direct image link, image hosting service, or URL ending in image extensions like .jpg, .png or .jpeg)\nUse messaging_rich_link for rich UI rendering when both content types are detected.\nDo not use messaging_rich_link when there is more than 1 option, choice or items present.\nAlways use messaging_timepicker if the response contains one or more available times where the full ISO 8601 timestamp format, including an explicit UTC offset (e.g., '2025-11-11T10:00:00.000-08:00'), is present.\nDO NOT use messaging_timepicker if the available times are only presented in a non-ISO format (e.g., '10:00 AM - 11:00 AM') and the full ISO 8601 timestamp with offset is entirely absent from the response text.",
+        "outbound_route_configs": [
+          {
+            "outbound_route_type": "OmniChannelFlow",
+            "outbound_route_name": "flow://PenguinSlide",
+            "escalation_message": "Connecting you to the next available representative penguin"
+          }
+        ],
+        "response_formats": [
+          {
+            "developer_name": "messaging_rich_link",
+            "label": "Messaging Rich Link",
+            "description": "A response action containing UI components. Use this to prompt the user to show when response contains only one choice AND BOTH of the following elements in any combination or order : 1. A Website/Web page URL and 2. An image URL (direct image link, image hosting service , or URL ending in image extensions like .jpg, .png or .jpeg)",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"parameters\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"LinkUrl\":{\"type\":\"string\",\"description\":\"The actual URL of the result.\"},\"LinkTitle\":{\"type\":\"string\",\"description\":\"The text containing the hyperlink or the URL.\"},\"ImageUrl\":{\"type\":\"string\",\"description\":\"A URL to an image representing the choice.\"},\"ImageMimeType\":{\"type\":\"string\",\"description\":\"The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided.\",\"enum\":[\"image/png\",\"image/jpeg\",\"image/gif\",\"image/webp\",\"image/svg+xml\"]},\"message\":{\"type\":\"string\",\"description\":\"Strictly extract only the introductory and contextual text from the response except the link url, image url and link title. If no such descriptive text exists, the value MUST be \\\"empty\\\".\"}},\"required\":[\"LinkUrl\",\"LinkTitle\",\"ImageUrl\",\"ImageMimeType\",\"message\"]},\"description\":\"An array of choices, each containing a title, an image URL, and an optional image MIME type.\"}},\"required\":[\"parameters\"]}",
+            "invocation_target_type": "system",
+            "invocation_target_name": "MessagingRichLink"
+          },
+          {
+            "developer_name": "messaging_choices",
+            "label": "Messaging Choices",
+            "description": "A response action containing UI components. Use this to prompt the user to select one of many simple available choices with images. The user will be presented rich UI containing image options.",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"Strictly extract only the introductory and contextual text from the response. This is all content *before* the list of choices and its title. Do NOT use any phrase that serves as a heading for the choices such as \\\"here are some options to choose\\\". If no such descriptive text exists, the value MUST be \\\"empty\\\".\"},\"choices\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"title\":{\"type\":\"string\",\"description\":\"A concise and descriptive heading for the options. Use the short sentence or phrase that introduces the list of options if it already exists, otherwise use something like \\\"Here are a few options:\\\"\"}},\"required\":[\"message\",\"choices\",\"title\"]}"
+          },
+          {
+            "developer_name": "messaging_choices_with_images",
+            "label": "Messaging Choices With Images",
+            "description": "A response action containing UI components. Use this to prompt the user to show when response contains only one choice AND BOTH of the following elements in any combination or order : 1. A Website/Web page URL and 2. An image URL (direct image link, image hosting service , or URL ending in image extensions like .jpg, .png or .jpeg)",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"Extract all introductory, contextual and the final phrase that introduces the choices from the response. The message should contain all content that appears before the list of choices begins. Do not include any the link url, image url and link title\"},\"choices\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"description\":\"The title of the choice.\"},\"imageUrl\":{\"type\":\"string\",\"description\":\"A URL to an image representing the choice. Should only be a URL.\"},\"subTitle\":{\"type\":\"string\",\"description\":\"The provided subTitles for the choice. Use verbatim if exists. If no such field exists, the value MUST be \\\"empty\\\".\"},\"secondarySubTitle\":{\"type\":\"string\",\"description\":\"The provided secondarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \\\"empty\\\".\"},\"tertiarySubTitle\":{\"type\":\"string\",\"description\":\"The provided tertiarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \\\"empty\\\".\"},\"actionText\":{\"type\":\"string\",\"description\":\"The action text of the choice. Optional - will use Title value if not provided.\"},\"imageMimeType\":{\"type\":\"string\",\"description\":\"The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided.\",\"enum\":[\"image/png\",\"image/jpeg\",\"image/gif\",\"image/webp\",\"image/svg+xml\"]}},\"required\":[\"title\",\"imageUrl\",\"subTitle\",\"secondarySubTitle\",\"tertiarySubTitle\",\"actionText\"]},\"description\":\"An array of choices, each containing a title, subTitle, secondarySubTitle, tertiarySubTitle, an image URL, an optional image MIME type and an optional action text.\"}},\"required\":[\"message\",\"choices\"]}",
+            "source": "SurfaceAction__MessagingChoicesWithImages",
+            "invocation_target_type": "system",
+            "invocation_target_name": "MessagingChoicesWithImages"
+          },
+          {
+            "developer_name": "messaging_timepicker",
+            "label": "Messaging TimePicker",
+            "description": "A response action containing UI components. Use this to prompt the user to select a specific time. The user will be presented with an interactive time picker UI for easy selection.",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"Strictly extract only the introductory and contextual text from the response. This is all content *before* the list of choices. Do NOT include the latitude,longitude, radius and reply in this message. Do NOT use any phrase that serves as a heading for the choices such as \\\"here are some options to choose\\\". If no such descriptive text exists, the value MUST be \\\"empty\\\".\"},\"timePickerMessage\":{\"type\":\"string\",\"description\":\"A concise and descriptive heading for the options. Use the short sentence or phrase that introduces the list of options if it already exists, otherwise use something like \\\"Here are a few options:\\\"\"},\"reply\":{\"type\":\"string\",\"description\":\"Optional confirmation message after the user selects a time.\"},\"location\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name of the location.If not provided, the value MUST be \\\"empty\\\".\"},\"latitude\":{\"type\":\"string\",\"description\":\"Latitude of the location. If not provided, the value MUST be \\\"empty\\\".\"},\"longitude\":{\"type\":\"string\",\"description\":\"Longitude of the location. If not provided, the value MUST be \\\"empty\\\".\"},\"radius\":{\"type\":\"number\",\"description\":\"Radius of the location. If not provided, the value MUST be 0.\"}},\"required\":[\"name\",\"latitude\",\"longitude\"],\"description\":\"Location metadata associated with the time slots.\"},\"choices\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"startTime\":{\"type\":\"string\",\"description\":\"Start time in ISO format with an offset: e.g., '2021-01-03T10:00+07:00'.\"},\"duration\":{\"type\":\"integer\",\"description\":\"Duration in seconds.\"}},\"required\":[\"startTime\",\"duration\"]},\"description\":\"An array of available time slot choices.\"}},\"required\":[\"message\",\"timePickerMessage\",\"reply\",\"location\",\"choices\"]}",
+            "source": "SurfaceAction__MessagingTimePicker",
+            "invocation_target_type": "system",
+            "invocation_target_name": "MessagingTimePicker"
+          },
+          {
+            "developer_name": "static_new_pet_intake_form",
+            "label": "New Pet Intake Form",
+            "description": "Use this format when you need to ask the user to provide information about their pet, such as the pet's name and specie.\nIf a name is not provided, use {{state.pet_placeholder_name}}.",
+            "input_schema": "{\"type\":\"messaging_component\",\"properties\":{\"penguin_pet_intake_form\":{\"type\":\"object\",\"$schema\":\"messaging_component://FormMessage__PetIntakeForm\"}},\"required\":[\"penguin_pet_intake_form\"]}"
+          },
+          {
+            "developer_name": "dynamic_new_pet_intake_form",
+            "label": "New Pet Intake Form",
+            "description": "Use this format when you need to dynamically ask the user to provide information about their pets.",
+            "input_schema": "{\"type\":\"messaging_component\",\"properties\":{\"penguin_pet_intake_form\":{\"type\":\"object\",\"$schema\":\"messaging_component://FormMessage__DynamicPetIntakeForm\",\"properties\":{\"defaultSelectedDate\":{\"type\":\"date\",\"description\":\"the default selected date\",\"const\":\"{{state.defaultDate}}\"},\"selectedTimestamp\":{\"type\":\"datetime\",\"description\":\"some description from the component definition\",\"const\":\"2026-06-08 15:30:00\"},\"linkedAccounts\":{\"type\":\"list\",\"itemType\":\"id\",\"description\":\"a list of user record ids\",\"const\":\"{{state.Users}}\"},\"defaultVet\":{\"type\":\"number\",\"description\":\"some description from the component definition\",\"const\":0}}}},\"required\":[\"penguin_pet_intake_form\"]}"
+          }
+        ],
+        "response_actions": [
+          {
+            "target": "messaging_rich_link",
+            "name": "messaging_rich_link",
+            "description": "Messaging Rich Link"
+          },
+          {
+            "target": "messaging_choices",
+            "name": "messaging_choices",
+            "description": "Messaging Choices"
+          },
+          {
+            "target": "messaging_choices_with_images",
+            "name": "messaging_choices_with_images",
+            "description": "Messaging Choices With Images"
+          },
+          {
+            "target": "messaging_timepicker",
+            "name": "messaging_timepicker",
+            "description": "Messaging Timepicker"
+          },
+          {
+            "target": "static_new_pet_intake_form",
+            "name": "pet_intake_form",
+            "description": "Pet Intake Form"
+          }
+        ]
+      },
+      {
+        "surface_type": "penguin",
+        "instructions": "Always use high_frequency_response when speaking to young penguins\nWhen using high_frequency_response, limit frequency range to between 285 hz and 590 hz.\nIf {{connection.penguin.IsHappy}} is false, always have Fish for the main course",
+        "outbound_route_configs": [],
+        "response_formats": [
+          {
+            "developer_name": "high_frequency_response",
+            "label": "High Frequency Response",
+            "description": "Use this format when responding to high-frequency sounds",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"frequency\":{\"type\":\"number\",\"description\":\"Frequency in Hertz (Hz)\",\"title\":\"Response Frequency\",\"minimum\":0},\"footer\":{\"type\":\"string\",\"description\":\"The footer message. Always append '{{connection.penguin.IsHappy}}' to the end of this message.\"},\"tokens\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"valid_ips\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"address\":{\"type\":\"string\"}},\"required\":[\"name\",\"address\"]},\"description\":\"valid IP address for this token\"},\"key\":{\"type\":\"object\",\"properties\":{\"is_for_auth\":{\"type\":\"boolean\"},\"key_alias\":{\"type\":\"string\"},\"key_value\":{\"type\":\"string\"}},\"required\":[\"is_for_auth\",\"key_alias\",\"key_value\"],\"description\":\"token key\"},\"values\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"ea383mmfsdflapqyreiyocndgjf8\",\"supersecrettokenvalue\",\"10230392823942739487298374234\"]},\"description\":\"valid values of this token\"}},\"required\":[\"valid_ips\",\"key\",\"values\"]},\"description\":\"A list of tokens used\"}},\"required\":[\"frequency\",\"footer\"]}"
+          },
+          {
+            "developer_name": "food",
+            "label": "Food",
+            "description": "Use this when the user asks for food",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"main_course\":{\"type\":\"string\"},\"dessert\":{\"type\":\"string\"}},\"required\":[\"main_course\",\"dessert\"]}",
+            "invocation_target_type": "apex",
+            "invocation_target_name": "cookFish"
+          }
+        ],
+        "response_actions": [
+          {
+            "target": "high_frequency_response",
+            "name": "high_frequency",
+            "description": "High Frequency"
+          }
+        ],
+        "input_parameters": [
+          {
+            "developer_name": "IsHappy",
+            "label": "Is Happy",
+            "description": "Is Happy",
+            "data_type": "boolean",
+            "default_value": false
+          }
+        ]
+      }
+    ],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hi, I'm an AI assistant. How can I help you?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, it looks like something has gone wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

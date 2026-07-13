@@ -77,11 +77,23 @@ export function readFixtureSource(fixtureName: string): string {
 }
 
 /**
- * Read expected YAML output for a fixture.
+ * Read expected snake-case JSON for a fixture.
  */
-export function readExpectedYaml(yamlName: string): string {
-  const yamlPath = path.resolve(__dirname, 'fixtures', 'expected', yamlName);
-  return fs.readFileSync(yamlPath, 'utf-8');
+export function readExpectedSnake(base: string): string {
+  return fs.readFileSync(
+    path.join(EXPECTED_DIR, `${base}.snake.json`),
+    'utf-8'
+  );
+}
+
+/**
+ * Read expected camelCase JSON for a fixture.
+ */
+export function readExpectedCamel(base: string): string {
+  return fs.readFileSync(
+    path.join(EXPECTED_DIR, `${base}.camel.json`),
+    'utf-8'
+  );
 }
 
 /**
@@ -153,7 +165,7 @@ export function findExtraFields(
  * Check that a compiled output object contains no fields beyond what
  * the AgentDSLAuthoring Zod schema defines. Returns paths of extra fields.
  *
- * Use after a YAML round-trip (to strip Sourced<T> wrappers) so the
+ * Use after a JSON round-trip (to strip Sourced<T> wrappers) so the
  * comparison only sees serializable data.
  */
 export function checkSchemaConformance(output: unknown): string[] {

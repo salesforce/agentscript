@@ -334,3 +334,74 @@ start_agent Main:
     );
   });
 });
+
+describe('connected_subagent delegate_escalation field', () => {
+  it('accepts delegate_escalation: True with no type-mismatch', () => {
+    const ast = parseDocument(`
+config:
+  agent_name: "Test"
+
+start_agent Main:
+  description: "Main"
+  reasoning:
+    instructions: -> | Test
+
+connected_subagent Refund_Agent:
+  target: "agent://Refund_Agent"
+  description: "Handles refunds"
+  delegate_escalation: True
+`);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    const errors = diagnostics.filter(
+      (d: Diagnostic) => d.code === 'type-mismatch'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports type-mismatch when delegate_escalation is a string', () => {
+    const ast = parseDocument(`
+config:
+  agent_name: "Test"
+
+start_agent Main:
+  description: "Main"
+  reasoning:
+    instructions: -> | Test
+
+connected_subagent Bad_Agent:
+  target: "agent://Bad_Agent"
+  description: "Bad"
+  delegate_escalation: "yes"
+`);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    const errors = diagnostics.filter(
+      (d: Diagnostic) => d.code === 'type-mismatch'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('True or False');
+  });
+
+  it('does not produce type-mismatch when delegate_escalation is unset', () => {
+    const ast = parseDocument(`
+config:
+  agent_name: "Test"
+
+start_agent Main:
+  description: "Main"
+  reasoning:
+    instructions: -> | Test
+
+connected_subagent Simple_Agent:
+  target: "agent://Simple_Agent"
+  description: "No escalation field"
+`);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    const errors = diagnostics.filter(
+      (d: Diagnostic) => d.code === 'type-mismatch'
+    );
+    expect(errors).toHaveLength(0);
+  });
+});

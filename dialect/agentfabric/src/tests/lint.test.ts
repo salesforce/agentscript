@@ -285,7 +285,7 @@ echo done:
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toBe(
-      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+      "router 'r' route 'when' must be a boolean expression (comparison or logical operator)."
     );
   });
 
@@ -316,7 +316,7 @@ echo done:
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toBe(
-      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+      "router 'r' route 'when' must be a boolean expression (comparison or logical operator)."
     );
   });
 
@@ -347,7 +347,7 @@ echo done:
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toBe(
-      "router 'r' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal)."
+      "router 'r' route 'when' must be a boolean expression (comparison or logical operator)."
     );
   });
 
@@ -433,6 +433,120 @@ echo done:
       d => d.code === 'switch-route-when-not-boolean'
     );
     expect(errors).toHaveLength(0);
+  });
+
+  it('rejects boolean literal comparison in router when (== True)', () => {
+    const source = `
+config:
+  agent_name: "router-when-bool-cmp"
+
+trigger t:
+  target: "brokers://router-when-bool-cmp/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classify.output.field == True
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-boolean-literal'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('compares against a boolean literal');
+  });
+
+  it('rejects boolean literal comparison in router when (== False)', () => {
+    const source = `
+config:
+  agent_name: "router-when-bool-cmp-f"
+
+trigger t:
+  target: "brokers://router-when-bool-cmp-f/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classify.output.active == False
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-boolean-literal'
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('rejects lowercase boolean identifier in router when (== true)', () => {
+    const source = `
+config:
+  agent_name: "router-when-bool-lc"
+
+trigger t:
+  target: "brokers://router-when-bool-lc/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classify.output.field == true
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-boolean-literal'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('compares against a boolean literal');
+  });
+
+  it('rejects lowercase boolean identifier in router when (== false)', () => {
+    const source = `
+config:
+  agent_name: "router-when-bool-lc-f"
+
+trigger t:
+  target: "brokers://router-when-bool-lc-f/a2a"
+  on_message: -> transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.done
+      when: @subagent.classify.output.active == false
+  otherwise:
+    target: @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    const errors = result.diagnostics.filter(
+      d => d.code === 'switch-route-when-boolean-literal'
+    );
+    expect(errors).toHaveLength(1);
   });
 
   it('accepts logical and in router when', () => {
@@ -776,6 +890,9 @@ echo out:
 
   it('allows namespaced A2A helper calls when assigning value to variable', () => {
     const source = `
+variables:
+  t: mutable object = {}
+
 executor step:
   do: ->
     set @variables.t = a2a.message({ parts: [a2a.textPart("hello")] })
@@ -1086,6 +1203,135 @@ echo done:
   });
 });
 
+describe('on-exit rules', () => {
+  it('rejects on_exit with two separate transition to statements', () => {
+    const source = `
+config:
+  agent_name: "multi-transition"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://multi-transition/a2a"
+  on_message: ->
+    transition to @subagent.A
+
+subagent A:
+  llm: @llm.g
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @echo.B
+    transition to @echo.C
+
+echo B:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+
+echo C:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'on-exit-single-transition'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "on_exit must contain exactly one 'transition to' target."
+    );
+  });
+
+  it('accepts on_exit with a single transition to statement', () => {
+    const source = `
+config:
+  agent_name: "single-transition"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://single-transition/a2a"
+  on_message: ->
+    transition to @subagent.A
+
+subagent A:
+  llm: @llm.g
+  description: "A subagent"
+  reasoning:
+    instructions: ->
+      | work
+  on_exit: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'on-exit-single-transition'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects duplicate on_exit keys on the same block', () => {
+    const source = `
+config:
+  agent_name: "dup-on-exit"
+  default_llm: @llm.g
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://dup-on-exit/a2a"
+  on_message: ->
+    transition to @generator.reply
+
+generator reply:
+  description: "A generator"
+  prompt: ->
+    | hello
+  on_exit: ->
+    transition to @echo.done
+  on_exit: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const { diagnostics } = parseAndLintSource(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'on-exit-single-transition'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe(
+      "on_exit must contain exactly one 'transition to' target."
+    );
+  });
+});
+
 describe('unused-node rule', () => {
   function unusedNode(diagnostics: Diagnostic[]): Diagnostic[] {
     return diagnostics.filter(d => d.code === 'unused-node');
@@ -1156,6 +1402,9 @@ llm:
     target: "llm://openai"
     kind: "OpenAI"
     model: "gpt-4o-mini"
+
+variables:
+  ready: mutable boolean = False
 
 trigger t:
   kind: "a2a"
@@ -1642,7 +1891,7 @@ actions:
     target: "a2a://billing"
     kind: "a2a:send_message"
     inputs:
-      message: {}
+      message: object
 
 trigger t:
   kind: "a2a"
@@ -1746,7 +1995,7 @@ actions:
     kind: "mcp:tool"
     tool_name: "tool"
     inputs:
-      foo: {}
+      foo: object
 
 trigger t:
   kind: "a2a"

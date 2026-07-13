@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Lint pass that validates custom subagent variants against their schema.
  *
@@ -17,8 +24,12 @@ import {
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { COMMERCE_SHOPPER_SCHEMA } from '../../variants/commerce-cloud-shopper.js';
+import { TABLEAU_ANALYZE_DATA_SCHEMA } from '../../variants/tableau-analyze-data.js';
 import { BYON_SCHEMA_PREFIX } from '../../variants/byon.js';
-import { commerceShopperVariant } from '../../schema.js';
+import {
+  commerceShopperVariant,
+  tableauAnalyzeDataVariant,
+} from '../../schema.js';
 import { extractStringValue, getBlockRange } from '../utils.js';
 
 const NODE_SCHEMA_PREFIX = 'node://';
@@ -33,6 +44,9 @@ const INTERNAL_FIELD_PREFIX = '__';
  */
 const VARIANT_ALLOWED_FIELDS: Record<string, Set<string>> = {
   [COMMERCE_SHOPPER_SCHEMA]: new Set(Object.keys(commerceShopperVariant)),
+  [TABLEAU_ANALYZE_DATA_SCHEMA]: new Set(
+    Object.keys(tableauAnalyzeDataVariant)
+  ),
 };
 
 /**
@@ -75,8 +89,8 @@ class CustomSubagentValidationPass implements LintPass {
 
   run(_store: PassStore, root: AstRoot): void {
     for (const key of ['subagent', 'start_agent'] as const) {
-      const collection = (root as Record<string, unknown>)[key];
-      if (!collection || !isNamedMap(collection)) continue;
+      const collection = root[key];
+      if (!isNamedMap(collection)) continue;
 
       for (const [name, block] of collection as NamedMap<unknown>) {
         if (!block || typeof block !== 'object') continue;

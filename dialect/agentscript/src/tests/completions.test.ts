@@ -563,7 +563,9 @@ describe('getCompletionCandidates', () => {
     );
     const names = candidates.map(c => c.name);
     expect(names).toContain('user_input');
-    expect(candidates).toHaveLength(1);
+    expect(names).toContain('current_modality');
+    expect(names).toContain('current_connection');
+    expect(candidates).toHaveLength(3);
   });
 
   test('global scope completions have Property kind', () => {

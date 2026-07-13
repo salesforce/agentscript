@@ -644,6 +644,9 @@ export function NamedBlock<T extends Schema>(
     });
   });
   dp('discriminantField', discriminantField);
+  if (discriminantField && validVariantNames) {
+    dp('discriminantValues', validVariantNames);
+  }
   dp(
     'resolveSchemaForDiscriminant',
     (value: string): Record<string, FieldType> => {

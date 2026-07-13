@@ -20,6 +20,17 @@ export const AGENT_INSTRUCTIONS_VARIABLE =
   'AgentScriptInternal_agent_instructions';
 export const RUNTIME_CONDITION_VARIABLE = 'AgentScriptInternal_condition';
 
+/**
+ * Returns the per-chain-link condition variable name for slot `idx`.
+ * Used by `else if` chain compilation: each chain link writes to its own
+ * variable so prior links' truth values stay stable when subsequent links
+ * write into their own slots. Slot indices are 1-based and shared across
+ * multiple chains within the same node.
+ */
+export function chainConditionVariableName(idx: number): string {
+  return `${RUNTIME_CONDITION_VARIABLE}_${idx}`;
+}
+
 export const EMPTY_TOPIC_VALUE = '"__EMPTY__"';
 export const NEXT_TOPIC_EMPTY_CONDITION = `state.${NEXT_TOPIC_VARIABLE}=="${EMPTY_TOPIC_VALUE.replace(/"/g, '')}"`;
 
@@ -103,14 +114,29 @@ export const INSTRUCTION_STATE_VARIABLE: InternalStateVariable = {
   visibility: 'Internal',
 };
 
-export const CONDITION_STATE_VARIABLE: InternalStateVariable = {
-  developer_name: RUNTIME_CONDITION_VARIABLE,
-  label: 'Runtime Condition',
-  description: 'Runtime condition evaluation for if statements',
-  data_type: 'boolean',
-  is_list: false,
-  visibility: 'Internal',
-};
+/**
+ * Build the state-variable declaration for the n-th condition slot. Slot 1
+ * is used by plain `if`/`else` (sequential plain ifs reuse it); slots 2..N
+ * are allocated for `else if` chain links.
+ *
+ * Declared on demand by the agent_version assembler based on the maximum
+ * slot index observed across the agent.
+ */
+export function chainConditionStateVariable(
+  idx: number
+): InternalStateVariable {
+  return {
+    developer_name: chainConditionVariableName(idx),
+    label: `Runtime Condition ${idx}`,
+    description:
+      idx === 1
+        ? 'Runtime condition evaluation for if statements'
+        : `Runtime condition evaluation for else-if chain link ${idx}`,
+    data_type: 'boolean',
+    is_list: false,
+    visibility: 'Internal',
+  };
+}
 
 /**
  * Set of internal state variable names that are always present

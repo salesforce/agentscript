@@ -83,9 +83,10 @@ function emitFromSchema(
       if (s) parts.push(wrapWithComments(s, value, ctx));
     } else if (fieldType.emit) {
       const indent = emitIndent(ctx);
+      const prefix = `${indent}${key}: `;
       parts.push(
         wrapWithComments(
-          `${indent}${key}: ${fieldType.emit(value, ctx)}`,
+          `${prefix}${fieldType.emit(value, { ...ctx, continuationColumn: prefix.length })}`,
           value,
           ctx
         )

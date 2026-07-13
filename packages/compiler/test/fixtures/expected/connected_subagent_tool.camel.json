@@ -1,0 +1,240 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "ConnectedAgentToolTest",
+    "label": "Connected Agent Tool Test",
+    "description": "Connected Agent Tool Test",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "Customer_Id",
+        "label": "Customer Id",
+        "description": "Customer identifier",
+        "dataType": "string",
+        "fieldMapping": "MessagingEndUser.ContactId"
+      }
+    ]
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "Order_Id",
+        "label": "Order Id",
+        "description": "Order Id",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "Main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Main coordinator",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Lookup_Order",
+            "boundInputs": {
+              "order_id": "state.Order_Id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "lookup"
+          },
+          {
+            "type": "supervision",
+            "target": "Support_Agent",
+            "stateUpdates": [],
+            "name": "call_support",
+            "description": "Delegate to support"
+          },
+          {
+            "type": "supervision",
+            "target": "Search_Agent",
+            "stateUpdates": [],
+            "name": "call_search",
+            "description": "Search with LLM query"
+          },
+          {
+            "type": "supervision",
+            "target": "Feedback_Agent",
+            "stateUpdates": [],
+            "name": "call_feedback",
+            "description": "Collect feedback"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"Billing\""
+              }
+            ],
+            "name": "go_billing",
+            "description": "Route to billing"
+          }
+        ],
+        "developerName": "Main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Lookup_Order",
+            "label": "Lookup Order",
+            "description": "Look up an order",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Lookup_Order",
+            "inputType": [
+              {
+                "developerName": "order_id",
+                "label": "Order Id",
+                "description": "Order Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nRoute requests to the appropriate agent."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "Billing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"Billing\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Billing topic",
+        "tools": [],
+        "developerName": "Billing",
+        "label": "Billing",
+        "actionDefinitions": [],
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle billing inquiries."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developerName": "Support_Agent",
+        "label": "Support Agent",
+        "description": "Handles customer support",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "Support_Agent",
+        "loadingText": "Connecting you to support..."
+      },
+      {
+        "type": "related_agent",
+        "developerName": "Search_Agent",
+        "label": "Search Agent",
+        "description": "Searches order history",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "Search_Agent",
+        "boundInputs": {
+          "customer_id": "variables.Customer_Id"
+        }
+      },
+      {
+        "type": "related_agent",
+        "developerName": "Feedback_Agent",
+        "label": "Feedback Agent",
+        "description": "Collects customer feedback",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "Feedback_Agent",
+        "boundInputs": {
+          "customer_id": "variables.Customer_Id",
+          "session_tag": "variables.Customer_Id"
+        }
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

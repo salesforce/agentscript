@@ -19,6 +19,7 @@ import {
   TemplateInterpolation,
   IfStatement,
   RunStatement,
+  CollectClause,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
@@ -59,10 +60,21 @@ import {
 } from '../config/model-config.js';
 import { normalizeDeveloperName, dedent } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
+import { compileSkills } from './compile-skills.js';
 import { compileDeterministicDirectives } from './compile-directives.js';
 import { resolveActionType } from './resolve-action-type.js';
-import { warnIfConnectedAgentTransition } from './compile-utils.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
+import {
+  collectStepsFromStatements,
+  findAllCollectTargets,
+  buildCaptureTool,
+  buildResumeHandoff,
+  buildCancelTool,
+  buildCompleteCondition,
+  buildIncompleteCondition,
+  cancelActionName,
+  hasTrailingCompletionAfterCollect,
+} from './compile-collect.js';
 
 /**
  * Compile a topic block into a SubAgentNode.
@@ -93,6 +105,11 @@ export function compileSubAgentNode(
     ctx
   );
 
+  // Compile skills
+  const skills = compileSkills(
+    (topicBlock as { skills?: Parameters<typeof compileSkills>[0] }).skills
+  );
+
   // Compile reasoning tools
   const {
     tools,
@@ -106,6 +123,20 @@ export function compileSubAgentNode(
     topicName,
     topicBlock.reasoning,
     topicDescriptions,
+    ctx
+  );
+
+  // `collect` lowering: synthesize the capture tool and the end-turn-first
+  // self-resume handoff for any collect statements in reasoning.instructions.
+  // The gather prompts themselves are emitted via before_reasoning_iteration.
+  // The resume handoff is emitted into AFTER_REASONING (collected below), not
+  // after_all_tool_calls — see synthesizeCollectArtifacts for why.
+  const collectAfterReasoning: (Action | HandOffAction)[] = [];
+  synthesizeCollectArtifacts(
+    topicName,
+    proceduralStatements,
+    tools,
+    collectAfterReasoning,
     ctx
   );
 
@@ -124,16 +155,24 @@ export function compileSubAgentNode(
 
   if (instructionTemplate !== undefined) {
     if (isProcedural && proceduralStatements) {
-      // Mixed or purely procedural instructions compiled into BRI
-      // Only emit focus_prompt when there's actual template text content
-      // (recursively checking inside if/else bodies)
+      // Mixed or purely procedural instructions compiled into BRI.
+      // Emit focus_prompt when there is instruction content to surface to the
+      // LLM: actual template text (recursively, inside if/else bodies) OR any
+      // `collect` statement. A collect-only subagent has no template text but
+      // its gather prose lives in the agent-instructions state variable, so it
+      // MUST still expose focus_prompt — otherwise the LLM never sees the
+      // gather instructions and hallucinates fields.
       const hasTemplateContent =
         statementsHaveTemplateContent(proceduralStatements);
-      focusPrompt = hasTemplateContent
-        ? `{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`
-        : '';
+      const hasCollect =
+        findAllCollectTargets(proceduralStatements, ctx).length > 0;
+      focusPrompt =
+        hasTemplateContent || hasCollect
+          ? `{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`
+          : '';
       beforeReasoningIteration = compileBeforeReasoningIteration(
         proceduralStatements,
+        topicName,
         ctx
       );
     } else {
@@ -159,11 +198,24 @@ export function compileSubAgentNode(
     ctx
   );
 
-  // Compile after_reasoning directives
-  const afterReasoning = compileAfterReasoning(
+  // Compile after_reasoning directives, then append any collect resume handoff.
+  // The collect auto-resume handoff MUST run on no-tool-call ("ask a field")
+  // turns. In the runtime react graph, when the LLM calls NO tool the graph
+  // goes tool_planner -> after_reasoning (bypassing after_all_tool_calls), so a
+  // handoff emitted in after_all_tool_calls never fires on ask-turns and the
+  // turn does not suspend (end_turn_first is forced False), causing a reset to
+  // the router. after_reasoning runs on BOTH the no-tool path and the
+  // tool-call path (the reasoning loop terminates there once no further tool is
+  // planned), and a handoff there sets hand_off -> on_exit with end_turn_first,
+  // which suspends the turn and resumes the same subagent next turn.
+  const afterReasoningDirectives = compileAfterReasoning(
     extractStatements(topicBlock.after_reasoning),
     ctx
   );
+  const afterReasoning: (Action | HandOffAction)[] | null =
+    afterReasoningDirectives || collectAfterReasoning.length > 0
+      ? [...(afterReasoningDirectives ?? []), ...collectAfterReasoning]
+      : null;
 
   const node: Sourceable<SubAgentNode> = {
     type: 'subagent',
@@ -203,6 +255,9 @@ export function compileSubAgentNode(
   }
   if (mergedModelConfig) {
     node.model_configuration = mergedModelConfig;
+  }
+  if (skills.length > 0) {
+    node.skills = skills;
   }
   if (source !== undefined) {
     node.source = source;
@@ -270,7 +325,6 @@ function compileReasoningTools(
         let foundTarget = false;
         for (const stmt of body) {
           if (stmt instanceof ToClause) {
-            if (warnIfConnectedAgentTransition(stmt.target, ctx)) continue;
             const targetName = resolveAtReference(
               stmt.target,
               TRANSITION_TARGET_NAMESPACES,
@@ -284,8 +338,6 @@ function compileReasoningTools(
           } else if (stmt instanceof TransitionStatement) {
             for (const clause of stmt.clauses) {
               if (clause instanceof ToClause) {
-                if (warnIfConnectedAgentTransition(clause.target, ctx))
-                  continue;
                 const targetName = resolveAtReference(
                   clause.target,
                   TRANSITION_TARGET_NAMESPACES,
@@ -302,16 +354,14 @@ function compileReasoningTools(
         }
         // Fallback: check colinear value for inline target (only if no target found in body)
         if (!foundTarget && def.value) {
-          if (!warnIfConnectedAgentTransition(def.value as Expression, ctx)) {
-            const targetName = resolveAtReference(
-              def.value as Expression,
-              TRANSITION_TARGET_NAMESPACES,
-              ctx,
-              'transition target'
-            );
-            if (targetName) {
-              ctx.actionReferenceMap.set(targetName, actionKey);
-            }
+          const targetName = resolveAtReference(
+            def.value as Expression,
+            TRANSITION_TARGET_NAMESPACES,
+            ctx,
+            'transition target'
+          );
+          if (targetName) {
+            ctx.actionReferenceMap.set(targetName, actionKey);
           }
         }
       }
@@ -338,6 +388,155 @@ function compileReasoningTools(
     isProcedural: result.isProcedural,
     proceduralStatements: result.proceduralStatements,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Collect lowering
+// ---------------------------------------------------------------------------
+
+/**
+ * Synthesize the capture tool and the end-turn-first self-resume handoff for
+ * `collect` statements in a subagent's reasoning.instructions.
+ *
+ * - The capture tool (an @utils.setVariables-style action) is appended to the
+ *   reasoning tools so the LLM can write collected fields.
+ * - The self-resume handoff is appended to AFTER_REASONING (not
+ *   after_all_tool_calls). after_reasoning runs on no-tool-call "ask a field"
+ *   turns (tool_planner -> after_reasoning), whereas after_all_tool_calls is
+ *   bypassed entirely when the LLM calls no tool. Emitting the handoff here lets
+ *   it fire on ask-turns so the turn suspends (end_turn_first) and resumes the
+ *   same subagent next turn instead of resetting to the router. It is gated on
+ *   the gather being incomplete, so it disappears once all fields are filled.
+ */
+function synthesizeCollectArtifacts(
+  topicName: string,
+  proceduralStatements: Statement[] | undefined,
+  tools: (Tool | SupervisionTool)[],
+  afterReasoning: (Action | HandOffAction)[],
+  ctx: CompilerContext
+): void {
+  const steps = collectStepsFromStatements(proceduralStatements, ctx);
+  if (steps.length === 0) return;
+
+  // `collect` is a demo/beta feature. Emit a single Information-severity notice
+  // (once per script, gated by a flag on the per-compile context) pointed at the
+  // first `collect` keyword. It does not fail compilation or alter output.
+  if (!ctx.collectExperimentalNoticeEmitted) {
+    ctx.collectExperimentalNoticeEmitted = true;
+    ctx.info(
+      "'collect' is experimental and provided for early feedback; its behavior may change in future releases.",
+      firstCollectRange(proceduralStatements),
+      'collect-experimental'
+    );
+  }
+
+  // `collect` is only well-defined in a NON-initial subagent (W-23177847).
+  // Its lowering assumes the gathering node is reached via a transition from the
+  // router: the self-resume handoff re-arms the gather each turn, and
+  // reset_to_initial_node returns the user to the router after the gather / on
+  // cancel. The start_agent IS the initial node — if it hosts the gather,
+  // reset_to_initial_node resets back INTO the gather every turn and there is no
+  // router to fall back to: the user is trapped and cancel/change-of-intent has
+  // nowhere to route. Reject it at author time rather than emit a trapping graph.
+  if (ctx.initialNode && topicName === ctx.initialNode) {
+    const range = firstCollectRange(proceduralStatements);
+    ctx.error(
+      "'collect' cannot be used in start_agent. Move it into a subagent.",
+      range
+    );
+    return;
+  }
+
+  // Union EVERY collect target — top-level AND nested (branch) — so the shared
+  // capture binding can write any field the user provides.
+  const targets = findAllCollectTargets(proceduralStatements, ctx);
+  if (targets.length === 0) return;
+
+  // Capture tool — written into the reasoning actions.
+  tools.push(buildCaptureTool(topicName, targets, ctx));
+
+  // Change-of-intent escape hatch (W-23142782). Mid-gather the user may abandon
+  // their original request ("never mind", "cancel", "let's do X instead").
+  // Without an escape the gather is a trap: the resume handoff below re-arms the
+  // same collecting node every turn while any field is unfilled, overriding
+  // reset_to_initial_node. We synthesize a cancel tool the model can call to
+  // break that loop. The cancel tool writes the graph's initial node (the
+  // router) into next_topic, which gates OFF the resume handoff (its enabled
+  // condition ANDs in NEXT_TOPIC_EMPTY_CONDITION), so the resume no longer
+  // re-arms the collecting node and the turn ends cleanly on it.
+  //
+  // We deliberately emit NO cancel HANDOFF (W-23142782, superseding bbb0d6cf).
+  // The deployed HTA reasoner does NOT honor end_turn_first at all — a handoff
+  // whose target is a DIFFERENT node ALWAYS transitions in the SAME turn. So a
+  // cancel handoff back to the router would re-run the router's instruction
+  // injection and emit a SECOND closing message right after the collecting
+  // node's "No problem…" acknowledgement — the change-of-intent "double
+  // goodbye". (The earlier fix set end_turn_first:true on that handoff, but
+  // that flag is a no-op on HTA, so the bug still reproduced live.) By DROPPING
+  // the handoff: the cancel turn fires no handoff (resume is gated off because
+  // next_topic is no longer EMPTY), the turn ends on the collecting node, and
+  // exactly ONE message (the acknowledgement) is emitted. The user's NEXT
+  // message resets to the router via reset_to_initial_node_on_every_turn (which
+  // unconditionally sets the current agent to the initial node at the start of
+  // every request — it does NOT read next_topic), so the new request is handled
+  // normally. This mirrors the completion-path double-goodbye fix, which
+  // likewise drops the handoff and relies on reset_to_initial_node for routing.
+  //
+  // The cancel tool can only route somewhere if the graph HAS an initial node;
+  // ctx.initialNode is resolved before node compilation (see
+  // compileAgentVersion). When absent (defensive — a well-formed agent always
+  // has a start_agent), we skip the escape hatch and fall back to the prior
+  // trap-but-functional behavior.
+  const initialNode = ctx.initialNode;
+  if (initialNode) {
+    tools.push(buildCancelTool(topicName, initialNode));
+  }
+
+  // Emit ONLY the INCOMPLETE -> self resume handoff (end_turn_first:true): it
+  // resumes the same subagent next turn while any field is still unfilled, and
+  // its incomplete gate is FALSE once every field is filled, so it does not fire
+  // on the completion turn. The branch gate is branch-aware: a branch-group step
+  // counts as satisfied once any sibling field is filled.
+  //
+  // No completion handoff is emitted. The deployed HTA reasoner transitions to a
+  // DIFFERENT-node handoff target in the SAME turn (it does not honor
+  // end_turn_first), so a completion handoff back to the router re-ran the
+  // router's instruction injection and emitted a SECOND closing message — the
+  // "double goodbye". It is also unnecessary for routing: the agent runs with
+  // reset_to_initial_node, so once the gather completes and the turn ends, the
+  // user's NEXT message already resets to the router. Dropping the completion
+  // handoff lets the turn end cleanly on the collecting subagent node.
+  afterReasoning.push(buildResumeHandoff(topicName, steps));
+
+  // No cancel handoff is emitted (see the change-of-intent comment above). The
+  // cancel tool's next_topic write gates OFF this resume handoff, so the cancel
+  // turn ends on the collecting node with a single acknowledgement message;
+  // routing back to the router happens on the user's next message via
+  // reset_to_initial_node. Emitting a different-node cancel handoff here would
+  // transition in the same turn on HTA (end_turn_first is ignored) and produce
+  // a second closing message — the double goodbye this story fixes.
+}
+
+/**
+ * Find the source range of the first `collect` statement (top-level or nested in
+ * an if's then/else body) so the start_agent rejection diagnostic points at the
+ * offending construct. Falls back to undefined (FALLBACK_RANGE) when no range is
+ * recoverable.
+ */
+function firstCollectRange(
+  statements: Statement[] | undefined
+): Range | undefined {
+  if (!statements) return undefined;
+  for (const stmt of statements) {
+    if (stmt instanceof CollectClause) {
+      return stmt.__cst?.range;
+    }
+    if (stmt instanceof IfStatement) {
+      const nested = firstCollectRange([...stmt.body, ...stmt.orelse]);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +579,7 @@ function compileSystemInstructions(
 
 function compileBeforeReasoningIteration(
   statements: Statement[],
+  topicName: string,
   ctx: CompilerContext
 ): Action[] {
   if (statements.length === 0) return [];
@@ -398,9 +598,80 @@ function compileBeforeReasoningIteration(
     addNextTopicResetAction: false,
     gateOnNextTopicEmpty: false,
     agentInstructionsVariable: AGENT_INSTRUCTIONS_VARIABLE,
+    topicName,
   });
 
   result.push(...(actions as Action[]));
+
+  // Terminal-turn STOP instruction (W-23142779).
+  //
+  // before_reasoning_iteration resets AGENT_INSTRUCTIONS_VARIABLE to '' every
+  // turn and then appends a gather prompt only for fields that are still
+  // unfilled. On the completion ("end") turn every field IS filled, so no
+  // gather prompt is appended and the agent-instructions variable stays empty.
+  // With no instruction in focus_prompt the LLM has nothing telling it to stop,
+  // so it freelances and hallucinates field values.
+  //
+  // To close that gap we append a gated instruction, enabled ONLY on the
+  // complete condition (the exact complement of the resume gate), that
+  // re-asserts "everything is collected, do not ask for more". The deterministic
+  // completion handoff still routes back to the router (see
+  // synthesizeCollectArtifacts), but this guarantees the terminal turn never
+  // leaves the LLM with an empty instruction to freelance into.
+  //
+  // Suppressed when the builder authored their own trailing completion handling,
+  // mirroring the completion-handoff suppression so we never override their prose.
+  const collectSteps = collectStepsFromStatements(statements, ctx);
+  if (
+    collectSteps.length > 0 &&
+    !hasTrailingCompletionAfterCollect(statements, ctx)
+  ) {
+    result.push({
+      type: 'action',
+      target: STATE_UPDATE_ACTION,
+      enabled: buildCompleteCondition(collectSteps),
+      state_updates: [
+        {
+          [AGENT_INSTRUCTIONS_VARIABLE]: `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}\nAll required details are collected. Do not ask for anything further.`,
+        },
+      ],
+    });
+  }
+
+  // Change-of-intent instruction (W-23142782).
+  //
+  // The gather prompts above are hard-steered: each tells the model to ask for
+  // the next missing field and call the capture tool. Nothing in that prose
+  // lets the user back out, so a mid-gather "actually never mind / cancel /
+  // let's do X instead" is ignored and the user is trapped. We append a gated
+  // instruction — enabled ONLY while the gather is INCOMPLETE (the same
+  // condition that arms the resume handoff), i.e. exactly on the ask turns where
+  // a change-of-intent can happen — that tells the model to call the cancel tool
+  // instead of asking for the next field when the user wants to bail. The cancel
+  // tool flips next_topic to the router; the cancel handoff then routes there in
+  // the same turn (see synthesizeCollectArtifacts) and the new request is
+  // handled normally.
+  //
+  // Only emitted when the graph has an initial node to route back to (so the
+  // cancel tool actually exists). Unlike the terminal STOP instruction this is
+  // NOT suppressed by builder-authored trailing content: trailing content is a
+  // COMPLETION-path concern (the builder's closing prose after a finished
+  // gather), whereas change-of-intent operates mid-gather on the INCOMPLETE
+  // path, so the two never conflict — a builder who wrote a closing message
+  // still wants the user to be able to bail before the gather finishes.
+  if (collectSteps.length > 0 && ctx.initialNode) {
+    const cancelName = cancelActionName(topicName);
+    result.push({
+      type: 'action',
+      target: STATE_UPDATE_ACTION,
+      enabled: buildIncompleteCondition(collectSteps),
+      state_updates: [
+        {
+          [AGENT_INSTRUCTIONS_VARIABLE]: `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}\nIf the user changes their mind, cancels, says never mind, or asks for something else instead, do not ask for the next field — call ${cancelName} instead.`,
+        },
+      ],
+    });
+  }
 
   return result;
 }

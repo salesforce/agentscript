@@ -12,8 +12,17 @@
  * Tests before/after reasoning directive compilation.
  */
 import { describe, it, expect } from 'vitest';
+import type { Statement } from '@agentscript/language';
+import {
+  AtIdentifier,
+  MemberExpression,
+  ToClause,
+  TransitionStatement,
+} from '@agentscript/language';
 import { compile } from '../src/compile.js';
-import { DiagnosticSeverity } from '../src/diagnostics.js';
+import { compileDeterministicDirectives } from '../src/nodes/compile-directives.js';
+import { CompilerContext } from '../src/compiler-context.js';
+import type { HandOffAction } from '../src/types.js';
 import { parseSource } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
@@ -125,32 +134,68 @@ topic destination:
     // Successful compilation should produce zero diagnostics
     expect(diagnostics).toHaveLength(0);
   });
+});
 
-  it('should warn when transitioning to @connected_subagent.X in before_reasoning', () => {
-    const source = `
-config:
-    agent_name: "TestBot"
-    agent_type: "AgentforceServiceAgent"
-    default_agent_user: "test@example.com"
-
-start_agent main:
-    description: "Main topic"
-    before_reasoning:
-        transition to @connected_subagent.Support_Agent
-    reasoning:
-        instructions: ->
-            | Help the user.
-
-connected_subagent Support_Agent:
-    target: "agent://Support_Agent"
-    label: "Support Agent"
-    description: "Handles support"
-`;
-    const { diagnostics } = compile(parseSource(source));
-    const transitionWarnings = diagnostics.filter(d =>
-      d.message.includes('Transition to connected agent')
+describe('end_turn_first in transition directives', () => {
+  /**
+   * Build a `transition to @topic.<target>` directive statement list so we can
+   * drive compileDeterministicDirectives directly — this exercises the
+   * compileTransitionDirective handoff construction site (distinct from the
+   * @utils.transition reasoning action covered in transitions.test.ts).
+   */
+  function transitionDirective(target: string): Statement[] {
+    const toClause = new ToClause(
+      new MemberExpression(new AtIdentifier('topic'), target)
     );
-    expect(transitionWarnings.length).toBeGreaterThan(0);
-    expect(transitionWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    return [new TransitionStatement([toClause])];
+  }
+
+  function handoffsFrom(
+    actions: ReturnType<typeof compileDeterministicDirectives>
+  ): HandOffAction[] {
+    return actions.filter(
+      (a): a is HandOffAction => (a as HandOffAction).type === 'handoff'
+    );
+  }
+
+  it('should not emit end_turn_first by default', () => {
+    const ctx = new CompilerContext();
+    const actions = compileDeterministicDirectives(
+      transitionDirective('destination'),
+      ctx,
+      { addNextTopicResetAction: false }
+    );
+
+    const handoffs = handoffsFrom(actions);
+    expect(handoffs.length).toBe(1);
+    expect(handoffs[0].target).toBe('destination');
+    expect(handoffs[0].end_turn_first).toBeUndefined();
+    expect('end_turn_first' in handoffs[0]).toBe(false);
+  });
+
+  it('should emit end_turn_first=true when the option is set', () => {
+    const ctx = new CompilerContext();
+    const actions = compileDeterministicDirectives(
+      transitionDirective('destination'),
+      ctx,
+      { addNextTopicResetAction: false, endTurnFirst: true }
+    );
+
+    const handoffs = handoffsFrom(actions);
+    expect(handoffs.length).toBe(1);
+    expect(handoffs[0].end_turn_first).toBe(true);
+  });
+
+  it('should not emit end_turn_first when the option is explicitly false', () => {
+    const ctx = new CompilerContext();
+    const actions = compileDeterministicDirectives(
+      transitionDirective('destination'),
+      ctx,
+      { addNextTopicResetAction: false, endTurnFirst: false }
+    );
+
+    const handoffs = handoffsFrom(actions);
+    expect(handoffs.length).toBe(1);
+    expect(handoffs[0].end_turn_first).toBeUndefined();
   });
 });

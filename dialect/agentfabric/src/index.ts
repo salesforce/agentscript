@@ -13,7 +13,13 @@ import type {
 } from '@agentscript/language';
 import { AgentFabricSchema, AgentFabricSchemaInfo } from './schema.js';
 import { defaultRules } from './lint/passes/index.js';
+// Sourced from the build-generated pkg-meta.ts (regenerated from package.json
+// by scripts/sync-pkg-meta.mjs) so DIALECT_VERSION tracks the released version
+// automatically — matching the agentscript and agentforce dialects. Do not
+// reintroduce a hardcoded constant or a `package.json` import attribute (the
+// latter broke webpack 5.72; see #506).
 import { DIALECT_NAME, DIALECT_VERSION } from './pkg-meta.js';
+export { DIALECT_NAME, DIALECT_VERSION };
 
 // ── Schema re-exports ───────────────────────────────────────────────
 
@@ -43,6 +49,15 @@ export {
   AgentFabricSchemaInfo,
   agentFabricSchemaContext,
 } from './schema.js';
+
+// ── Constants ───────────────────────────────────────────────────────
+
+export {
+  ConnectionKind,
+  CONNECTION_KIND_SCHEME,
+  Namespace,
+  TRANSITION_TARGET_NAMESPACES,
+} from './constants.js';
 
 // ── Parsed types derived from schema ────────────────────────────────
 
@@ -86,6 +101,15 @@ export type {
 
 export { defaultRules } from './lint/passes/index.js';
 export { createLintEngine } from './lint/index.js';
+
+// ── Shared utilities (used by lint rules and the compiler package) ───
+
+export {
+  normalizeId,
+  iterateCollection,
+  listActionDefInputNames,
+  IMPLICIT_WITH_PARAMS,
+} from './utils.js';
 
 // ── Graph re-exports ─────────────────────────────────────────────────
 

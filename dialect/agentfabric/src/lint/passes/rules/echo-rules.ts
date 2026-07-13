@@ -6,7 +6,7 @@
  */
 
 import { isNamedMap } from '@agentscript/language';
-import { normalizeId } from '../../utils.js';
+import { normalizeId } from '../../../utils.js';
 import { A2A_TASK_STATES, A2A_TERMINAL_STATES } from '../../../schema.js';
 import { attachError, extractStringValue, type AstLike } from './shared.js';
 

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import { describe, it, expect } from 'vitest';
 import { Block } from './block-factory.js';
 import { NamedBlock } from './named-block-factory.js';
@@ -44,6 +51,10 @@ describe('factory builders expose graph-extraction metadata methods', () => {
     expectFlag(
       Block('B', { f: StringValue }).displayLabelField(),
       'displayLabelField'
+    );
+    expectFlag(
+      Block('B', { f: StringValue }).structuredOutputField(),
+      'structuredOutputField'
     );
   });
 

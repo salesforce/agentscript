@@ -25,6 +25,7 @@ import {
   resolveNamespaceKeys,
   decomposeAtMemberExpression,
   isNamedMap,
+  isAstNodeLike,
   attachDiagnostic,
   lintDiagnostic,
   each,
@@ -79,7 +80,6 @@ class HyperclassifierExtractor implements LintPass {
     if (!ctx) return;
 
     const results: HyperclassifierTopic[] = [];
-    const rootObj = root as AstNodeLike;
 
     // Check all block types that could be hyperclassifiers: topic, subagent, start_agent
     const allKeys = new Set([
@@ -88,17 +88,16 @@ class HyperclassifierExtractor implements LintPass {
     ]);
 
     for (const topicKey of allKeys) {
-      const topicMap = rootObj[topicKey];
-      if (!topicMap || !isNamedMap(topicMap)) continue;
+      const topicMap = root[topicKey];
+      if (!isNamedMap(topicMap)) continue;
 
-      for (const [topicName, block] of topicMap as NamedMap<unknown>) {
-        if (!block || typeof block !== 'object') continue;
-        const topic = block as AstNodeLike;
+      for (const [topicName, block] of topicMap) {
+        if (!isAstNodeLike(block)) continue;
 
-        const modelStr = getModelString(topic);
+        const modelStr = getModelString(block);
         if (modelStr !== HYPERCLASSIFIER_MODEL) continue;
 
-        results.push({ topicName, block: topic, model: modelStr });
+        results.push({ topicName, block, model: modelStr });
       }
     }
 

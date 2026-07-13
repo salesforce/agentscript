@@ -318,6 +318,10 @@ export const ConnectedSubagentBlock = NamedBlock(
       .disallowTemplates(
         'Templates are for LLM instructions; connected agents have no reasoning loop.'
       ),
+    delegate_escalation: BooleanValue.describe(
+      'When True (default), use the outbound flow of the connected subagent. ' +
+        'When False, use the outbound flow of the orchestrator agent.'
+    ),
   },
   { capabilities: ['invocationTarget', 'transitionTarget'] }
 );
@@ -424,9 +428,23 @@ export const AgentScriptSchemaAliases: Record<string, string> = {
   start_agent: 'subagent',
 };
 
+/**
+ * Member surface offered on a resolved node reference inside an expression
+ * (`@<nodeType>.<nodeName>.<member>`). Declared here, in the dialect, so the
+ * names originate in schema data rather than a core literal. `output`
+ * enumerates the node's structured output (located via the
+ * `structuredOutputField` field marker); `input` is a non-enumerable
+ * sub-surface.
+ */
+export const NodeMemberAccess = {
+  members: ['input', 'output'] as const,
+  outputMember: 'output',
+} as const;
+
 export const AgentScriptSchemaInfo: SchemaInfo = {
   schema: AgentScriptSchema as Record<string, FieldType>,
   aliases: AgentScriptSchemaAliases,
+  nodeMemberAccess: NodeMemberAccess,
   // TODO: globalScopes are just bags of member names with no type information.
   // Each member is an invokable with its own signature — e.g. transition takes a
   // transitionTarget argument, setVariables takes variable bindings, escalate takes
@@ -434,7 +452,11 @@ export const AgentScriptSchemaInfo: SchemaInfo = {
   // in resolvedType validation instead of being silently skipped.
   globalScopes: {
     utils: new Set(['transition', 'setVariables', 'escalate', 'end_session']),
-    system_variables: new Set(['user_input']),
+    system_variables: new Set([
+      'user_input',
+      'current_modality',
+      'current_connection',
+    ]),
   },
 };
 

@@ -1,0 +1,327 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "HelloWorld_Agent",
+    "label": "Hello World Agent",
+    "description": "A minimal agent that greets users",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "User1"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I'm a simple agent here to say hi.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, I encountered an error.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "name",
+        "label": "Name",
+        "description": "Name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "order_number1",
+        "label": "Order Number 1",
+        "description": "Order Number 1",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "email",
+        "label": "Email",
+        "description": "Email",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "order_number",
+        "label": "Order Number",
+        "description": "Order Number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "order_information",
+        "label": "Order Information",
+        "description": "Order Information",
+        "dataType": "object",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "attempt_count",
+        "label": "Attempt Count",
+        "description": "Attempt Count",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "order_lookup",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "looks up users orders",
+        "tools": [
+          {
+            "type": "action",
+            "target": "retrieve_order_details",
+            "boundInputs": {
+              "email_or_account_id": "state.email",
+              "order_number": "state.order_number"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "order_information": "result.order_information"
+              }
+            ],
+            "name": "retrieve_order_details",
+            "enabled": "state.email  is not None and state.order_number  is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ],
+            "name": "increment_counter",
+            "description": "Increment the attempt counter",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          }
+        ],
+        "developerName": "order_lookup",
+        "label": "Order Lookup",
+        "actionDefinitions": [
+          {
+            "developerName": "retrieve_order_details",
+            "label": "Retrieve Order Details",
+            "description": "Retrieves order details",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "retrieve_order_details",
+            "inputType": [
+              {
+                "developerName": "email_or_account_id",
+                "label": "Email Or Account Id",
+                "description": "Email Or Account Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "order_number",
+                "label": "Order Number",
+                "description": "Order Number",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "order_information",
+                "label": "Order Information",
+                "description": "Order Information",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a friendly assistant who warmly greets users.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssist the user in retrieving the status of their order."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nFirst, confirm the user's identity by gathering their email or account ID."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nUse the retrieve_order_details action to query the order management system and retrieve the relevant order information."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nUse the response to provide accurate answers to the user's order-tracking questions."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nOnly invoke retrieve_order_details if both email and order number are provided by the user. {{state.order_number1}}"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "Escalation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"Escalation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "postToolCall": [
+          {
+            "target": "retrieve_order_details",
+            "actions": [
+              {
+                "type": "action",
+                "target": "__state_update_action__",
+                "enabled": "True",
+                "stateUpdates": [
+                  {
+                    "AgentScriptInternal_condition_1": "state.order_information == \"\""
+                  }
+                ]
+              },
+              {
+                "type": "action",
+                "target": "__state_update_action__",
+                "enabled": "state.AgentScriptInternal_condition_1",
+                "stateUpdates": [
+                  {
+                    "AgentScriptInternal_next_topic": "\"Escalation\""
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles all escalations to human agents",
+        "tools": [],
+        "developerName": "Escalation",
+        "label": "Escalation",
+        "actionDefinitions": [],
+        "instructions": "You are a friendly assistant who warmly greets users.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandover the conversation to a human agent"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm a simple agent here to say hi.\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, I encountered an error.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

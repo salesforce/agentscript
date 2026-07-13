@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import {
   DiagnosticSeverity,
   DiagnosticTag,
@@ -9,16 +16,12 @@ import {
 } from '@agentscript/language';
 import type { AstRoot, LintPass, PassStore } from '@agentscript/language';
 import { AGENTFABRIC_LINT_SOURCE } from './shared.js';
+import { Namespace, TRANSITION_TARGET_NAMESPACES } from '../../../constants.js';
 
-const NODE_NAMESPACES = new Set([
-  'orchestrator',
-  'subagent',
-  'generator',
-  'executor',
-  'router',
-  'echo',
-  'actions',
-  'llm',
+const NODE_NAMESPACES = new Set<string>([
+  ...TRANSITION_TARGET_NAMESPACES,
+  Namespace.Actions,
+  Namespace.LLM,
 ]);
 
 class UnusedNodePass implements LintPass {
@@ -43,17 +46,33 @@ class UnusedNodePass implements LintPass {
     const groups: Array<{ namespace: string; label: string; group: unknown }> =
       [
         {
-          namespace: 'orchestrator',
+          namespace: Namespace.Orchestrator,
           label: 'Orchestrator',
           group: root.orchestrator,
         },
-        { namespace: 'subagent', label: 'Subagent', group: root.subagent },
-        { namespace: 'generator', label: 'Generator', group: root.generator },
-        { namespace: 'executor', label: 'Executor', group: root.executor },
-        { namespace: 'router', label: 'Router', group: root.router },
-        { namespace: 'echo', label: 'Echo', group: root.echo },
-        { namespace: 'actions', label: 'Actions', group: root.actions },
-        { namespace: 'llm', label: 'LLM', group: root.llm },
+        {
+          namespace: Namespace.Subagent,
+          label: 'Subagent',
+          group: root.subagent,
+        },
+        {
+          namespace: Namespace.Generator,
+          label: 'Generator',
+          group: root.generator,
+        },
+        {
+          namespace: Namespace.Executor,
+          label: 'Executor',
+          group: root.executor,
+        },
+        { namespace: Namespace.Router, label: 'Router', group: root.router },
+        { namespace: Namespace.Echo, label: 'Echo', group: root.echo },
+        {
+          namespace: Namespace.Actions,
+          label: 'Actions',
+          group: root.actions,
+        },
+        { namespace: Namespace.LLM, label: 'LLM', group: root.llm },
       ];
 
     for (const { namespace, label, group } of groups) {

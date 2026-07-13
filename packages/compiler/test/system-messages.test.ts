@@ -14,6 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
+import { DiagnosticSeverity } from '../src/diagnostics.js';
 import { parseSource } from './test-utils.js';
 
 describe('system messages', () => {
@@ -395,6 +396,50 @@ start_agent main:
     expect(errorMsg!.message).toBe(
       'Sorry, something went wrong. Please try again.'
     );
+  });
+
+  it('should compile External-visibility mutable variable into welcome and error messages', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+system:
+    messages:
+        welcome: |
+            Hello {!@variables.user_name}!
+        error: |
+            Sorry {!@variables.user_name}, something went wrong.
+
+variables:
+    user_name: mutable string = ""
+        visibility: "External"
+        description: "Customer name"
+
+start_agent main:
+    description: "desc"
+    reasoning:
+        instructions: ->
+            | Help
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+
+    const errors = diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors).toEqual([]);
+
+    const welcomeMsg = output.agent_version.system_messages.find(
+      m => m.message_type === 'Welcome'
+    );
+    const errorMsg = output.agent_version.system_messages.find(
+      m => m.message_type === 'Error'
+    );
+
+    expect(welcomeMsg).toBeDefined();
+    expect(welcomeMsg!.message).toContain('{{state.user_name}}');
+
+    expect(errorMsg).toBeDefined();
+    expect(errorMsg!.message).toContain('{{state.user_name}}');
   });
 
   // Python: test__system_messages.TestDynamicSystemMessages.test_compile_system_messages_with_multiple_variables

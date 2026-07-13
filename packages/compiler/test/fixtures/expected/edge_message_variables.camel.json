@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Message_Vars_Agent",
+    "label": "Message Vars Agent",
+    "description": "Agent using variable substitution in messages",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "customer_name",
+        "label": "Customer Name",
+        "description": "The customer's name, sourced from the messaging session",
+        "dataType": "string",
+        "fieldMapping": "MessagingEndUser.ContactId"
+      },
+      {
+        "developerName": "case_number",
+        "label": "Case Number",
+        "description": "The current case number, sourced from the messaging session",
+        "dataType": "string",
+        "fieldMapping": "MessagingSession.Id"
+      }
+    ],
+    "defaultAgentUser": "x@y.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello {!$Context.customer_name}! Welcome to our support center, {{state.greeting_name}}.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry {!$Context.customer_name}, we hit an error on case {!$Context.case_number}. Please try again, {{state.greeting_name}}.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "greeting_name",
+        "label": "Greeting Name",
+        "description": "Externally-populated display name available in system messages",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "External",
+        "default": "''"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Greet customer with personalized message",
+        "tools": [],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "You are a support agent that personalizes interactions using customer data.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nGreet the customer by name and help with their request"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello {!$Context.customer_name}! Welcome to our support center, {{state.greeting_name}}.\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry {!$Context.customer_name}, we hit an error on case {!$Context.case_number}. Please try again, {{state.greeting_name}}.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

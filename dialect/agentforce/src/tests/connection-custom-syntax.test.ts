@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import { describe, it, expect } from 'vitest';
 import { isNamedMap } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
@@ -247,6 +254,8 @@ describe('@inputs reference resolution', () => {
   const inputsReferenceSource = `
 config:
     developer_name: "test"
+
+access:
     default_agent_user: "test@test.com"
 
 connection messaging:

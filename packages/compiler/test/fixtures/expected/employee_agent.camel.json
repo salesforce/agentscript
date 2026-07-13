@@ -1,0 +1,313 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "aea_1",
+    "label": "Aea 1",
+    "description": "Aea 1",
+    "enableEnhancedEventLogs": false,
+    "agentType": "AgentforceEmployeeAgent",
+    "contextVariables": []
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "hello",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "goodbye",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer Name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "issue_type",
+        "label": "Issue Type",
+        "description": "Issue Type",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'general'"
+      },
+      {
+        "developerName": "priority",
+        "label": "Priority",
+        "description": "Priority",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 1
+      }
+    ],
+    "initialNode": "greeting",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Greet the customer and gather basic information",
+        "tools": [
+          {
+            "type": "action",
+            "target": "collect_info",
+            "boundInputs": {},
+            "llmInputs": [
+              "name",
+              "issue"
+            ],
+            "stateUpdates": [],
+            "name": "collect_info"
+          }
+        ],
+        "developerName": "greeting",
+        "label": "Greeting",
+        "actionDefinitions": [
+          {
+            "developerName": "collect_info",
+            "label": "Collect Info",
+            "description": "collect all the info needed",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "collect_info",
+            "inputType": [
+              {
+                "developerName": "name",
+                "label": "Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "metadata",
+                "label": "Metadata",
+                "description": "Metadata",
+                "dataType": "ApexDefined",
+                "isList": false,
+                "required": false,
+                "isUserInput": false,
+                "complexDataTypeName": "c__RequestMetadata"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "name",
+                "label": "Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "citations",
+                "label": "Citations",
+                "description": "Citations",
+                "dataType": "ApexDefined",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "c__CitationData"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an agent helping employees with all internal employee operations like record CRUD",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHello! I'm here to help you today.\nCould you please tell me your name and how I can assist you?"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Say hello to the world",
+        "tools": [
+          {
+            "type": "action",
+            "target": "collect_info",
+            "boundInputs": {},
+            "llmInputs": [
+              "name",
+              "issue"
+            ],
+            "stateUpdates": [],
+            "name": "collect_info"
+          }
+        ],
+        "developerName": "hello",
+        "label": "Hello",
+        "actionDefinitions": [
+          {
+            "developerName": "collect_info",
+            "label": "Collect Info",
+            "description": "collect all the info needed",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "collect_info",
+            "inputType": [
+              {
+                "developerName": "name",
+                "label": "Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "metadata",
+                "label": "Metadata",
+                "description": "Metadata",
+                "dataType": "ApexDefined",
+                "isList": false,
+                "required": false,
+                "isUserInput": false,
+                "complexDataTypeName": "c__RequestMetadata"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "name",
+                "label": "Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "issue",
+                "label": "Issue",
+                "description": "Issue",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "citations",
+                "label": "Citations",
+                "description": "Citations",
+                "dataType": "ApexDefined",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "c__CitationData"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an agent helping employees with all internal employee operations like record CRUD",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHello! I'm here to help you today.\nCould you please tell me your name and how I can assist you?"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"hello\", \"messageType\": \"Welcome\"}, {\"message\": \"goodbye\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

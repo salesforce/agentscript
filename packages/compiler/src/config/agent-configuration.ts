@@ -11,7 +11,11 @@ import type {
   ContextVariable,
   AdditionalParameters,
 } from '../types.js';
-import type { ParsedConfig, ParsedKnowledge } from '../parsed-types.js';
+import type {
+  ParsedConfig,
+  ParsedKnowledge,
+  ParsedAccess,
+} from '../parsed-types.js';
 import { DEFAULT_AGENT_TYPE } from '../constants.js';
 import {
   extractStringValue,
@@ -37,9 +41,14 @@ function configField(config: ParsedConfig, key: string): unknown {
 
 /**
  * Compile the global agent configuration from the parsed AST.
+ *
+ * `default_agent_user` may live in either the legacy `config.default_agent_user`
+ * field (deprecated) or the new `access.default_agent_user` field. The access
+ * block wins when both are set.
  */
 export function compileAgentConfiguration(
   config: ParsedConfig | undefined,
+  access: ParsedAccess | undefined,
   contextVariables: ContextVariable[],
   ctx: CompilerContext
 ): GlobalAgentConfiguration {
@@ -72,8 +81,11 @@ export function compileAgentConfiguration(
       ? 'EinsteinServiceAgent'
       : rawAgentTypeSourced
   ) as Sourceable<GlobalAgentConfiguration['agent_type']>;
+  // access.default_agent_user takes precedence over the deprecated config.default_agent_user.
   const defaultAgentUser =
-    extractSourcedString(config['default_agent_user']) ?? '';
+    extractSourcedString(access?.default_agent_user) ??
+    extractSourcedString(config['default_agent_user']) ??
+    '';
   const templateName = extractSourcedString(
     configField(config, 'agent_template')
   );
@@ -100,7 +112,9 @@ export function compileAgentConfiguration(
 
   // Only include default_agent_user if it's not empty
   const defaultAgentUserPlain =
-    extractStringValue(config['default_agent_user']) ?? '';
+    extractStringValue(access?.default_agent_user) ??
+    extractStringValue(config['default_agent_user']) ??
+    '';
   if (defaultAgentUserPlain) {
     result.default_agent_user = defaultAgentUser;
   }

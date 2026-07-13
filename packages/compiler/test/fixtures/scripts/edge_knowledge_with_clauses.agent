@@ -1,0 +1,53 @@
+system:
+    instructions: "You are a Knowledge Answers Service Agent."
+    messages:
+        welcome: "Hi, I'm an AI assistant. How can I help you?"
+        error: "Sorry, it looks like something has gone wrong."
+
+config:
+    agent_type: "AgentforceServiceAgent"
+    developer_name: "Service_Knowledge_Action_Agent"
+    default_agent_user: "test@test.com"
+    agent_label: "Service Knowledge Action Agent"
+    description: "An agent that can answer user queries with knowledge_action"
+
+knowledge:
+    rag_feature_config_id: "ARFPC_ProductKnowledge_12345"
+    citations_enabled: True
+    citations_url: "https://help.example.com/articles"
+
+start_agent main:
+    label: "Service With Knowledge Answers"
+    description: "Help user to answer the queries from Knowledge Answers"
+
+    reasoning:
+        instructions: |
+            Ask the user to understand their questions
+        actions:
+            knowledge_action: @actions.knowledge_action
+                description: "Ask questions"
+                with config_id=@knowledge.rag_feature_config_id
+                with enabled=@knowledge.citations_enabled
+                with url=@knowledge.citations_url
+                with query=...
+
+    actions:
+        knowledge_action:
+            description: "Ask questions"
+            inputs:
+                config_id: string
+                    description: "The RAG feature config ID"
+                    is_required: True
+                enabled: boolean
+                    description: "Whether citations are enabled"
+                    is_required: True
+                url: string
+                    description: "The citations URL"
+                    is_required: True
+                query: string
+                    description: "The user's question"
+                    is_required: True
+            outputs:
+                answer: string
+                    description: "The answer from the knowledge base"
+            target: "standardInvocableAction://answer_questions_with_knowledge"

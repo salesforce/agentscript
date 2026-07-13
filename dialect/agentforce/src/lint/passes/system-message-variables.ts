@@ -6,10 +6,12 @@
  */
 
 /**
- * Validates that system message templates only reference linked (context) variables.
+ * Validates that system message templates only reference variables that are
+ * available at the relevant runtime point.
  *
- * Mutable variables are not available at runtime in system messages — only linked
- * variables are projected into the $Context namespace.
+ * In addition to `linked` variables, variables with `visibility: External` are
+ * populated from the external session context before system messages render,
+ * so they are allowed in both `welcome` and `error` messages.
  *
  * Diagnostics: system-message-mutable-variable
  */
@@ -55,29 +57,33 @@ function extractVariableRefs(
   return refs;
 }
 
+function isExternal(visibility: string | undefined): boolean {
+  return visibility === 'External' || visibility === 'external';
+}
+
 function checkMessage(
   messageValue: unknown,
-  messageType: string,
+  messageType: 'welcome' | 'error',
   typeMap: TypeMap
 ): void {
   for (const { name, node } of extractVariableRefs(messageValue)) {
     const info = typeMap.variables.get(name);
-    if (info && info.modifier !== 'linked') {
-      const cst = (node as Record<string, unknown>).__cst as
-        | CstMeta
-        | undefined;
-      if (!cst) continue;
+    if (!info) continue;
+    if (info.modifier === 'linked') continue;
+    if (isExternal(info.visibility)) continue;
 
-      attachDiagnostic(
-        node,
-        lintDiagnostic(
-          cst.range,
-          `Variable '${name}' is ${info.modifier ?? 'unmodified'} and cannot be used in ${messageType} messages. Only linked variables are available as context variables at runtime.`,
-          DiagnosticSeverity.Error,
-          'system-message-mutable-variable'
-        )
-      );
-    }
+    const cst = node.__cst as CstMeta | undefined;
+    if (!cst) continue;
+
+    attachDiagnostic(
+      node,
+      lintDiagnostic(
+        cst.range,
+        `Variable '${name}' is ${info.modifier ?? 'unmodified'} and cannot be used in ${messageType} messages. Only linked variables and variables with visibility: External are available at runtime.`,
+        DiagnosticSeverity.Error,
+        'system-message-mutable-variable'
+      )
+    );
   }
 }
 
@@ -91,9 +97,7 @@ class SystemMessageVariablesPass implements LintPass {
     const typeMap = store.get(typeMapKey);
     if (!typeMap) return;
 
-    const system = (root as Record<string, unknown>).system as
-      | AstNodeLike
-      | undefined;
+    const system = root.system as AstNodeLike | undefined;
     if (!system) return;
 
     const messages = system.messages as AstNodeLike | undefined;

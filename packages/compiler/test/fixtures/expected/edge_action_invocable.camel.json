@@ -1,0 +1,279 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Invocable_Actions_Agent",
+    "label": "Invocable Actions Agent",
+    "description": "Agent with standardInvocableAction:// targets",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help you send emails, create tasks, and generate reports.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while processing your request.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with standardInvocableAction:// targets",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Send_Email",
+            "boundInputs": {},
+            "llmInputs": [
+              "recipient",
+              "subject",
+              "body"
+            ],
+            "stateUpdates": [],
+            "name": "Email_Action"
+          },
+          {
+            "type": "action",
+            "target": "Create_Task",
+            "boundInputs": {},
+            "llmInputs": [
+              "title",
+              "assignee",
+              "due_date"
+            ],
+            "stateUpdates": [],
+            "name": "Task_Action"
+          },
+          {
+            "type": "action",
+            "target": "Generate_Report",
+            "boundInputs": {},
+            "llmInputs": [
+              "report_type",
+              "date_range"
+            ],
+            "stateUpdates": [],
+            "name": "Report_Action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Send_Email",
+            "label": "Send Email",
+            "description": "Send an email via standard invocable action",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "SendEmailAction",
+            "inputType": [
+              {
+                "developerName": "recipient",
+                "label": "Recipient Email",
+                "description": "Recipient Email",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "subject",
+                "label": "Email Subject",
+                "description": "Email Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "body",
+                "label": "Email Body",
+                "description": "Email Body",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "sent",
+                "label": "Email Sent",
+                "description": "Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "message_id",
+                "label": "Message ID",
+                "description": "Message Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Create_Task",
+            "label": "Create Task",
+            "description": "Create a task via standard invocable action",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "CreateTaskAction",
+            "inputType": [
+              {
+                "developerName": "title",
+                "label": "Task Title",
+                "description": "Task Title",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "assignee",
+                "label": "Assignee",
+                "description": "Assignee",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "due_date",
+                "label": "Due Date",
+                "description": "Due Date",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "task_id",
+                "label": "Task ID",
+                "description": "Task Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "status",
+                "label": "Task Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Generate_Report",
+            "label": "Generate Report",
+            "description": "Generate a report via standard invocable action",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "GenerateReportAction",
+            "inputType": [
+              {
+                "developerName": "report_type",
+                "label": "Report Type",
+                "description": "Report Type",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "date_range",
+                "label": "Date Range",
+                "description": "Date Range",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "report_url",
+                "label": "Report URL",
+                "description": "Report Url",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful assistant for email, tasks, and reports.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user with email, tasks, and reports."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help you send emails, create tasks, and generate reports.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while processing your request.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

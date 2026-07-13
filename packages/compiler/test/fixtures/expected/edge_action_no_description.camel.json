@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "No_Description_Agent",
+    "label": "No Description Agent",
+    "description": "Agent with actions whose descriptions are derived from their names",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with actions whose descriptions are derived from their names",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Server_Time",
+            "boundInputs": {},
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "Time_Action"
+          },
+          {
+            "type": "action",
+            "target": "Refresh_Cache",
+            "boundInputs": {},
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "Cache_Action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Get_Server_Time",
+            "label": "Get Server Time",
+            "description": "Get Server Time",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Get_Server_Time",
+            "inputType": [],
+            "outputType": [
+              {
+                "developerName": "current_time",
+                "label": "Current Time",
+                "description": "Current Time",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Refresh_Cache",
+            "label": "Refresh Cache",
+            "description": "Refresh Cache",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "CacheController.refresh",
+            "inputType": [],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Refresh Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user by reporting the current server time and refreshing\nthe cache when they ask."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

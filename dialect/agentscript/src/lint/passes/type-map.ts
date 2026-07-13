@@ -63,6 +63,8 @@ export interface VariableTypeInfo {
   type: string;
   /** e.g. "linked", "mutable", or undefined if no modifier */
   modifier?: string;
+  /** Variable visibility (dialect-specific, e.g. "Internal", "External"). */
+  visibility?: string;
 }
 
 export interface ConnectedAgentInputInfo extends ParamInfo {
@@ -146,6 +148,21 @@ function extractStringField(node: unknown): StringField | undefined {
   return { value: obj.value, keyRange, node: obj };
 }
 
+/**
+ * Extract a string value from an AST node, accepting StringLiteral,
+ * Identifier, or any node with a `.value` / `.name` string. Used for
+ * fields that are typed as enums whose values can appear unquoted in YAML
+ * (e.g. `visibility: External`).
+ */
+function extractAnyStringValue(node: unknown): string | undefined {
+  if (typeof node === 'string') return node;
+  if (!node || typeof node !== 'object') return undefined;
+  const obj = node as Record<string, unknown>;
+  if (typeof obj.value === 'string') return obj.value;
+  if (typeof obj.name === 'string') return obj.name;
+  return undefined;
+}
+
 function extractParamMap(mapValue: unknown): Map<string, ParamInfo> {
   const result = new Map<string, ParamInfo>();
   if (!mapValue || !isNamedMap(mapValue)) return result;
@@ -226,9 +243,11 @@ class TypeMapAnalyzer implements LintPass {
       if (!typeText) continue;
 
       const modifier = obj.modifier as { name?: string } | undefined;
+      const props = obj.properties as Record<string, unknown> | undefined;
       this.variables.set(name, {
         type: typeText,
         modifier: modifier?.name,
+        visibility: extractAnyStringValue(props?.visibility),
       });
     }
   }

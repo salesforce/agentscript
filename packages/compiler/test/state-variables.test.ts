@@ -32,11 +32,16 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** The three always-present internal state variable names. */
+/**
+ * Internal state variable names. Plus condition slots `_1.._N` declared on
+ * demand based on the deepest if/else chain in the agent.
+ */
 const INTERNAL_VARIABLE_NAMES = new Set([
   NEXT_TOPIC_VARIABLE,
   AGENT_INSTRUCTIONS_VARIABLE,
-  RUNTIME_CONDITION_VARIABLE,
+  `${RUNTIME_CONDITION_VARIABLE}_1`,
+  `${RUNTIME_CONDITION_VARIABLE}_2`,
+  `${RUNTIME_CONDITION_VARIABLE}_3`,
 ]);
 
 /** Compile a source string and return the CompileResult. */
@@ -312,11 +317,13 @@ variables:
 
     const stateVars = getStateVariables(result);
 
-    // First N variables should be internal ones
+    // First N variables should be internal ones. The test fixture has no
+    // if/else, so only next_topic + agent_instructions are emitted (no
+    // condition slots).
     const internalCount = stateVars.filter(v =>
       INTERNAL_VARIABLE_NAMES.has(v.developer_name)
     ).length;
-    expect(internalCount).toBe(3);
+    expect(internalCount).toBe(2);
 
     // Internal vars should come before user vars
     const firstUserIdx = stateVars.findIndex(
@@ -533,13 +540,15 @@ start_agent main:
 
     const stateVars = getStateVariables(result);
 
-    // Should contain exactly the 3 always-present internal variables
-    expect(stateVars.length).toBe(3);
+    // Should contain only the 2 always-present internal variables. Condition
+    // slots (AgentScriptInternal_condition_1, ...) are declared on demand
+    // when the agent has at least one if/else; this fixture has none.
+    expect(stateVars.length).toBe(2);
 
     const names = new Set(stateVars.map(v => v.developer_name));
     expect(names.has(NEXT_TOPIC_VARIABLE)).toBe(true);
     expect(names.has(AGENT_INSTRUCTIONS_VARIABLE)).toBe(true);
-    expect(names.has(RUNTIME_CONDITION_VARIABLE)).toBe(true);
+    expect(names.has(`${RUNTIME_CONDITION_VARIABLE}_1`)).toBe(false);
   });
 
   it('should have correct types on internal state variables', () => {
@@ -560,9 +569,12 @@ start_agent main:
     expect(instructions).toBeDefined();
     expect(instructions!.data_type).toBe('string');
 
-    const condition = findStateVar(result, RUNTIME_CONDITION_VARIABLE);
-    expect(condition).toBeDefined();
-    expect(condition!.data_type).toBe('boolean');
+    // No if/else in this fixture → no condition slot declared.
+    const conditionSlot1 = findStateVar(
+      result,
+      `${RUNTIME_CONDITION_VARIABLE}_1`
+    );
+    expect(conditionSlot1).toBeUndefined();
   });
 });
 
@@ -1044,7 +1056,7 @@ start_agent main:
     expect(activityLog!.label).toBe('Activity Log');
   });
 
-  it('should include exactly 3 internal + N user variables', () => {
+  it('should include exactly 2 internal + N user variables (no if/else)', () => {
     const result = compileSource(
       agentSource(`
 variables:
@@ -1054,7 +1066,9 @@ variables:
     );
 
     const allVars = getStateVariables(result);
-    expect(allVars.length).toBe(6); // 3 internal + 3 user
+    // 2 internal (next_topic + agent_instructions) + 3 user. Condition slots
+    // are absent because this fixture has no if/else.
+    expect(allVars.length).toBe(5);
 
     const userVars = getUserStateVariables(result);
     expect(userVars.length).toBe(3);

@@ -182,6 +182,12 @@ export interface EmitContext {
   indent: number;
   /** Spaces per indent level (default 4). */
   tabSize?: number;
+  /**
+   * Column where the value's first character lands in the output.
+   * Set by the parent when a value is inline after a key prefix.
+   * Multi-line templates use this to compute correct continuation indent.
+   */
+  continuationColumn?: number;
 }
 
 export function emitIndent(ctx: EmitContext): string {
@@ -479,6 +485,14 @@ export interface ConstraintMetadata {
   allowedNamespaces?: ReadonlyArray<string>;
   /** The resolved expression must reference a namespace with this capability (e.g. 'invocationTarget'). */
   resolvedType?: BlockCapability;
+  /**
+   * Declares that this value points to an external connection of one of the
+   * given kinds. The kind vocabulary is dialect-defined (core treats the
+   * strings opaquely, like `allowedNamespaces`). Purely a tooling/semantic
+   * hint — does not affect validation; the accompanying `.pattern(...)` still
+   * governs that. Lets completion offer the matching connections.
+   */
+  connectionRef?: readonly string[];
 }
 
 /**
@@ -504,6 +518,14 @@ export interface FieldMetadata extends DocumentationMetadata {
   /** When true, collection fields must contain at most one entry. */
   singular?: boolean;
   constraints?: ConstraintMetadata;
+  /**
+   * Completion-only value hints. Unlike `constraints.enum`, these are offered
+   * as autocomplete candidates but are NOT validated — any value outside the
+   * list is still accepted by the schema. Use this when a field has a known
+   * set of common values but validation is handled elsewhere (e.g. a lint
+   * pass) or other values are legitimately allowed.
+   */
+  suggestions?: ReadonlyArray<string>;
   /** When true, ProcedureValue fields emit without the arrow (->) syntax. */
   omitArrow?: boolean;
   /** When true, ProcedureValue fields disallow Template statements. */
@@ -546,6 +568,14 @@ export interface FieldMetadata extends DocumentationMetadata {
    * without knowing the field's name.
    */
   displayLabelField?: boolean;
+  /**
+   * When true, this field holds a node's enumerable structured-output block
+   * (a block whose `properties` NamedMap lists the node's output fields).
+   * Schema-driven node-result completion reads this marker to enumerate a
+   * node's `output` members without hardcoding where a dialect nests the
+   * field (e.g. `reasoning.outputs` vs a top-level `outputs`).
+   */
+  structuredOutputField?: boolean;
   /** When true, the field is valid in the schema but not shown in code completions. */
   hidden?: boolean;
 }
@@ -620,6 +650,12 @@ export interface MaybeDiscriminant {
   readonly discriminantField?: string;
   /** Resolve variant schema by discriminant field value. */
   resolveSchemaForDiscriminant?(value: string): Record<string, FieldType>;
+  /**
+   * The valid discriminator values declared by `.variant()` / `.variantMatch()`.
+   * These are the authoritative set of values the discriminant field accepts,
+   * used for value-position completions when the field has no `.enum()`.
+   */
+  readonly discriminantValues?: readonly string[];
 }
 
 /** Structural shape of a type that supports discriminant-based polymorphic schema resolution. */
@@ -647,6 +683,17 @@ export interface SingularFieldType<V = any, F = V>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FieldType<V = any, F = V> = SingularFieldType<V, F>;
+
+/**
+ * Resolve a potentially array-wrapped {@link FieldType} to a single one.
+ *
+ * Schema entries are `FieldType | FieldType[]`: the array form marks a
+ * repeated/sequence field whose element type is the first entry. Most
+ * analysis only needs that element type, so this collapses both forms.
+ */
+export function resolveFieldType(ft: FieldType | FieldType[]): FieldType {
+  return Array.isArray(ft) ? ft[0] : ft;
+}
 
 type ResolveFieldType<T> = T extends FieldType[] ? FieldType : T & FieldType;
 
@@ -849,4 +896,21 @@ export interface SchemaInfo {
    * Unlike aliases, this doesn't affect completions — it only affects reference resolution.
    */
   readonly extraNamespaceKeys?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Member surface offered on a resolved node reference inside an expression
+   * (`@<nodeType>.<nodeName>.<member>`). The names live here, in the dialect,
+   * rather than as a literal in core: a node's `input`/`output` are a fixed
+   * convention that doesn't map one-to-one onto schema field names (e.g. the
+   * structured-output field is named `outputs` but the member is `output`,
+   * and `input` has no backing field at all), so they can't be cleanly
+   * derived from field markers — the dialect states them explicitly.
+   *
+   * `outputMember` names the single member that enumerates the node's
+   * structured output (located via the `structuredOutputField` field marker);
+   * the other members are non-enumerable sub-surfaces.
+   */
+  readonly nodeMemberAccess?: {
+    readonly members: readonly string[];
+    readonly outputMember: string;
+  };
 }

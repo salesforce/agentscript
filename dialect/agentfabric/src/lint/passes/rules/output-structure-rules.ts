@@ -6,6 +6,7 @@
  */
 
 import { isNamedMap } from '@agentscript/language';
+import { OUTPUT_JSON_SCHEMA_TYPES } from '../../../constants.js';
 import {
   attachError,
   extractStringValue,
@@ -14,21 +15,17 @@ import {
   type AstLike,
 } from './shared.js';
 
+const ALLOWED_OUTPUT_TYPES: ReadonlySet<string> = new Set(
+  OUTPUT_JSON_SCHEMA_TYPES
+);
+
 function extractValidatedOutputType(
   prop: Record<string, unknown>,
   node: AstLike,
   path: string
 ): string | undefined {
   const type = extractStringValue(prop.type);
-  const allowedTypes = new Set([
-    'string',
-    'number',
-    'integer',
-    'boolean',
-    'array',
-    'object',
-  ]);
-  if (!type || !allowedTypes.has(type)) {
+  if (!type || !ALLOWED_OUTPUT_TYPES.has(type)) {
     attachError(
       node,
       `${path}: 'type' is required and must be one of string, number, integer, boolean, array, object.`,

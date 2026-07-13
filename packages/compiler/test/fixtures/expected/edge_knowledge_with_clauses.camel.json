@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Service_Knowledge_Action_Agent",
+    "label": "Service Knowledge Action Agent",
+    "description": "An agent that can answer user queries with knowledge_action",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "test@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hi, I'm an AI assistant. How can I help you?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, it looks like something has gone wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Help user to answer the queries from Knowledge Answers",
+        "tools": [
+          {
+            "type": "action",
+            "target": "knowledge_action",
+            "boundInputs": {
+              "config_id": "\"ARFPC_ProductKnowledge_12345\"",
+              "enabled": "True",
+              "url": "\"https://help.example.com/articles\""
+            },
+            "llmInputs": [
+              "query"
+            ],
+            "stateUpdates": [],
+            "name": "knowledge_action",
+            "description": "Ask questions"
+          }
+        ],
+        "developerName": "main",
+        "label": "Service With Knowledge Answers",
+        "actionDefinitions": [
+          {
+            "developerName": "knowledge_action",
+            "label": "Knowledge Action",
+            "description": "Ask questions",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "answer_questions_with_knowledge",
+            "inputType": [
+              {
+                "developerName": "config_id",
+                "label": "Config Id",
+                "description": "The RAG feature config ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "enabled",
+                "label": "Enabled",
+                "description": "Whether citations are enabled",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "url",
+                "label": "Url",
+                "description": "The citations URL",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "query",
+                "label": "Query",
+                "description": "The user's question",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "answer",
+                "label": "Answer",
+                "description": "The answer from the knowledge base",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a Knowledge Answers Service Agent.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAsk the user to understand their questions"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "rag_feature_config_id": "ARFPC_ProductKnowledge_12345",
+      "system_messages": "[{\"message\": \"Hi, I'm an AI assistant. How can I help you?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, it looks like something has gone wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

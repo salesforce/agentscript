@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import { describe, it, expect } from 'vitest';
 import { LintEngine, collectDiagnostics } from '@agentscript/language';
 import type { Diagnostic } from '@agentscript/types';
@@ -43,7 +50,8 @@ describe('Commerce Cloud Shopper variant schema', () => {
 
     // AF-specific fields
     expect(variantSchema).toHaveProperty('model_config');
-    expect(variantSchema).toHaveProperty('security');
+    // `access` is intentionally NOT a per-subagent field — it lives only at the top level.
+    expect(variantSchema).not.toHaveProperty('access');
   });
 
   it('returns base schema for unknown discriminant value', () => {

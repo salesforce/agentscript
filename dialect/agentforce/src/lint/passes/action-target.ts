@@ -24,6 +24,7 @@
  *   - serviceCatalog://          — Service Catalog item
  *   - createCatalogItemRequest:// — Create Catalog Item Request
  *   - cdpMlPrediction://         — Customer Data Platform ML Prediction
+ *   - decisionTableAction://     — Decision Table Action
  *   - namedQuery://              — Named Query
  *   - integrationProcedureAction:// — Integration Procedure Action
  *   - executeIntegrationProcedure:// — Execute Integration Procedure
@@ -50,13 +51,14 @@ import type {
   ActionSignature,
 } from '@agentscript/agentscript-dialect';
 
-const VALID_SCHEMES = [
+export const VALID_SCHEMES = [
   'api',
   'apex',
   'apexRest',
   'auraEnabled',
   'cdpMlPrediction',
   'createCatalogItemRequest',
+  'decisionTableAction',
   'executeIntegrationProcedure',
   'expressionSet',
   'externalConnector',

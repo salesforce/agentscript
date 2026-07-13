@@ -1,7 +1,15 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import { isNamedMap } from '@agentscript/language';
 import { extractGraph } from '../../../graph/extractor.js';
 import { AgentFabricSchemaInfo, A2A_TERMINAL_STATES } from '../../../schema.js';
 import { attachError, extractStringValue, type AstLike } from './shared.js';
+import { Namespace } from '../../../constants.js';
 
 /**
  * All terminal branches in a graph MUST contain an echo node with
@@ -14,7 +22,7 @@ export function checkTerminalStatusRules(root: Record<string, unknown>): void {
   if (nodes.length === 0) return;
 
   const triggerIds = new Set<string>(
-    nodes.filter(n => n.namespace === 'trigger').map(n => n.id)
+    nodes.filter(n => n.namespace === Namespace.Trigger).map(n => n.id)
   );
 
   const nonTriggerNodes = nodes.filter(n => !triggerIds.has(n.id));

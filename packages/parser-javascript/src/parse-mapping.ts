@@ -44,6 +44,7 @@ import {
   parseProcedure,
   parseSetStatement,
   parseTransitionStatement,
+  parseCollectStatement,
   parseWithStatement,
   parseAvailableWhenStatement,
   tryParseWithToStatementList,
@@ -207,6 +208,8 @@ export function parseMappingItem(
         return parseSetStatement(ctx);
       case 'transition':
         return parseTransitionStatement(ctx);
+      case 'collect':
+        return parseCollectStatement(ctx, c => parseTemplate(c));
       case 'with': {
         if (ctx.peekAt(1).kind !== TokenKind.COLON) {
           return parseWithStatement(ctx);
@@ -235,10 +238,10 @@ export function parseMappingItem(
     return ctx.consumeNamed('comment');
   }
 
-  // Standalone else/elif/for — wrap in ERROR with parsed body
+  // Standalone else/for — wrap in ERROR with parsed body
   if (
     tok.kind === TokenKind.ID &&
-    (tok.text === 'else' || tok.text === 'elif' || tok.text === 'for')
+    (tok.text === 'else' || tok.text === 'for')
   ) {
     return parseOrphanBlock(ctx, c =>
       parseProcedure(c, c2 => parseTemplate(c2))

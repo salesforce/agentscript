@@ -29,7 +29,19 @@ import {
 import type { Sourceable } from '../sourced.js';
 import { normalizeDeveloperName } from '../utils.js';
 import { compileExpression } from '../expressions/compile-expression.js';
-import { warnIfConnectedAgentTransition } from './compile-utils.js';
+
+/**
+ * Options controlling how a transition is lowered.
+ */
+export interface CompileTransitionOptions {
+  /**
+   * When true, the emitted handoff sets `end_turn_first` so the runtime ends the
+   * current turn and resumes execution at the target on the next user message,
+   * instead of transitioning immediately within the same turn. When omitted (the
+   * default), no `end_turn_first` key is emitted and the handoff is unchanged.
+   */
+  endTurnFirst?: boolean;
+}
 
 /**
  * Compile a @utils.transition reasoning action.
@@ -44,7 +56,8 @@ export function compileTransition(
   body: Statement[],
   _currentTopicName: string,
   topicDescriptions: Record<string, string>,
-  ctx: CompilerContext
+  ctx: CompilerContext,
+  options: CompileTransitionOptions = {}
 ): { tools: Tool[]; handOffActions: HandOffAction[] } {
   const tools: Tool[] = [];
   const handOffActions: HandOffAction[] = [];
@@ -57,7 +70,6 @@ export function compileTransition(
 
   for (const stmt of body) {
     if (stmt instanceof ToClause) {
-      warnIfConnectedAgentTransition(stmt.target, ctx);
       const targetName = resolveAtReference(
         stmt.target,
         TRANSITION_TARGET_NAMESPACES,
@@ -87,7 +99,6 @@ export function compileTransition(
     } else if (stmt instanceof TransitionStatement) {
       for (const clause of stmt.clauses) {
         if (clause instanceof ToClause) {
-          warnIfConnectedAgentTransition(clause.target, ctx);
           const targetName = resolveAtReference(
             clause.target,
             TRANSITION_TARGET_NAMESPACES,
@@ -114,7 +125,6 @@ export function compileTransition(
     // The colinear value might encode a target (not typical for AgentForce)
     const colinear = actionDef.value;
     if (colinear) {
-      warnIfConnectedAgentTransition(colinear as Expression, ctx);
       const targetName = resolveAtReference(
         colinear as Expression,
         TRANSITION_TARGET_NAMESPACES,
@@ -161,6 +171,9 @@ export function compileTransition(
       enabled: `state.${NEXT_TOPIC_VARIABLE}=="${trans.targetName}"`,
       state_updates: [{ [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE }],
     };
+    if (options.endTurnFirst) {
+      handoff.end_turn_first = true;
+    }
     handOffActions.push(handoff);
   }
 

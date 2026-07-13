@@ -70,4 +70,66 @@ topic billing:
     expect(doc).toBeDefined();
     expect(doc.ast).toBeDefined();
   });
+
+  test('parses an if / else if / else chain without parser errors', () => {
+    const source = `topic main:
+    label: "Main"
+    after_reasoning:
+        if @variables.state == "a":
+            run @actions.a
+        else if @variables.state == "b":
+            run @actions.b
+        else if @variables.state == "c":
+            run @actions.c
+        else:
+            run @actions.d`;
+
+    const doc = parse(source);
+
+    // Filter to parse-level errors only — schema/lint errors (e.g. missing
+    // description, undefined references in this minimal fixture) are out of
+    // scope for the else-if syntax check.
+    const parseErrors = doc.errors.filter(
+      d => d.source === 'parser' || d.code === 'syntax-error'
+    );
+    expect(parseErrors).toEqual([]);
+
+    const emitted = doc.emit();
+    expect(emitted).toContain('else if @variables.state == "b":');
+    expect(emitted).toContain('else if @variables.state == "c":');
+    expect(emitted).not.toMatch(/\belif\b/);
+  });
+
+  test('round-trips an else if chain', () => {
+    const source = `topic main:
+    label: "Main"
+    after_reasoning:
+        if @variables.state == "a":
+            run @actions.a
+        else if @variables.state == "b":
+            run @actions.b
+        else:
+            run @actions.c`;
+
+    const doc = parse(source);
+    const emitted1 = doc.emit();
+    const doc2 = parse(emitted1);
+    expect(doc2.emit()).toBe(emitted1);
+  });
+
+  test('reports a syntax error when given the legacy elif keyword', () => {
+    const source = `topic main:
+    label: "Main"
+    after_reasoning:
+        if @variables.state == "a":
+            run @actions.a
+        elif @variables.state == "b":
+            run @actions.b`;
+
+    const doc = parse(source);
+    const parseErrors = doc.errors.filter(
+      d => d.source === 'parser' || d.code === 'syntax-error'
+    );
+    expect(parseErrors.length).toBeGreaterThan(0);
+  });
 });

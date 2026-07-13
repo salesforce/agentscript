@@ -12,6 +12,7 @@ import type {
   Schema,
   NamedBlockEntryType,
 } from '../types.js';
+import type { NamedMap } from '../named-map.js';
 import {
   SymbolKind,
   astField,
@@ -20,6 +21,7 @@ import {
   isCollectionFieldType,
   extractDiscriminantValue,
   hasDiscriminant,
+  resolveFieldType,
 } from '../types.js';
 import { generateFieldSnippet } from './snippet-gen.js';
 import {
@@ -273,7 +275,26 @@ export function getCompletionCandidates(
   const scopesRequired = getScopedNamespaces(ctx).get(namespace);
   const activeScope = activeScopeForNamespace(scopesRequired, effectiveScope);
 
+  // Definition-vs-reference disambiguation. A namespace whose root block
+  // declares the `invocationTarget` capability (e.g. `actions`) names a set
+  // of DEFINITIONS that live at the document root. The same field name is
+  // reused for the node-local BINDING block (`reasoning.actions`), which is
+  // a reference target carrying a colinear resolvedType marker rather than
+  // the capability — so it never enters `invocationTargetNamespaces`. An
+  // at-prefixed `@actions.<x>` reference resolves to the definitions, so we
+  // prefer the root candidates over the node-scoped bindings here. This
+  // generalizes from capability metadata rather than special-casing the
+  // `actions` field name.
   if (activeScope && effectiveScope) {
+    if (ctx.invocationTargetNamespaces.has(namespace)) {
+      const rootDefs = getRootCandidates(ast, namespace, ctx);
+      // When the document has root-level invocation-target definitions, prefer
+      // them (the reference resolves to definitions, not node-local bindings).
+      // When there are none, fall through to the scoped behavior below, which
+      // offers node-local binding names — graceful degradation matching the
+      // behavior that predates this disambiguation.
+      if (rootDefs.length > 0) return rootDefs;
+    }
     return getScopedChildCandidates(
       ast,
       namespace,
@@ -584,7 +605,7 @@ export function getFieldCompletions(
  *
  * Shared between `getFieldCompletions` (via `inferBlockFromIndentation`) and
  * `getValueCompletions`. Walking parents twice with two slightly divergent
- * implementations was the bug source; both callers now use
+ * implementations was the bug source for W-22415806; both callers now use
  * this single resolver.
  */
 interface IndentSchemaContext {
@@ -612,6 +633,14 @@ interface IndentSchemaContext {
    * after the colon on a TypedMap entry's value side.
    */
   typedMapField: FieldType | null;
+  /**
+   * The entry block factory whose (resolved) schema the cursor sits inside,
+   * when the cursor's enclosing block is a CollectionBlock entry. Carries the
+   * discriminant config (`discriminantField`, `discriminantValues`) so value
+   * completions can offer variant discriminators even before the discriminant
+   * value has been typed. `null` when the cursor is not inside such an entry.
+   */
+  entryBlock: NamedBlockEntryType | null;
   /** Cached source split into lines (avoid re-splitting in the caller). */
   lines: string[];
   /** Indent of the cursor line, in columns. */
@@ -670,6 +699,10 @@ function walkParentsToSchemaContext(
   // the next step to resolve the variant/named schema for the entry once
   // its name is known.
   let pendingEntryBlock: NamedBlockEntryType | undefined;
+  // The entry block factory the cursor's enclosing block resolves into.
+  // Captured at each descent into a CollectionBlock entry so value
+  // completions can read its discriminant config.
+  let currentEntryBlock: NamedBlockEntryType | null = null;
 
   for (const { key, entryName } of parents) {
     const fieldDef = schema[key];
@@ -695,10 +728,12 @@ function walkParentsToSchemaContext(
               ? astCursor.get(entryName)
               : undefined;
             schema = resolveEntrySchema(astCursor, pendingEntryBlock, schema);
+            currentEntryBlock = pendingEntryBlock ?? null;
             pendingEntryBlock = undefined;
             typedMapField = null;
           } else {
             mapLevel = isTypedMap ? 'typed' : 'named';
+            currentEntryBlock = null;
           }
         }
       } else if (ft.schema) {
@@ -709,6 +744,7 @@ function walkParentsToSchemaContext(
           ? astField(astCursor, key)
           : undefined;
         pendingEntryBlock = undefined;
+        currentEntryBlock = null;
       } else {
         // Leaf field (no sub-schema, e.g. ProcedureValue) — cursor is
         // inside a value body where schema-based completions don't apply.
@@ -717,6 +753,7 @@ function walkParentsToSchemaContext(
           schema: {} as Schema,
           mapLevel: 'none',
           typedMapField: null,
+          entryBlock: null,
           lines,
           cursorIndent,
           cursorLineRaw,
@@ -730,6 +767,7 @@ function walkParentsToSchemaContext(
       typedMapField = null;
       astCursor = isNamedMap(astCursor) ? astCursor.get(key) : undefined;
       schema = resolveEntrySchema(astCursor, pendingEntryBlock, schema);
+      currentEntryBlock = pendingEntryBlock ?? null;
       pendingEntryBlock = undefined;
     }
   }
@@ -739,6 +777,7 @@ function walkParentsToSchemaContext(
     schema,
     mapLevel,
     typedMapField,
+    entryBlock: currentEntryBlock,
     lines,
     cursorIndent,
     cursorLineRaw,
@@ -957,6 +996,51 @@ function findDeeperBlock(
   return null;
 }
 
+/** Resolve the schema field for the `key:` on the cursor line, or null. */
+function fieldOnCursorLine(
+  schema: Schema | Record<string, FieldType | FieldType[]>,
+  cursorLineRaw: string
+): { key: string; field: FieldType } | null {
+  const m = cursorLineRaw.trimStart().match(/^([\w-]+)\s*:/);
+  if (!m) return null;
+  const def = (schema as Record<string, FieldType | FieldType[]>)[m[1]];
+  if (!def) return null;
+  return { key: m[1], field: resolveFieldType(def) };
+}
+
+/**
+ * Resolve the schema {@link FieldType} whose *value* the cursor sits in, plus
+ * the key path to it. Returns `null` when the position is not on a `key:`
+ * value line or the key is not in the resolved schema.
+ *
+ * This is the value-position counterpart to the field-key resolution done
+ * internally by {@link getValueCompletions}: it runs the same
+ * indentation-based parent walk and cursor-line key lookup, but exposes the
+ * resolved field so external tooling (e.g. an editor client) can inspect its
+ * schema metadata — its constraints, `connectionRef`, etc. — at a position.
+ * The `_character` parameter is currently unused (resolution is line-based,
+ * robust while the value is empty/partial mid-edit) but kept for signature
+ * symmetry with the other position-based analysis entry points.
+ */
+export function resolveFieldAtPosition(
+  ast: AstRoot,
+  line: number,
+  _character: number,
+  ctx: SchemaContext,
+  source: string
+): { field: FieldType; path: string[] } | null {
+  const rootSchema = ctx.info.schema;
+  const resolved = walkParentsToSchemaContext(ast, line, rootSchema, source);
+  if (!resolved) return null;
+
+  const { schema, parents, cursorLineRaw } = resolved;
+  const onLine = fieldOnCursorLine(schema, cursorLineRaw);
+  if (!onLine) return null;
+
+  const path = [...parents.map(p => p.key), onLine.key];
+  return { field: onLine.field, path };
+}
+
 /**
  * Get value-position completions for the cursor on `<key>: <CURSOR>`.
  *
@@ -989,30 +1073,37 @@ export function getValueCompletions(
   const resolved = walkParentsToSchemaContext(ast, line, rootSchema, source);
   if (!resolved) return [];
 
-  const { schema, typedMapField, cursorLineRaw } = resolved;
+  const { schema, typedMapField, entryBlock, cursorLineRaw } = resolved;
   const candidates: CompletionCandidate[] = [];
 
   // 1. Enum members for the cursor-line key, if any.
-  const keyMatch = cursorLineRaw.trimStart().match(/^([\w-]+)\s*:/);
-  if (keyMatch) {
-    const cursorKey = keyMatch[1];
-    const fieldDef = (schema as Record<string, FieldType | FieldType[]>)[
-      cursorKey
-    ];
-    if (fieldDef) {
-      const ft = Array.isArray(fieldDef) ? fieldDef[0] : fieldDef;
-      const enumValues = ft.__metadata?.constraints?.enum;
-      if (Array.isArray(enumValues)) {
-        const needsQuotes = ft.__accepts?.includes('StringLiteral');
-        for (const value of enumValues) {
-          const literal = String(value);
-          candidates.push({
-            name: literal,
-            kind: SymbolKind.EnumMember,
-            insertText: needsQuotes ? `"${literal}"` : literal,
-          });
-        }
-      }
+  const onLine = fieldOnCursorLine(schema, cursorLineRaw);
+  if (onLine) {
+    const ft = onLine.field;
+    const enumValues = ft.__metadata?.constraints?.enum;
+    const needsQuotes = ft.__accepts?.includes('StringLiteral');
+    if (Array.isArray(enumValues)) {
+      pushDiscriminatorCandidates(candidates, enumValues, needsQuotes);
+    } else if (
+      entryBlock &&
+      entryBlock.discriminantField === onLine.key &&
+      entryBlock.discriminantValues
+    ) {
+      // Discriminator declared via `.discriminant()` + `.variant()` with no
+      // redundant `.enum()`: offer the variant names as the valid values.
+      pushDiscriminatorCandidates(
+        candidates,
+        entryBlock.discriminantValues,
+        needsQuotes
+      );
+    } else if (Array.isArray(ft.__metadata?.suggestions)) {
+      // Completion-only hints via `.suggest()` — offered like enum members but
+      // not validated, so values outside the list are still accepted.
+      pushDiscriminatorCandidates(
+        candidates,
+        ft.__metadata.suggestions,
+        needsQuotes
+      );
     }
   }
 
@@ -1031,6 +1122,27 @@ export function getValueCompletions(
   return candidates;
 }
 
+/**
+ * Push each discriminator value as an EnumMember candidate, quoting the
+ * inserted text when the field accepts string literals. Shared between the
+ * `.enum()` branch and the `.discriminant()` + `.variant()` branch so both
+ * surface values identically.
+ */
+function pushDiscriminatorCandidates(
+  candidates: CompletionCandidate[],
+  values: ReadonlyArray<string | number | boolean>,
+  needsQuotes: boolean | undefined
+): void {
+  for (const value of values) {
+    const literal = String(value);
+    candidates.push({
+      name: literal,
+      kind: SymbolKind.EnumMember,
+      insertText: needsQuotes ? `"${literal}"` : literal,
+    });
+  }
+}
+
 function extractCandidateDocumentation(obj: AstNodeLike): string | undefined {
   const description = obj.description;
   if (isAstNodeLike(description)) {
@@ -1042,6 +1154,148 @@ function extractCandidateDocumentation(obj: AstNodeLike): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Read the string value of a node's `StringLiteral` field, if present. */
+function extractStringField(
+  obj: AstNodeLike,
+  field: string
+): string | undefined {
+  const value = (obj as Record<string, unknown>)[field];
+  if (
+    isAstNodeLike(value) &&
+    value.__kind === 'StringLiteral' &&
+    typeof value.value === 'string'
+  ) {
+    return value.value;
+  }
+  return undefined;
+}
+
+/** Field name holding a structured-output block's enumerable property map. */
+const OUTPUT_PROPERTIES_FIELD = 'properties';
+
+/**
+ * Locate the structured-output `properties` NamedMap on a resolved node,
+ * following the schema-derived field path for its namespace. The path (e.g.
+ * `['reasoning','outputs']` vs `['outputs']`) is computed in
+ * `createSchemaContext` from the dialect's `structuredOutputField` marker, so
+ * core branches on no dialect-specific node layout. Returns the properties
+ * map, or null when the node declares no structured output.
+ */
+function findNodeOutputProperties(
+  node: AstNodeLike,
+  outputFieldPath: readonly string[] | undefined
+): NamedMap<unknown> | null {
+  if (!outputFieldPath || outputFieldPath.length === 0) return null;
+
+  let current: AstNodeLike = node;
+  for (const fieldName of outputFieldPath) {
+    const next = (current as Record<string, unknown>)[fieldName];
+    if (!isAstNodeLike(next)) return null;
+    current = next;
+  }
+
+  const properties = (current as Record<string, unknown>)[
+    OUTPUT_PROPERTIES_FIELD
+  ];
+  return isNamedMap(properties) ? properties : null;
+}
+
+/** Build completion candidates (name + type + docs) from a property NamedMap. */
+function propertyMapCandidates(
+  properties: NamedMap<unknown>
+): CompletionCandidate[] {
+  const candidates: CompletionCandidate[] = [];
+  for (const [name, entry] of properties) {
+    if (!isAstNodeLike(entry)) continue;
+    const type = extractStringField(entry, 'type');
+    candidates.push({
+      name,
+      kind: SymbolKind.Property,
+      detail: type,
+      documentation: extractCandidateDocumentation(entry),
+    });
+  }
+  return candidates;
+}
+
+/**
+ * Descend a structured-output `properties` map by the given nested property
+ * names. Each step reads the named property's own `properties` map (structured
+ * output supports nested objects), enabling completion past the first level
+ * (e.g. `@<node>.output.address.`). Returns the map to enumerate at the
+ * requested depth, or null when the path doesn't resolve to a nested object.
+ */
+function descendOutputProperties(
+  properties: NamedMap<unknown>,
+  nestedNames: readonly string[]
+): NamedMap<unknown> | null {
+  let current = properties;
+  for (const name of nestedNames) {
+    const entry = current.get(name);
+    if (!isAstNodeLike(entry)) return null;
+    const nested = (entry as Record<string, unknown>)[OUTPUT_PROPERTIES_FIELD];
+    if (!isNamedMap(nested)) return null;
+    current = nested;
+  }
+  return current;
+}
+
+/**
+ * Unified node member-access completion of arbitrary depth, dispatched from
+ * the LSP, which tokenizes `@<namespace>.<nodeName>.<member>…<partial>` and
+ * passes the dot-separated parts. All member-name knowledge lives here (read
+ * from the schema-derived context), so the LSP holds no member-name literal
+ * and assumes no fixed depth.
+ *
+ * Dispatch on the member segments between `nodeName` and the trailing partial:
+ *  - none                 → LEVEL 1: offer the node's member names.
+ *  - [outputMember]       → LEVEL 2: enumerate the node's output properties.
+ *  - [outputMember, …]    → descend into nested output objects.
+ *
+ * Returns an empty array when the path doesn't resolve, letting the LSP fall
+ * through to the general `@ns.name` expression flow (preserving its
+ * fall-through-on-empty semantics).
+ */
+export function getNodeMemberAccessCompletions(
+  ast: AstRoot,
+  parts: readonly string[],
+  ctx: SchemaContext
+): CompletionCandidate[] {
+  // Need at least `namespace`, `nodeName`, and the trailing partial token.
+  if (parts.length < 3) return [];
+
+  const [namespace, nodeName, ...rest] = parts;
+  // The last part is the partial being typed; the segments before it are the
+  // already-committed member chain.
+  const members = rest.slice(0, -1);
+
+  if (!ctx.transitionTargetNamespaces.has(namespace)) return [];
+  const node = resolveEntryAtRoot(ast, namespace, nodeName, ctx);
+  if (!node) return [];
+
+  if (members.length === 0) {
+    return [...ctx.nodeMemberNames].map(name => ({
+      name,
+      kind: SymbolKind.Property,
+    }));
+  }
+
+  // Beyond LEVEL 1, only the output member is enumerable; other members
+  // (e.g. `input`) declare no schema-level sub-properties.
+  if (members[0] !== ctx.nodeOutputMemberName) return [];
+
+  const properties = findNodeOutputProperties(
+    node,
+    ctx.nodeOutputFieldPaths.get(namespace)
+  );
+  if (!properties) return [];
+
+  const target = descendOutputProperties(properties, members.slice(1));
+  if (!target) return [];
+
+  return propertyMapCandidates(target);
 }
 
 /**

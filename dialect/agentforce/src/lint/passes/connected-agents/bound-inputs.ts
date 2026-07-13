@@ -6,12 +6,14 @@
  */
 
 /**
- * Validates that connected agent input bindings are simple variable references.
+ * Validates that connected agent input bindings are simple variable references
+ * or literal values.
  *
- * All inputs on connected agent blocks must have a default value that is a bare
- * `@variables.X` reference to a linked or mutable variable — no computed expressions,
- * and no unbound inputs. This allows both context variables (linked) and agent
- * state variables (mutable) to be passed to connected agents.
+ * Every input on a connected agent block must have a default value (be bound).
+ * The default value must be either:
+ *   - a bare `@variables.X` reference to a linked or mutable variable, or
+ *   - a literal value (string, number, boolean, or None).
+ * Computed expressions (e.g. `@variables.X + 1`) are not allowed.
  *
  * The core check (`isSimpleVariableReference`) is intentionally reusable for
  * future tool-call `with` clause validation.
@@ -19,10 +21,10 @@
  * Diagnostics: bound-input-required, bound-input-not-variable, bound-input-not-linked-or-mutable
  */
 
-import type { AstNodeLike } from '@agentscript/language';
 import type { LintPass } from '@agentscript/language';
 import {
   decomposeAtMemberExpression,
+  isAstNodeLike,
   attachDiagnostic,
   lintDiagnostic,
   defineRule,
@@ -36,12 +38,28 @@ import { typeMapKey } from '@agentscript/agentscript-dialect';
  * anything else (computed, literal, wrong namespace, etc.).
  */
 export function isSimpleVariableReference(expr: unknown): string | undefined {
-  if (!expr || typeof expr !== 'object') return undefined;
-  const node = expr as AstNodeLike;
-  if (node.__kind !== 'MemberExpression') return undefined;
+  if (!isAstNodeLike(expr)) return undefined;
+  if (expr.__kind !== 'MemberExpression') return undefined;
   const ref = decomposeAtMemberExpression(expr);
   if (!ref || ref.namespace !== 'variables') return undefined;
   return ref.property;
+}
+
+/** Literal expression kinds accepted as connected-agent input defaults. */
+const LITERAL_KINDS = new Set([
+  'StringLiteral',
+  'NumberLiteral',
+  'BooleanLiteral',
+  'NoneLiteral',
+]);
+
+/**
+ * Check whether an expression is a literal value (string, number, boolean, or
+ * None) that can be used directly as a bound input default.
+ */
+export function isLiteralValue(expr: unknown): boolean {
+  if (!isAstNodeLike(expr)) return false;
+  return typeof expr.__kind === 'string' && LITERAL_KINDS.has(expr.__kind);
 }
 
 export function boundInputsRule(): LintPass {
@@ -74,13 +92,18 @@ export function boundInputsRule(): LintPass {
             continue;
           }
 
+          // Literal defaults (e.g. "test", 42, True) are passed through as-is.
+          if (isLiteralValue(inputInfo.defaultValueNode)) {
+            continue;
+          }
+
           const varName = isSimpleVariableReference(inputInfo.defaultValueNode);
           if (!varName) {
             attachDiagnostic(
               inputInfo.decl,
               lintDiagnostic(
                 inputInfo.defaultValueCst.range,
-                `Bound input must be a simple variable reference (e.g. @variables.X).`,
+                `Bound input must be a simple variable reference (e.g. @variables.X) or a literal value.`,
                 DiagnosticSeverity.Error,
                 'bound-input-not-variable'
               )

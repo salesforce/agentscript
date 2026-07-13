@@ -154,18 +154,32 @@ function dedentTemplateParts(parts: TemplatePart[], node: SyntaxNode): void {
     // the content starts at the column of | + 1 + first line's leading whitespace.
     const pipeColumn = node.startPosition?.column;
     let stripAmount: number;
+
+    // Min indentation of non-empty continuation lines — used as a cap
+    // to ensure we never over-strip and destroy relative indentation.
+    let minContinuationIndent = Infinity;
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim().length === 0) continue;
+      const indent = lines[i].search(/\S/);
+      if (indent >= 0)
+        minContinuationIndent = Math.min(minContinuationIndent, indent);
+    }
+
     if (pipeColumn !== undefined) {
-      const firstLineIndent = lines[0].match(/^(\s*)/)?.[1]?.length ?? 0;
-      stripAmount = pipeColumn + 1 + firstLineIndent;
-    } else {
-      // Fallback: use minimum indentation of continuation lines
-      let minIndent = Infinity;
-      for (let i = 1; i < lines.length; i++) {
-        if (lines[i].trim().length === 0) continue;
-        const indent = lines[i].search(/\S/);
-        if (indent >= 0) minIndent = Math.min(minIndent, indent);
+      const firstLineHasContent = lines[0].trimEnd().length > 0;
+      if (firstLineHasContent) {
+        const firstLineIndent = lines[0].match(/^(\s*)/)?.[1]?.length ?? 0;
+        stripAmount = pipeColumn + 1 + firstLineIndent;
+      } else {
+        // Bare pipe multiline: use min continuation indent directly.
+        // This ensures the least-indented content line becomes column 0
+        // and all relative indentation is preserved exactly.
+        stripAmount =
+          minContinuationIndent === Infinity ? 0 : minContinuationIndent;
       }
-      stripAmount = minIndent === Infinity ? 0 : minIndent;
+    } else {
+      stripAmount =
+        minContinuationIndent === Infinity ? 0 : minContinuationIndent;
     }
 
     if (stripAmount > 0) {
@@ -232,8 +246,16 @@ function cleanTemplateParts(parts: TemplatePart[]): void {
     (p): p is TemplateText => p instanceof TemplateText
   );
   if (firstText) {
+    // When value starts with \n, content is on subsequent lines (bare-pipe-
+    // multiline). After stripLeadingNewlines, the first line's whitespace is
+    // relative indentation from dedent — must NOT be trimmed.
+    // When value does NOT start with \n, it's inline content where the space
+    // after | should be trimmed.
+    const barePipeMultiline = firstText.value.startsWith('\n');
     firstText.value = stripLeadingNewlines(firstText.value);
-    firstText.value = trimFirstLineWhitespace(firstText.value);
+    if (!barePipeMultiline) {
+      firstText.value = trimFirstLineWhitespace(firstText.value);
+    }
   }
 
   normalizeBlankLines(parts);
@@ -334,30 +356,33 @@ export class TemplateExpression extends ExpressionBase {
 
   __emit(ctx: EmitContext): string {
     const rawInner = this.parts.map(p => p.__emit(ctx)).join('');
-    // Relies on dedentTemplateParts post-dedent invariant: continuation
-    // lines already have only relative indentation from column 0.
-    // See dedentTemplateParts() above for details.
-    const childIndent = emitIndent({ ...ctx, indent: ctx.indent + 1 });
     const lines = rawInner.split('\n');
+    const sep = this.spaceAfterPipe ? ' ' : '';
+    const fallbackIndent = emitIndent({ ...ctx, indent: ctx.indent + 1 });
 
     // When `|` was on its own line (bare pipe multi-line), emit `|` then
-    // newline then all content lines indented — preserving relative indent.
+    // newline then all content lines at indent+1 — preserving relative indent.
     if (this.barePipeMultiline && lines.length > 0) {
       const allReindented = lines
         .map(line => {
           if (line.trim().length === 0) return '';
-          return childIndent + line;
+          return fallbackIndent + line;
         })
         .join('\n');
       return `|\n${allReindented}`;
     }
 
-    const sep = this.spaceAfterPipe ? ' ' : '';
+    // Inline: continuation lines align to content start (past pipe + sep).
+    const continuationIndent =
+      ctx.continuationColumn != null
+        ? ' '.repeat(ctx.continuationColumn + 1 + sep.length)
+        : fallbackIndent;
+
     return lines
       .map((line, i) => {
         if (i === 0) return line.length > 0 ? `|${sep}${line}` : '|';
         if (line.trim().length === 0) return '';
-        return `${childIndent}${line}`;
+        return `${continuationIndent}${line}`;
       })
       .join('\n');
   }

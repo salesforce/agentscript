@@ -135,11 +135,19 @@ describe('compileExpression', () => {
       ).toBe(true);
     });
 
-    it('should compile @variables in system message context as $Context.x', () => {
-      ctx.mutableVariableNames.add('name');
+    it('should compile linked @variables in system message context as $Context.x', () => {
+      ctx.linkedVariableNames.add('name');
       const expr = new MemberExpression(new AtIdentifier('variables'), 'name');
       expect(compileExpression(expr, ctx, { isSystemMessage: true })).toBe(
         '$Context.name'
+      );
+    });
+
+    it('should compile mutable @variables in system message context as state.x', () => {
+      ctx.mutableVariableNames.add('name');
+      const expr = new MemberExpression(new AtIdentifier('variables'), 'name');
+      expect(compileExpression(expr, ctx, { isSystemMessage: true })).toBe(
+        'state.name'
       );
     });
   });
@@ -247,6 +255,22 @@ describe('compileExpression', () => {
       );
     });
 
+    it('should compile @system_variables.current_modality as state.__current_modality__', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('system_variables'),
+        'current_modality'
+      );
+      expect(compileExpression(expr, ctx)).toBe('state.__current_modality__');
+    });
+
+    it('should compile @system_variables.current_connection as state.__current_connection__', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('system_variables'),
+        'current_connection'
+      );
+      expect(compileExpression(expr, ctx)).toBe('state.__current_connection__');
+    });
+
     it('should error for unknown system variable', () => {
       const expr = new MemberExpression(
         new AtIdentifier('system_variables'),
@@ -261,12 +285,12 @@ describe('compileExpression', () => {
 
   describe('@knowledge references', () => {
     it('should resolve @knowledge eagerly from context', () => {
-      ctx.knowledgeFields.set('api_key', "'sk-123'");
+      ctx.knowledgeFields.set('api_key', 'sk-123');
       const expr = new MemberExpression(
         new AtIdentifier('knowledge'),
         'api_key'
       );
-      expect(compileExpression(expr, ctx)).toBe("'sk-123'");
+      expect(compileExpression(expr, ctx)).toBe('"sk-123"');
     });
 
     it('should error for unknown @knowledge field', () => {
@@ -352,6 +376,26 @@ describe('compileExpression', () => {
       );
       expect(compileExpression(expr, ctx)).toBe('state["__user_input__"]');
     });
+
+    it('should compile @system_variables["current_modality"] as state["__current_modality__"]', () => {
+      const expr = new SubscriptExpression(
+        new AtIdentifier('system_variables'),
+        new StringLiteral('current_modality')
+      );
+      expect(compileExpression(expr, ctx)).toBe(
+        'state["__current_modality__"]'
+      );
+    });
+
+    it('should compile @system_variables["current_connection"] as state["__current_connection__"]', () => {
+      const expr = new SubscriptExpression(
+        new AtIdentifier('system_variables'),
+        new StringLiteral('current_connection')
+      );
+      expect(compileExpression(expr, ctx)).toBe(
+        'state["__current_connection__"]'
+      );
+    });
   });
 
   describe('template expressions', () => {
@@ -367,8 +411,8 @@ describe('compileExpression', () => {
       expect(compileExpression(expr, ctx)).toBe('Hello {{state.name}}!');
     });
 
-    it('should compile template in system message mode', () => {
-      ctx.mutableVariableNames.add('name');
+    it('should compile template in system message mode for linked vars', () => {
+      ctx.linkedVariableNames.add('name');
       const expr = new TemplateExpression([
         new TemplateText('Hello '),
         new TemplateInterpolation(
@@ -378,6 +422,20 @@ describe('compileExpression', () => {
       ]);
       expect(compileExpression(expr, ctx, { isSystemMessage: true })).toBe(
         'Hello {!$Context.name}!'
+      );
+    });
+
+    it('should compile template in system message mode for mutable vars', () => {
+      ctx.mutableVariableNames.add('name');
+      const expr = new TemplateExpression([
+        new TemplateText('Hello '),
+        new TemplateInterpolation(
+          new MemberExpression(new AtIdentifier('variables'), 'name')
+        ),
+        new TemplateText('!'),
+      ]);
+      expect(compileExpression(expr, ctx, { isSystemMessage: true })).toBe(
+        'Hello {{state.name}}!'
       );
     });
   });

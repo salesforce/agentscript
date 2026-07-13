@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Basic_Router_Agent",
+    "label": "Basic Router Agent",
+    "description": "A basic router agent with hyperclassifier",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! How can I help you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Routes the user to the appropriate topic based on their request",
+        "instructions": "You are a basic routing agent that directs users to the right topic.\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "go_to_sales",
+            "target": "sales_inquiry",
+            "description": "Route to sales questions"
+          },
+          {
+            "name": "go_to_support",
+            "target": "technical_support",
+            "description": "Route to technical support"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nDetermine which topic best matches the user's request.\nRoute them to the appropriate handler."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles sales-related questions and product information",
+        "tools": [],
+        "developerName": "sales_inquiry",
+        "label": "Sales Inquiry",
+        "actionDefinitions": [],
+        "instructions": "You are a basic routing agent that directs users to the right topic.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user with their sales inquiry.\nProvide product information and pricing details.\nIf the question is too complex, offer to connect them with a sales representative."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles technical support questions and troubleshooting",
+        "tools": [],
+        "developerName": "technical_support",
+        "label": "Technical Support",
+        "actionDefinitions": [],
+        "instructions": "You are a basic routing agent that directs users to the right topic.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user with their technical issue.\nWalk them through troubleshooting steps.\nIf the issue cannot be resolved, offer to escalate."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

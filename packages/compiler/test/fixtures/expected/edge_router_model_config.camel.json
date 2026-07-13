@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Router_Model_Config",
+    "label": "Router Model Config",
+    "description": "Multiple topics with model_config on start_agent and regular topics",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome! I'll connect you with the right specialist.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred. Please try again.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "user_intent",
+        "label": "User Intent",
+        "description": "Classified user intent",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Routes using hyperclassifier model",
+        "instructions": "You are a routing agent with different model configurations per topic.\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "go_complex",
+            "target": "complex_analysis",
+            "description": "Route to complex analysis requiring advanced model"
+          },
+          {
+            "name": "go_simple",
+            "target": "simple_faq",
+            "description": "Route to simple FAQ"
+          },
+          {
+            "name": "go_creative",
+            "target": "creative_writing",
+            "description": "Route to creative writing assistance"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nClassify the user's intent and route to the best topic."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles complex analytical questions requiring advanced reasoning",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_router",
+            "description": "Return to router for new request"
+          }
+        ],
+        "developerName": "complex_analysis",
+        "label": "Complex Analysis",
+        "actionDefinitions": [],
+        "instructions": "You are a routing agent with different model configurations per topic.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nProvide detailed analytical responses to complex questions.\nUse step-by-step reasoning for multi-part problems."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Answers simple frequently asked questions",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"complex_analysis\""
+              }
+            ],
+            "name": "go_complex",
+            "description": "Escalate to complex analysis"
+          }
+        ],
+        "developerName": "simple_faq",
+        "label": "Simple FAQ",
+        "actionDefinitions": [],
+        "instructions": "You are a routing agent with different model configurations per topic.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAnswer the user's simple question directly and concisely.\nIf the question is too complex, transition to the complex analysis topic."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "complex_analysis",
+            "enabled": "state.AgentScriptInternal_next_topic==\"complex_analysis\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Assists with creative writing tasks",
+        "tools": [],
+        "developerName": "creative_writing",
+        "label": "Creative Writing",
+        "actionDefinitions": [],
+        "instructions": "You are a routing agent with different model configurations per topic.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user with creative writing tasks.\nProvide suggestions, edits, and feedback on their writing."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome! I'll connect you with the right specialist.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred. Please try again.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

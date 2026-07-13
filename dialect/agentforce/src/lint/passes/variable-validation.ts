@@ -42,8 +42,8 @@ class VariableValidationPass implements LintPass {
     const typeMap = store.get(typeMapKey);
     if (!typeMap) return;
 
-    const varsMap = (root as Record<string, unknown>).variables;
-    if (!varsMap || !isNamedMap(varsMap)) return;
+    const varsMap = root.variables;
+    if (!isNamedMap(varsMap)) return;
 
     for (const [name, decl] of varsMap as NamedMap<unknown>) {
       if (!decl || typeof decl !== 'object') continue;
@@ -208,8 +208,7 @@ class VariableValidationPass implements LintPass {
     }
 
     // Cannot have a default value
-    const obj = node as Record<string, unknown>;
-    if (obj.defaultValue != null) {
+    if (node.defaultValue != null) {
       attachDiagnostic(
         node,
         lintDiagnostic(

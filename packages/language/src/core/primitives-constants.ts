@@ -81,3 +81,12 @@ export const ALLOWED_STRING_VALUE_KINDS = new Set<AllowedStringValueKind>([
   'TemplateExpression',
 ]);
 export const STRING_VALUE_DEFAULT = Array.from(ALLOWED_STRING_VALUE_KINDS);
+
+export const NULLABLE_STRING_VALUE_DEFAULT = [
+  'StringLiteral',
+  'NoneLiteral',
+] as const;
+export type AllowedNullableStringValueKind =
+  (typeof NULLABLE_STRING_VALUE_DEFAULT)[number];
+export const ALLOWED_NULLABLE_STRING_VALUE_KINDS: ReadonlySet<AllowedNullableStringValueKind> =
+  new Set(NULLABLE_STRING_VALUE_DEFAULT);

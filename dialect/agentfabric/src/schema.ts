@@ -10,6 +10,7 @@ import {
   NamedBlock,
   NamedCollectionBlock,
   CollectionBlock,
+  TypedMap,
   SymbolKind,
   StringValue,
   NumberValue,
@@ -20,6 +21,8 @@ import {
   ReferenceValue,
   createSchemaContext,
   VariablesBlock,
+  InputPropertiesBlock,
+  AGENTSCRIPT_PRIMITIVE_TYPES,
 } from '@agentscript/language';
 
 import type {
@@ -31,6 +34,13 @@ import type {
   CollectionBlockFactory,
   BlockFactory,
 } from '@agentscript/language';
+
+import {
+  ConnectionKind,
+  Namespace,
+  OUTPUT_JSON_SCHEMA_TYPES,
+  TRANSITION_TARGET_NAMESPACES,
+} from './constants.js';
 
 /**
  * Lazy field type wrapper that defers resolution of a factory reference until
@@ -59,6 +69,7 @@ import {
   SubagentBlock as AgentScriptSubagentBlock,
   ReasoningActionBlock,
   AgentScriptSchemaAliases,
+  NodeMemberAccess,
 } from '@agentscript/agentscript-dialect';
 
 export { SystemBlock, VariablesBlock } from '@agentscript/agentscript-dialect';
@@ -73,7 +84,7 @@ export const AFConfigBlock = Block('AFConfigBlock', {
   description: StringValue.describe('Description of the agent.'),
   default_llm: ReferenceValue.describe(
     'Default LLM (@llm.<name>) used at compile time for orchestration, reasoning, and generate nodes that omit an explicit llm field. The linter reports an error if this is omitted while any such node also omits llm.'
-  ).allowedNamespaces(['llm']),
+  ).allowedNamespaces([Namespace.LLM]),
 })
   .describe('Agent-level configuration.')
   .example(
@@ -94,6 +105,7 @@ const llmBaseFields: Schema = {
     'Connection URI (llm://connection_name) referencing an LLM connection.'
   )
     .pattern(/^llm:\/\/([a-zA-Z0-9\-._]+)$/)
+    .connectionRef([ConnectionKind.LLM])
     .example('llm://connection_name')
     .required(),
   kind: StringValue.describe('LLM provider discriminator.')
@@ -152,11 +164,17 @@ export const LLMBlock = CollectionBlock(LLMEntryBlock).describe(
 
 // ── Actions ─────────────────────────────────────────────────────────
 
-// Intentionally empty marker block: loose bindable parameter keys (typed InputsBlock deferred).
-export const ActionDefInputBlock = NamedBlock(
-  'ActionDefInputBlock',
-  {}
-).describe('Action definition input parameter.');
+// Typed map of bindable input arguments: each entry is `param_name: <type>`
+// where `<type>` is a primitive type. Mirrors the agentforce
+// `ResponseFormatInputsBlock` precedent (a TypedMap of primitiveTypes only) so
+// value-completion offers the primitive type keywords at the type position.
+// Unlike the language `InputsBlock`, no variable modifiers (mutable/linked) —
+// action inputs are plain typed parameters.
+export const ActionDefInputsBlock = TypedMap(
+  'ActionDefInputsBlock',
+  InputPropertiesBlock,
+  { primitiveTypes: AGENTSCRIPT_PRIMITIVE_TYPES }
+).describe('Bindable input arguments for the action.');
 
 export const ActionDefBlock = AgentScriptActionBlock.pick([
   'description',
@@ -170,14 +188,13 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
         'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name.'
       )
         .pattern(/^(?:a2a|mcp):\/\/([a-zA-Z0-9\-._]+)$/)
+        .connectionRef([ConnectionKind.Agent, ConnectionKind.MCP])
         .example('a2a://connection_name')
         .required(),
       kind: StringValue.describe(
         'Action type discriminator: "a2a:send_message" or "mcp:tool".'
       ).required(),
-      inputs: CollectionBlock(ActionDefInputBlock).describe(
-        'Bindable input arguments for the action.'
-      ),
+      inputs: ActionDefInputsBlock,
     },
     {
       symbol: { kind: SymbolKind.Method },
@@ -210,6 +227,7 @@ export const TriggerBlock = NamedBlock('TriggerBlock', {
     'Broker reference URI (brokers://broker_name/interface).'
   )
     .pattern(/^brokers?:\/\/(?:[a-zA-Z0-9\-._]+)\/(?:[a-zA-Z0-9\-._]+)$/)
+    .connectionRef([ConnectionKind.Broker])
     .example('brokers://broker_name/interface')
     .required(),
   on_message: ProcedureValue.describe(
@@ -238,7 +256,9 @@ function createOutputJsonSchemaFields(options?: {
     type: StringValue.describe(
       options?.typeDescription ??
         'Data type: string, number, integer, boolean, array, object.'
-    ).required(),
+    )
+      .required()
+      .enum([...OUTPUT_JSON_SCHEMA_TYPES]),
     description: StringValue.describe(
       options?.descriptionDescription ?? 'Description of this property.'
     ),
@@ -340,7 +360,9 @@ export const NodeReasoningSectionBlock = AgentScriptReasoningBlock.pick([
 ])
   .extend({
     actions: NodeActionsBlock.describe('Available actions for this node.'),
-    outputs: OutputStructureBlock.describe('Schema for structured output.'),
+    outputs: OutputStructureBlock.describe(
+      'Schema for structured output.'
+    ).structuredOutputField(),
     max_number_of_loops: NumberValue.describe(
       'Maximum reasoning loop iterations.'
     ).min(1),
@@ -364,7 +386,7 @@ export const SubagentBlock = AgentScriptSubagentBlock.omit(
     {
       llm: ReferenceValue.describe(
         'Override the default LLM setting.'
-      ).allowedNamespaces(['llm']),
+      ).allowedNamespaces([Namespace.LLM]),
       reasoning: NodeReasoningSectionBlock.describe(
         'Node-level reasoning configuration.'
       ).required(),
@@ -396,7 +418,7 @@ export const GeneratorBlock = NamedBlock(
     ).displayLabelField(),
     llm: ReferenceValue.describe(
       'Override the default LLM setting.'
-    ).allowedNamespaces(['llm']),
+    ).allowedNamespaces([Namespace.LLM]),
     system: NodeSystemSectionBlock.describe(
       'Optional node-level system.instructions override for this generator call.'
     ),
@@ -405,7 +427,7 @@ export const GeneratorBlock = NamedBlock(
     ).required(),
     outputs: OutputStructureBlock.describe(
       'Optional structured output schema for generator results.'
-    ),
+    ).structuredOutputField(),
     on_exit: ProcedureValue.describe(
       'Procedure executed when node completes. Must contain a transition to statement.'
     )
@@ -444,23 +466,11 @@ export const ExecutorBlock = NamedBlock(
 
 // ── Switch ──────────────────────────────────────────────────────────
 
-// TODO: derive this list from the schema itself (every top-level namespace
-// whose entry block declares the `'transitionTarget'` capability) so adding
-// a new node kind doesn't require editing this allowlist by hand.
-const ROUTER_TARGET_NAMESPACES = [
-  'orchestrator',
-  'subagent',
-  'generator',
-  'executor',
-  'router',
-  'echo',
-];
-
 export const RouterRouteBlock = Block('RouterRouteBlock', {
   target: ReferenceValue.describe(
     'Transition target reference, e.g. @orchestrator.someNode.'
   )
-    .allowedNamespaces(ROUTER_TARGET_NAMESPACES)
+    .allowedNamespaces(TRANSITION_TARGET_NAMESPACES)
     .resolvedType('transitionTarget')
     .required(),
   when: ExpressionValue.describe(
@@ -477,7 +487,7 @@ export const RouterOtherwiseBlock = Block('RouterOtherwiseBlock', {
   target: ReferenceValue.describe(
     'Default transition target when no route condition matches.'
   )
-    .allowedNamespaces(ROUTER_TARGET_NAMESPACES)
+    .allowedNamespaces(TRANSITION_TARGET_NAMESPACES)
     .resolvedType('transitionTarget')
     .required(),
 });
@@ -605,6 +615,7 @@ export const AgentFabricSchemaAliases: Record<string, string> = {
 export const AgentFabricSchemaInfo: SchemaInfo = {
   schema: AgentFabricSchema as Record<string, FieldType>,
   aliases: AgentFabricSchemaAliases,
+  nodeMemberAccess: NodeMemberAccess,
   globalScopes: {
     request: new Set(['payload', 'interface', 'headers']),
   },

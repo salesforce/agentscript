@@ -1,0 +1,276 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Hyperclassifier_Actions_NewSyntax",
+    "label": "Hyperclassifier Actions New Syntax",
+    "description": "Hyperclassifier start_agent with standardInvocableAction actions and knowledge using new syntax",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can search our knowledge base and help with common tasks.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, I encountered an error.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "search_result",
+        "label": "Search Result",
+        "description": "Result from knowledge search",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "case_id",
+        "label": "Case Id",
+        "description": "Support case identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Routes with knowledge search and inline actions using new syntax",
+        "instructions": "You are an AI assistant with knowledge search and inline actions on the start_agent.\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "go_detailed_support",
+            "target": "detailed_support",
+            "description": "Route to detailed support"
+          },
+          {
+            "name": "go_self_service",
+            "target": "self_service",
+            "description": "Route to self-service"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [
+          {
+            "developerName": "knowledge_search",
+            "label": "Knowledge Search",
+            "description": "Searches the knowledge base for relevant information",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "searchKnowledge",
+            "inputType": [
+              {
+                "developerName": "query",
+                "label": "Query",
+                "description": "Query",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result",
+                "label": "Result",
+                "description": "Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "create_quick_case",
+            "label": "Create Quick Case",
+            "description": "Creates a quick support case from the router",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "createCase",
+            "inputType": [
+              {
+                "developerName": "subject",
+                "label": "Subject",
+                "description": "Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "details",
+                "label": "Details",
+                "description": "Details",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "priority",
+                "label": "Priority",
+                "description": "Priority",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "case_id",
+                "label": "Case Id",
+                "description": "Case Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "case_number",
+                "label": "Case Number",
+                "description": "Case Number",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nRoute the user to the best topic based on their intent."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides detailed support with agent assistance",
+        "tools": [],
+        "developerName": "detailed_support",
+        "label": "Detailed Support",
+        "actionDefinitions": [],
+        "instructions": "You are an AI assistant with knowledge search and inline actions on the start_agent.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nProvide detailed support for the user's issue.\nReference any knowledge base results found during routing."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Guides users through self-service options",
+        "tools": [],
+        "developerName": "self_service",
+        "label": "Self Service",
+        "actionDefinitions": [],
+        "instructions": "You are an AI assistant with knowledge search and inline actions on the start_agent.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nGuide the user through self-service options.\nProvide step-by-step instructions based on knowledge base articles."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can search our knowledge base and help with common tasks.\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, I encountered an error.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+config:
+    agent_name: "Patient_Intake_Collect"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    patient_address_line1: mutable string
+        description: "Street address line 1 — house/building number and street name only."
+    patient_city: mutable string
+        description: "Town or city only."
+    patient_email: mutable string
+        description: "Patient's email address."
+
+start_agent router:
+    description: "Top-level router. Sends the user to patient intake."
+    reasoning:
+        instructions: ->
+            | Determine whether the user wants to book an appointment.
+            | If so, call {!@actions.go_to_intake} immediately.
+        actions:
+            go_to_intake: @utils.transition to @subagent.patient_intake
+                description: "Route to patient intake when the user wants an appointment."
+
+subagent patient_intake:
+    description: "Gather address line 1, city, and email — one field at a time."
+    reasoning:
+        instructions: ->
+            collect @variables.patient_address_line1:
+                message: "Please provide the first line of your address (house/building number and street name only)."
+
+            collect @variables.patient_city:
+                message: "Please provide your town or city."
+
+            collect @variables.patient_email:
+                message: "Please provide your email address."

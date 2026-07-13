@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Lint rules for action bindings inside agentic nodes (orchestrator,
  * subagent, generator).
@@ -19,8 +26,9 @@ import {
   normalizeId,
   IMPLICIT_WITH_PARAMS,
   listActionDefInputNames,
-} from '../../utils.js';
+} from '../../../utils.js';
 import { attachError, extractStringValue, type AstLike } from './shared.js';
+import { Namespace } from '../../../constants.js';
 
 function getActionDefName(
   toolEntry: Record<string, unknown>
@@ -31,7 +39,7 @@ function getActionDefName(
     toolEntry.colinear ??
     toolEntry.__value;
   const ref = decomposeAtMemberExpression(rawColinear);
-  if (ref && ref.namespace === 'actions') {
+  if (ref && ref.namespace === Namespace.Actions) {
     return ref.property;
   }
   const strValue = extractStringValue(rawColinear);
@@ -94,7 +102,11 @@ function validateNodeActionBindings(
   }
 }
 
-const AGENTIC_NODE_TYPES = ['orchestrator', 'subagent', 'generator'] as const;
+const AGENTIC_NODE_TYPES = [
+  Namespace.Orchestrator,
+  Namespace.Subagent,
+  Namespace.Generator,
+] as const;
 
 export function checkActionBindingRules(root: Record<string, unknown>): void {
   const actionDefs = isNamedMap(root.actions)
