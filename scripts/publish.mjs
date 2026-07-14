@@ -126,3 +126,13 @@ execFileSync('pnpm', ['changeset', 'publish'], {
   cwd: ROOT,
   stdio: 'inherit',
 });
+
+// Step 7: Verify what we just published is actually installable and importable.
+// The workspace can't tell us this: pnpm resolves siblings from source, so a
+// stale dependency pin or an unrewritten specifier only breaks once a consumer
+// resolves from the registry (see #35 and #71). Fails the job if a release is
+// broken, so it is caught in minutes rather than by the first user to try it.
+execFileSync('node', [join(ROOT, 'scripts', 'verify-published-packages.mjs')], {
+  cwd: ROOT,
+  stdio: 'inherit',
+});
