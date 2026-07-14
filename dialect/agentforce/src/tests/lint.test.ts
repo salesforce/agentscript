@@ -11,6 +11,7 @@ import { DiagnosticSeverity } from '@agentscript/types';
 import type { Diagnostic } from '@agentscript/types';
 import { parseDocument, testSchemaCtx } from './test-utils.js';
 import { defaultRules } from '../lint/passes/index.js';
+import { ALLOWED_AGENT_TYPES } from '../lint/agent-types.js';
 
 function createLintEngine() {
   return new LintEngine({ passes: defaultRules() });
@@ -467,6 +468,23 @@ topic main:
     expect(errors).toHaveLength(0);
   });
 
+  it('allows decisionTableAction:// target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    evaluate_table:
+      description: "Evaluate Decision Table"
+      target: "decisionTableAction://TestObject_DT_v1"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'invalid-action-target');
+    expect(errors).toHaveLength(0);
+  });
+
   it('allows createCatalogItemRequest:// target', () => {
     const diagnostics = runSecurityLint(`
 topic main:
@@ -601,6 +619,92 @@ topic main:
 
     const errors = diagnostics.filter(d => d.code === 'invalid-action-target');
     expect(errors).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Skill target scheme validation tests
+// ============================================================================
+
+describe('skill target scheme validation', () => {
+  it('allows skill:// target on a subagent skill', () => {
+    const diagnostics = runSecurityLint(`
+subagent skilled:
+  description: "Has a skill"
+  skills:
+    helper:
+      target: "skill://Helper_v1"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+    const errors = diagnostics.filter(d => d.code === 'invalid-skill-target');
+    expect(errors).toHaveLength(0);
+  });
+
+  it('allows skill:// target on a start_agent skill', () => {
+    const diagnostics = runSecurityLint(`
+start_agent main:
+  description: "Entry"
+  skills:
+    starter:
+      target: "skill://Starter_v1"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+    const errors = diagnostics.filter(d => d.code === 'invalid-skill-target');
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports error for unsupported skill target scheme', () => {
+    const diagnostics = runSecurityLint(`
+subagent skilled:
+  description: "Has a skill"
+  skills:
+    helper:
+      target: "skills://Helper_v1"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+    const errors = diagnostics.filter(d => d.code === 'invalid-skill-target');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('skills://');
+    expect(errors[0].message).toContain('skill://');
+  });
+
+  it('reports error for skill target without URI scheme', () => {
+    const diagnostics = runSecurityLint(`
+subagent skilled:
+  description: "Has a skill"
+  skills:
+    helper:
+      target: "just_a_name"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+    const errors = diagnostics.filter(d => d.code === 'invalid-skill-target');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('just_a_name');
+  });
+
+  it('reports missing-required-field when target is omitted', () => {
+    const diagnostics = runLint(`
+subagent skilled:
+  description: "Missing target"
+  skills:
+    helper: {}
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+    const errors = diagnostics.filter(d => d.code === 'missing-required-field');
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors.some(d => d.message.includes("'target'"))).toBe(true);
   });
 });
 
@@ -762,6 +866,41 @@ variables:
     expect(nsErrors[0].message).toContain('@MessagingSession');
     expect(nsErrors[0].message).toContain('@MessagingEndUser');
     expect(nsErrors[0].message).toContain('@VoiceCall');
+  });
+
+  // agent_type accepts every valid backend agent type: the three-value
+  // allowlist is gone, but unknown values are still rejected with a dedicated
+  // `agent-type-not-allowed` error (not a schema constraint).
+  //
+  // ALLOWED_AGENT_TYPES lists every backend-supported agent type (deprecated
+  // ones omitted), plus the `AgentforceServiceAgent` UI alias. Each must lint
+  // without an `agent-type-not-allowed` error.
+  it.each(ALLOWED_AGENT_TYPES)(
+    'accepts agent_type %s without an agent-type-not-allowed error',
+    agentType => {
+      const diagnostics = runSecurityLint(`
+config:
+  developer_name: "MyAgent"
+  agent_type: "${agentType}"
+`);
+
+      const errors = diagnostics.filter(
+        d => d.code === 'agent-type-not-allowed'
+      );
+      expect(errors).toHaveLength(0);
+    }
+  );
+
+  it('rejects an unknown agent_type with agent-type-not-allowed', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  developer_name: "MyAgent"
+  agent_type: "SomeBrandNewAgentType"
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'agent-type-not-allowed');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('SomeBrandNewAgentType');
   });
 });
 
@@ -1093,6 +1232,102 @@ variables:
       d => d.code === 'system-message-mutable-variable'
     );
     expect(errors).toHaveLength(0);
+  });
+
+  it('allows External-visibility mutable variable in welcome message', () => {
+    const diagnostics = runSecurityLint(`
+system:
+  messages:
+    welcome: |
+      Hello {!@variables.user_name}!
+    error: "Error"
+
+variables:
+  user_name: mutable string
+    visibility: "External"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'system-message-mutable-variable'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('allows lower-case external visibility in welcome message', () => {
+    const diagnostics = runSecurityLint(`
+system:
+  messages:
+    welcome: |
+      Hello {!@variables.user_name}!
+    error: "Error"
+
+variables:
+  user_name: mutable string
+    visibility: "external"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'system-message-mutable-variable'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('flags Internal-visibility mutable variable in welcome message', () => {
+    const diagnostics = runSecurityLint(`
+system:
+  messages:
+    welcome: |
+      Hello {!@variables.user_name}!
+    error: "Error"
+
+variables:
+  user_name: mutable string
+    visibility: "Internal"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'system-message-mutable-variable'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'user_name'");
+  });
+
+  it('allows External-visibility mutable variable in error message', () => {
+    const diagnostics = runSecurityLint(`
+system:
+  messages:
+    welcome: "Welcome"
+    error: |
+      Failed for {!@variables.user_name}
+variables:
+  user_name: mutable string
+    visibility: "External"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'system-message-mutable-variable'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('flags Internal-visibility mutable variable in error message', () => {
+    const diagnostics = runSecurityLint(`
+system:
+  messages:
+    welcome: "Welcome"
+    error: |
+      Failed for {!@variables.user_name}
+variables:
+  user_name: mutable string
+    visibility: "Internal"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'system-message-mutable-variable'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'user_name'");
+    expect(errors[0].message).toContain('error');
   });
 });
 
@@ -1564,6 +1799,54 @@ connected_subagent order_lookup:
     expect(boundErrors).toHaveLength(0);
   });
 
+  it('allows literal defaults (string, number, boolean) as bound inputs', () => {
+    const diagnostics = runSecurityLint(`
+connected_subagent Northern_Trail_Outfitters_Service_Agent:
+  label: "Northern Trail Outfitters Service Agent"
+  target: "agent://X00Daj00000qrhQg_Northern_Trail_Outfitters_Service_Agent"
+  description: "Customer support agent"
+  inputs:
+    EndUserId: string = "test"
+    RoutableId: string = "test"
+    Retries: number = 3
+    Enabled: boolean = True
+`);
+
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-required' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
+  it('allows a mix of literal and variable defaults as bound inputs', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  ContactId: linked string
+    source: @MessagingEndUser.ContactId
+    description: "Contact ID"
+
+connected_subagent Northern_Trail_Outfitters_Service_Agent:
+  label: "Northern Trail Outfitters Service Agent"
+  target: "agent://X00Daj00000qrhQg_Northern_Trail_Outfitters_Service_Agent"
+  description: "Customer support agent"
+  inputs:
+    EndUserId: string = "test"
+    RoutableId: string = "test"
+    ContactId: string = @variables.ContactId
+`);
+
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-required' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
   it('allows connected_subagent with both linked and mutable variable inputs', () => {
     const diagnostics = runSecurityLint(`
 variables:
@@ -1733,133 +2016,6 @@ connected_subagent order_lookup:
         d.code === 'bound-input-not-linked-or-mutable'
     );
     expect(boundErrors).toHaveLength(0);
-  });
-});
-
-// ============================================================================
-// Connected agent no-transition validation
-// ============================================================================
-
-describe('connected agent no-transition', () => {
-  it('reports error for @utils.transition to @connected_subagent.X in reasoning', () => {
-    const diagnostics = runSecurityLint(`
-start_agent main:
-  description: "Main"
-  reasoning:
-    instructions: ->
-      | Route the user.
-    actions:
-      transfer: @utils.transition to @connected_subagent.Support_Agent
-        description: "Transfer to support"
-
-connected_subagent Support_Agent:
-  label: "Support"
-  description: "Handles support"
-`);
-
-    const warnings = diagnostics.filter(
-      d => d.code === 'connected-agent-no-transition'
-    );
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(warnings[0].message).toContain('not yet supported');
-    expect(warnings[0].message).toContain('@connected_subagent.Support_Agent');
-  });
-
-  it('does not flag @connected_subagent.X as a tool invocation', () => {
-    const diagnostics = runSecurityLint(`
-start_agent main:
-  description: "Main"
-  reasoning:
-    instructions: ->
-      | Route the user.
-    actions:
-      call_support: @connected_subagent.Support_Agent
-        description: "Invoke support agent"
-
-connected_subagent Support_Agent:
-  label: "Support"
-  description: "Handles support"
-`);
-
-    const errors = diagnostics.filter(
-      d => d.code === 'connected-agent-no-transition'
-    );
-    expect(errors).toHaveLength(0);
-  });
-
-  it('does not flag @utils.transition to @topic.X', () => {
-    const diagnostics = runSecurityLint(`
-start_agent main:
-  description: "Main"
-  reasoning:
-    instructions: ->
-      | Route the user.
-    actions:
-      go_billing: @utils.transition to @topic.Billing
-        description: "Route to billing"
-
-topic Billing:
-  description: "Billing"
-  reasoning:
-    instructions: ->
-      | Help with billing.
-`);
-
-    const errors = diagnostics.filter(
-      d => d.code === 'connected-agent-no-transition'
-    );
-    expect(errors).toHaveLength(0);
-  });
-
-  it('reports error for transition to @connected_subagent.X in after_reasoning', () => {
-    const diagnostics = runSecurityLint(`
-start_agent main:
-  description: "Main"
-  after_reasoning:
-    transition to @connected_subagent.Support_Agent
-  reasoning:
-    instructions: ->
-      | Help the user.
-
-connected_subagent Support_Agent:
-  label: "Support"
-  description: "Handles support"
-`);
-
-    const errors = diagnostics.filter(
-      d => d.code === 'connected-agent-no-transition'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('not yet supported');
-  });
-
-  it('reports multiple errors for multiple connected agent transitions', () => {
-    const diagnostics = runSecurityLint(`
-start_agent main:
-  description: "Main"
-  reasoning:
-    instructions: ->
-      | Route the user.
-    actions:
-      transfer_a: @utils.transition to @connected_subagent.Agent_A
-        description: "Transfer to A"
-      transfer_b: @utils.transition to @connected_subagent.Agent_B
-        description: "Transfer to B"
-
-connected_subagent Agent_A:
-  label: "Agent A"
-  description: "First agent"
-
-connected_subagent Agent_B:
-  label: "Agent B"
-  description: "Second agent"
-`);
-
-    const errors = diagnostics.filter(
-      d => d.code === 'connected-agent-no-transition'
-    );
-    expect(errors).toHaveLength(2);
   });
 });
 
@@ -2347,176 +2503,6 @@ subagent Order_Management:
   expect(warnings.length).toBeGreaterThan(0);
 });
 
-describe('complex data type rule', () => {
-  const wrap = (inputs: string, outputs: string): string => `
-subagent S:
-  description: "S"
-  actions:
-    A:
-      description: "A"
-      inputs:
-${inputs}
-      outputs:
-${outputs}
-  reasoning:
-    instructions: ->
-      |Do it
-`;
-
-  it('warns when a primitive input has complex_data_type_name', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    const warnings = diagnostics.filter(
-      d => d.code === 'complex-data-type-on-primitive'
-    );
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(warnings[0].message).toContain("'amount'");
-    expect(warnings[0].message).toContain("'A'");
-    expect(warnings[0].message).toContain("'number'");
-  });
-
-  it('does not flag primitive inputs without complex_data_type_name', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        amount: number\n          description: "an amount"\n`,
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    expect(
-      diagnostics.filter(d => d.code === 'complex-data-type-on-primitive')
-    ).toHaveLength(0);
-  });
-
-  it('warns when a primitive output has complex_data_type_name', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        in_ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
-        `        message: string\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    const warnings = diagnostics.filter(
-      d => d.code === 'complex-data-type-on-primitive'
-    );
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(warnings[0].message).toContain("'message'");
-    expect(warnings[0].message).toContain("'string'");
-  });
-
-  it.each([
-    ['boolean'],
-    ['integer'],
-    ['id'],
-    ['date'],
-    ['datetime'],
-    ['time'],
-    ['timestamp'],
-    ['currency'],
-    ['long'],
-  ])('warns when primitive type %s has complex_data_type_name', primitive => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        v: ${primitive}\n          complex_data_type_name: "lightning__objectType"\n`,
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    const warnings = diagnostics.filter(
-      d => d.code === 'complex-data-type-on-primitive'
-    );
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(warnings[0].message).toContain(`'${primitive}'`);
-  });
-
-  it('does not flag object input with complex_data_type_name', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        order: object\n          complex_data_type_name: "OrderRecord"\n`,
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    expect(
-      diagnostics.filter(
-        d =>
-          d.code === 'complex-data-type-on-primitive' ||
-          d.code === 'object-type-missing-schema'
-      )
-    ).toHaveLength(0);
-  });
-
-  it('does not flag object input that uses schema:', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        order: object\n          schema: "schema://order_schema"\n`,
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    expect(
-      diagnostics.filter(
-        d =>
-          d.code === 'complex-data-type-on-primitive' ||
-          d.code === 'object-type-missing-schema'
-      )
-    ).toHaveLength(0);
-  });
-
-  it('does not flag list[object] output with complex_data_type_name', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`,
-        `        items: list[object]\n          complex_data_type_name: "OrderRecord"\n`
-      )
-    );
-    expect(
-      diagnostics.filter(
-        d =>
-          d.code === 'complex-data-type-on-primitive' ||
-          d.code === 'object-type-missing-schema'
-      )
-    ).toHaveLength(0);
-  });
-
-  it('warns on list[string] input with complex_data_type_name', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        tags: list[string]\n          complex_data_type_name: "lightning__objectType"\n`,
-        `        ok: object\n          complex_data_type_name: "lightning__objectType"\n`
-      )
-    );
-    const warnings = diagnostics.filter(
-      d => d.code === 'complex-data-type-on-primitive'
-    );
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(warnings[0].message).toContain("'list[string]'");
-  });
-
-  it('reports both warnings for mixed declarations', () => {
-    const diagnostics = runSecurityLint(
-      wrap(
-        `        amount: number\n          complex_data_type_name: "lightning__objectType"\n`,
-        `        result: object\n          description: "bare object output"\n`
-      )
-    );
-    const primitiveWarnings = diagnostics.filter(
-      d => d.code === 'complex-data-type-on-primitive'
-    );
-    const missingSchemaWarnings = diagnostics.filter(
-      d => d.code === 'object-type-missing-schema'
-    );
-    expect(primitiveWarnings).toHaveLength(1);
-    expect(primitiveWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
-    expect(primitiveWarnings[0].message).toContain("'amount'");
-    expect(missingSchemaWarnings).toHaveLength(1);
-    expect(missingSchemaWarnings[0].message).toContain("'result'");
-  });
-});
-
 describe('voice-adaptive conflict rule', () => {
   it('reports warning when language.adaptive is True and modality voice is present', () => {
     const diagnostics = runSecurityLint(`
@@ -2872,5 +2858,108 @@ ${outputs}
     expect(primitiveWarnings[0].message).toContain("'amount'");
     expect(missingSchemaWarnings).toHaveLength(1);
     expect(missingSchemaWarnings[0].message).toContain("'result'");
+  });
+});
+
+// ============================================================================
+// Required platform variable exemption (unused-variable message override)
+// ============================================================================
+
+describe('required platform variable unused-variable message', () => {
+  const wrap = (vars: string): string => `
+variables:
+${vars}
+subagent main:
+  description: "Main"
+  reasoning:
+    instructions: ->
+      |Do something
+`;
+
+  const PLATFORM_REQUIRED_MESSAGE = (name: string) =>
+    `Variable '${name}' is not used but is required by Agentforce. Removing this variable can cause issues when running the agent.`;
+
+  it.each([
+    ['EndUserId', '@MessagingSession.MessagingEndUserId'],
+    ['ChannelType', '@MessagingSession.ChannelType'],
+    ['RoutableId', '@MessagingSession.Id'],
+    ['EndUserLanguage', '@MessagingSession.EndUserLanguage'],
+    ['ContactId', '@MessagingEndUser.ContactId'],
+  ])(
+    'uses the platform-required message for unused %s with the expected source',
+    (name, source) => {
+      const diagnostics = runSecurityLint(
+        wrap(`  ${name}: linked string\n    source: ${source}\n`)
+      );
+
+      const unused = diagnostics.filter(d => d.code === 'unused-variable');
+      expect(unused).toHaveLength(1);
+      expect(unused[0].severity).toBe(DiagnosticSeverity.Information);
+      expect(unused[0].message).toBe(PLATFORM_REQUIRED_MESSAGE(name));
+    }
+  );
+
+  it('uses the generic message for unused non-required variables', () => {
+    const diagnostics = runSecurityLint(
+      wrap(`  my_custom_var: mutable string\n`)
+    );
+
+    const unused = diagnostics.filter(d => d.code === 'unused-variable');
+    expect(unused).toHaveLength(1);
+    expect(unused[0].message).toBe(
+      "Variable 'my_custom_var' is declared but never used"
+    );
+  });
+
+  it('uses the generic message when name matches but source differs', () => {
+    // Same name as a required platform var, but bound to a different source —
+    // not the runtime-required variable, just a name collision.
+    const diagnostics = runSecurityLint(
+      wrap(`  ContactId: linked string\n    source: @MessagingSession.Id\n`)
+    );
+
+    const unused = diagnostics.filter(d => d.code === 'unused-variable');
+    expect(unused).toHaveLength(1);
+    expect(unused[0].message).toBe(
+      "Variable 'ContactId' is declared but never used"
+    );
+  });
+
+  it('uses the generic message when name matches but variable is mutable (no source)', () => {
+    const diagnostics = runSecurityLint(
+      wrap(`  EndUserLanguage: mutable string\n`)
+    );
+
+    const unused = diagnostics.filter(d => d.code === 'unused-variable');
+    expect(unused).toHaveLength(1);
+    expect(unused[0].message).toBe(
+      "Variable 'EndUserLanguage' is declared but never used"
+    );
+  });
+
+  it('does not flag a referenced platform-required variable', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  EndUserLanguage: linked string
+    source: @MessagingSession.EndUserLanguage
+subagent main:
+  description: "Main"
+  actions:
+    Greet:
+      description: "Greet"
+      inputs:
+        lang: string
+      outputs:
+        msg: string
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      greet: @actions.Greet
+        with lang=@variables.EndUserLanguage
+`);
+
+    const unused = diagnostics.filter(d => d.code === 'unused-variable');
+    expect(unused).toHaveLength(0);
   });
 });

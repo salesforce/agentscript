@@ -657,6 +657,115 @@ describe('Completion Provider', () => {
       expect(labels).not.toContain('order_number');
     });
   });
+
+  // ── node member-access completions ────────────────────────────
+  //
+  // Inside an expression, completion on a node reference offers member
+  // access. After `@subagent.<node>.` the provider offers `input` and
+  // `output`. The regex used to capture `@ns.name` only matched two
+  // dot-separated parts, so a third dot (member access on a resolved
+  // node) never matched and nothing was offered.
+  describe('node member-access completions', () => {
+    const nodeSource = [
+      'subagent Order_Management:',
+      '  description: "handles orders"',
+      '  reasoning:',
+      '    instructions: "test"',
+      '  on_exit: ->',
+      '    transition to @subagent.Order_Management',
+    ].join('\n');
+
+    test('offers input and output after @subagent.<node>.', () => {
+      // Cursor sits right after the trailing dot of the node reference.
+      const exprLine = '    transition to @subagent.Order_Management.';
+      const source = nodeSource + '\n' + exprLine;
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        exprLine.length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('input');
+      expect(labels).toContain('output');
+    });
+
+    test('textEdit replaces only the partial member after the trailing dot', () => {
+      const exprLine = '    transition to @subagent.Order_Management.out';
+      const source = nodeSource + '\n' + exprLine;
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        exprLine.length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const output = result!.items.find(i => i.label === 'output');
+      expect(output).toBeDefined();
+      const textEdit = output!.textEdit as {
+        range: { start: { character: number }; end: { character: number } };
+        newText: string;
+      };
+      // Replacement starts right after the last dot (column of "out").
+      expect(textEdit.range.start.character).toBe(
+        exprLine.length - 'out'.length
+      );
+      expect(textEdit.range.end.character).toBe(exprLine.length);
+      expect(textEdit.newText).toBe('output');
+    });
+
+    // `input` is offered as a node member (LEVEL 1) but is intentionally
+    // non-enumerable: it declares no schema-level sub-properties. Only the
+    // `output` member gets LEVEL-2 property enumeration (the LEVEL-2 regex
+    // matches `output` exclusively). So after `@<node>.input.` the member
+    // path offers nothing — falling through to the normal expression flow,
+    // which has no `input` namespace to resolve here.
+    test('offers no node-member properties after @subagent.<node>.input.', () => {
+      const exprLine = '    transition to @subagent.Order_Management.input.';
+      const source = nodeSource + '\n' + exprLine;
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        exprLine.length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      // No `input` sub-properties exist to enumerate.
+      expect(labels).not.toContain('input');
+      expect(labels).not.toContain('output');
+    });
+
+    // ── LEVEL 2 (`@<node>.output.` property enumeration) is not testable
+    // here ──────────────────────────────────────────────────────────────
+    //
+    // The LSP tests use the agentscript dialect (see test-utils), whose only
+    // transition-target nodes are `subagent` / `start_agent`. The agentscript
+    // `ReasoningBlock` declares only `instructions` and `actions`, and marks no
+    // `structuredOutputField` — there is no output-properties map for the
+    // unified `getNodeMemberAccessCompletions` to enumerate. The lsp package
+    // also does not depend on the agentfabric dialect, where output-bearing
+    // `orchestrator` / `generator` nodes live.
+    //
+    // Faking an output-bearing node here is impossible without a dialect that
+    // can model one, so LEVEL-2 (and deeper) enumeration is covered at the
+    // dialect layer (agentfabric node-member-completions.test.ts), which drives
+    // the same entry the LSP calls. The LSP-layer tokenizer/textEdit math is
+    // covered for LEVEL 1 above.
+  });
 });
 
 describe('snippet indentation contract (via provideCompletion)', () => {

@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "ConditionalRuntimeTest",
+    "label": "Conditional Runtime Test",
+    "description": "Conditional Runtime Test",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "service_user"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "x",
+        "label": "X",
+        "description": "X",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": true
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "test_conditional",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Test conditional runtime evaluation",
+        "tools": [],
+        "developerName": "test_conditional",
+        "label": "Test Conditional",
+        "actionDefinitions": [],
+        "instructions": "You are a helpful AI assistant.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPlease help the user"
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.x == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "x": "False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "x": "True"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

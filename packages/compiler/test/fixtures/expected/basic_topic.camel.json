@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Test_Agent",
+    "label": "Test Agent",
+    "description": "Test Agent",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "test_user"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "hello",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "goodbye",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "key",
+        "label": "Key",
+        "description": "Key",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'Value'"
+      }
+    ],
+    "initialNode": "simple",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Basic topic",
+        "tools": [],
+        "developerName": "simple",
+        "label": "Simple",
+        "actionDefinitions": [],
+        "instructions": "You are a helpful AI assistant.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPlease answer the question to the best of your ability"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false,
+        "adaptive": true
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"hello\", \"messageType\": \"Welcome\"}, {\"message\": \"goodbye\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

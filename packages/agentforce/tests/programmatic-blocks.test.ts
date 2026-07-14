@@ -399,14 +399,14 @@ describe('programmatic block construction and emit', () => {
       expect(emitted).toContain('- "Support"');
     });
 
-    test('SecurityBlock with nested sharing policy', () => {
-      const security = parseComponent(
+    test('AccessBlock with nested sharing policy', () => {
+      const access = parseComponent(
         'sharing_policy:\n    use_default_sharing_entities: True',
-        'security'
+        'access'
       );
-      assertDefined(security);
-      const output = emitComponent(security);
-      expect(output).toContain('security:');
+      assertDefined(access);
+      const output = emitComponent(access);
+      expect(output).toContain('access:');
       expect(output).toContain('sharing_policy:');
       expect(output).toContain('use_default_sharing_entities: True');
     });

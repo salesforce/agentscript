@@ -6,13 +6,14 @@
  */
 
 import { isNamedMap } from '@agentscript/language';
-import { normalizeId } from '../../utils.js';
+import { normalizeId } from '../../../utils.js';
 import type { PassStore } from '@agentscript/language';
 import {
   asObjectList,
   attachError,
   extractSwitchTarget,
   extractWhenString,
+  hasBooleanLiteralComparison,
   isBooleanLikeExpression,
   type AstLike,
 } from './shared.js';
@@ -47,8 +48,14 @@ function validateSwitchRoutes(
     } else if (!isBooleanLikeExpression(r.when)) {
       attachError(
         r.when as AstLike,
-        `router '${normalizedName}' route 'when' must be a boolean expression (comparison, logical operator, or boolean literal).`,
+        `router '${normalizedName}' route 'when' must be a boolean expression (comparison or logical operator).`,
         'switch-route-when-not-boolean'
+      );
+    } else if (hasBooleanLiteralComparison(r.when)) {
+      attachError(
+        r.when as AstLike,
+        `router '${normalizedName}' route 'when' compares against a boolean literal, which does not evaluate correctly at runtime. Compare against a string value instead (e.g. '== "true"' or '== "false"').`,
+        'switch-route-when-boolean-literal'
       );
     }
   }

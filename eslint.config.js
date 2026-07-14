@@ -41,6 +41,7 @@ export default [
       parserOptions: {
         projectService: {
           allowDefaultProject: [
+            'packages/compile-server/__tests__/*.test.ts',
             'packages/agentforce/tests/*.test.ts',
             'packages/compiler/modality/test/*.test.ts',
             'packages/lsp/src/*.test.ts',

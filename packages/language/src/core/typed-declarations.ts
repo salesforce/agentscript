@@ -57,6 +57,7 @@ export class VariableDeclarationNode extends TypedDeclarationBase {
 export class ParameterDeclarationNode extends TypedDeclarationBase {
   readonly __kind = 'ParameterDeclaration' as const;
   readonly __symbol: SymbolMeta = { kind: SymbolKind.Field, noRecurse: true };
+  typeInBlock: boolean = false;
 
   constructor(data: {
     type: Expression;

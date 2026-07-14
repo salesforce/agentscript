@@ -11,8 +11,10 @@ import {
   CollectionBlock,
   NamedCollectionBlock,
   TypedMap,
+  TypeDescriptor,
   SymbolKind,
   StringValue,
+  NullableStringValue,
   NumberValue,
   BooleanValue,
   ReferenceValue,
@@ -27,6 +29,7 @@ import {
 
 import type {
   FieldType,
+  FieldMetadata,
   SchemaInfo,
   SchemaContext,
   Parsed,
@@ -56,9 +59,15 @@ import {
   commerceShopperVariantFields,
 } from './variants/commerce-cloud-shopper.js';
 import {
+  TABLEAU_ANALYZE_DATA_SCHEMA,
+  tableauAnalyzeDataVariantFields,
+} from './variants/tableau-analyze-data.js';
+import {
   BYON_SCHEMA_PREFIX,
   byonSubagentVariantFields,
 } from './variants/byon.js';
+import { AFSkillsBlock } from './variants/skills.js';
+import { ALLOWED_AGENT_TYPES } from './lint/agent-types.js';
 
 const AFVariablesBlock = VariablesBlock.extendProperties({
   source: ReferenceValue.describe(
@@ -139,6 +148,26 @@ export const ContextBlock = Block('ContextBlock', {
   memory: ContextMemoryBlock.describe('Memory configuration.'),
 }).describe('Context configuration for the agent.');
 
+const RuntimeConfigBlock = Block('RuntimeConfigBlock', {
+  streaming: BooleanValue.describe(
+    'When True, collapse /messages/stream into a single terminal SSE chunk instead of streaming incremental events.'
+  ),
+  thought_chunks: BooleanValue.describe(
+    'When True, the agent runtime emits thought chunks (reasoning trace events) ' +
+      'alongside response chunks. Defaults to False to preserve existing streaming ' +
+      'behavior for clients that have not opted in.'
+  ),
+  citation: BooleanValue.describe(
+    'When True, skip the citation enrichment post-orchestration step.'
+  ),
+  groundedness: BooleanValue.describe(
+    'When True, force-off the groundedness post-orchestration step. Trumps enable flags and the agent-type default.'
+  ),
+  reset_to_initial_node: BooleanValue.describe(
+    'When True, rewind current_node to the initial node after each terminal node.'
+  ),
+}).describe('Runtime behavior settings for the agent.');
+
 export const RecommendedPromptsBlock = Block('RecommendedPromptsBlock', {
   in_conversation: BooleanValue.describe(
     'Whether in-conversation recommendations are enabled for the agent.'
@@ -171,16 +200,17 @@ const AFConfigBlock = ConfigBlock.extend(
       'Agent description used in prompts and routing. Distinct from description (internal documentation).'
     ),
     agent_type: StringValue.describe(
-      'Agent type (e.g., "AgentforceServiceAgent", "AgentforceEmployeeAgent", "SalesEinsteinCoach").'
-    ).enum([
-      'AgentforceServiceAgent',
-      'AgentforceEmployeeAgent',
-      'SalesEinsteinCoach',
-    ]),
+      'Agent type (e.g., "AgentforceServiceAgent", "AgentforceEmployeeAgent", "SalesEinsteinCoach"). Any valid backend agent type is accepted.'
+    ).suggest(ALLOWED_AGENT_TYPES),
     agent_id: StringValue.describe('Unique identifier for the agent.'),
     agent_name: StringValue.describe('Internal name for the agent.'),
-    default_agent_user: StringValue.describe(
-      'Default user identity. Required for AgentforceServiceAgent type.'
+    default_agent_user: NullableStringValue.describe(
+      'Default user identity. Required for AgentforceServiceAgent type. May be `None` only for AgentforceEmployeeAgent. Deprecated — move to the top-level `access` block.'
+    ).deprecated(
+      'Property default_agent_user has moved from config to access. Move field to access block.',
+      {
+        replacement: 'access.default_agent_user',
+      }
     ),
     agent_version: StringValue.describe(
       'Version identifier for the agent (e.g., "v1").'
@@ -215,6 +245,21 @@ const AFConfigBlock = ConfigBlock.extend(
     user_locale: StringValue.describe(
       'User locale override (e.g., "en_US").'
     ).deprecated('Use the language block instead.'),
+    runtime: RuntimeConfigBlock.describe(
+      'Runtime behavior settings for the agent.'
+    ),
+    file_upload: Block('FileUploadConfig', {
+      mode: StringValue.describe(
+        'How the agent handles user-uploaded files. "auto" (default) surfaces every ' +
+          'file to every subagent; "managed" surfaces a file only when an author ' +
+          'references it (e.g. @variables.files[0]); "disabled" drops uploads ' +
+          'silently; "error" rejects uploads with an error message.'
+      ).enum(['auto', 'managed', 'disabled', 'error']),
+      message: NullableStringValue.describe(
+        'Custom message to display when mode is "error" or "disabled". ' +
+          'If not provided, a default message will be used.'
+      ),
+    }).describe('Configuration for how the agent handles user-uploaded files.'),
   },
   {
     wildcardPrefixes: [
@@ -229,6 +274,8 @@ const AFConfigBlock = ConfigBlock.extend(
     default_agent_user: "support@example.com"
     agent_type: "AgentforceServiceAgent"
     enable_enhanced_event_logs: True
+    file_upload:
+        mode: "auto"
     additional_parameter__reset_to_initial_node: True`
 );
 
@@ -286,7 +333,10 @@ const AFActionBlock = ActionBlock.extend({
 
 export const AFActionsBlock = CollectionBlock(AFActionBlock);
 
-export const SecurityBlock = Block('SecurityBlock', {
+export const AccessBlock = Block('AccessBlock', {
+  default_agent_user: NullableStringValue.describe(
+    'Default user identity. Required for AgentforceServiceAgent type. May be `None` only for AgentforceEmployeeAgent.'
+  ),
   sharing_policy: Block('SharingPolicyBlock', {
     use_default_sharing_entities: BooleanValue.describe(
       'Sharing policy for the agent.'
@@ -297,13 +347,15 @@ export const SecurityBlock = Block('SecurityBlock', {
   }).describe('Sharing policy for the agent.'),
   verified_customer_record_access: Block('VerifiedCustomerRecordAccessBlock', {
     use_default_objects: BooleanValue.describe(
-      'Whether to use default objects for record access filtering.'
+      'Whether to use the default set of objects for record access filtering.'
     ),
     additional_objects: ExpressionSequence().describe(
       'Additional objects for record access filtering.'
     ),
   }).describe('Verified customer record access configuration.'),
-}).describe('Agent security configuration');
+}).describe(
+  'Agent access configuration (user identity, sharing, record access).'
+);
 
 // ---------------------------------------------------------------------------
 // Shared fields between Topic, Subagent, and StartAgent blocks
@@ -316,7 +368,6 @@ const sharedBlockFields = {
   model_config: ModelConfigBlock.describe(
     'Model configuration for this block.'
   ),
-  security: SecurityBlock,
 };
 
 const sharedBlockOpts = {
@@ -346,10 +397,10 @@ export const AFTopicBlock = NamedBlock(
 
 /**
  * Cross-cutting fields available to ALL custom subagent (BYON) variants.
- * Adds the AF-specific blocks (`actions`, `model_config`, `security`) on top
- * of base agentscript `customSubagentFields` (`label`, `description`,
- * `system`, `actions`, `reasoning`, `schema` discriminator, `parameters`,
- * `on_init`, `on_exit`). Variants may override `parameters` or `reasoning`.
+ * Adds the AF-specific blocks (`actions`, `model_config`) on top of base
+ * agentscript `customSubagentFields` (`label`, `description`, `system`,
+ * `actions`, `reasoning`, `schema` discriminator, `parameters`, `on_init`,
+ * `on_exit`). Variants may override `parameters` or `reasoning`.
  */
 const afCustomSubagentFields = {
   ...customSubagentFields,
@@ -357,7 +408,6 @@ const afCustomSubagentFields = {
   model_config: ModelConfigBlock.describe(
     'Model configuration for this block.'
   ),
-  security: SecurityBlock,
 };
 
 /**
@@ -378,6 +428,23 @@ export const commerceShopperVariant = {
 };
 
 /**
+ * Pre-merge variant fields for Tableau Analyze Data subagents.
+ * Exported so the lint pass can check allowed fields before NamedBlock merges with the base.
+ *
+ * `reasoning.instructions` is blacklisted: Tableau Analyze Data runs deterministic
+ * server-side flows and the LLM-instructions surface isn't applicable. Authors
+ * may still bind tools via `reasoning.actions`.
+ */
+export const tableauAnalyzeDataVariant = {
+  ...afCustomSubagentFields,
+  ...tableauAnalyzeDataVariantFields,
+  reasoning: ReasoningBlock.omit('instructions').describe(
+    'Reasoning block containing actions available to the agent. ' +
+      'Note: `instructions` is not supported on the Tableau Analyze Data variant.'
+  ),
+};
+
+/**
  * Pre-merge variant fields for generic BYON subagents.
  * Inherits the full `reasoning` block (instructions + actions) from
  * afCustomSubagentFields — no overrides beyond the variant's parameters shape.
@@ -392,12 +459,14 @@ export const AFSubagentBlock = NamedBlock(
   {
     ...sharedBlockFields,
     actions: AFActionsBlock,
+    skills: AFSkillsBlock,
   },
   { scopeAlias: 'subagent', ...sharedBlockOpts }
 )
   .describe('A subagent defining agent logic with actions and reasoning.')
   .discriminant('schema')
   .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant)
+  .variant(TABLEAU_ANALYZE_DATA_SCHEMA, tableauAnalyzeDataVariant)
   .variantMatch(
     'byon',
     (value: string) => value.startsWith(BYON_SCHEMA_PREFIX),
@@ -413,15 +482,16 @@ export const AFStartAgentBlock = StartAgentBlock.extend(
   {
     actions: AFActionsBlock,
     reasoning: ReasoningBlock,
+    skills: AFSkillsBlock,
     model_config: ModelConfigBlock.describe(
       'Configuration for the model used by this block.'
     ),
-    security: SecurityBlock,
   },
   { scopeAlias: 'topic' }
 )
   .discriminant('schema')
   .variant(COMMERCE_SHOPPER_SCHEMA, commerceShopperVariant)
+  .variant(TABLEAU_ANALYZE_DATA_SCHEMA, tableauAnalyzeDataVariant)
   .variantMatch(
     'byon',
     (value: string) => value.startsWith(BYON_SCHEMA_PREFIX),
@@ -447,77 +517,149 @@ export const KnowledgeBlock = Block('KnowledgeBlock', {
     citations_enabled: True`
   );
 
-// Deferred wildcard reference to support rescursive/nested structure:
-//    filled in after the block is created so that
-//    nested sub-fields at any depth are parsed with the same property keywords.
-const _inputPropsWildcard: {
-  prefix: string;
-  fieldType: FieldType;
-  typedEntry: boolean;
-} = {
-  prefix: '',
-  fieldType: undefined as unknown as FieldType, // patched below
-  typedEntry: true,
+// Type parameters (fields, value, constraints) are expressed via a nested `type:`
+// block on each input rather than as direct siblings of input metadata.
+//
+// The `fields:` TypedMap and the TypeDescriptor reference each other cyclically
+// (fields contains inputs which contain type descriptors which contain fields).
+// We use deferred proxies to break the cycle.
+
+const _inputsBlockHolder: { block?: FieldType } = {};
+
+const _fieldsMetadata: FieldMetadata = {
+  description:
+    'Nested parameters of this object input. Each entry is itself an input declaration.',
 };
 
+const _fieldsRef = new Proxy({} as FieldType, {
+  get(_target, prop, receiver) {
+    const block = _inputsBlockHolder.block;
+    if (!block) {
+      throw new Error(
+        'ResponseFormatInputsBlock accessed before initialization'
+      );
+    }
+    if (prop === '__metadata') return _fieldsMetadata;
+    return Reflect.get(block, prop, receiver);
+  },
+  has(_target, prop) {
+    if (prop === '__metadata') return true;
+    const block = _inputsBlockHolder.block;
+    return block ? Reflect.has(block, prop) : false;
+  },
+}) as FieldType;
+
+// Deferred proxy for the TypeDescriptor (needed for recursive `value:` field)
+const _typeDescriptorHolder: { field?: FieldType } = {};
+
+const _typeDescriptorRef = new Proxy({} as FieldType, {
+  get(_target, prop, receiver) {
+    const field = _typeDescriptorHolder.field;
+    if (!field) {
+      throw new Error(
+        'ResponseFormatTypeDescriptor accessed before initialization'
+      );
+    }
+    return Reflect.get(field, prop, receiver);
+  },
+  has(_target, prop) {
+    const field = _typeDescriptorHolder.field;
+    return field ? Reflect.has(field, prop) : false;
+  },
+}) as FieldType;
+
+// Type parameter schemas: what nested fields are allowed for each type keyword.
+// - list → value: (recursive TypeDescriptor for element type)
+// - object → fields: (recursive TypedMap of inputs)
+const TYPE_PARAMETER_SCHEMAS: Record<string, Record<string, FieldType>> = {
+  list: {
+    value: _typeDescriptorRef,
+    min_items: NumberValue.describe('Minimum number of array items.'),
+    max_items: NumberValue.describe('Maximum number of array items.'),
+  },
+  object: {
+    description: StringValue.describe('Description of this object type.'),
+    fields: _fieldsRef,
+  },
+  string: {
+    enum: ExpressionSequence().describe('Allowed values.'),
+    min_length: NumberValue.describe('Minimum string length.'),
+    max_length: NumberValue.describe('Maximum string length.'),
+  },
+  number: {
+    enum: ExpressionSequence().describe('Allowed values.'),
+    minimum: NumberValue.describe('Minimum numeric value.'),
+    maximum: NumberValue.describe('Maximum numeric value.'),
+  },
+  integer: {
+    enum: ExpressionSequence().describe('Allowed values.'),
+    minimum: NumberValue.describe('Minimum numeric value.'),
+    maximum: NumberValue.describe('Maximum numeric value.'),
+  },
+  boolean: {},
+  date: {},
+  datetime: {},
+  id: {},
+};
+
+// Create the actual TypeDescriptor field type
+const ResponseFormatTypeDescriptor = TypeDescriptor({
+  primitiveTypes: AGENTSCRIPT_PRIMITIVE_TYPES,
+  typeParameterSchemas: TYPE_PARAMETER_SCHEMAS,
+}).describe(
+  'Type specification for this input. Use for complex types (list, object with fields).'
+);
+
+// Resolve the deferred TypeDescriptor reference
+_typeDescriptorHolder.field = ResponseFormatTypeDescriptor;
+
 // Properties block for response format input fields.
-// Extends InputPropertiesBlock to inherit: label, description, is_required
-const ResponseFormatInputPropertiesBlock = InputPropertiesBlock.extend(
+// Extends InputPropertiesBlock to inherit: label, description, is_required.
+// Type parameters (fields, value, constraints) are under the `type:` block.
+export const ResponseFormatInputPropertiesBlock = InputPropertiesBlock.extend(
   {
     schema: StringValue.describe(
       'Schema URI for input validation (e.g., "messaging_components://FormName").'
     ),
-    enum: ExpressionSequence().describe('Allowed values for this input.'),
-    min_length: NumberValue.describe('Minimum string length.'),
-    max_length: NumberValue.describe('Maximum string length.'),
-    minimum: NumberValue.describe('Minimum numeric value.'),
-    maximum: NumberValue.describe('Maximum numeric value.'),
-    min_items: NumberValue.describe('Minimum array items.'),
-    max_items: NumberValue.describe('Maximum array items.'),
+    type: ResponseFormatTypeDescriptor,
   },
   {
     symbol: { kind: SymbolKind.Object, noRecurse: true },
-    // Accept nested sub-fields (e.g. `title: string` inside `choices: list[object]`)
-    //  at any depth with the same property keywords.
-    wildcardPrefixes: [_inputPropsWildcard],
   }
 ).describe('Properties for a response format input field.');
 
-/**
- * Known property keywords on ResponseFormatInputPropertiesBlock.
- * Derived from the Block schema so it stays in sync automatically.
- * Used by the compiler and linter to distinguish metadata keywords
- * from wildcard-matched sub-field declarations.
- */
-export const RESPONSE_FORMAT_INPUT_KEYWORDS = new Set(
-  Object.keys(ResponseFormatInputPropertiesBlock.schema)
-);
-
-// Patch the deferred reference so the wildcard resolves to the block itself.
-_inputPropsWildcard.fieldType = ResponseFormatInputPropertiesBlock;
-
-// Typed map for response format inputs (supports all primitive types)
-const ResponseFormatInputsBlock = TypedMap(
+// Typed map for response format inputs (supports all primitive types).
+// allowTypelessEntries permits entries with no colinear type (type comes from the `type:` block).
+export const ResponseFormatInputsBlock = TypedMap(
   'ResponseFormatInputsBlock',
   ResponseFormatInputPropertiesBlock,
-  { primitiveTypes: AGENTSCRIPT_PRIMITIVE_TYPES }
+  { primitiveTypes: AGENTSCRIPT_PRIMITIVE_TYPES, allowTypelessEntries: true }
 ).describe('Structured input schema for response format definitions.');
 
+// Resolve the deferred `fields` reference to the inputs TypedMap.
+_inputsBlockHolder.block = ResponseFormatInputsBlock;
+
 // Response format definition block
-const ResponseFormatBlock = NamedBlock(
+export const ResponseFormatBlock = NamedBlock(
   'ResponseFormatBlock',
   {
     label: StringValue.describe(
       'Human-readable label for the format. Not provided to the LLM.'
     ),
-    description: StringValue.describe('Description of the response format.'),
+    description: StringValue.describe(
+      'Tells the LLM when to pick this format over others. Write it as ' +
+        'selection guidance: e.g., "Use this when presenting 2–6 choices ' +
+        'for the user to pick from."'
+    ).required(),
     source: StringValue.describe(
       'Source identifier for an existing format (e.g., "SurfaceAction__MessagingChoices").'
     ),
     target: StringValue.describe(
-      'Target URI for custom format (e.g., "apex://MessagingLinksButSpecial").'
+      'Target URI for custom format (e.g., "apex://SomeApex").'
     ),
-    inputs: ResponseFormatInputsBlock.describe(
+    // Clone first: `.describe()` mutates metadata in place, and the bare
+    // `ResponseFormatInputsBlock` is shared with every input's `fields:`.
+    inputs: ResponseFormatInputsBlock.clone().describe(
       'Structured input schema for this response format.'
     ),
   },
@@ -530,19 +672,11 @@ const ResponseFormatBlock = NamedBlock(
   .describe('Response format definition with schema and target.')
   .example(
     `    response_formats:
-        # Existing format with no changes
-        messaging_rich_link:
-            source: "response_format://SurfaceAction__MessagingRichLink"
-
-        # Existing format with description override
-        messaging_choices_penguins:
-            description: "Description of this format"
-            source: "response_format://SurfaceAction__MessagingChoices"
-
         # Custom format with structured input schema
-        custom_messaging_choices:
-            description: "A messaging choices format"
-            target: "apex://MessagingChoicesHandler"
+        custom_choices:
+            description: "A response action containing UI components. Use this to prompt the
+            user to select one of many simple available choices with images."
+            target: "apex://ChoicesHandler"
             inputs:
                 message: string
                     description: "The message text"
@@ -555,12 +689,12 @@ const ResponseFormatBlock = NamedBlock(
   );
 
 // Collection of response format definitions (matches ActionsBlock structure)
-const ResponseFormatsBlock = CollectionBlock(ResponseFormatBlock).describe(
-  'Collection of response format definitions.'
-);
+export const ResponseFormatsBlock = CollectionBlock(
+  ResponseFormatBlock
+).describe('Collection of response format definitions.');
 
 // Available format block (reference only - no additional fields)
-const AvailableFormatBlock = NamedBlock(
+export const AvailableFormatBlock = NamedBlock(
   'AvailableFormatBlock',
   {},
   {
@@ -576,12 +710,12 @@ const AvailableFormatBlock = NamedBlock(
             messaging_choices: @response_formats.messaging_choices`
   );
 
-const AvailableFormatsBlock = CollectionBlock(AvailableFormatBlock).describe(
-  'Formats available to the LLM for non-deterministic selection.'
-);
+export const AvailableFormatsBlock = CollectionBlock(
+  AvailableFormatBlock
+).describe('Formats available to the LLM for non-deterministic selection.');
 
 // Connection-level reasoning block
-const ConnectionReasoningBlock = Block(
+export const ConnectionReasoningBlock = Block(
   'ConnectionReasoningBlock',
   {
     instructions: StringValue.describe(
@@ -603,7 +737,7 @@ export const ConnectionBlock = NamedBlock(
     description: StringValue.describe('Description of the connection purpose.'),
     source: StringValue.describe('Source identifier for the connection.'),
     inputs: AFConnectionInputsBlock.describe(
-      'Parameters defined by surface owners.'
+      'Parameters defined by connection owners.'
     ),
     additional_system_instructions: StringValue.describe(
       'Additional system instructions that append to global system instructions. Supports {!<expression>} template interpolation.'
@@ -795,7 +929,7 @@ export const AgentforceSchema = {
   connection: ConnectionsBlock,
   connected_subagent: NamedCollectionBlock(ConnectedSubagentBlock),
   modality: ModalitiesBlock,
-  security: SecurityBlock,
+  access: AccessBlock,
   context: ContextBlock,
   subagent: NamedCollectionBlock(
     AFSubagentBlock.clone().example(

@@ -6,8 +6,14 @@
  */
 
 import { NamedMap, ParameterDeclarationNode } from '@agentscript/language';
+import type { BlockCore } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
-import type { OutboundRouteConfig, ResponseAction } from '../types.js';
+import type {
+  OutboundRouteConfig,
+  ResponseAction,
+  Surface,
+  SurfaceInputParameter,
+} from '../types.js';
 import type { ParsedConnection } from '../parsed-types.js';
 import {
   extractStringValue,
@@ -17,32 +23,11 @@ import {
   getExpressionName,
   iterateNamedMap,
 } from '../ast-helpers.js';
-import { normalizeDeveloperName } from '../utils.js';
+import { dedent, normalizeDeveloperName } from '../utils.js';
 import type { Sourceable } from '../sourced.js';
 import { extractDefaultValue } from '../variables/state-variables.js';
-import { surfaceInputParameter } from '../generated/agent-dsl.js';
-import type { z } from 'zod';
-
-type SurfaceInputParameter = z.infer<typeof surfaceInputParameter>;
-
-/**
- * Surface output type for the compiled AgentJSON.
- */
-interface Surface {
-  surface_type: string;
-  // name?: string;
-  // label?: string;
-  // description?: string;
-  // source?: string;
-  adaptive_response_allowed?: boolean;
-  instructions?: string | null;
-  // additional_system_instructions?: string | null;
-  outbound_route_configs?: OutboundRouteConfig[];
-  response_actions?: ResponseAction[];
-  input_parameters?: SurfaceInputParameter[];
-  // format_definitions?: ResponseFormat[];
-  // tools?: FormatTool[];
-}
+import { compileResponseFormats } from './compile-response-formats.js';
+import { compileTemplateValue } from '../expressions/compile-template.js';
 
 /**
  * Known connection type mappings.
@@ -53,10 +38,8 @@ const CONNECTION_TYPES: Record<string, string> = {
   slack: 'slack',
   telephony: 'telephony',
   voice: 'voice',
-  // customer_web_client: 'customer_web_client',
+  customer_web_client: 'customer_web_client',
 };
-
-// const CUSTOM_CONNECTION_TYPE = 'custom';
 
 /**
  * Map AgentScript types to surface input parameter data types.
@@ -108,16 +91,45 @@ function compileSurface(
 
   const adaptiveResponseAllowed =
     extractSourcedBoolean(def.adaptive_response_allowed) ?? undefined;
-  const instructions = extractSourcedString(def.instructions) ?? undefined;
+
+  // Set connection name for @inputs reference resolution
+  ctx.connectionName = name;
+
+  // Clear response format reference map for this surface
+  ctx.responseFormatReferenceMap.clear();
+
+  // Compile reasoning.response_actions first to populate responseFormatReferenceMap
+  // (needed for @response_actions resolution in instructions)
+  const responseActions = compileResponseActions(
+    def.reasoning?.response_actions as
+      | NamedMap<Record<string, unknown>>
+      | undefined,
+    ctx
+  );
+
+  // Extract instructions from reasoning block (template-based, format references allowed)
+  const instructionsNode = def.reasoning?.instructions as
+    | Record<string, unknown>
+    | undefined;
+  const instructions = instructionsNode
+    ? dedent(
+        compileTemplateValue(instructionsNode, ctx, {
+          allowFormatReferences: true,
+        })
+      )
+    : undefined;
 
   // Compile outbound route configs (includes escalation_message)
   const outboundRouteConfigs = compileOutboundRouteConfigs(def, ctx);
 
-  // Compile response actions
-  const responseActions = compileResponseActions(def, ctx);
-
   // Compile inputs (aka surface variables)
   const inputs = compileInputs(def, ctx);
+
+  // Compile format_definitions (response_formats)
+  const responseFormats = compileResponseFormats(
+    def.response_formats as NamedMap<BlockCore> | undefined,
+    ctx
+  );
 
   // Validate connection type constraints
   validateConnection(name, connectionType, def, agentType, ctx);
@@ -134,6 +146,11 @@ function compileSurface(
   }
   // Always include outbound_route_configs (empty array when none configured)
   surface.outbound_route_configs = outboundRouteConfigs;
+
+  if (responseFormats.length > 0) {
+    surface.response_formats = responseFormats;
+  }
+
   if (responseActions.length > 0) {
     surface.response_actions = responseActions;
   }
@@ -144,131 +161,12 @@ function compileSurface(
   return surface as Surface;
 }
 
-// --- Commented out: new compileSurface body from 2001dc63 ---
-// function compileSurface(
-//   name: string,
-//   def: ParsedConnection,
-//   agentType: string | undefined,
-//   ctx: CompilerContext
-// ): Surface | undefined {
-//   const connectionType = getConnectionType(name);
-//
-//   const adaptiveResponseAllowed =
-//     extractSourcedBoolean(def.adaptive_response_allowed) ?? undefined;
-//
-//   // Parse and validate connection source (must be connection://...)
-//   const sourceUri = extractStringValue(def.source);
-//   let source: string | undefined;
-//   if (sourceUri) {
-//     const { scheme, path } = parseUri(sourceUri);
-//     if (scheme !== 'connection') {
-//       ctx.error(
-//         `Connection source must use 'connection://' scheme, got: '${sourceUri}'`,
-//         def.__cst?.range
-//       );
-//     }
-//     source = path || sourceUri;
-//   }
-//
-//   const label = extractStringValue(def.label) ?? undefined;
-//   const description = extractStringValue(def.description) ?? undefined;
-//
-//   // Set connection name for @inputs reference resolution
-//   ctx.connectionName = name;
-//
-//   // Clear response format reference map for this surface
-//   ctx.responseFormatReferenceMap.clear();
-//
-//   // Compile reasoning.response_actions first to populate responseFormatReferenceMap
-//   // (needed for @response_actions resolution in instructions)
-//   const tools = compileAvailableFormats(
-//     def.reasoning?.response_actions as
-//       | NamedMap<Record<string, unknown>>
-//       | undefined,
-//     ctx
-//   );
-//
-//   // Extract instructions from reasoning block
-//   const instructionsNode = def.reasoning?.instructions as
-//     | Record<string, unknown>
-//     | undefined;
-//   const instructionsRaw = instructionsNode
-//     ? compileTemplateValue(instructionsNode, ctx, {
-//         allowFormatReferences: true,
-//       })
-//     : undefined;
-//   const instructions = instructionsRaw ? dedent(instructionsRaw) : undefined;
-//
-//   // Extract additional_system_instructions from connection level
-//   const sysInstrNode = def.additional_system_instructions as
-//     | Record<string, unknown>
-//     | undefined;
-//   const additionalSystemInstructionsRaw = sysInstrNode
-//     ? compileTemplateValue(sysInstrNode, ctx, { allowFormatReferences: true })
-//     : undefined;
-//   const additionalSystemInstructions = additionalSystemInstructionsRaw
-//     ? dedent(additionalSystemInstructionsRaw)
-//     : undefined;
-//
-//   // Compile outbound route configs (includes escalation_message)
-//   const outboundRouteConfigs = compileOutboundRouteConfigs(def, ctx);
-//
-//   // Compile inputs
-//   const inputs = compileInputs(def, ctx);
-//
-//   // Compile format_definitions (response_formats from .agent file)
-//   const responseFormats = compileResponseFormats(
-//     def.response_formats as NamedMap<Record<string, unknown>> | undefined,
-//     ctx
-//   );
-//
-//   // Validate connection type constraints
-//   validateConnection(name, connectionType, def, agentType, ctx);
-//
-//   const surface: Sourceable<Surface> = {
-//     surface_type: connectionType,
-//     ...(connectionType === CUSTOM_CONNECTION_TYPE ? { name } : {}),
-//   };
-//   if (label !== undefined) {
-//     surface.label = label;
-//   }
-//   if (description !== undefined) {
-//     surface.description = description;
-//   }
-//   if (source !== undefined) {
-//     surface.source = source;
-//   }
-//   if (adaptiveResponseAllowed !== undefined) {
-//     surface.adaptive_response_allowed = adaptiveResponseAllowed;
-//   }
-//   if (instructions !== undefined) {
-//     surface.instructions = instructions;
-//   }
-//   if (additionalSystemInstructions !== undefined) {
-//     surface.additional_system_instructions = additionalSystemInstructions;
-//   }
-//   // Always include outbound_route_configs (empty array when none configured)
-//   surface.outbound_route_configs = outboundRouteConfigs;
-//   if (inputs.length > 0) {
-//     surface.inputs = inputs;
-//   }
-//   if (responseFormats.length > 0) {
-//     surface.format_definitions = responseFormats;
-//   }
-//   if (tools.length > 0) {
-//     surface.tools = tools;
-//   }
-//
-//   return surface as Surface;
-// }
-
 /**
  * Map a connection block name to a surface type.
  * Known types are normalized via the lookup table; unknown types pass through as-is.
  */
 function getConnectionType(name: string): string {
   return CONNECTION_TYPES[name.toLowerCase()] ?? name;
-  // return CONNECTION_TYPES[name.toLowerCase()] ?? CUSTOM_CONNECTION_TYPE;
 }
 
 function compileOutboundRouteConfigs(
@@ -300,30 +198,67 @@ function compileOutboundRouteConfigs(
   return [];
 }
 
+/**
+ * Compile reasoning.response_actions from a connection block.
+ * Returns ResponseAction[] for JSON output.
+ */
 function compileResponseActions(
-  def: ParsedConnection,
-  _ctx: CompilerContext
+  responseActions: NamedMap<Record<string, unknown>> | undefined,
+  ctx: CompilerContext
 ): ResponseAction[] {
-  if (!def.response_actions) return [];
+  if (!responseActions) return [];
 
   const result: ResponseAction[] = [];
 
-  for (const [name, actionDef] of iterateNamedMap(
-    def.response_actions as NamedMap<Record<string, unknown>> | undefined
-  )) {
-    const description = extractSourcedString(actionDef.description) ?? '';
-    const label =
-      extractSourcedString(actionDef.label) ?? normalizeDeveloperName(name);
+  for (const [name, def] of iterateNamedMap(responseActions)) {
+    // Colinear value is accessible via .value (NamedBlock getter)
+    const colinear = def['value'] as Record<string, unknown> | undefined;
 
-    const action: Sourceable<ResponseAction> = {
-      developer_name: name,
-      label,
-      description,
-    };
-    result.push(action as ResponseAction);
+    // Extract the reference name from the expression
+    const target = extractFormatReference(colinear);
+    if (!target) continue;
+
+    // Map reasoning.response_actions name to response_formats definition
+    // target for @response_actions references
+    ctx.responseFormatReferenceMap.set(name, target);
+
+    result.push({
+      target,
+      name,
+      description: normalizeDeveloperName(name),
+    });
   }
 
   return result;
+}
+
+/**
+ * Extract the format reference from a colinear expression.
+ * Handles @response_formats.format_name -> "format_name"
+ */
+function extractFormatReference(
+  expr: Record<string, unknown> | undefined
+): string | undefined {
+  if (!expr) return undefined;
+
+  const kind = expr['__kind'] as string | undefined;
+
+  if (kind === 'MemberExpression') {
+    // @response_formats.format_name
+    // Property can be a string directly or an Identifier node
+    const property = expr['property'];
+    if (typeof property === 'string') {
+      return property;
+    }
+    if (typeof property === 'object' && property !== null) {
+      const propObj = property as Record<string, unknown>;
+      if (propObj['__kind'] === 'Identifier') {
+        return propObj['name'] as string;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function compileInputs(

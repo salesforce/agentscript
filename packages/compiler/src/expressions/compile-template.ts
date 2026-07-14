@@ -23,8 +23,16 @@ import {
  * Compile a template (sequence of text + interpolations) into a string.
  *
  * Templates in source: `| Hello {!@variables.name}!`
- * Compiled output: `Hello {{state.name}}!`
- * System message: `Hello {!$Context.name}!`
+ * Compiled output (mutable):     `Hello {{state.name}}!`
+ * Compiled output (linked, sys): `Hello {!$Context.name}!`
+ *
+ * In system messages, linked variables resolve through `$Context.X` and use
+ * the `{!...}` system-message binding wrapper; mutable variables resolve
+ * through `state.X` and use the regular `{{...}}` template wrapper, matching
+ * how they're rendered everywhere else.
+ *
+ * Linked variables uses `$Context` instead of {{variables.}} because the Bot
+ * runtime stack can only support $Context.
  */
 export function compileTemplate(
   parts: TemplatePart[],
@@ -46,7 +54,7 @@ export function compileTemplate(
           ctx,
           opts
         );
-        if (opts.isSystemMessage) {
+        if (opts.isSystemMessage && compiled.startsWith('$Context.')) {
           return `{!${compiled}}`;
         }
         if (compiled.startsWith('action.')) {

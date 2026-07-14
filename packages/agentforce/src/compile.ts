@@ -13,7 +13,11 @@ import { parseAndLint } from '@agentscript/language';
 import type { Diagnostic } from '@agentscript/types';
 import { agentforceDialect } from '@agentscript/agentforce-dialect';
 import type { ParsedAgentforce } from '@agentscript/agentforce-dialect';
-import { compile } from '@agentscript/compiler';
+import {
+  compile,
+  agentDslAuthoringSchema,
+  snakeKeysToCamel,
+} from '@agentscript/compiler';
 import type { CompileResult } from '@agentscript/compiler';
 import type { AgentDSLAuthoring } from '@agentscript/compiler';
 import { getParser } from './parser.js';
@@ -34,12 +38,30 @@ export interface AgentforceCompileResult {
 }
 
 /**
+ * Options for `compileSource()`.
+ */
+export interface CompileSourceOptions {
+  /**
+   * Emit output keys in camelCase instead of the default snake_case. Only
+   * keys declared by the AgentJSON schema are renamed; user-controlled keys
+   * inside open-dict fields (e.g. variable names in `bound_inputs`,
+   * locale codes in `filler_sentences`) pass through unchanged. Source
+   * range mappings are remapped to the new keys.
+   */
+  camelCase?: boolean;
+}
+
+/**
  * Parse, lint, and compile an AgentScript source string to AgentJSON.
  *
  * @param source - The AgentScript source text.
+ * @param options - Compile options (e.g. `camelCase` for camelCase output keys).
  * @returns The compiled output, diagnostics, and parsed document.
  */
-export function compileSource(source: string): AgentforceCompileResult {
+export function compileSource(
+  source: string,
+  options: CompileSourceOptions = {}
+): AgentforceCompileResult {
   const parser = getParser();
 
   const tree = parser.parse(source);
@@ -69,9 +91,17 @@ export function compileSource(source: string): AgentforceCompileResult {
       a.range.start.character - b.range.start.character
   );
 
+  let output = compileResult.output;
+  let ranges = compileResult.ranges;
+  if (options.camelCase) {
+    const converted = snakeKeysToCamel(output, ranges, agentDslAuthoringSchema);
+    output = converted.value as AgentDSLAuthoring;
+    ranges = converted.ranges;
+  }
+
   return {
-    output: compileResult.output,
-    ranges: compileResult.ranges,
+    output,
+    ranges,
     diagnostics,
     document,
   };

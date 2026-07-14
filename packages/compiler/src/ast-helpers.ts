@@ -152,9 +152,7 @@ export function extractSourcedNumber(
  * Get the CST range from an AST value, if available.
  */
 export function getCstRange(value: unknown): Range | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const cst = (value as { __cst?: CstMeta }).__cst;
-  return cst?.range;
+  return hasCst(value) ? value.__cst.range : undefined;
 }
 
 /**

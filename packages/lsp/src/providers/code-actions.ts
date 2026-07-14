@@ -129,6 +129,112 @@ function collectTopicRefRenameEdits(
 }
 
 /**
+ * Build text edits to move `config.default_agent_user` → `access.default_agent_user`:
+ *  - delete the line from the config block
+ *  - append `default_agent_user: <value>` under the existing access block, or
+ *    insert a new `access:` block immediately after `config:` if none exists
+ *
+ * Returns null when the source can't be safely transformed (no config block
+ * matching the diagnostic, can't find a clean line, etc).
+ */
+function buildMoveDefaultAgentUserEdits(
+  source: string,
+  diagnosticRange: Range,
+  ast: AstRoot | null
+): TextEdit[] | null {
+  if (!ast) return null;
+
+  const config = (ast as Record<string, unknown>).config as
+    | AstNodeLike
+    | undefined;
+  if (!config) return null;
+
+  // Find the mapping_element CST node for the deprecated key. The diagnostic
+  // range covers just the key id; its parent is the mapping_element holding
+  // both key and value.
+  const dauNode = (config as Record<string, unknown>).default_agent_user as
+    | AstNodeLike
+    | undefined;
+  const dauCst = dauNode?.__cst as CstMeta | undefined;
+  if (!dauCst) return null;
+
+  // Walk up to the mapping_element so we capture the key + value range.
+  let cstNode = dauCst.node;
+  while (cstNode && cstNode.type !== 'mapping_element') {
+    if (!cstNode.parent) return null;
+    cstNode = cstNode.parent;
+  }
+  if (!cstNode) return null;
+
+  const startRow = cstNode.startPosition.row;
+  if (startRow !== diagnosticRange.start.line) return null;
+
+  const lines = source.split('\n');
+  const lineText = lines[startRow];
+  if (lineText === undefined) return null;
+
+  // Extract `default_agent_user: <value>` from the line, preserving the value.
+  const keyMatch = lineText.match(/^(\s*)default_agent_user\s*:\s*(.*)$/);
+  if (!keyMatch) return null;
+  const valuePart = keyMatch[2];
+  // Reuse the deprecated line's own indentation. `config` and `access` are both
+  // top-level blocks, so their child fields share the same indent level — this
+  // preserves the document's style (e.g. 2-space vs 4-space).
+  const indent = keyMatch[1] || '    ';
+
+  const edits: TextEdit[] = [];
+
+  // Delete the entire line (and its trailing newline if not the last line).
+  const deleteRange: Range =
+    startRow + 1 < lines.length
+      ? {
+          start: { line: startRow, character: 0 },
+          end: { line: startRow + 1, character: 0 },
+        }
+      : {
+          start: { line: startRow, character: 0 },
+          end: { line: startRow, character: lineText.length },
+        };
+  edits.push({ range: deleteRange, newText: '' });
+
+  const access = (ast as Record<string, unknown>).access as
+    | AstNodeLike
+    | undefined;
+  const insertedField = `default_agent_user: ${valuePart}`;
+
+  if (access) {
+    // Append inside the existing access block. Insert at the first column of
+    // the line after the block's last line so we don't disturb its body.
+    const accessCst = access.__cst as CstMeta | undefined;
+    if (!accessCst) return null;
+    const accessEndRow = accessCst.node.endPosition.row;
+    const insertLine = accessEndRow + 1;
+    edits.push({
+      range: {
+        start: { line: insertLine, character: 0 },
+        end: { line: insertLine, character: 0 },
+      },
+      newText: `${indent}${insertedField}\n`,
+    });
+  } else {
+    // Insert a new top-level `access:` block immediately after the config block.
+    const configCst = config.__cst as CstMeta | undefined;
+    if (!configCst) return null;
+    const configEndRow = configCst.node.endPosition.row;
+    const insertLine = configEndRow + 1;
+    edits.push({
+      range: {
+        start: { line: insertLine, character: 0 },
+        end: { line: insertLine, character: 0 },
+      },
+      newText: `\naccess:\n${indent}${insertedField}\n`,
+    });
+  }
+
+  return edits;
+}
+
+/**
  * Provide code actions for diagnostics in a range.
  */
 export function provideCodeActions(
@@ -231,6 +337,22 @@ export function provideCodeActions(
           if (edits.length > 0) {
             actions.push({
               title: 'Convert to subagent',
+              kind: CodeActionKind.QuickFix,
+              diagnostics: [diagnostic],
+              isPreferred: true,
+              edit: { changes: { [uri]: edits } },
+            });
+          }
+        } else if (replacement === 'access.default_agent_user') {
+          const edits = buildMoveDefaultAgentUserEdits(
+            source,
+            diagnostic.range,
+            state.ast
+          );
+          if (edits) {
+            actions.push({
+              title:
+                'Move config.default_agent_user → access.default_agent_user',
               kind: CodeActionKind.QuickFix,
               diagnostics: [diagnostic],
               isPreferred: true,

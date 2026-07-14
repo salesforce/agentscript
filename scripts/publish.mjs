@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Publish script for CI: rewrites @agentscript/* → @sf-agentscript/* in all
  * package.json files, in compiled dist/ output, and in shipped src/ at publish

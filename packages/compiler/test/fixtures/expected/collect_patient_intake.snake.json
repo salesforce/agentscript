@@ -1,0 +1,272 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "Patient_Intake_Collect",
+    "label": "Patient Intake Collect",
+    "description": "Patient Intake Collect",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "test@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "patient_address_line1",
+        "label": "Patient Address Line 1",
+        "description": "Street address line 1 — house/building number and street name only.",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "patient_city",
+        "label": "Patient City",
+        "description": "Town or city only.",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "patient_email",
+        "label": "Patient Email",
+        "description": "Patient's email address.",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "router",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Top-level router. Sends the user to patient intake.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"patient_intake\""
+              }
+            ],
+            "name": "go_to_intake",
+            "description": "Route to patient intake when the user wants an appointment."
+          }
+        ],
+        "developer_name": "router",
+        "label": "Router",
+        "action_definitions": [],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nDetermine whether the user wants to book an appointment."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nIf so, call go_to_intake immediately."
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "patient_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"patient_intake\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Gather address line 1, city, and email — one field at a time.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "patient_address_line1": "result.patient_address_line1 if \"patient_address_line1\" in result else state.patient_address_line1"
+              },
+              {
+                "patient_city": "result.patient_city if \"patient_city\" in result else state.patient_city"
+              },
+              {
+                "patient_email": "result.patient_email if \"patient_email\" in result else state.patient_email"
+              }
+            ],
+            "name": "capture_patient_intake_fields",
+            "description": "Capture fields as the user provides them.",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "patient_address_line1",
+              "patient_city",
+              "patient_email"
+            ],
+            "input_parameters": [
+              {
+                "developer_name": "patient_address_line1",
+                "label": "patient_address_line1",
+                "data_type": "String"
+              },
+              {
+                "developer_name": "patient_city",
+                "label": "patient_city",
+                "data_type": "String"
+              },
+              {
+                "developer_name": "patient_email",
+                "label": "patient_email",
+                "data_type": "String"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"router\""
+              }
+            ],
+            "name": "cancel_patient_intake_collect",
+            "description": "Stop collecting and return to the start when the user changes their mind, cancels, says never mind, or asks for something else instead.",
+            "bound_inputs": {},
+            "llm_inputs": [],
+            "input_parameters": []
+          }
+        ],
+        "developer_name": "patient_intake",
+        "label": "Patient Intake",
+        "action_definitions": [],
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.patient_address_line1 is None",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAsk the user for patient_address_line1. Use exactly this message: \"Please provide the first line of your address (house/building number and street name only).\" When they answer, call capture_patient_intake_fields with patient_address_line1."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.patient_address_line1 is not None and state.patient_city is None",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAsk the user for patient_city. Use exactly this message: \"Please provide your town or city.\" When they answer, call capture_patient_intake_fields with patient_city."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.patient_address_line1 is not None and (state.patient_city is not None and state.patient_email is None)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAsk the user for patient_email. Use exactly this message: \"Please provide your email address.\" When they answer, call capture_patient_intake_fields with patient_email."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.patient_address_line1 is not None and (state.patient_city is not None and state.patient_email is not None)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAll required details are collected. Do not ask for anything further."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.patient_address_line1 is None or (state.patient_city is None or state.patient_email is None)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nIf the user changes their mind, cancels, says never mind, or asks for something else instead, do not ask for the next field — call cancel_patient_intake_collect instead."
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "handoff",
+            "target": "patient_intake",
+            "enabled": "(state.patient_address_line1 is None or (state.patient_city is None or state.patient_email is None)) and state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ],
+            "end_turn_first": true
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

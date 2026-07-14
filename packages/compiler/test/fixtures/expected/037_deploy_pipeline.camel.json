@@ -1,0 +1,2864 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "deploy_pipeline_agent_v37",
+    "label": "Deploy Pipeline Agent V 37",
+    "description": "Assists users with deployment management through the deployment pipeline manager workflow.",
+    "enableEnhancedEventLogs": true,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "deploy_pipeline@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I am your Deployment Pipeline Manager Assistant. How can I help you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I apologize, something went wrong on my end. Could you please rephrase your request?",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "deployment_record_id",
+        "label": "Deployment Record Id",
+        "description": "Record ID of the deployment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "deployment_status",
+        "label": "Deployment Status",
+        "description": "Current status of the deployment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "deployment_tier",
+        "label": "Deployment Tier",
+        "description": "Tier classification for the deployment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developerName": "deployment_category",
+        "label": "Deployment Category",
+        "description": "Category of the deployment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "contact_name",
+        "label": "Contact Name",
+        "description": "Full name of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_email",
+        "label": "Contact Email",
+        "description": "Email address of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_phone",
+        "label": "Contact Phone",
+        "description": "Phone number of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "is_verified",
+        "label": "Is Verified",
+        "description": "Whether the user identity is verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "eligibility_score",
+        "label": "Eligibility Score",
+        "description": "Calculated eligibility score",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "step_counter",
+        "label": "Step Counter",
+        "description": "Current step in the process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "attempt_count",
+        "label": "Attempt Count",
+        "description": "Number of attempts made",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "total_items_count",
+        "label": "Total Items Count",
+        "description": "Total number of items to process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "build_validation_complete",
+        "label": "Build Validation Complete",
+        "description": "Whether the build_validation stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "build_validation_result",
+        "label": "Build Validation Result",
+        "description": "Result from the build_validation stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "staging_complete",
+        "label": "Staging Complete",
+        "description": "Whether the staging stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "staging_result",
+        "label": "Staging Result",
+        "description": "Result from the staging stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "smoke_test_complete",
+        "label": "Smoke Test Complete",
+        "description": "Whether the smoke_test stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "smoke_test_result",
+        "label": "Smoke Test Result",
+        "description": "Result from the smoke_test stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "release_complete",
+        "label": "Release Complete",
+        "description": "Whether the release stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "release_result",
+        "label": "Release Result",
+        "description": "Result from the release stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "priority_level",
+        "label": "Priority Level",
+        "description": "Priority level of the request",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developerName": "notes_text",
+        "label": "Notes Text",
+        "description": "Notes and comments",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "assigned_agent",
+        "label": "Assigned Agent",
+        "description": "Assigned agent name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "resolution_summary",
+        "label": "Resolution Summary",
+        "description": "Summary of the resolution",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "escalation_requested",
+        "label": "Escalation Requested",
+        "description": "Whether escalation was requested",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "is_business_hours",
+        "label": "Is Business Hours",
+        "description": "Whether it is currently business hours",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "case_ref_number",
+        "label": "Case Ref Number",
+        "description": "Reference number for the support case",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "next_available_slot",
+        "label": "Next Available Slot",
+        "description": "Next available time slot",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Welcome the user and route to the appropriate deployment management topic",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"build_validation\""
+              }
+            ],
+            "name": "go_to_build_validation",
+            "description": "Transition to build validation topic."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"staging\""
+              }
+            ],
+            "name": "go_to_staging",
+            "description": "Transition to staging topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"smoke_test\""
+              }
+            ],
+            "name": "go_to_smoke_test",
+            "description": "Transition to smoke test topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"release\""
+              }
+            ],
+            "name": "go_to_release",
+            "description": "Transition to release topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "go_to_escalation",
+            "description": "Escalate to a human agent for assistance.",
+            "enabled": "state.is_verified == True"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "instructions": "You are a professional deployment pipeline manager assistant.\nHelp users manage their deployment requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: build_validation -> staging -> smoke_test -> release.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a topic selector for a deployment pipeline manager assistant.\nAnalyze the user's input and determine the most appropriate topic.\nCurrent deployment status: {{state.deployment_status}}\nEligibility score: {{state.eligibility_score}}\nSteps completed: {{state.step_counter}}\nPriority: {{state.priority_level}}\nUse go_to_build_validation for build validation requests.\nUse go_to_staging for staging requests.\nUse go_to_smoke_test for smoke test requests.\nUse go_to_release for release requests.\nUse go_to_escalation to escalate if the user is upset or requests a human."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "build_validation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"build_validation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "staging",
+            "enabled": "state.AgentScriptInternal_next_topic==\"staging\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "smoke_test",
+            "enabled": "state.AgentScriptInternal_next_topic==\"smoke_test\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "release",
+            "enabled": "state.AgentScriptInternal_next_topic==\"release\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the build validation stage of the deployment process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_build_validation_data",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.deployment_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "build_validation_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "build_validation_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_build_validation"
+          },
+          {
+            "type": "action",
+            "target": "fetch_build_validation_details",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "deployment_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_build_validation_info"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"staging\""
+              }
+            ],
+            "name": "go_to_staging",
+            "description": "Move to staging stage.",
+            "enabled": "state.build_validation_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          }
+        ],
+        "developerName": "build_validation",
+        "label": "Build Validation",
+        "actionDefinitions": [
+          {
+            "developerName": "process_build_validation_data",
+            "label": "Process Build Validation Data",
+            "description": "Process build validation stage data for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_BuildValidation_Data",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_build_validation_info",
+            "label": "Validate Build Validation Info",
+            "description": "Validate build validation information for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_BuildValidation_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_build_validation_details",
+            "label": "Fetch Build Validation Details",
+            "description": "Fetch build validation details for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_BuildValidation_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional deployment pipeline manager assistant.\nHelp users manage their deployment requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: build_validation -> staging -> smoke_test -> release.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the build validation stage for the deployment.\nCurrent deployment status: {{state.deployment_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nBuild Validation result: {{state.build_validation_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.deployment_tier}}\nIf the contact information is missing, ask the user to provide their name and email.\nAfter collecting information, use run_build_validation to begin processing."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.is_verified == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "validate_build_validation_info",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "contact_ref": "state.contact_email"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "deployment_status": "result.updated_status"
+              },
+              {
+                "is_verified": "result.is_valid"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.build_validation_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "staging",
+            "enabled": "state.AgentScriptInternal_next_topic==\"staging\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the staging stage of the deployment process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_staging_data",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.deployment_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "staging_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "staging_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_staging"
+          },
+          {
+            "type": "action",
+            "target": "fetch_staging_details",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "deployment_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_staging_info",
+            "enabled": "state.deployment_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"smoke_test\""
+              }
+            ],
+            "name": "go_to_smoke_test",
+            "description": "Move to smoke test stage.",
+            "enabled": "state.staging_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "staging",
+        "label": "Staging",
+        "actionDefinitions": [
+          {
+            "developerName": "process_staging_data",
+            "label": "Process Staging Data",
+            "description": "Process staging stage data for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "Process_Staging",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_staging_info",
+            "label": "Validate Staging Info",
+            "description": "Validate staging information for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Staging_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_staging_details",
+            "label": "Fetch Staging Details",
+            "description": "Fetch staging details for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Staging_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional deployment pipeline manager assistant.\nHelp users manage their deployment requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: build_validation -> staging -> smoke_test -> release.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the staging stage for the deployment.\nCurrent deployment status: {{state.deployment_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nStaging result: {{state.staging_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.deployment_tier}}\nReview the staging results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.build_validation_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"build_validation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "build_validation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"build_validation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.staging_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_status": "\"staging_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.staging_complete == True and state.eligibility_score >= 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"smoke_test\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "smoke_test",
+            "enabled": "state.AgentScriptInternal_next_topic==\"smoke_test\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.staging_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "smoke_test",
+            "enabled": "state.AgentScriptInternal_next_topic==\"smoke_test\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the smoke test stage of the deployment process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_smoke_test_data",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.deployment_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "smoke_test_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "smoke_test_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_smoke_test"
+          },
+          {
+            "type": "action",
+            "target": "fetch_smoke_test_details",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "deployment_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_smoke_test_info",
+            "enabled": "state.deployment_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"release\""
+              }
+            ],
+            "name": "go_to_release",
+            "description": "Move to release stage.",
+            "enabled": "state.smoke_test_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "smoke_test",
+        "label": "Smoke Test",
+        "actionDefinitions": [
+          {
+            "developerName": "process_smoke_test_data",
+            "label": "Process Smoke Test Data",
+            "description": "Process smoke test stage data for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "Process_SmokeTest",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_smoke_test_info",
+            "label": "Validate Smoke Test Info",
+            "description": "Validate smoke test information for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_SmokeTest_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_smoke_test_details",
+            "label": "Fetch Smoke Test Details",
+            "description": "Fetch smoke test details for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_SmokeTest_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional deployment pipeline manager assistant.\nHelp users manage their deployment requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: build_validation -> staging -> smoke_test -> release.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the smoke test stage for the deployment.\nCurrent deployment status: {{state.deployment_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nSmoke Test result: {{state.smoke_test_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.deployment_tier}}\nReview the smoke test results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.smoke_test_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "fetch_smoke_test_details",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "include_history": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "smoke_test_result": "result.detail_data"
+              },
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "deployment_tier": "result.tier_value"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.smoke_test_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "release",
+            "enabled": "state.AgentScriptInternal_next_topic==\"release\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the release stage of the deployment process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_release_data",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.deployment_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "release_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "release_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_release"
+          },
+          {
+            "type": "action",
+            "target": "fetch_release_details",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "deployment_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_release_info",
+            "enabled": "state.deployment_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "release",
+        "label": "Release",
+        "actionDefinitions": [
+          {
+            "developerName": "process_release_data",
+            "label": "Process Release Data",
+            "description": "Process release stage data for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_Release_Data",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_release_info",
+            "label": "Validate Release Info",
+            "description": "Validate release information for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Release_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_release_details",
+            "label": "Fetch Release Details",
+            "description": "Fetch release details for the deployment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Release_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional deployment pipeline manager assistant.\nHelp users manage their deployment requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: build_validation -> staging -> smoke_test -> release.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the release stage for the deployment.\nCurrent deployment status: {{state.deployment_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nRelease result: {{state.release_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.deployment_tier}}\nThis is the final stage. Review all results and provide a summary.\nTotal items processed: {{state.total_items_count}}\nIf all stages passed, confirm completion. Otherwise offer to retry or escalate."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.smoke_test_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"smoke_test\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "smoke_test",
+            "enabled": "state.AgentScriptInternal_next_topic==\"smoke_test\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.release_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_status": "\"release_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.release_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle escalation and case creation for deployment issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "create_support_case",
+            "boundInputs": {
+              "case_subject": "state.deployment_status",
+              "case_detail": "state.notes_text",
+              "record_ref": "state.deployment_record_id",
+              "priority_val": "state.priority_level"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "case_ref_number": "result.case_ref"
+              },
+              {
+                "assigned_agent": "result.assigned_to"
+              }
+            ],
+            "name": "create_case"
+          },
+          {
+            "type": "action",
+            "target": "generate_summary",
+            "boundInputs": {
+              "record_ref": "state.deployment_record_id",
+              "notes_val": "state.notes_text"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "resolution_summary": "result.summary_text"
+              }
+            ],
+            "name": "get_summary"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "return_to_selector",
+            "description": "Return to topic selector after escalation."
+          }
+        ],
+        "developerName": "escalation_handling",
+        "label": "Escalation Handling",
+        "actionDefinitions": [
+          {
+            "developerName": "check_hours",
+            "label": "Check Hours",
+            "description": "Check whether it is currently business hours",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Check_Business_Hours",
+            "inputType": [
+              {
+                "developerName": "query_text",
+                "label": "Query Text",
+                "description": "Query Text",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "hours_active",
+                "label": "Hours Active",
+                "description": "Hours Active",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "next_available",
+                "label": "Next Available",
+                "description": "Next Available",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "create_support_case",
+            "label": "Create Support Case",
+            "description": "Create a support case for the deployment issue",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Create_Support_Case",
+            "inputType": [
+              {
+                "developerName": "case_subject",
+                "label": "Case Subject",
+                "description": "Case Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "case_detail",
+                "label": "Case Detail",
+                "description": "Case Detail",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "priority_val",
+                "label": "Priority Val",
+                "description": "Priority Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "case_ref",
+                "label": "Case Ref",
+                "description": "Case Ref",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "assigned_to",
+                "label": "Assigned To",
+                "description": "Assigned To",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "generate_summary",
+            "label": "Generate Summary",
+            "description": "Generate a summary of the deployment interaction",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Generate_Summary",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "notes_val",
+                "label": "Notes Val",
+                "description": "Notes Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "summary_text",
+                "label": "Summary Text",
+                "description": "Summary Text",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional deployment pipeline manager assistant.\nHelp users manage their deployment requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: build_validation -> staging -> smoke_test -> release.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle escalation for the deployment request.\nBusiness hours active: {{state.is_business_hours}}\nNext available slot: {{state.next_available_slot}}\nCase reference: {{state.case_ref_number}}\nDeployment status: {{state.deployment_status}}\nEligibility score: {{state.eligibility_score}}\nPriority: {{state.priority_level}}\nIf during business hours, offer to connect to a live agent.\nIf outside business hours, create a support case and share the case reference.\nUse create_case to create a case.\nUse get_summary to generate a summary of the interaction."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "check_hours",
+            "boundInputs": {
+              "query_text": "\"check_availability\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "is_business_hours": "result.hours_active"
+              },
+              {
+                "next_available_slot": "result.next_available"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.case_ref_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "deployment_status": "\"escalated\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "escalation_requested": "False"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I am your Deployment Pipeline Manager Assistant. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, something went wrong on my end. Could you please rephrase your request?\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

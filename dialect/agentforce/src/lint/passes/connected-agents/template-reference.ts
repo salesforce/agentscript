@@ -32,6 +32,7 @@ import {
   lintDiagnostic,
   decomposeAtMemberExpression,
   isNamedMap,
+  isAstNodeLike,
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import type { CstMeta } from '@agentscript/types';
@@ -56,35 +57,30 @@ class TemplateReferenceValidationPass implements LintPass {
     parentTopic: AstNodeLike | null,
     visited: WeakSet<object>
   ): void {
-    if (!node || typeof node !== 'object') return;
+    if (!isAstNodeLike(node)) return;
 
-    const astNode = node as AstNodeLike;
-
-    if (visited.has(astNode)) return;
-    visited.add(astNode);
+    if (visited.has(node)) return;
+    visited.add(node);
 
     let currentTopic = parentTopic;
-    if (
-      astNode.__kind === 'SubagentBlock' ||
-      astNode.__kind === 'StartAgentBlock'
-    ) {
-      currentTopic = astNode;
+    if (node.__kind === 'SubagentBlock' || node.__kind === 'StartAgentBlock') {
+      currentTopic = node;
     }
 
-    if (astNode.__kind === 'TemplateInterpolation') {
-      this.validateTemplateInterpolation(astNode, currentTopic);
+    if (node.__kind === 'TemplateInterpolation') {
+      this.validateTemplateInterpolation(node, currentTopic);
     }
 
-    if ('__children' in astNode && Array.isArray(astNode.__children)) {
-      for (const child of astNode.__children) {
+    if ('__children' in node && Array.isArray(node.__children)) {
+      for (const child of node.__children) {
         this.walkNode(child, currentTopic, visited);
       }
     }
 
-    for (const key in astNode) {
-      if (!Object.hasOwn(astNode, key)) continue;
+    for (const key in node) {
+      if (!Object.hasOwn(node, key)) continue;
       if (key.startsWith('__')) continue;
-      const value = (astNode as Record<string, unknown>)[key];
+      const value = node[key];
       if (value && typeof value === 'object') {
         if (Array.isArray(value)) {
           for (const item of value) {
@@ -152,7 +148,7 @@ class TemplateReferenceValidationPass implements LintPass {
 
     const reasoningObj = reasoning as Record<string, unknown>;
     const actions = reasoningObj.actions;
-    if (!actions || !isNamedMap(actions)) return null;
+    if (!isNamedMap(actions)) return null;
 
     for (const [alias, actionBlock] of actions as NamedMap<unknown>) {
       if (!actionBlock || typeof actionBlock !== 'object') continue;

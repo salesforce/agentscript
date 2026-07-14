@@ -332,7 +332,7 @@ describe('knowledge: @knowledge expression resolution', () => {
       new AtIdentifier('knowledge'),
       'rag_feature_config_id'
     );
-    expect(compileExpression(expr, ctx)).toBe('ARFPC_123');
+    expect(compileExpression(expr, ctx)).toBe('"ARFPC_123"');
   });
 
   // Python: test_compile_expression_with_knowledge_reference (citations_url)
@@ -342,12 +342,12 @@ describe('knowledge: @knowledge expression resolution', () => {
       new AtIdentifier('knowledge'),
       'citations_url'
     );
-    expect(compileExpression(expr, ctx)).toBe('https://help.example.com');
+    expect(compileExpression(expr, ctx)).toBe('"https://help.example.com"');
   });
 
   // Python: test_compile_expression_with_knowledge_reference (citations_enabled)
   it('should resolve @knowledge.citations_enabled from context', () => {
-    ctx.knowledgeFields.set('citations_enabled', 'True');
+    ctx.knowledgeFields.set('citations_enabled', true);
     const expr = new MemberExpression(
       new AtIdentifier('knowledge'),
       'citations_enabled'
@@ -393,7 +393,7 @@ describe('knowledge: @knowledge expression resolution', () => {
   it('should resolve multiple different @knowledge fields independently', () => {
     ctx.knowledgeFields.set('rag_feature_config_id', 'ARFPC_123');
     ctx.knowledgeFields.set('citations_url', 'https://help.example.com');
-    ctx.knowledgeFields.set('citations_enabled', 'True');
+    ctx.knowledgeFields.set('citations_enabled', true);
 
     const expr1 = new MemberExpression(
       new AtIdentifier('knowledge'),
@@ -408,8 +408,8 @@ describe('knowledge: @knowledge expression resolution', () => {
       'citations_enabled'
     );
 
-    expect(compileExpression(expr1, ctx)).toBe('ARFPC_123');
-    expect(compileExpression(expr2, ctx)).toBe('https://help.example.com');
+    expect(compileExpression(expr1, ctx)).toBe('"ARFPC_123"');
+    expect(compileExpression(expr2, ctx)).toBe('"https://help.example.com"');
     expect(compileExpression(expr3, ctx)).toBe('True');
     expect(ctx.diagnostics).toHaveLength(0);
   });

@@ -8,7 +8,6 @@
 import type { LintPass } from '@agentscript/language';
 import {
   symbolTableAnalyzer,
-  undefinedReferencePass,
   duplicateKeyPass,
   requiredFieldPass,
   singularCollectionPass,
@@ -20,6 +19,7 @@ import {
   spreadContextPass,
   unusedVariablePass,
 } from '@agentscript/language';
+import { undefinedReferencePass } from './rules/undefined-reference.js';
 import { agentFabricSemanticPass } from './agentfabric-semantic.js';
 import { strictSchemaValidationPass } from './strict-schema-validation.js';
 import { suppressActionsNamespaceUndefinedReferencePass } from './suppress-tools-namespace-undefined-reference.js';

@@ -1,0 +1,619 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Insurance_Claims_Agent",
+    "label": "Insurance Claims Agent",
+    "description": "Handles insurance claim filing, document management, and status tracking.",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "claims@insurance.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help you file a new claim or check the status of an existing one.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, the claims system encountered an error.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "policy_number",
+        "label": "Policy Number",
+        "description": "Insurance policy number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "claim_id",
+        "label": "Claim Id",
+        "description": "Claim identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "claim_type",
+        "label": "Claim Type",
+        "description": "Type of claim: auto, home, health, life",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "claim_status",
+        "label": "Claim Status",
+        "description": "Current claim status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "documents_uploaded",
+        "label": "Documents Uploaded",
+        "description": "Whether required documents are uploaded",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "adjuster_assigned",
+        "label": "Adjuster Assigned",
+        "description": "Whether an adjuster has been assigned",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "claim_amount",
+        "label": "Claim Amount",
+        "description": "Claimed amount",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      }
+    ],
+    "initialNode": "claim_intake",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Initiates the claims process and gathers initial information",
+        "tools": [
+          {
+            "type": "action",
+            "target": "file_claim",
+            "boundInputs": {
+              "policy_number": "state.policy_number",
+              "claim_type": "state.claim_type",
+              "claim_amount": "state.claim_amount"
+            },
+            "llmInputs": [
+              "details"
+            ],
+            "stateUpdates": [
+              {
+                "claim_id": "result.claim_id"
+              },
+              {
+                "claim_status": "result.status"
+              }
+            ],
+            "name": "file"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"document_upload\""
+              }
+            ],
+            "name": "go_documents",
+            "description": "Upload supporting documents"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"status_tracking\""
+              }
+            ],
+            "name": "go_status",
+            "description": "Check claim status"
+          }
+        ],
+        "developerName": "claim_intake",
+        "label": "Claim Intake",
+        "actionDefinitions": [
+          {
+            "developerName": "file_claim",
+            "label": "File Claim",
+            "description": "Files a new insurance claim",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "FileClaim",
+            "inputType": [
+              {
+                "developerName": "policy_number",
+                "label": "Policy Number",
+                "description": "Policy Number",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "claim_type",
+                "label": "Claim Type",
+                "description": "Claim Type",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "details",
+                "label": "Details",
+                "description": "Details",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "claim_amount",
+                "label": "Claim Amount",
+                "description": "Claim Amount",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "claim_id",
+                "label": "Claim Id",
+                "description": "Claim Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claims assistant. Help customers file claims, upload documents, and track claim status.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer file a new claim or check existing claim status.\nGather policy number, claim type, and incident details."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "document_upload",
+            "enabled": "state.AgentScriptInternal_next_topic==\"document_upload\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "status_tracking",
+            "enabled": "state.AgentScriptInternal_next_topic==\"status_tracking\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles document upload and verification for claims",
+        "tools": [
+          {
+            "type": "action",
+            "target": "verify_documents",
+            "boundInputs": {
+              "claim_id": "state.claim_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "documents_uploaded": "result.all_uploaded"
+              }
+            ],
+            "name": "verify"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"adjuster_assignment\""
+              }
+            ],
+            "name": "go_adjuster",
+            "description": "Assign an adjuster",
+            "enabled": "state.documents_uploaded == True"
+          }
+        ],
+        "developerName": "document_upload",
+        "label": "Document Upload",
+        "actionDefinitions": [
+          {
+            "developerName": "verify_documents",
+            "label": "Verify Documents",
+            "description": "Verifies uploaded claim documents",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "VerifyClaimDocuments",
+            "inputType": [
+              {
+                "developerName": "claim_id",
+                "label": "Claim Id",
+                "description": "Claim Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "all_uploaded",
+                "label": "All Uploaded",
+                "description": "All Uploaded",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "missing_documents",
+                "label": "Missing Documents",
+                "description": "Missing Documents",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claims assistant. Help customers file claims, upload documents, and track claim status.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nGuide the customer through uploading required documents for their claim."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "adjuster_assignment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"adjuster_assignment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Assigns a claims adjuster to the case",
+        "tools": [
+          {
+            "type": "action",
+            "target": "assign_adjuster",
+            "boundInputs": {
+              "claim_id": "state.claim_id",
+              "claim_type": "state.claim_type"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "adjuster_assigned": "result.adjuster_name is not None"
+              }
+            ],
+            "name": "assign"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"status_tracking\""
+              }
+            ],
+            "name": "go_tracking",
+            "description": "Track claim progress"
+          }
+        ],
+        "developerName": "adjuster_assignment",
+        "label": "Adjuster Assignment",
+        "actionDefinitions": [
+          {
+            "developerName": "assign_adjuster",
+            "label": "Assign Adjuster",
+            "description": "Assigns a claims adjuster based on claim type and location",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "AssignAdjuster",
+            "inputType": [
+              {
+                "developerName": "claim_id",
+                "label": "Claim Id",
+                "description": "Claim Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "claim_type",
+                "label": "Claim Type",
+                "description": "Claim Type",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "adjuster_name",
+                "label": "Adjuster Name",
+                "description": "Adjuster Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "estimated_review",
+                "label": "Estimated Review",
+                "description": "Estimated Review",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claims assistant. Help customers file claims, upload documents, and track claim status.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssign an adjuster to review the claim and inform the customer."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "status_tracking",
+            "enabled": "state.AgentScriptInternal_next_topic==\"status_tracking\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides claim status updates and tracking",
+        "tools": [
+          {
+            "type": "action",
+            "target": "get_status",
+            "boundInputs": {
+              "claim_id": "state.claim_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "claim_status": "result.status"
+              }
+            ],
+            "name": "status"
+          }
+        ],
+        "developerName": "status_tracking",
+        "label": "Status Tracking",
+        "actionDefinitions": [
+          {
+            "developerName": "get_status",
+            "label": "Get Status",
+            "description": "Gets the current status of a claim",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "GetClaimStatus",
+            "inputType": [
+              {
+                "developerName": "claim_id",
+                "label": "Claim Id",
+                "description": "Claim Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_update",
+                "label": "Last Update",
+                "description": "Last Update",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "next_steps",
+                "label": "Next Steps",
+                "description": "Next Steps",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an insurance claims assistant. Help customers file claims, upload documents, and track claim status.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nProvide the customer with their claim status and next steps.\nClaim: {{state.claim_id}}\nStatus: {{state.claim_status}}"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help you file a new claim or check the status of an existing one.\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, the claims system encountered an error.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

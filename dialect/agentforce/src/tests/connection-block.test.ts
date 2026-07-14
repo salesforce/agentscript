@@ -484,8 +484,8 @@ connection messaging:
 // ============================================================================
 
 describe('response_formats validation', () => {
-  it('allows response_format with source only', () => {
-    const validSource = `
+  it('errors when response_format has source only (missing description and inputs)', () => {
+    const invalidSource = `
 connection messaging:
     response_formats:
         my_format:
@@ -493,11 +493,15 @@ connection messaging:
             source: "SurfaceAction__MessagingChoices"
 `.trimStart();
 
-    const diagnostics = runLint(validSource);
+    const diagnostics = runLint(invalidSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-missing-required-field'
+      d => d.code === 'missing-required-field'
     );
-    expect(formatErrors).toHaveLength(0);
+    // Should have 2 errors: missing description and missing inputs
+    expect(formatErrors.length).toBeGreaterThanOrEqual(2);
+    const messages = formatErrors.map(e => e.message).join(' ');
+    expect(messages).toContain('description');
+    expect(messages).toContain('inputs');
   });
 
   it('allows response_format with target and inputs', () => {
@@ -506,6 +510,7 @@ connection messaging:
     response_formats:
         my_format:
             label: "My Format"
+            description: "My format description"
             target: "apex://MyApexClass"
             inputs:
                 field: string
@@ -513,13 +518,13 @@ connection messaging:
 
     const diagnostics = runLint(validSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-missing-required-field'
+      d => d.code === 'missing-required-field'
     );
     expect(formatErrors).toHaveLength(0);
   });
 
-  it('allows response_format with target only', () => {
-    const validSource = `
+  it('errors when response_format has target only (missing description and inputs)', () => {
+    const invalidSource = `
 connection messaging:
     response_formats:
         my_format:
@@ -527,11 +532,15 @@ connection messaging:
             target: "apex://MyApexClass"
 `.trimStart();
 
-    const diagnostics = runLint(validSource);
+    const diagnostics = runLint(invalidSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-missing-required-field'
+      d => d.code === 'missing-required-field'
     );
-    expect(formatErrors).toHaveLength(0);
+    // Should have 2 errors: missing description and missing inputs
+    expect(formatErrors.length).toBeGreaterThanOrEqual(2);
+    const messages = formatErrors.map(e => e.message).join(' ');
+    expect(messages).toContain('description');
+    expect(messages).toContain('inputs');
   });
 
   it('allows response_format with inputs only', () => {
@@ -540,18 +549,19 @@ connection messaging:
     response_formats:
         my_format:
             label: "My Format"
+            description: "My format description"
             inputs:
                 field: string
 `.trimStart();
 
     const diagnostics = runLint(validSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-missing-required-field'
+      d => d.code === 'missing-required-field'
     );
     expect(formatErrors).toHaveLength(0);
   });
 
-  it('errors when response_format has no source, inputs, or target', () => {
+  it('errors when response_format has no inputs', () => {
     const invalidSource = `
 connection messaging:
     response_formats:
@@ -562,16 +572,13 @@ connection messaging:
 
     const diagnostics = runLint(invalidSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-missing-required-field'
+      d => d.code === 'missing-required-field'
     );
     expect(formatErrors.length).toBeGreaterThan(0);
-    expect(formatErrors[0].message).toContain('my_format');
-    expect(formatErrors[0].message).toContain('source');
     expect(formatErrors[0].message).toContain('inputs');
-    expect(formatErrors[0].message).toContain('target');
   });
 
-  it('errors for multiple response_formats missing required fields', () => {
+  it('errors for multiple response_formats missing inputs and descriptions', () => {
     const invalidSource = `
 connection messaging:
     response_formats:
@@ -581,43 +588,44 @@ connection messaging:
             label: "Format 2"
         format3:
             label: "Format 3"
+            description: "Valid format"
             source: "SurfaceAction__Valid"
+            inputs:
+                field: string
 `.trimStart();
 
     const diagnostics = runLint(invalidSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-missing-required-field'
+      d => d.code === 'missing-required-field'
     );
-    // Should have errors for format1 and format2, but not format3
-    expect(formatErrors.length).toBeGreaterThanOrEqual(2);
+    // Should have errors for format1 and format2 (missing description + inputs = 4 errors total)
+    // format3 is valid, so it contributes none.
+    expect(formatErrors.length).toBeGreaterThanOrEqual(4);
     const errorMessages = formatErrors.map(d => d.message).join(' ');
-    expect(errorMessages).toContain('format1');
-    expect(errorMessages).toContain('format2');
-    expect(errorMessages).not.toContain('format3');
+    expect(errorMessages).toContain('description');
+    expect(errorMessages).toContain('inputs');
   });
 
-  it('errors when response_format has both source and inputs (XOR violation)', () => {
-    const invalidSource = `
+  it('allows response_format with source and inputs together', () => {
+    const validSource = `
 connection messaging:
     response_formats:
         my_format:
             label: "My Format"
+            description: "My format description"
             source: "SurfaceAction__MessagingChoices"
             inputs:
                 field: string
 `.trimStart();
 
-    const diagnostics = runLint(invalidSource);
+    const diagnostics = runLint(validSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-conflicting-fields'
+      d => d.code === 'missing-required-field'
     );
-    expect(formatErrors.length).toBeGreaterThan(0);
-    expect(formatErrors[0].message).toContain('my_format');
-    expect(formatErrors[0].message).toContain('source');
-    expect(formatErrors[0].message).toContain('inputs');
+    expect(formatErrors).toHaveLength(0);
   });
 
-  it('errors when response_format has both source and target (XOR violation)', () => {
+  it('errors when response_format has source and target but no description or inputs', () => {
     const invalidSource = `
 connection messaging:
     response_formats:
@@ -629,33 +637,33 @@ connection messaging:
 
     const diagnostics = runLint(invalidSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-conflicting-fields'
+      d => d.code === 'missing-required-field'
     );
-    expect(formatErrors.length).toBeGreaterThan(0);
-    expect(formatErrors[0].message).toContain('my_format');
-    expect(formatErrors[0].message).toContain('source');
-    expect(formatErrors[0].message).toContain('target');
+    // Should have 2 errors: missing description and missing inputs
+    expect(formatErrors.length).toBeGreaterThanOrEqual(2);
+    const messages = formatErrors.map(e => e.message).join(' ');
+    expect(messages).toContain('description');
+    expect(messages).toContain('inputs');
   });
 
-  it('errors when response_format has source, inputs, and target (XOR violation)', () => {
-    const invalidSource = `
+  it('allows response_format with source, inputs, and target all together', () => {
+    const validSource = `
 connection messaging:
     response_formats:
         my_format:
             label: "My Format"
+            description: "My format description"
             source: "SurfaceAction__MessagingChoices"
             target: "apex://MyApexClass"
             inputs:
                 field: string
 `.trimStart();
 
-    const diagnostics = runLint(invalidSource);
+    const diagnostics = runLint(validSource);
     const formatErrors = diagnostics.filter(
-      d => d.code === 'response-format-conflicting-fields'
+      d => d.code === 'missing-required-field'
     );
-    expect(formatErrors.length).toBeGreaterThan(0);
-    expect(formatErrors[0].message).toContain('my_format');
-    expect(formatErrors[0].message).toContain('source');
+    expect(formatErrors).toHaveLength(0);
   });
 
   it('accepts reasoning.response_actions binding names in @response_actions references', () => {

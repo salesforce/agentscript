@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Long_Messages_Agent",
+    "label": "Long Messages Agent",
+    "description": "Agent with very long multi-line system messages",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": []
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome to our comprehensive customer service portal. We are here to assist you with any questions or concerns you may have about our products, services, billing, shipping, returns, exchanges, warranty claims, technical support, account management, and general inquiries. Please describe your issue and we will do our best to help you resolve it as quickly as possible. Our team is available 24/7 to provide you with the highest quality support experience.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "We sincerely apologize for the inconvenience, but we have encountered an unexpected error while processing your request. Our technical team has been notified and is working to resolve this issue. In the meantime, please try again in a few moments. If the problem persists, please contact our support team directly at support@example.com or call 1-800-555-0199. We appreciate your patience and understanding.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Entry point for long message agent",
+        "tools": [],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive customer service agent available 24/7.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nRoute the user request to the appropriate handler"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to our comprehensive customer service portal. We are here to assist you with any questions or concerns you may have about our products, services, billing, shipping, returns, exchanges, warranty claims, technical support, account management, and general inquiries. Please describe your issue and we will do our best to help you resolve it as quickly as possible. Our team is available 24/7 to provide you with the highest quality support experience.\", \"messageType\": \"Welcome\"}, {\"message\": \"We sincerely apologize for the inconvenience, but we have encountered an unexpected error while processing your request. Our technical team has been notified and is working to resolve this issue. In the meantime, please try again in a few moments. If the problem persists, please contact our support team directly at support@example.com or call 1-800-555-0199. We appreciate your patience and understanding.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

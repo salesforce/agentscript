@@ -28,6 +28,7 @@ import { reasoningActionsAnalyzer } from './reasoning-actions.js';
 import { actionIoRule } from './action-io.js';
 import { actionTypeCheckRule } from './action-type-check.js';
 import { availableWhenTypeCheckRule } from './available-when-type-check.js';
+import { variableDefaultTypeCheckRule } from './variable-default-type-check.js';
 import { setVariablesIoRule } from './set-variables-io.js';
 
 export { typeMapAnalyzer, typeMapKey } from './type-map.js';
@@ -55,6 +56,7 @@ export { setVariablesEntriesKey } from './reasoning-actions.js';
 export { actionIoRule } from './action-io.js';
 export { actionTypeCheckRule } from './action-type-check.js';
 export { availableWhenTypeCheckRule } from './available-when-type-check.js';
+export { variableDefaultTypeCheckRule } from './variable-default-type-check.js';
 export { setVariablesIoRule } from './set-variables-io.js';
 
 /** All AgentScript lint passes in engine execution order. */
@@ -81,6 +83,7 @@ export function defaultRules(): LintPass[] {
     // Validation
     undefinedReferencePass(),
     actionIoRule(),
+    variableDefaultTypeCheckRule(),
     actionTypeCheckRule(),
     availableWhenTypeCheckRule(),
     setVariablesIoRule(),

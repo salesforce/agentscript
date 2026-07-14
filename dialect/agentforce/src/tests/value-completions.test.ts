@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Regression tests: value-position completions for enum-typed fields in the
  * Agentforce dialect should include the enum members.
@@ -6,8 +13,10 @@
  * an enum-typed field, the LSP returns no completions for:
  *   - `visibility:` under a variables entry → expected to suggest
  *     Internal / External / internal / external
- *   - `agent_type:` under config → expected to suggest
- *     AgentforceServiceAgent / AgentforceEmployeeAgent / SalesEinsteinCoach
+ *   - `agent_type:` under config → expected to suggest the allowed agent
+ *     type values. This is a completion-only hint via `.suggest()`
+ *     (ALLOWED_AGENT_TYPES), not a validated enum — unknown values are still
+ *     accepted by the schema and rejected separately by the lint allowlist.
  *
  * These tests fail today because `getValueCompletions` only returns primitive
  * type keywords for TypedMap-typed fields and never surfaces enum constraints
@@ -17,6 +26,7 @@
 import { describe, it, expect } from 'vitest';
 import { getValueCompletions } from '@agentscript/language';
 import { parseDocument, testSchemaCtx } from './test-utils.js';
+import { ALLOWED_AGENT_TYPES } from '../lint/agent-types.js';
 
 const INDENT4 = ' '.repeat(4);
 const INDENT2 = ' '.repeat(2);
@@ -82,7 +92,7 @@ describe('Agentforce value-position completions', () => {
     expect(labels).not.toContain('External');
   });
 
-  it('after `agent_type: ` under config suggests agent_type enum members', () => {
+  it('after `agent_type: ` under config suggests every allowed agent type', () => {
     const atLine = `${INDENT2}agent_type: `;
     const source = ['config:', atLine].join('\n');
 
@@ -92,9 +102,11 @@ describe('Agentforce value-position completions', () => {
 
     const labels = valueCompletionLabelsAt(source, atLineIdx, atLine.length);
 
-    expect(labels).toContain('AgentforceServiceAgent');
-    expect(labels).toContain('AgentforceEmployeeAgent');
-    expect(labels).toContain('SalesEinsteinCoach');
+    // Every allowed agent type is offered as a completion.
+    for (const agentType of ALLOWED_AGENT_TYPES) {
+      expect(labels).toContain(agentType);
+    }
+    // No leakage of primitive type keywords or unrelated enums.
     expect(labels).not.toContain('string');
     expect(labels).not.toContain('Internal');
   });

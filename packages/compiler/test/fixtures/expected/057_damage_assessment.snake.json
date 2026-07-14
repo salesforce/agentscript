@@ -1,0 +1,2864 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "damage_assessment_agent_v57",
+    "label": "Damage Assessment Agent V 57",
+    "description": "Assists users with damage management through the damage assessment specialist workflow.",
+    "enable_enhanced_event_logs": true,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "damage_assessment@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! I am your Damage Assessment Specialist Assistant. How can I help you today?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "I apologize, something went wrong on my end. Could you please rephrase your request?",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "damage_record_id",
+        "label": "Damage Record Id",
+        "description": "Record ID of the damage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "damage_status",
+        "label": "Damage Status",
+        "description": "Current status of the damage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "damage_tier",
+        "label": "Damage Tier",
+        "description": "Tier classification for the damage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developer_name": "damage_category",
+        "label": "Damage Category",
+        "description": "Category of the damage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "contact_name",
+        "label": "Contact Name",
+        "description": "Full name of the contact",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "contact_email",
+        "label": "Contact Email",
+        "description": "Email address of the contact",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "contact_phone",
+        "label": "Contact Phone",
+        "description": "Phone number of the contact",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "is_verified",
+        "label": "Is Verified",
+        "description": "Whether the user identity is verified",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "eligibility_score",
+        "label": "Eligibility Score",
+        "description": "Calculated eligibility score",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "step_counter",
+        "label": "Step Counter",
+        "description": "Current step in the process",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "attempt_count",
+        "label": "Attempt Count",
+        "description": "Number of attempts made",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "total_items_count",
+        "label": "Total Items Count",
+        "description": "Total number of items to process",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "report_intake_complete",
+        "label": "Report Intake Complete",
+        "description": "Whether the report_intake stage is complete",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "report_intake_result",
+        "label": "Report Intake Result",
+        "description": "Result from the report_intake stage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "photo_review_complete",
+        "label": "Photo Review Complete",
+        "description": "Whether the photo_review stage is complete",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "photo_review_result",
+        "label": "Photo Review Result",
+        "description": "Result from the photo_review stage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "cost_estimation_complete",
+        "label": "Cost Estimation Complete",
+        "description": "Whether the cost_estimation stage is complete",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "cost_estimation_result",
+        "label": "Cost Estimation Result",
+        "description": "Result from the cost_estimation stage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "approval_complete",
+        "label": "Approval Complete",
+        "description": "Whether the approval stage is complete",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "approval_result",
+        "label": "Approval Result",
+        "description": "Result from the approval stage",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "priority_level",
+        "label": "Priority Level",
+        "description": "Priority level of the request",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developer_name": "notes_text",
+        "label": "Notes Text",
+        "description": "Notes and comments",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "assigned_agent",
+        "label": "Assigned Agent",
+        "description": "Assigned agent name",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "resolution_summary",
+        "label": "Resolution Summary",
+        "description": "Summary of the resolution",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "escalation_requested",
+        "label": "Escalation Requested",
+        "description": "Whether escalation was requested",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "is_business_hours",
+        "label": "Is Business Hours",
+        "description": "Whether it is currently business hours",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "case_ref_number",
+        "label": "Case Ref Number",
+        "description": "Reference number for the support case",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "next_available_slot",
+        "label": "Next Available Slot",
+        "description": "Next available time slot",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "topic_selector",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Welcome the user and route to the appropriate damage management topic",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"report_intake\""
+              }
+            ],
+            "name": "go_to_report_intake",
+            "description": "Transition to report intake topic."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"photo_review\""
+              }
+            ],
+            "name": "go_to_photo_review",
+            "description": "Transition to photo review topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"cost_estimation\""
+              }
+            ],
+            "name": "go_to_cost_estimation",
+            "description": "Transition to cost estimation topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"approval\""
+              }
+            ],
+            "name": "go_to_approval",
+            "description": "Transition to approval topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "go_to_escalation",
+            "description": "Escalate to a human agent for assistance.",
+            "enabled": "state.is_verified == True"
+          }
+        ],
+        "developer_name": "topic_selector",
+        "label": "Topic Selector",
+        "action_definitions": [],
+        "instructions": "You are a professional damage assessment specialist assistant.\nHelp users manage their damage requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: report_intake -> photo_review -> cost_estimation -> approval.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a topic selector for a damage assessment specialist assistant.\nAnalyze the user's input and determine the most appropriate topic.\nCurrent damage status: {{state.damage_status}}\nEligibility score: {{state.eligibility_score}}\nSteps completed: {{state.step_counter}}\nPriority: {{state.priority_level}}\nUse go_to_report_intake for report intake requests.\nUse go_to_photo_review for photo review requests.\nUse go_to_cost_estimation for cost estimation requests.\nUse go_to_approval for approval requests.\nUse go_to_escalation to escalate if the user is upset or requests a human."
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "report_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"report_intake\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "photo_review",
+            "enabled": "state.AgentScriptInternal_next_topic==\"photo_review\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "cost_estimation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"cost_estimation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "approval",
+            "enabled": "state.AgentScriptInternal_next_topic==\"approval\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles the report intake stage of the damage process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_report_intake_data",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.damage_category"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "report_intake_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "report_intake_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_report_intake"
+          },
+          {
+            "type": "action",
+            "target": "fetch_report_intake_details",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "include_history": "False"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "damage_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_report_intake_info"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"photo_review\""
+              }
+            ],
+            "name": "go_to_photo_review",
+            "description": "Move to photo review stage.",
+            "enabled": "state.report_intake_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          }
+        ],
+        "developer_name": "report_intake",
+        "label": "Report Intake",
+        "action_definitions": [
+          {
+            "developer_name": "process_report_intake_data",
+            "label": "Process Report Intake Data",
+            "description": "Process report intake stage data for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "Process_ReportIntake",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "validate_report_intake_info",
+            "label": "Validate Report Intake Info",
+            "description": "Validate report intake information for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Validate_ReportIntake_Info",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "fetch_report_intake_details",
+            "label": "Fetch Report Intake Details",
+            "description": "Fetch report intake details for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Fetch_ReportIntake_Details",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "data_type": "Boolean",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional damage assessment specialist assistant.\nHelp users manage their damage requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: report_intake -> photo_review -> cost_estimation -> approval.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the report intake stage for the damage.\nCurrent damage status: {{state.damage_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nReport Intake result: {{state.report_intake_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.damage_tier}}\nIf the contact information is missing, ask the user to provide their name and email.\nAfter collecting information, use run_report_intake to begin processing."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.is_verified == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "validate_report_intake_info",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "contact_ref": "state.contact_email"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "damage_status": "result.updated_status"
+              },
+              {
+                "is_verified": "result.is_valid"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.report_intake_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "photo_review",
+            "enabled": "state.AgentScriptInternal_next_topic==\"photo_review\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles the photo review stage of the damage process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_photo_review_data",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.damage_category"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "photo_review_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "photo_review_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_photo_review"
+          },
+          {
+            "type": "action",
+            "target": "fetch_photo_review_details",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "include_history": "False"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "damage_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_photo_review_info",
+            "enabled": "state.damage_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"cost_estimation\""
+              }
+            ],
+            "name": "go_to_cost_estimation",
+            "description": "Move to cost estimation stage.",
+            "enabled": "state.photo_review_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developer_name": "photo_review",
+        "label": "Photo Review",
+        "action_definitions": [
+          {
+            "developer_name": "process_photo_review_data",
+            "label": "Process Photo Review Data",
+            "description": "Process photo review stage data for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Process_PhotoReview_Data",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "validate_photo_review_info",
+            "label": "Validate Photo Review Info",
+            "description": "Validate photo review information for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Validate_PhotoReview_Info",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "fetch_photo_review_details",
+            "label": "Fetch Photo Review Details",
+            "description": "Fetch photo review details for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Fetch_PhotoReview_Details",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "data_type": "Boolean",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional damage assessment specialist assistant.\nHelp users manage their damage requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: report_intake -> photo_review -> cost_estimation -> approval.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the photo review stage for the damage.\nCurrent damage status: {{state.damage_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nPhoto Review result: {{state.photo_review_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.damage_tier}}\nReview the photo review results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.report_intake_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"report_intake\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "report_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"report_intake\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.photo_review_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_status": "\"photo_review_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.photo_review_complete == True and state.eligibility_score >= 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"cost_estimation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "cost_estimation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"cost_estimation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.photo_review_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "cost_estimation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"cost_estimation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles the cost estimation stage of the damage process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_cost_estimation_data",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.damage_category"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "cost_estimation_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "cost_estimation_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_cost_estimation"
+          },
+          {
+            "type": "action",
+            "target": "fetch_cost_estimation_details",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "include_history": "False"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "damage_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_cost_estimation_info",
+            "enabled": "state.damage_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"approval\""
+              }
+            ],
+            "name": "go_to_approval",
+            "description": "Move to approval stage.",
+            "enabled": "state.cost_estimation_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developer_name": "cost_estimation",
+        "label": "Cost Estimation",
+        "action_definitions": [
+          {
+            "developer_name": "process_cost_estimation_data",
+            "label": "Process Cost Estimation Data",
+            "description": "Process cost estimation stage data for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "standardInvocableAction",
+            "invocation_target_name": "Process_CostEstimation",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "validate_cost_estimation_info",
+            "label": "Validate Cost Estimation Info",
+            "description": "Validate cost estimation information for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Validate_CostEstimation_Info",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "fetch_cost_estimation_details",
+            "label": "Fetch Cost Estimation Details",
+            "description": "Fetch cost estimation details for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Fetch_CostEstimation_Details",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "data_type": "Boolean",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional damage assessment specialist assistant.\nHelp users manage their damage requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: report_intake -> photo_review -> cost_estimation -> approval.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the cost estimation stage for the damage.\nCurrent damage status: {{state.damage_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nCost Estimation result: {{state.cost_estimation_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.damage_tier}}\nReview the cost estimation results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.cost_estimation_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "fetch_cost_estimation_details",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "include_history": "True"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "cost_estimation_result": "result.detail_data"
+              },
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "damage_tier": "result.tier_value"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.cost_estimation_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "approval",
+            "enabled": "state.AgentScriptInternal_next_topic==\"approval\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handles the approval stage of the damage process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_approval_data",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.damage_category"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "approval_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "approval_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_approval"
+          },
+          {
+            "type": "action",
+            "target": "fetch_approval_details",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "include_history": "False"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "damage_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_approval_info",
+            "enabled": "state.damage_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developer_name": "approval",
+        "label": "Approval",
+        "action_definitions": [
+          {
+            "developer_name": "process_approval_data",
+            "label": "Process Approval Data",
+            "description": "Process approval stage data for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "apex",
+            "invocation_target_name": "Process_Approval",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "data_type": "Double",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "validate_approval_info",
+            "label": "Validate Approval Info",
+            "description": "Validate approval information for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Validate_Approval_Info",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "fetch_approval_details",
+            "label": "Fetch Approval Details",
+            "description": "Fetch approval details for the damage",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Fetch_Approval_Details",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "data_type": "Boolean",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional damage assessment specialist assistant.\nHelp users manage their damage requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: report_intake -> photo_review -> cost_estimation -> approval.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the approval stage for the damage.\nCurrent damage status: {{state.damage_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nApproval result: {{state.approval_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.damage_tier}}\nThis is the final stage. Review all results and provide a summary.\nTotal items processed: {{state.total_items_count}}\nIf all stages passed, confirm completion. Otherwise offer to retry or escalate."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.cost_estimation_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"cost_estimation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "cost_estimation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"cost_estimation\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.approval_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_status": "\"approval_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.approval_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Handle escalation and case creation for damage issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "create_support_case",
+            "bound_inputs": {
+              "case_subject": "state.damage_status",
+              "case_detail": "state.notes_text",
+              "record_ref": "state.damage_record_id",
+              "priority_val": "state.priority_level"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "case_ref_number": "result.case_ref"
+              },
+              {
+                "assigned_agent": "result.assigned_to"
+              }
+            ],
+            "name": "create_case"
+          },
+          {
+            "type": "action",
+            "target": "generate_summary",
+            "bound_inputs": {
+              "record_ref": "state.damage_record_id",
+              "notes_val": "state.notes_text"
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "resolution_summary": "result.summary_text"
+              }
+            ],
+            "name": "get_summary"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "return_to_selector",
+            "description": "Return to topic selector after escalation."
+          }
+        ],
+        "developer_name": "escalation_handling",
+        "label": "Escalation Handling",
+        "action_definitions": [
+          {
+            "developer_name": "check_hours",
+            "label": "Check Hours",
+            "description": "Check whether it is currently business hours",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Check_Business_Hours",
+            "input_type": [
+              {
+                "developer_name": "query_text",
+                "label": "Query Text",
+                "description": "Query Text",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "hours_active",
+                "label": "Hours Active",
+                "description": "Hours Active",
+                "data_type": "Boolean",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "next_available",
+                "label": "Next Available",
+                "description": "Next Available",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "create_support_case",
+            "label": "Create Support Case",
+            "description": "Create a support case for the damage issue",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Create_Support_Case",
+            "input_type": [
+              {
+                "developer_name": "case_subject",
+                "label": "Case Subject",
+                "description": "Case Subject",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "case_detail",
+                "label": "Case Detail",
+                "description": "Case Detail",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "priority_val",
+                "label": "Priority Val",
+                "description": "Priority Val",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "case_ref",
+                "label": "Case Ref",
+                "description": "Case Ref",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "assigned_to",
+                "label": "Assigned To",
+                "description": "Assigned To",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "generate_summary",
+            "label": "Generate Summary",
+            "description": "Generate a summary of the damage interaction",
+            "require_user_confirmation": false,
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "Generate_Summary",
+            "input_type": [
+              {
+                "developer_name": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "notes_val",
+                "label": "Notes Val",
+                "description": "Notes Val",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "summary_text",
+                "label": "Summary Text",
+                "description": "Summary Text",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional damage assessment specialist assistant.\nHelp users manage their damage requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: report_intake -> photo_review -> cost_estimation -> approval.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle escalation for the damage request.\nBusiness hours active: {{state.is_business_hours}}\nNext available slot: {{state.next_available_slot}}\nCase reference: {{state.case_ref_number}}\nDamage status: {{state.damage_status}}\nEligibility score: {{state.eligibility_score}}\nPriority: {{state.priority_level}}\nIf during business hours, offer to connect to a live agent.\nIf outside business hours, create a support case and share the case reference.\nUse create_case to create a case.\nUse get_summary to generate a summary of the interaction."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "check_hours",
+            "bound_inputs": {
+              "query_text": "\"check_availability\""
+            },
+            "llm_inputs": [],
+            "state_updates": [
+              {
+                "is_business_hours": "result.hours_active"
+              },
+              {
+                "next_available_slot": "result.next_available"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          }
+        ],
+        "after_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.case_ref_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "damage_status": "\"escalated\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "escalation_requested": "False"
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {
+      "language": {
+        "default_locale": "en_US",
+        "additional_locales": [],
+        "all_additional_locales": false
+      }
+    },
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I am your Damage Assessment Specialist Assistant. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, something went wrong on my end. Could you please rephrase your request?\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "EscalationRouter",
+    "label": "Escalation Router",
+    "description": "Escalation Router",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "service_user"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "Triage",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Assess customer needs and route to the right agent",
+        "tools": [],
+        "developerName": "Triage",
+        "label": "Triage",
+        "actionDefinitions": [],
+        "instructions": "You are a support coordinator that routes customers to specialized agents.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAssess what the customer needs and route them to the appropriate agent."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developerName": "Refund_Agent",
+        "label": "Refund Agent",
+        "description": "Handles refund requests with its own escalation flow",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "Refund_Agent",
+        "delegateEscalation": false
+      },
+      {
+        "type": "related_agent",
+        "developerName": "Billing_Agent",
+        "label": "Billing Agent",
+        "description": "Handles billing inquiries using orchestrator escalation",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "Billing_Agent",
+        "delegateEscalation": true
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

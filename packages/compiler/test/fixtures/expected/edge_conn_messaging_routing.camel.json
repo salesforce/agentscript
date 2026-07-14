@@ -1,0 +1,244 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "EdgeConnMessagingRouting",
+    "label": "Routing Messaging Agent",
+    "description": "Messaging connection with routing fields",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "EndUserId",
+        "label": "End User Id",
+        "description": "End user ID",
+        "dataType": "string",
+        "fieldMapping": "MessagingSession.MessagingEndUserId"
+      },
+      {
+        "developerName": "RoutableId",
+        "label": "Routable Id",
+        "description": "Session ID",
+        "dataType": "string",
+        "fieldMapping": "MessagingSession.Id"
+      },
+      {
+        "developerName": "ContactId",
+        "label": "Contact Id",
+        "description": "Contact ID",
+        "dataType": "string",
+        "fieldMapping": "MessagingEndUser.ContactId"
+      }
+    ],
+    "defaultAgentUser": "routing_bot@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I'll connect you with the right team.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Something went wrong with routing.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Route messaging requests to appropriate teams",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"billing\""
+              }
+            ],
+            "name": "go_to_billing",
+            "description": "Route to billing support"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"technical\""
+              }
+            ],
+            "name": "go_to_technical",
+            "description": "Route to technical support"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "'__human__'"
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Escalate to human agent"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "You are a messaging agent with advanced routing configuration.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nDetermine the customer's need and route appropriately."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "billing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"billing\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "technical",
+            "enabled": "state.AgentScriptInternal_next_topic==\"technical\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "__human__",
+            "enabled": "state.AgentScriptInternal_next_topic == '__human__'",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle billing inquiries",
+        "tools": [],
+        "developerName": "billing",
+        "label": "Billing",
+        "actionDefinitions": [],
+        "instructions": "You are a messaging agent with advanced routing configuration.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer with billing questions."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle technical support",
+        "tools": [],
+        "developerName": "technical",
+        "label": "Technical",
+        "actionDefinitions": [],
+        "instructions": "You are a messaging agent with advanced routing configuration.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer with technical issues."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "surfaceType": "messaging",
+        "adaptiveResponseAllowed": true,
+        "outboundRouteConfigs": []
+      }
+    ],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'll connect you with the right team.\", \"messageType\": \"Welcome\"}, {\"message\": \"Something went wrong with routing.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

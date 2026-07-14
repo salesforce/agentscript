@@ -267,6 +267,9 @@ export function Block<T extends Schema>(
       enumerable: true,
     });
   dp('discriminantField', discriminantField);
+  if (discriminantConfig) {
+    dp('discriminantValues', discriminantConfig.validValues);
+  }
   dp(
     'resolveSchemaForDiscriminant',
     (value: string): Record<string, FieldType> => {

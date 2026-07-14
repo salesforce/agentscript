@@ -23,6 +23,9 @@ import {
   RUNTIME_CONDITION_VARIABLE,
 } from '../src/constants.js';
 
+/** Slot 1 — used by plain `if`/`else` and chain heads. */
+const CONDITION_SLOT_1 = `${RUNTIME_CONDITION_VARIABLE}_1`;
+
 /** Helper to find a node by developer_name in compiled output */
 function findNode(output: ReturnType<typeof compile>['output'], name: string) {
   return output.agent_version.nodes.find(n => n.developer_name === name);
@@ -329,7 +332,7 @@ connected_subagent Order_Agent:
     expect(agentTool!.target).toBe('Order_Agent');
   });
 
-  it('should warn when transitioning to @connected_subagent.X in reasoning', () => {
+  it('should not emit any error or warning for transition to @connected_subagent.X', () => {
     const source = `
 ${baseConfig}
     reasoning:
@@ -338,32 +341,8 @@ ${baseConfig}
         actions:
             transfer: @utils.transition to @connected_subagent.Support_Agent
                 description: "Transfer to support"
-
-connected_subagent Support_Agent:
-    target: "agent://Support_Agent"
-    label: "Support Agent"
-    description: "Handles support"
-`;
-    const { output, diagnostics } = compile(parseSource(source));
-    const transitionWarnings = diagnostics.filter(d =>
-      d.message.includes('Transition to connected agent')
-    );
-    expect(transitionWarnings.length).toBeGreaterThan(0);
-    expect(transitionWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
-
-    // Warning should not block compilation — transition tool should still be present
-    const node = findNode(output, 'Main');
-    expect(node?.tools.some(t => t.name === 'transfer')).toBe(true);
-  });
-
-  it('should warn when transitioning to @connected_subagent.X in after_reasoning', () => {
-    const source = `
-${baseConfig}
     after_reasoning:
         transition to @connected_subagent.Support_Agent
-    reasoning:
-        instructions: ->
-            | Help the user.
 
 connected_subagent Support_Agent:
     target: "agent://Support_Agent"
@@ -371,11 +350,12 @@ connected_subagent Support_Agent:
     description: "Handles support"
 `;
     const { diagnostics } = compile(parseSource(source));
-    const transitionWarnings = diagnostics.filter(d =>
-      d.message.includes('Transition to connected agent')
+    const errorsAndWarnings = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error ||
+        d.severity === DiagnosticSeverity.Warning
     );
-    expect(transitionWarnings.length).toBeGreaterThan(0);
-    expect(transitionWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(errorsAndWarnings).toEqual([]);
   });
 
   it('should warn on unknown input for @connected_subagent.X tool invocation', () => {
@@ -851,13 +831,13 @@ connected_subagent Order_Agent:
     expect(node.after_response).toBeDefined();
     const actions = node.after_response as Record<string, unknown>[];
 
-    // Should set the runtime-condition variable from the @variables.Refund_Done expression
+    // Should set the runtime-condition slot from the @variables.Refund_Done expression
     const condUpdate = actions.find(
       a =>
         a.target === STATE_UPDATE_ACTION &&
         Array.isArray(a.state_updates) &&
         (a.state_updates as Record<string, string>[]).some(
-          su => RUNTIME_CONDITION_VARIABLE in su
+          su => CONDITION_SLOT_1 in su
         )
     );
     expect(condUpdate).toBeDefined();
@@ -875,14 +855,10 @@ connected_subagent Order_Agent:
     expect(refundFailedUpdates.length).toBe(2);
     const enabledClauses = refundFailedUpdates.map(a => a.enabled as string);
     expect(
-      enabledClauses.some(e =>
-        e?.includes(`state.${RUNTIME_CONDITION_VARIABLE}`)
-      )
+      enabledClauses.some(e => e?.includes(`state.${CONDITION_SLOT_1}`))
     ).toBe(true);
     expect(
-      enabledClauses.some(e =>
-        e?.includes(`not (state.${RUNTIME_CONDITION_VARIABLE})`)
-      )
+      enabledClauses.some(e => e?.includes(`not (state.${CONDITION_SLOT_1})`))
     ).toBe(true);
   });
 
@@ -926,34 +902,61 @@ connected_subagent Order_Agent:
       actions.some(a => a.type === 'handoff' && a.target === 'Wrap_Up')
     ).toBe(true);
   });
+});
 
-  it('should emit a diagnostic for transition to @connected_subagent.X in after_response', () => {
+describe('connected_subagent delegate_escalation', () => {
+  const baseConfig = `
+config:
+    agent_name: "TestBot"
+
+start_agent Main:
+    description: "Main topic"
+    reasoning:
+        instructions: ->
+            | Handle requests
+`;
+
+  it('should compile delegate_escalation: False into the node', () => {
     const source = `
 ${baseConfig}
-connected_subagent Order_Agent:
-    target: "agent://Order_Agent"
-    label: "Order Agent"
-    description: "Handles orders"
-    after_response:
-        transition to @connected_subagent.Other_Agent
-
-connected_subagent Other_Agent:
-    target: "agent://Other_Agent"
-    label: "Other Agent"
-    description: "Other connected agent"
+connected_subagent Refund_Agent:
+    target: "agent://Refund_Agent"
+    description: "Handles refunds"
+    delegate_escalation: False
 `;
-    const { diagnostics } = compile(parseSource(source));
-    const errors = diagnostics.filter(
-      d => d.severity === DiagnosticSeverity.Warning
-    );
-    // The compile-utils warnIfConnectedAgentTransition path issues a warning
-    // when a transition statement targets a connected subagent.
-    expect(
-      errors.some(
-        d =>
-          typeof d.message === 'string' &&
-          d.message.toLowerCase().includes('connected agent')
-      )
-    ).toBe(true);
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Refund_Agent') as Record<string, unknown>;
+
+    expect(node).toBeDefined();
+    expect(node.delegate_escalation).toBe(false);
+  });
+
+  it('should compile delegate_escalation: True into the node', () => {
+    const source = `
+${baseConfig}
+connected_subagent Billing_Agent:
+    target: "agent://Billing_Agent"
+    description: "Handles billing"
+    delegate_escalation: True
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Billing_Agent') as Record<string, unknown>;
+
+    expect(node).toBeDefined();
+    expect(node.delegate_escalation).toBe(true);
+  });
+
+  it('should not include delegate_escalation when omitted', () => {
+    const source = `
+${baseConfig}
+connected_subagent Simple_Agent:
+    target: "agent://Simple_Agent"
+    description: "A simple agent"
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Simple_Agent') as Record<string, unknown>;
+
+    expect(node).toBeDefined();
+    expect(node.delegate_escalation).toBeUndefined();
   });
 });

@@ -74,10 +74,11 @@ export {
 } from './core/diagnostics.js';
 export type { Diagnostic } from './core/diagnostics.js';
 
-export type { TStringValue } from './core/primitives.js';
+export type { TStringValue, TNullableStringValue } from './core/primitives.js';
 
 export {
   StringValue,
+  NullableStringValue,
   NumberValue,
   BooleanValue,
   ProcedureValue,
@@ -100,6 +101,8 @@ export {
   ParameterDeclarationNode,
   collectionLabel,
 } from './core/block.js';
+
+export { TypeDescriptor, TypeDescriptorNode } from './core/type-descriptor.js';
 
 export type {
   BlockCore,
@@ -169,6 +172,7 @@ export {
   RunStatement,
   IfStatement,
   TransitionStatement,
+  CollectClause,
   UnknownStatement,
 } from './core/statements.js';
 
@@ -178,6 +182,7 @@ export {
   isMemberExpression,
   isIdentifier,
   isStringLiteral,
+  isNoneLiteral,
   isSubscriptExpression,
   isAtIdentifier,
   isIfStatement,
@@ -268,6 +273,8 @@ export {
   getFieldCompletions,
   getValueCompletions,
   getWithCompletions,
+  getNodeMemberAccessCompletions,
+  resolveFieldAtPosition,
 } from './core/analysis/completions.js';
 
 export type { CompletionCandidate } from './core/analysis/completions.js';
@@ -352,6 +359,7 @@ export { emptyBlockPass } from './lint/empty-block.js';
 export { spreadContextPass } from './lint/spread-context.js';
 export { nullLiteralValidationPass } from './lint/null-literal-validation.js';
 export { unusedVariablePass } from './lint/unused-variable.js';
+export type { UnusedVariablePassOptions } from './lint/unused-variable.js';
 export {
   expressionValidationPass,
   BUILTIN_FUNCTIONS,
@@ -369,6 +377,12 @@ export {
   LINT_SOURCE,
   SUGGESTION_THRESHOLD,
 } from './lint/lint-utils.js';
+
+export {
+  inferExpressionType,
+  inferredTypeLabel,
+} from './lint/expression-type.js';
+export type { VariableTypeResolver } from './lint/expression-type.js';
 
 export type { DialectConfig } from './dialect-config.js';
 

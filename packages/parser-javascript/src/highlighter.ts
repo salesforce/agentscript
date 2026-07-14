@@ -234,7 +234,6 @@ function captureAnonymous(node: CSTNode, captures: HighlightCapture[]): void {
   // Keywords
   switch (text) {
     case 'if':
-    case 'elif':
     case 'else':
     case 'run':
     case 'with':

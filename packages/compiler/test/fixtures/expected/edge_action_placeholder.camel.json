@@ -1,0 +1,211 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Placeholder_Actions_Agent",
+    "label": "Placeholder Actions Agent",
+    "description": "Agent demonstrating placeholder action support",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! Some of my actions are still being developed.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while processing your request.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with both real and placeholder actions",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Real_Action",
+            "boundInputs": {},
+            "llmInputs": [
+              "input_val"
+            ],
+            "stateUpdates": [],
+            "name": "Use_Real"
+          },
+          {
+            "type": "action",
+            "target": "Placeholder_Action",
+            "boundInputs": {},
+            "llmInputs": [
+              "future_input"
+            ],
+            "stateUpdates": [],
+            "name": "Use_Placeholder"
+          },
+          {
+            "type": "action",
+            "target": "Another_Placeholder",
+            "boundInputs": {},
+            "llmInputs": [
+              "stub_input"
+            ],
+            "stateUpdates": [],
+            "name": "Use_Another_Stub"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Real_Action",
+            "label": "Real Action",
+            "description": "A real implemented action",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "RealAction",
+            "inputType": [
+              {
+                "developerName": "input_val",
+                "label": "Input Value",
+                "description": "Input Value",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "real_result",
+                "label": "Real Result",
+                "description": "Real Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Placeholder_Action",
+            "label": "Placeholder Action",
+            "description": "A placeholder action for future implementation",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "stub",
+            "invocationTargetName": "Placeholder_Action",
+            "inputType": [
+              {
+                "developerName": "future_input",
+                "label": "Future Input",
+                "description": "Future Input",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "future_result",
+                "label": "Future Result",
+                "description": "Future Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Another_Placeholder",
+            "label": "Another Placeholder",
+            "description": "Another stub action",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "stub",
+            "invocationTargetName": "Another_Placeholder",
+            "inputType": [
+              {
+                "developerName": "stub_input",
+                "label": "Stub Input",
+                "description": "Stub Input",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "stub_result",
+                "label": "Stub Result",
+                "description": "Stub Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful assistant with placeholder actions for future implementation.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou have access to both real and placeholder actions.\nPlaceholder actions will be implemented in future releases."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! Some of my actions are still being developed.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while processing your request.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

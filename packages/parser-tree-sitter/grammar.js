@@ -186,7 +186,22 @@ export default grammar({
         $.available_when_statement
       ),
 
-    compound_statement: $ => choice($.if_statement, $.run_statement),
+    compound_statement: $ =>
+      choice($.if_statement, $.run_statement, $.collect_statement),
+
+    // `collect` gathers a single variable from the user one field at a time.
+    // It is sugar inside reasoning.instructions: an indented body holds the
+    // `message:` (and future) fields. Modeled on if_statement/run_statement.
+    collect_statement: $ =>
+      seq(
+        'collect',
+        field('target', $.expression),
+        ':',
+        $._indent,
+        field('body', $.mapping),
+        $._dedent,
+        $._newline
+      ),
 
     if_statement: $ =>
       seq(
@@ -197,13 +212,14 @@ export default grammar({
         field('consequence', $.procedure),
         $._dedent,
         $._newline,
-        repeat(field('alternative', $.elif_clause)),
+        repeat(field('alternative', $.else_if_clause)),
         optional(field('alternative', $.else_clause))
       ),
 
-    elif_clause: $ =>
+    else_if_clause: $ =>
       seq(
-        'elif',
+        'else',
+        'if',
         field('condition', $.expression),
         ':',
         $._indent,

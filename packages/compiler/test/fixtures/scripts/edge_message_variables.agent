@@ -2,20 +2,27 @@
 system:
     instructions: "You are a support agent that personalizes interactions using customer data."
     messages:
-        welcome: "Hello {!@variables.customer_name}! Welcome to our support center."
-        error: "Sorry {!@variables.customer_name}, we hit an error on case {!@variables.case_number}. Please try again."
+        welcome: |
+            Hello {!@variables.customer_name}! Welcome to our support center, {!@variables.greeting_name}.
+        error: |
+            Sorry {!@variables.customer_name}, we hit an error on case {!@variables.case_number}. Please try again, {!@variables.greeting_name}.
 
 config:
-    agent_name: "Message_Vars_Agent"
     agent_type: "AgentforceServiceAgent"
     developer_name: "Message_Vars_Agent"
     description: "Agent using variable substitution in messages"
+    default_agent_user: "x@y.com"
 
 variables:
-    customer_name: mutable string = ""
-        description: "The customer's name"
-    case_number: mutable string = ""
-        description: "The current case number"
+    customer_name: linked string
+        source: @MessagingEndUser.ContactId
+        description: "The customer's name, sourced from the messaging session"
+    case_number: linked string
+        source: @MessagingSession.Id
+        description: "The current case number, sourced from the messaging session"
+    greeting_name: mutable string = ""
+        visibility: "External"
+        description: "Externally-populated display name available in system messages"
 
 start_agent main:
     description: "Greet customer with personalized message"

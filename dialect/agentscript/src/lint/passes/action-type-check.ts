@@ -23,37 +23,11 @@ import {
   LINT_SOURCE,
   extractOutputRef,
   extractVariableRef,
+  inferExpressionType,
   DiagnosticSeverity,
 } from '@agentscript/language';
 import { reasoningActionsKey } from './reasoning-actions.js';
 import { typeMapKey } from './type-map.js';
-import type { TypeMap } from './type-map.js';
-
-/**
- * Infer expression type: @variables.X → type map lookup,
- * literals → their type, anything else → null (skip check).
- */
-function inferExpressionType(expr: unknown, typeMap: TypeMap): string | null {
-  if (!expr || typeof expr !== 'object') return null;
-  const obj = expr as Record<string, unknown>;
-
-  const varName = extractVariableRef(expr);
-  if (varName) {
-    return typeMap.variables.get(varName)?.type ?? null;
-  }
-
-  switch (obj.__kind) {
-    case 'StringLiteral':
-    case 'TemplateExpression':
-      return 'string';
-    case 'NumberLiteral':
-      return 'number';
-    case 'BooleanLiteral':
-      return 'boolean';
-    default:
-      return null;
-  }
-}
 
 /** Case-insensitive type compatibility. "object" is a wildcard. */
 function typesCompatible(expected: string, actual: string): boolean {
@@ -78,6 +52,9 @@ export function actionTypeCheckRule(): LintPass {
       const { sig, statements } = entry;
       if (!statements) return;
 
+      const resolveVar = (name: string) =>
+        typeMap.variables.get(name)?.type ?? null;
+
       for (const stmt of statements) {
         if (stmt.__kind === 'WithClause') {
           const param = stmt.param as string;
@@ -86,8 +63,10 @@ export function actionTypeCheckRule(): LintPass {
           const inputInfo = sig.inputs.get(param);
           if (!inputInfo) continue;
 
-          const actualType = inferExpressionType(stmt.value, typeMap);
-          if (actualType && !typesCompatible(inputInfo.type, actualType)) {
+          const actualType = inferExpressionType(stmt.value, resolveVar);
+          if (!actualType) continue;
+
+          if (!typesCompatible(inputInfo.type, actualType)) {
             const cst = stmt.__cst as CstMeta | undefined;
             if (cst) {
               const diag = typeMismatchDiagnostic(

@@ -212,6 +212,11 @@ export interface TypedMapOptions {
   description?: string;
   /** Regex pattern that map keys must match. */
   keyPattern?: string;
+  /**
+   * When true, entries without a colinear type declaration are allowed.
+   * The type is specified via a `type:` block property instead of inline.
+   */
+  allowTypelessEntries?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +245,7 @@ export interface FactoryBuilderMethods<Self> {
   predicateField(): Self;
   outputNameField(): Self;
   displayLabelField(): Self;
+  structuredOutputField(): Self;
   singular(): Self;
   accepts(kinds: string[]): Self;
   omitArrow(): Self;

@@ -1,0 +1,839 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "EdgeActionMany",
+    "label": "Many Actions Agent",
+    "description": "Agent with 10+ actions defined and invoked in reasoning",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "customer_id",
+        "label": "Customer Id",
+        "description": "The customer ID",
+        "dataType": "string"
+      }
+    ],
+    "defaultAgentUser": "service@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help with many different tasks.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "account_balance",
+        "label": "Account Balance",
+        "description": "Current account balance",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "order_status",
+        "label": "Order Status",
+        "description": "Status of the current order",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "shipping_address",
+        "label": "Shipping Address",
+        "description": "Shipping address on file",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "payment_method",
+        "label": "Payment Method",
+        "description": "Current payment method",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "refund_amount",
+        "label": "Refund Amount",
+        "description": "Amount to refund",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "ticket_id",
+        "label": "Ticket Id",
+        "description": "Support ticket ID",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "loyalty_points",
+        "label": "Loyalty Points",
+        "description": "Customer loyalty points",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "coupon_code",
+        "label": "Coupon Code",
+        "description": "Applied coupon code",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "product_list",
+        "label": "Product List",
+        "description": "List of products",
+        "dataType": "object",
+        "isList": true,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "notification_sent",
+        "label": "Notification Sent",
+        "description": "Whether notification was sent",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Route customer to appropriate service topic",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"full_service\""
+              }
+            ],
+            "name": "go_to_service",
+            "description": "Full service topic with many actions"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "You are a comprehensive service agent with many available actions.",
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "full_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"full_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Full service topic with many actions",
+        "tools": [
+          {
+            "type": "action",
+            "target": "get_account",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "account_balance": "result.balance"
+              },
+              {
+                "loyalty_points": "result.loyalty"
+              }
+            ],
+            "name": "get_account"
+          },
+          {
+            "type": "action",
+            "target": "check_order",
+            "boundInputs": {},
+            "llmInputs": [
+              "order_id"
+            ],
+            "stateUpdates": [
+              {
+                "order_status": "result.status"
+              }
+            ],
+            "name": "check_order"
+          },
+          {
+            "type": "action",
+            "target": "process_refund",
+            "boundInputs": {},
+            "llmInputs": [
+              "order_id",
+              "amount"
+            ],
+            "stateUpdates": [
+              {
+                "ticket_id": "result.refund_id"
+              }
+            ],
+            "name": "process_refund"
+          },
+          {
+            "type": "action",
+            "target": "apply_coupon",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [
+              "coupon_code"
+            ],
+            "stateUpdates": [],
+            "name": "apply_coupon"
+          },
+          {
+            "type": "action",
+            "target": "send_notification",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [
+              "message"
+            ],
+            "stateUpdates": [
+              {
+                "notification_sent": "result.sent"
+              }
+            ],
+            "name": "send_notification"
+          },
+          {
+            "type": "action",
+            "target": "create_ticket",
+            "boundInputs": {},
+            "llmInputs": [
+              "subject",
+              "details"
+            ],
+            "stateUpdates": [
+              {
+                "ticket_id": "result.ticket_id"
+              }
+            ],
+            "name": "create_ticket"
+          },
+          {
+            "type": "action",
+            "target": "list_products",
+            "boundInputs": {},
+            "llmInputs": [
+              "category"
+            ],
+            "stateUpdates": [
+              {
+                "product_list": "result.products"
+              }
+            ],
+            "name": "list_products"
+          },
+          {
+            "type": "action",
+            "target": "update_payment",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [
+              "payment_type"
+            ],
+            "stateUpdates": [],
+            "name": "update_payment"
+          },
+          {
+            "type": "action",
+            "target": "redeem_points",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [
+              "points"
+            ],
+            "stateUpdates": [
+              {
+                "loyalty_points": "result.remaining_points"
+              }
+            ],
+            "name": "redeem_points"
+          },
+          {
+            "type": "action",
+            "target": "update_address",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [
+              "new_address"
+            ],
+            "stateUpdates": [],
+            "name": "update_address"
+          },
+          {
+            "type": "action",
+            "target": "cancel_order",
+            "boundInputs": {},
+            "llmInputs": [
+              "order_id"
+            ],
+            "stateUpdates": [],
+            "name": "cancel_order"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "'__human__'"
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Escalate to a human agent"
+          }
+        ],
+        "developerName": "full_service",
+        "label": "Full Service",
+        "actionDefinitions": [
+          {
+            "developerName": "get_account",
+            "label": "Get Account",
+            "description": "Retrieve customer account details",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Get_Account_Details",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "balance",
+                "label": "Account Balance",
+                "description": "Balance",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "loyalty",
+                "label": "Loyalty Points",
+                "description": "Loyalty",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "update_address",
+            "label": "Update Address",
+            "description": "Update shipping address",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Update_Address",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "new_address",
+                "label": "New Address",
+                "description": "New Address",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "success",
+                "label": "Success",
+                "description": "Success",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "check_order",
+            "label": "Check Order",
+            "description": "Check order status",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Check_Order_Status",
+            "inputType": [
+              {
+                "developerName": "order_id",
+                "label": "Order Id",
+                "description": "Order Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tracking_number",
+                "label": "Tracking Number",
+                "description": "Tracking Number",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "process_refund",
+            "label": "Process Refund",
+            "description": "Process a refund",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_Refund",
+            "inputType": [
+              {
+                "developerName": "order_id",
+                "label": "Order Id",
+                "description": "Order Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "amount",
+                "label": "Amount",
+                "description": "Amount",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "refund_id",
+                "label": "Refund Id",
+                "description": "Refund Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "refund_status",
+                "label": "Refund Status",
+                "description": "Refund Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "apply_coupon",
+            "label": "Apply Coupon",
+            "description": "Apply a coupon code",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Apply_Coupon",
+            "inputType": [
+              {
+                "developerName": "coupon_code",
+                "label": "Coupon Code",
+                "description": "Coupon Code",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "discount",
+                "label": "Discount",
+                "description": "Discount",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "valid",
+                "label": "Valid",
+                "description": "Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "send_notification",
+            "label": "Send Notification",
+            "description": "Send notification to customer",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Send_Notification",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "message",
+                "label": "Message",
+                "description": "Message",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "sent",
+                "label": "Sent",
+                "description": "Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "create_ticket",
+            "label": "Create Ticket",
+            "description": "Create support ticket",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Create_Ticket",
+            "inputType": [
+              {
+                "developerName": "subject",
+                "label": "Subject",
+                "description": "Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "details",
+                "label": "Details",
+                "description": "Details",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "ticket_id",
+                "label": "Ticket Id",
+                "description": "Ticket Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "list_products",
+            "label": "List Products",
+            "description": "List available products",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "ProductService.listProducts",
+            "inputType": [
+              {
+                "developerName": "category",
+                "label": "Category",
+                "description": "Category",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "products",
+                "label": "Products",
+                "description": "Products",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ]
+          },
+          {
+            "developerName": "update_payment",
+            "label": "Update Payment",
+            "description": "Update payment method",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Update_Payment",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "payment_type",
+                "label": "Payment Type",
+                "description": "Payment Type",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "updated",
+                "label": "Updated",
+                "description": "Updated",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "redeem_points",
+            "label": "Redeem Points",
+            "description": "Redeem loyalty points",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Redeem_Points",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "points",
+                "label": "Points",
+                "description": "Points",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "remaining_points",
+                "label": "Remaining Points",
+                "description": "Remaining Points",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "discount_applied",
+                "label": "Discount Applied",
+                "description": "Discount Applied",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "cancel_order",
+            "label": "Cancel Order",
+            "description": "Cancel an existing order",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Cancel_Order",
+            "inputType": [
+              {
+                "developerName": "order_id",
+                "label": "Order Id",
+                "description": "Order Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "cancelled",
+                "label": "Cancelled",
+                "description": "Cancelled",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a comprehensive service agent with many available actions.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the customer with their request. You have access to many tools.\nUse get_account to look up account info.\nUse check_order to check order status.\nUse process_refund for refunds.\nUse apply_coupon for coupons.\nUse create_ticket to create support tickets."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "__human__",
+            "enabled": "state.AgentScriptInternal_next_topic == '__human__'",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help with many different tasks.\", \"messageType\": \"Welcome\"}, {\"message\": \"Something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

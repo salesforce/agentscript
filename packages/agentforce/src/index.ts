@@ -49,7 +49,10 @@ export {
 } from './mutate-component.js';
 export { Document } from './document.js';
 export { compileSource } from './compile.js';
-export type { AgentforceCompileResult } from './compile.js';
+export type {
+  AgentforceCompileResult,
+  CompileSourceOptions,
+} from './compile.js';
 
 // Types
 export type {
@@ -71,5 +74,11 @@ export * from '@agentscript/language';
 export * from '@agentscript/agentforce-dialect';
 
 // Compiler
-export { compile, serialize } from '@agentscript/compiler';
+export {
+  compile,
+  serialize,
+  DSL_VERSION,
+  DSL_GIT_SHA,
+  DSL_GIT_DATE,
+} from '@agentscript/compiler';
 export type { AgentDSLAuthoring, CompileResult } from '@agentscript/compiler';

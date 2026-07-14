@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Lint rules for `executor` blocks.
  *
@@ -36,13 +43,14 @@ import {
   normalizeId,
   IMPLICIT_WITH_PARAMS,
   listActionDefInputNames,
-} from '../../utils.js';
+} from '../../../utils.js';
 import {
   attachError,
   asStatements,
   extractStringValue,
   type AstLike,
 } from './shared.js';
+import { Namespace } from '../../../constants.js';
 
 type ExprMode = 'execute' | 'run-body';
 
@@ -70,7 +78,7 @@ function validateExpression(
           'execute-outputs-unsupported'
         );
       }
-      if (decomposed.namespace === 'actions') {
+      if (decomposed.namespace === Namespace.Actions) {
         attachError(
           node,
           '@actions references cannot be used as values. Use `run @actions.<name>` to invoke an action.',
@@ -165,7 +173,8 @@ function validateSetTarget(
   const decomposed = decomposeAtMemberExpression(target);
   if (
     decomposed &&
-    (decomposed.namespace === 'variables' || decomposed.namespace === 'outputs')
+    (decomposed.namespace === Namespace.Variables ||
+      decomposed.namespace === 'outputs')
   ) {
     return;
   }
@@ -193,7 +202,10 @@ function validateExecuteDo(
 
     if (stmt instanceof RunStatement) {
       const targetDecomposed = decomposeAtMemberExpression(stmt.target);
-      if (!targetDecomposed || targetDecomposed.namespace !== 'actions') {
+      if (
+        !targetDecomposed ||
+        targetDecomposed.namespace !== Namespace.Actions
+      ) {
         attachError(
           node,
           'execute `run` target must be @actions.<action_def_name>.',

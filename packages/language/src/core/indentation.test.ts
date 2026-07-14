@@ -20,7 +20,7 @@ describe('increaseIndentPattern', () => {
     '  actions:',
     'if x > 5:',
     'else:',
-    'elif y < 3:',
+    'else if y < 3:',
     '  - ActionName:',
     'instructions: ->',
     '  reasoning: ->',

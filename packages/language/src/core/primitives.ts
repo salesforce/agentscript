@@ -31,10 +31,11 @@ import {
   AtIdentifier,
   NumberLiteral,
   BooleanLiteral,
+  NoneLiteral,
   KIND_LABELS,
   EXPRESSION_KINDS,
 } from './expressions.js';
-import type { Statement } from './statements.js';
+import { type Statement, Template } from './statements.js';
 import {
   type Diagnostic,
   createDiagnostic,
@@ -47,6 +48,9 @@ import {
   ALLOWED_STRING_VALUE_KINDS,
   AllowedStringValueKind,
   STRING_VALUE_DEFAULT,
+  ALLOWED_NULLABLE_STRING_VALUE_KINDS,
+  AllowedNullableStringValueKind,
+  NULLABLE_STRING_VALUE_DEFAULT,
 } from './primitives-constants.js';
 
 /**
@@ -131,6 +135,47 @@ export const StringValue = addBuilderMethods(_stringValueFieldType, [
   'string',
   'generic',
 ]);
+
+/**
+ * NullableStringValue accepts a quoted string literal or `None`.
+ * Use for fields that may be explicitly opted out (e.g.
+ * `default_agent_user: None`). Template expressions are not accepted —
+ * a nullable opt-out should be a discrete value, not an interpolated one.
+ * Use `__kind` to discriminate between 'StringLiteral' and 'NoneLiteral'.
+ */
+export type TNullableStringValue = StringLiteral | NoneLiteral;
+export type NullableStringValue = TNullableStringValue;
+
+const _nullableStringValueFieldType = {
+  __fieldKind: 'Primitive' as const,
+  __accepts: [...NULLABLE_STRING_VALUE_DEFAULT],
+  parse(
+    this: FieldType<TNullableStringValue>,
+    node: SyntaxNode,
+    dialect: Dialect
+  ): ParseResult<TNullableStringValue> {
+    const acceptsArr = this.__accepts ?? NULLABLE_STRING_VALUE_DEFAULT;
+    const accepted = acceptsArr.filter(
+      (el: string): el is AllowedNullableStringValueKind =>
+        ALLOWED_NULLABLE_STRING_VALUE_KINDS.has(
+          el as AllowedNullableStringValueKind
+        )
+    );
+    const { expr, diagnostics } = validateExpression(node, dialect, accepted);
+    if (diagnostics.length > 0) {
+      return parseResult(withCst(new StringLiteral(''), node), diagnostics);
+    }
+    // SAFETY: validateExpression confirmed expr.__kind is one of the accepted kinds
+    return parseResult(expr as Parsed<TNullableStringValue>, []);
+  },
+  emit: (value: TNullableStringValue, ctx: EmitContext): string =>
+    value.__emit(ctx),
+} satisfies FieldType<TNullableStringValue>;
+
+export const NullableStringValue = addBuilderMethods(
+  _nullableStringValueFieldType,
+  ['string', 'generic']
+);
 
 class NumberValueNode extends AstNodeBase {
   static readonly __fieldKind = 'Primitive' as const;
@@ -280,18 +325,33 @@ class ProcedureValueNode extends AstNodeBase {
       const cstType = value.__cst?.node?.type;
 
       if (cstType === 'template') {
-        // Colinear bare pipe: "key: | content"
-        const raw = value.statements[0].__emit({ ...ctx, indent: 0 });
-        const lines = raw.split('\n');
-        const childIndent = emitIndent({ ...ctx, indent: ctx.indent + 1 });
+        // Colinear bare pipe: "key: | content" or "key: |\n  content"
+        const tmpl = value.statements[0] as Template;
+        const prefix = `${indent}${key}: `;
+        const sep = tmpl.spaceAfterPipe ? ' ' : '';
+        const content = tmpl.content;
+        const lines = content.split('\n');
+        const continuationIndent = ' '.repeat(prefix.length + 1 + sep.length);
+
+        if (tmpl.barePipeMultiline) {
+          const childIndent = emitIndent({ ...ctx, indent: ctx.indent + 1 });
+          const allReindented = lines
+            .map(line => {
+              if (line.trim().length === 0) return '';
+              return childIndent + line;
+            })
+            .join('\n');
+          return `${prefix}|\n${allReindented}`;
+        }
+
         const reindented = lines
           .map((line, i) => {
             if (i === 0) return line;
             if (line.trim().length === 0) return '';
-            return `${childIndent}${line}`;
+            return `${continuationIndent}${line}`;
           })
           .join('\n');
-        return `${indent}${key}: ${reindented}`;
+        return `${prefix}|${sep}${reindented}`;
       }
 
       if (cstType === 'mapping') {

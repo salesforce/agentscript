@@ -1,0 +1,253 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Directive_Hyperclassifier",
+    "label": "Directive Hyperclassifier",
+    "description": "Directive plus model on start_agent and a secondary topic",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hi! I'm here to assist you.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Hyperclassifier-powered topic selector",
+        "instructions": "You are an agent with hyperclassifier directive and models on multiple topics.\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "go_premium",
+            "target": "premium_support",
+            "description": "Route to premium support with advanced model"
+          },
+          {
+            "name": "go_standard",
+            "target": "standard_support",
+            "description": "Route to standard support"
+          },
+          {
+            "name": "go_off_topic",
+            "target": "off_topic",
+            "description": "Handle off-topic requests"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nRoute the user to the appropriate topic based on their message."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Premium support with advanced model for complex issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"standard_support\""
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Escalate to standard support"
+          }
+        ],
+        "developerName": "premium_support",
+        "label": "Premium Support",
+        "actionDefinitions": [],
+        "instructions": "You are an agent with hyperclassifier directive and models on multiple topics.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nProvide premium-level support with detailed, comprehensive responses.\nTake extra care to fully resolve the customer's issue."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "standard_support",
+            "enabled": "state.AgentScriptInternal_next_topic==\"standard_support\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Standard support for common issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"premium_support\""
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Escalate to premium support"
+          }
+        ],
+        "developerName": "standard_support",
+        "label": "Standard Support",
+        "actionDefinitions": [],
+        "instructions": "You are an agent with hyperclassifier directive and models on multiple topics.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nProvide helpful support for common issues.\nIf the issue is complex, offer to escalate to premium support."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "premium_support",
+            "enabled": "state.AgentScriptInternal_next_topic==\"premium_support\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Redirects off-topic conversations",
+        "tools": [],
+        "developerName": "off_topic",
+        "label": "Off Topic",
+        "actionDefinitions": [],
+        "instructions": "You are an agent with hyperclassifier directive and models on multiple topics.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nPolitely redirect the user to relevant topics."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hi! I'm here to assist you.\", \"messageType\": \"Welcome\"}, {\"message\": \"Something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

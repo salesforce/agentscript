@@ -13,7 +13,14 @@ import type {
   SchemaInfo,
 } from '../types.js';
 import type { NamedMap } from '../block.js';
-import { SymbolKind, astField, isNamedMap, isAstNodeLike } from '../types.js';
+import {
+  SymbolKind,
+  astField,
+  isNamedMap,
+  isAstNodeLike,
+  isCollectionFieldType,
+  resolveFieldType,
+} from '../types.js';
 
 /**
  * Enclosing block scope for a position in the AST.
@@ -67,6 +74,26 @@ export interface SchemaContext {
   readonly invocationTargetNamespaces: ReadonlySet<string>;
   /** Namespaces whose blocks declare the 'transitionTarget' capability (can receive a handoff/transition). */
   readonly transitionTargetNamespaces: ReadonlySet<string>;
+  /**
+   * Member names offered on a resolved node reference inside an expression
+   * (`@<nodeType>.<nodeName>.<member>`). Sourced from the dialect's
+   * `SchemaInfo.nodeMemberAccess` descriptor, not a core literal. Empty when
+   * the dialect declares no node-member surface.
+   */
+  readonly nodeMemberNames: ReadonlySet<string>;
+  /**
+   * The member name that enumerates a node's structured output (the
+   * `output` member), or undefined when the dialect declares none.
+   */
+  readonly nodeOutputMemberName: string | undefined;
+  /**
+   * For each transitionTarget namespace, the field-name path from the node
+   * entry block down to its `structuredOutputField`-marked block (e.g.
+   * `['reasoning','outputs']` or `['outputs']`). Schema-derived so core
+   * never hardcodes where a dialect nests structured output. Absent for
+   * nodes that declare no structured-output field.
+   */
+  readonly nodeOutputFieldPaths: ReadonlyMap<string, readonly string[]>;
 }
 
 /** Create a SchemaContext from a SchemaInfo. All derived data is computed eagerly. */
@@ -113,6 +140,14 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
 
   const capabilityNamespaces = buildCapabilityNamespaces(info);
 
+  const nodeMemberNames: ReadonlySet<string> = new Set(
+    info.nodeMemberAccess?.members ?? []
+  );
+  const nodeOutputFieldPaths = buildNodeOutputFieldPaths(
+    info,
+    capabilityNamespaces.transitionTarget
+  );
+
   return {
     info,
     scopedNamespaces,
@@ -123,7 +158,64 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
     colinearResolvedScopes,
     invocationTargetNamespaces: capabilityNamespaces.invocationTarget,
     transitionTargetNamespaces: capabilityNamespaces.transitionTarget,
+    nodeMemberNames,
+    nodeOutputMemberName: info.nodeMemberAccess?.outputMember,
+    nodeOutputFieldPaths,
   };
+}
+
+/**
+ * For each transitionTarget namespace, locate the field-name path from the
+ * node entry block to its `structuredOutputField`-marked block. Walks the
+ * entry schema (recursing into nested blocks) exactly like the schema-driven
+ * graph extractor discovers its markers, so the structured-output location
+ * stays a property of the dialect schema, not a hardcoded path in core.
+ */
+function buildNodeOutputFieldPaths(
+  info: SchemaInfo,
+  transitionTargetNamespaces: ReadonlySet<string>
+): ReadonlyMap<string, readonly string[]> {
+  const paths = new Map<string, readonly string[]>();
+  for (const namespace of transitionTargetNamespaces) {
+    const rawFt = info.schema[namespace];
+    if (!rawFt) continue;
+    const entrySchema = resolveEntrySchema(resolveFieldType(rawFt));
+    if (!entrySchema) continue;
+    const path = findStructuredOutputPath(entrySchema);
+    if (path) paths.set(namespace, path);
+  }
+  return paths;
+}
+
+/**
+ * Resolve a top-level schema field to the schema of the entries it holds —
+ * the per-instance schema for a (named) collection, or the field's own
+ * schema for a plain block. Returns undefined when neither applies.
+ */
+function resolveEntrySchema(fieldType: FieldType): Schema | undefined {
+  if (isCollectionFieldType(fieldType)) return fieldType.entryBlock.schema;
+  return fieldType.schema;
+}
+
+/**
+ * Depth-first search for the field marked `structuredOutputField`, returning
+ * the path of field names leading to it (e.g. `['reasoning','outputs']`).
+ * Returns undefined when no field in the subtree carries the marker.
+ */
+function findStructuredOutputPath(
+  schema: Schema,
+  visited: WeakSet<Schema> = new WeakSet()
+): readonly string[] | undefined {
+  if (alreadyVisited(visited, schema)) return undefined;
+  for (const [fieldName, rawFt] of Object.entries(schema)) {
+    const ft = resolveFieldType(rawFt);
+    if (ft.__metadata?.structuredOutputField === true) return [fieldName];
+    if (ft.schema) {
+      const nested = findStructuredOutputPath(ft.schema, visited);
+      if (nested) return [fieldName, ...nested];
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -232,11 +324,6 @@ function isCollectionField(
   ft: FieldType
 ): ft is FieldType & { __isCollection: true } {
   return ft.__isCollection === true;
-}
-
-/** Resolve a potentially array-wrapped FieldType to a single FieldType. */
-function resolveFieldType(ft: FieldType | FieldType[]): FieldType {
-  return Array.isArray(ft) ? ft[0] : ft;
 }
 
 /**

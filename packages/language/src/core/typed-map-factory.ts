@@ -27,7 +27,10 @@ import { Identifier } from './expressions.js';
 import { addBuilderMethods } from './field-builder.js';
 import { ErrorBlock, isEmittable } from './children.js';
 import { NamedMap } from './named-map.js';
-import { TypedDeclarationBase } from './typed-declarations.js';
+import {
+  ParameterDeclarationNode,
+  TypedDeclarationBase,
+} from './typed-declarations.js';
 import type { TypedMapFactory, TypedMapOptions } from './factory-types.js';
 import { overrideFactoryBuilderMethods } from './factory-utils.js';
 import { TypedMapParser } from './typed-map-parser.js';
@@ -154,33 +157,41 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
           ? keyChild.type === 'string'
           : reservedEntryNames.has(name);
         const emittedKey = wasQuoted ? quoteKeyName(name) : emitKeyName(name);
-        let line = `${indent}${emittedKey}: `;
 
-        if (
-          hasModifier &&
-          'modifier' in decl &&
-          decl.modifier instanceof Identifier
-        ) {
-          line += `${decl.modifier.__emit(ctx)} `;
-        }
+        // Type-in-block entry: emit just the key with no colinear type.
+        // The type is expressed via the `type:` field in the properties block.
+        const typeInBlock =
+          decl instanceof ParameterDeclarationNode && decl.typeInBlock;
+        let line = `${indent}${emittedKey}:`;
 
-        // Emit error prefix from ErrorBlock in declaration's __children
-        for (const dc of decl.__children) {
-          if (dc instanceof ErrorBlock) {
-            line += `${dc.rawText} `;
-            break;
+        if (!typeInBlock) {
+          line += ' ';
+          if (
+            hasModifier &&
+            'modifier' in decl &&
+            decl.modifier instanceof Identifier
+          ) {
+            line += `${decl.modifier.__emit(ctx)} `;
           }
-        }
 
-        line += decl.type.__emit(ctx);
+          // Emit error prefix from ErrorBlock in declaration's __children
+          for (const dc of decl.__children) {
+            if (dc instanceof ErrorBlock) {
+              line += `${dc.rawText} `;
+              break;
+            }
+          }
 
-        if (decl.defaultValue) {
-          line += ` = ${decl.defaultValue.__emit(ctx)}`;
-        } else if (decl.__cst?.node?.text?.trimEnd().endsWith('=')) {
-          // Preserve trailing `=` when CST had one but default value is missing.
-          // Use endsWith (not includes) to avoid matching `= ""` or `= None`
-          // where the `=` is mid-line with a parsed default value.
-          line += ' =';
+          line += decl.type.__emit(ctx);
+
+          if (decl.defaultValue) {
+            line += ` = ${decl.defaultValue.__emit(ctx)}`;
+          } else if (decl.__cst?.node?.text?.trimEnd().endsWith('=')) {
+            // Preserve trailing `=` when CST had one but default value is missing.
+            // Use endsWith (not includes) to avoid matching `= ""` or `= None`
+            // where the `=` is mid-line with a parsed default value.
+            line += ' =';
+          }
         }
 
         if (inline.length > 0) {

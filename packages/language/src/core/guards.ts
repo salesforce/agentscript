@@ -19,6 +19,7 @@ import {
   MemberExpression,
   Identifier,
   StringLiteral,
+  NoneLiteral,
   SubscriptExpression,
   AtIdentifier,
 } from './expressions.js';
@@ -48,6 +49,10 @@ export function isIdentifier(node: unknown): node is Identifier {
 
 export function isStringLiteral(node: unknown): node is StringLiteral {
   return node instanceof StringLiteral;
+}
+
+export function isNoneLiteral(node: unknown): node is NoneLiteral {
+  return node instanceof NoneLiteral;
 }
 
 export function isSubscriptExpression(

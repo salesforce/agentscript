@@ -1,0 +1,2864 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "benefit_application_agent_v93",
+    "label": "Benefit Application Agent V 93",
+    "description": "Assists users with benefit_app management through the benefit application agent workflow.",
+    "enableEnhancedEventLogs": true,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "benefit_application@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I am your Benefit Application Agent Assistant. How can I help you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I apologize, something went wrong on my end. Could you please rephrase your request?",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "benefit_app_record_id",
+        "label": "Benefit App Record Id",
+        "description": "Record ID of the benefit_app",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "benefit_app_status",
+        "label": "Benefit App Status",
+        "description": "Current status of the benefit_app",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "benefit_app_tier",
+        "label": "Benefit App Tier",
+        "description": "Tier classification for the benefit_app",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developerName": "benefit_app_category",
+        "label": "Benefit App Category",
+        "description": "Category of the benefit_app",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "contact_name",
+        "label": "Contact Name",
+        "description": "Full name of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_email",
+        "label": "Contact Email",
+        "description": "Email address of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_phone",
+        "label": "Contact Phone",
+        "description": "Phone number of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "is_verified",
+        "label": "Is Verified",
+        "description": "Whether the user identity is verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "eligibility_score",
+        "label": "Eligibility Score",
+        "description": "Calculated eligibility score",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "step_counter",
+        "label": "Step Counter",
+        "description": "Current step in the process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "attempt_count",
+        "label": "Attempt Count",
+        "description": "Number of attempts made",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "total_items_count",
+        "label": "Total Items Count",
+        "description": "Total number of items to process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "intake_complete",
+        "label": "Intake Complete",
+        "description": "Whether the intake stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "intake_result",
+        "label": "Intake Result",
+        "description": "Result from the intake stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "means_testing_complete",
+        "label": "Means Testing Complete",
+        "description": "Whether the means_testing stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "means_testing_result",
+        "label": "Means Testing Result",
+        "description": "Result from the means_testing stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "determination_complete",
+        "label": "Determination Complete",
+        "description": "Whether the determination stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "determination_result",
+        "label": "Determination Result",
+        "description": "Result from the determination stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "notification_complete",
+        "label": "Notification Complete",
+        "description": "Whether the notification stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "notification_result",
+        "label": "Notification Result",
+        "description": "Result from the notification stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "priority_level",
+        "label": "Priority Level",
+        "description": "Priority level of the request",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developerName": "notes_text",
+        "label": "Notes Text",
+        "description": "Notes and comments",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "assigned_agent",
+        "label": "Assigned Agent",
+        "description": "Assigned agent name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "resolution_summary",
+        "label": "Resolution Summary",
+        "description": "Summary of the resolution",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "escalation_requested",
+        "label": "Escalation Requested",
+        "description": "Whether escalation was requested",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "is_business_hours",
+        "label": "Is Business Hours",
+        "description": "Whether it is currently business hours",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "case_ref_number",
+        "label": "Case Ref Number",
+        "description": "Reference number for the support case",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "next_available_slot",
+        "label": "Next Available Slot",
+        "description": "Next available time slot",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Welcome the user and route to the appropriate benefit_app management topic",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"intake\""
+              }
+            ],
+            "name": "go_to_intake",
+            "description": "Transition to intake topic."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"means_testing\""
+              }
+            ],
+            "name": "go_to_means_testing",
+            "description": "Transition to means testing topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"determination\""
+              }
+            ],
+            "name": "go_to_determination",
+            "description": "Transition to determination topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"notification\""
+              }
+            ],
+            "name": "go_to_notification",
+            "description": "Transition to notification topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "go_to_escalation",
+            "description": "Escalate to a human agent for assistance.",
+            "enabled": "state.is_verified == True"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "instructions": "You are a professional benefit application agent assistant.\nHelp users manage their benefit_app requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: intake -> means_testing -> determination -> notification.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a topic selector for a benefit application agent assistant.\nAnalyze the user's input and determine the most appropriate topic.\nCurrent benefit_app status: {{state.benefit_app_status}}\nEligibility score: {{state.eligibility_score}}\nSteps completed: {{state.step_counter}}\nPriority: {{state.priority_level}}\nUse go_to_intake for intake requests.\nUse go_to_means_testing for means testing requests.\nUse go_to_determination for determination requests.\nUse go_to_notification for notification requests.\nUse go_to_escalation to escalate if the user is upset or requests a human."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"intake\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "means_testing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"means_testing\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "determination",
+            "enabled": "state.AgentScriptInternal_next_topic==\"determination\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "notification",
+            "enabled": "state.AgentScriptInternal_next_topic==\"notification\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the intake stage of the benefit_app process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_intake_data",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.benefit_app_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "intake_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "intake_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_intake"
+          },
+          {
+            "type": "action",
+            "target": "fetch_intake_details",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "benefit_app_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_intake_info"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"means_testing\""
+              }
+            ],
+            "name": "go_to_means_testing",
+            "description": "Move to means testing stage.",
+            "enabled": "state.intake_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          }
+        ],
+        "developerName": "intake",
+        "label": "Intake",
+        "actionDefinitions": [
+          {
+            "developerName": "process_intake_data",
+            "label": "Process Intake Data",
+            "description": "Process intake stage data for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "Process_Intake",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_intake_info",
+            "label": "Validate Intake Info",
+            "description": "Validate intake information for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Intake_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_intake_details",
+            "label": "Fetch Intake Details",
+            "description": "Fetch intake details for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Intake_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional benefit application agent assistant.\nHelp users manage their benefit_app requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: intake -> means_testing -> determination -> notification.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the intake stage for the benefit_app.\nCurrent benefit_app status: {{state.benefit_app_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nIntake result: {{state.intake_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.benefit_app_tier}}\nIf the contact information is missing, ask the user to provide their name and email.\nAfter collecting information, use run_intake to begin processing."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.is_verified == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "validate_intake_info",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "contact_ref": "state.contact_email"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "benefit_app_status": "result.updated_status"
+              },
+              {
+                "is_verified": "result.is_valid"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.intake_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "means_testing",
+            "enabled": "state.AgentScriptInternal_next_topic==\"means_testing\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the means testing stage of the benefit_app process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_means_testing_data",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.benefit_app_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "means_testing_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "means_testing_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_means_testing"
+          },
+          {
+            "type": "action",
+            "target": "fetch_means_testing_details",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "benefit_app_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_means_testing_info",
+            "enabled": "state.benefit_app_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"determination\""
+              }
+            ],
+            "name": "go_to_determination",
+            "description": "Move to determination stage.",
+            "enabled": "state.means_testing_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "means_testing",
+        "label": "Means Testing",
+        "actionDefinitions": [
+          {
+            "developerName": "process_means_testing_data",
+            "label": "Process Means Testing Data",
+            "description": "Process means testing stage data for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_MeansTesting_Data",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_means_testing_info",
+            "label": "Validate Means Testing Info",
+            "description": "Validate means testing information for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_MeansTesting_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_means_testing_details",
+            "label": "Fetch Means Testing Details",
+            "description": "Fetch means testing details for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_MeansTesting_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional benefit application agent assistant.\nHelp users manage their benefit_app requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: intake -> means_testing -> determination -> notification.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the means testing stage for the benefit_app.\nCurrent benefit_app status: {{state.benefit_app_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nMeans Testing result: {{state.means_testing_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.benefit_app_tier}}\nReview the means testing results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.intake_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"intake\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"intake\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.means_testing_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_status": "\"means_testing_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.means_testing_complete == True and state.eligibility_score >= 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"determination\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "determination",
+            "enabled": "state.AgentScriptInternal_next_topic==\"determination\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.means_testing_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "determination",
+            "enabled": "state.AgentScriptInternal_next_topic==\"determination\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the determination stage of the benefit_app process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_determination_data",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.benefit_app_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "determination_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "determination_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_determination"
+          },
+          {
+            "type": "action",
+            "target": "fetch_determination_details",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "benefit_app_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_determination_info",
+            "enabled": "state.benefit_app_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"notification\""
+              }
+            ],
+            "name": "go_to_notification",
+            "description": "Move to notification stage.",
+            "enabled": "state.determination_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "determination",
+        "label": "Determination",
+        "actionDefinitions": [
+          {
+            "developerName": "process_determination_data",
+            "label": "Process Determination Data",
+            "description": "Process determination stage data for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "Process_Determination",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_determination_info",
+            "label": "Validate Determination Info",
+            "description": "Validate determination information for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Determination_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_determination_details",
+            "label": "Fetch Determination Details",
+            "description": "Fetch determination details for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Determination_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional benefit application agent assistant.\nHelp users manage their benefit_app requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: intake -> means_testing -> determination -> notification.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the determination stage for the benefit_app.\nCurrent benefit_app status: {{state.benefit_app_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nDetermination result: {{state.determination_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.benefit_app_tier}}\nReview the determination results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.determination_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "fetch_determination_details",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "include_history": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "determination_result": "result.detail_data"
+              },
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "benefit_app_tier": "result.tier_value"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.determination_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "notification",
+            "enabled": "state.AgentScriptInternal_next_topic==\"notification\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the notification stage of the benefit_app process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_notification_data",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.benefit_app_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "notification_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "notification_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_notification"
+          },
+          {
+            "type": "action",
+            "target": "fetch_notification_details",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "benefit_app_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_notification_info",
+            "enabled": "state.benefit_app_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "notification",
+        "label": "Notification",
+        "actionDefinitions": [
+          {
+            "developerName": "process_notification_data",
+            "label": "Process Notification Data",
+            "description": "Process notification stage data for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "Process_Notification",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_notification_info",
+            "label": "Validate Notification Info",
+            "description": "Validate notification information for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Notification_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_notification_details",
+            "label": "Fetch Notification Details",
+            "description": "Fetch notification details for the benefit_app",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Notification_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional benefit application agent assistant.\nHelp users manage their benefit_app requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: intake -> means_testing -> determination -> notification.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the notification stage for the benefit_app.\nCurrent benefit_app status: {{state.benefit_app_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nNotification result: {{state.notification_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.benefit_app_tier}}\nThis is the final stage. Review all results and provide a summary.\nTotal items processed: {{state.total_items_count}}\nIf all stages passed, confirm completion. Otherwise offer to retry or escalate."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.determination_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"determination\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "determination",
+            "enabled": "state.AgentScriptInternal_next_topic==\"determination\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.notification_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_status": "\"notification_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.notification_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle escalation and case creation for benefit_app issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "create_support_case",
+            "boundInputs": {
+              "case_subject": "state.benefit_app_status",
+              "case_detail": "state.notes_text",
+              "record_ref": "state.benefit_app_record_id",
+              "priority_val": "state.priority_level"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "case_ref_number": "result.case_ref"
+              },
+              {
+                "assigned_agent": "result.assigned_to"
+              }
+            ],
+            "name": "create_case"
+          },
+          {
+            "type": "action",
+            "target": "generate_summary",
+            "boundInputs": {
+              "record_ref": "state.benefit_app_record_id",
+              "notes_val": "state.notes_text"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "resolution_summary": "result.summary_text"
+              }
+            ],
+            "name": "get_summary"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "return_to_selector",
+            "description": "Return to topic selector after escalation."
+          }
+        ],
+        "developerName": "escalation_handling",
+        "label": "Escalation Handling",
+        "actionDefinitions": [
+          {
+            "developerName": "check_hours",
+            "label": "Check Hours",
+            "description": "Check whether it is currently business hours",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Check_Business_Hours",
+            "inputType": [
+              {
+                "developerName": "query_text",
+                "label": "Query Text",
+                "description": "Query Text",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "hours_active",
+                "label": "Hours Active",
+                "description": "Hours Active",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "next_available",
+                "label": "Next Available",
+                "description": "Next Available",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "create_support_case",
+            "label": "Create Support Case",
+            "description": "Create a support case for the benefit_app issue",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Create_Support_Case",
+            "inputType": [
+              {
+                "developerName": "case_subject",
+                "label": "Case Subject",
+                "description": "Case Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "case_detail",
+                "label": "Case Detail",
+                "description": "Case Detail",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "priority_val",
+                "label": "Priority Val",
+                "description": "Priority Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "case_ref",
+                "label": "Case Ref",
+                "description": "Case Ref",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "assigned_to",
+                "label": "Assigned To",
+                "description": "Assigned To",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "generate_summary",
+            "label": "Generate Summary",
+            "description": "Generate a summary of the benefit_app interaction",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Generate_Summary",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "notes_val",
+                "label": "Notes Val",
+                "description": "Notes Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "summary_text",
+                "label": "Summary Text",
+                "description": "Summary Text",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional benefit application agent assistant.\nHelp users manage their benefit_app requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: intake -> means_testing -> determination -> notification.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle escalation for the benefit_app request.\nBusiness hours active: {{state.is_business_hours}}\nNext available slot: {{state.next_available_slot}}\nCase reference: {{state.case_ref_number}}\nBenefit App status: {{state.benefit_app_status}}\nEligibility score: {{state.eligibility_score}}\nPriority: {{state.priority_level}}\nIf during business hours, offer to connect to a live agent.\nIf outside business hours, create a support case and share the case reference.\nUse create_case to create a case.\nUse get_summary to generate a summary of the interaction."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "check_hours",
+            "boundInputs": {
+              "query_text": "\"check_availability\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "is_business_hours": "result.hours_active"
+              },
+              {
+                "next_available_slot": "result.next_available"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.case_ref_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "benefit_app_status": "\"escalated\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "escalation_requested": "False"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I am your Benefit Application Agent Assistant. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, something went wrong on my end. Could you please rephrase your request?\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

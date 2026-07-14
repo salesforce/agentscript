@@ -42,6 +42,7 @@ export type {
   ContextVariable,
   ContextConfiguration,
   MemoryConfiguration,
+  RecommendedPromptsConfiguration,
   StateVariable,
   SystemMessage,
   ModalityParameters,
@@ -67,6 +68,10 @@ export type {
   ResponseFormat,
   StateUpdate,
 } from './types.js';
+
+export { agentDslAuthoring as agentDslAuthoringSchema } from './types.js';
+export { snakeKeysToCamel } from './snake-to-camel.js';
+export { DSL_VERSION, DSL_GIT_SHA, DSL_GIT_DATE } from './generated/version.js';
 
 export { DiagnosticSeverity } from './diagnostics.js';
 export type {

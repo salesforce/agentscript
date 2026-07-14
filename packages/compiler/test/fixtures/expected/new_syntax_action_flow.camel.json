@@ -1,0 +1,302 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Flow_Actions_Agent_NewSyntax",
+    "label": "Flow Actions Agent New Syntax",
+    "description": "Agent with multiple flow:// action targets using new syntax",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help you manage customer records.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while processing your request.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "customer_id",
+        "label": "Customer Id",
+        "description": "Customer identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with multiple flow:// action targets using new syntax",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Customer",
+            "boundInputs": {
+              "customer_id": "state.customer_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "Get_Action"
+          },
+          {
+            "type": "action",
+            "target": "Update_Customer",
+            "boundInputs": {
+              "customer_id": "state.customer_id"
+            },
+            "llmInputs": [
+              "field_name",
+              "field_value"
+            ],
+            "stateUpdates": [],
+            "name": "Update_Action"
+          },
+          {
+            "type": "action",
+            "target": "Delete_Customer",
+            "boundInputs": {
+              "customer_id": "state.customer_id"
+            },
+            "llmInputs": [
+              "reason"
+            ],
+            "stateUpdates": [],
+            "name": "Delete_Action"
+          },
+          {
+            "type": "action",
+            "target": "Search_Customers",
+            "boundInputs": {},
+            "llmInputs": [
+              "query"
+            ],
+            "stateUpdates": [],
+            "name": "Search_Action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Get_Customer",
+            "label": "Get Customer",
+            "description": "Retrieve customer information",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Get_Customer_Details",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "name",
+                "label": "Customer Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "email",
+                "label": "Customer Email",
+                "description": "Email",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Update_Customer",
+            "label": "Update Customer",
+            "description": "Update customer profile",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Update_Customer_Profile",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "field_name",
+                "label": "Field to Update",
+                "description": "Field to Update",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "field_value",
+                "label": "New Value",
+                "description": "New Value",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "success",
+                "label": "Update Success",
+                "description": "Success",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Delete_Customer",
+            "label": "Delete Customer",
+            "description": "Delete customer record",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Delete_Customer_Record",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "reason",
+                "label": "Deletion Reason",
+                "description": "Deletion Reason",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "deleted",
+                "label": "Deletion Confirmed",
+                "description": "Deleted",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Search_Customers",
+            "label": "Search Customers",
+            "description": "Search for customers",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Search_Customers_Flow",
+            "inputType": [
+              {
+                "developerName": "query",
+                "label": "Search Query",
+                "description": "Search Query",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "results",
+                "label": "Search Results",
+                "description": "Results",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful customer management agent.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user manage customer records using the available flows."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help you manage customer records.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while processing your request.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

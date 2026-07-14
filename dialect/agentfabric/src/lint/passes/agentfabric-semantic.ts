@@ -6,7 +6,12 @@
  */
 
 import { storeKey } from '@agentscript/language';
-import type { LintPass, PassStore } from '@agentscript/language';
+import type {
+  LintPass,
+  PassStore,
+  AstNodeLike,
+  ScopeContext,
+} from '@agentscript/language';
 import { checkActionBindingRules } from './rules/action-binding-rules.js';
 import { checkAgenticLlmRules } from './rules/agentic-llm-rules.js';
 import { checkConnectionUriRules } from './rules/connection-rules.js';
@@ -18,13 +23,20 @@ import { checkOutputStructureRules } from './rules/output-structure-rules.js';
 import { checkReasoningInstructionsRules } from './rules/reasoning-instructions-rules.js';
 import { checkSwitchRules } from './rules/switch-rules.js';
 import { checkTerminalStatusRules } from './rules/terminal-status-rules.js';
+import { checkInterpolationInCallArgRules } from './rules/interpolation-rules.js';
 import { checkTriggerRules } from './rules/trigger-rules.js';
+import { checkVersionRules } from './rules/version-rules.js';
 
 class AgentFabricSemanticPass implements LintPass {
   readonly id = storeKey('agentfabric-semantic');
   readonly description = 'AgentFabric-specific semantic lint validations';
 
+  visitExpression(expr: AstNodeLike, _ctx: ScopeContext): void {
+    checkInterpolationInCallArgRules(expr);
+  }
+
   finalize(store: PassStore, root: Record<string, unknown>): void {
+    checkVersionRules(root);
     checkTriggerRules(root);
     checkConnectionUriRules(root);
     checkOutputStructureRules(root);

@@ -1,0 +1,2864 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "patient_intake_agent_v11",
+    "label": "Patient Intake Agent V 11",
+    "description": "Assists users with patient management through the patient intake coordinator workflow.",
+    "enableEnhancedEventLogs": true,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "patient_intake@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I am your Patient Intake Coordinator Assistant. How can I help you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I apologize, something went wrong on my end. Could you please rephrase your request?",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "patient_record_id",
+        "label": "Patient Record Id",
+        "description": "Record ID of the patient",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "patient_status",
+        "label": "Patient Status",
+        "description": "Current status of the patient",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "patient_tier",
+        "label": "Patient Tier",
+        "description": "Tier classification for the patient",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developerName": "patient_category",
+        "label": "Patient Category",
+        "description": "Category of the patient",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "contact_name",
+        "label": "Contact Name",
+        "description": "Full name of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_email",
+        "label": "Contact Email",
+        "description": "Email address of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_phone",
+        "label": "Contact Phone",
+        "description": "Phone number of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "is_verified",
+        "label": "Is Verified",
+        "description": "Whether the user identity is verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "eligibility_score",
+        "label": "Eligibility Score",
+        "description": "Calculated eligibility score",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "step_counter",
+        "label": "Step Counter",
+        "description": "Current step in the process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "attempt_count",
+        "label": "Attempt Count",
+        "description": "Number of attempts made",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "total_items_count",
+        "label": "Total Items Count",
+        "description": "Total number of items to process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "registration_complete",
+        "label": "Registration Complete",
+        "description": "Whether the registration stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "registration_result",
+        "label": "Registration Result",
+        "description": "Result from the registration stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "insurance_verify_complete",
+        "label": "Insurance Verify Complete",
+        "description": "Whether the insurance_verify stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "insurance_verify_result",
+        "label": "Insurance Verify Result",
+        "description": "Result from the insurance_verify stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "triage_complete",
+        "label": "Triage Complete",
+        "description": "Whether the triage stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "triage_result",
+        "label": "Triage Result",
+        "description": "Result from the triage stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "assignment_complete",
+        "label": "Assignment Complete",
+        "description": "Whether the assignment stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "assignment_result",
+        "label": "Assignment Result",
+        "description": "Result from the assignment stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "priority_level",
+        "label": "Priority Level",
+        "description": "Priority level of the request",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developerName": "notes_text",
+        "label": "Notes Text",
+        "description": "Notes and comments",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "assigned_agent",
+        "label": "Assigned Agent",
+        "description": "Assigned agent name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "resolution_summary",
+        "label": "Resolution Summary",
+        "description": "Summary of the resolution",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "escalation_requested",
+        "label": "Escalation Requested",
+        "description": "Whether escalation was requested",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "is_business_hours",
+        "label": "Is Business Hours",
+        "description": "Whether it is currently business hours",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "case_ref_number",
+        "label": "Case Ref Number",
+        "description": "Reference number for the support case",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "next_available_slot",
+        "label": "Next Available Slot",
+        "description": "Next available time slot",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Welcome the user and route to the appropriate patient management topic",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"registration\""
+              }
+            ],
+            "name": "go_to_registration",
+            "description": "Transition to registration topic."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"insurance_verify\""
+              }
+            ],
+            "name": "go_to_insurance_verify",
+            "description": "Transition to insurance verify topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"triage\""
+              }
+            ],
+            "name": "go_to_triage",
+            "description": "Transition to triage topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"assignment\""
+              }
+            ],
+            "name": "go_to_assignment",
+            "description": "Transition to assignment topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "go_to_escalation",
+            "description": "Escalate to a human agent for assistance.",
+            "enabled": "state.is_verified == True"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "instructions": "You are a professional patient intake coordinator assistant.\nHelp users manage their patient requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: registration -> insurance_verify -> triage -> assignment.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a topic selector for a patient intake coordinator assistant.\nAnalyze the user's input and determine the most appropriate topic.\nCurrent patient status: {{state.patient_status}}\nEligibility score: {{state.eligibility_score}}\nSteps completed: {{state.step_counter}}\nPriority: {{state.priority_level}}\nUse go_to_registration for registration requests.\nUse go_to_insurance_verify for insurance verify requests.\nUse go_to_triage for triage requests.\nUse go_to_assignment for assignment requests.\nUse go_to_escalation to escalate if the user is upset or requests a human."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "registration",
+            "enabled": "state.AgentScriptInternal_next_topic==\"registration\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "insurance_verify",
+            "enabled": "state.AgentScriptInternal_next_topic==\"insurance_verify\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "triage",
+            "enabled": "state.AgentScriptInternal_next_topic==\"triage\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "assignment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"assignment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the registration stage of the patient process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_registration_data",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.patient_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "registration_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "registration_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_registration"
+          },
+          {
+            "type": "action",
+            "target": "fetch_registration_details",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "patient_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_registration_info"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"insurance_verify\""
+              }
+            ],
+            "name": "go_to_insurance_verify",
+            "description": "Move to insurance verify stage.",
+            "enabled": "state.registration_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          }
+        ],
+        "developerName": "registration",
+        "label": "Registration",
+        "actionDefinitions": [
+          {
+            "developerName": "process_registration_data",
+            "label": "Process Registration Data",
+            "description": "Process registration stage data for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "Process_Registration",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_registration_info",
+            "label": "Validate Registration Info",
+            "description": "Validate registration information for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Registration_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_registration_details",
+            "label": "Fetch Registration Details",
+            "description": "Fetch registration details for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Registration_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional patient intake coordinator assistant.\nHelp users manage their patient requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: registration -> insurance_verify -> triage -> assignment.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the registration stage for the patient.\nCurrent patient status: {{state.patient_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nRegistration result: {{state.registration_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.patient_tier}}\nIf the contact information is missing, ask the user to provide their name and email.\nAfter collecting information, use run_registration to begin processing."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.is_verified == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "validate_registration_info",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "contact_ref": "state.contact_email"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "patient_status": "result.updated_status"
+              },
+              {
+                "is_verified": "result.is_valid"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.registration_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "insurance_verify",
+            "enabled": "state.AgentScriptInternal_next_topic==\"insurance_verify\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the insurance verify stage of the patient process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_insurance_verify_data",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.patient_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "insurance_verify_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "insurance_verify_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_insurance_verify"
+          },
+          {
+            "type": "action",
+            "target": "fetch_insurance_verify_details",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "patient_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_insurance_verify_info",
+            "enabled": "state.patient_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"triage\""
+              }
+            ],
+            "name": "go_to_triage",
+            "description": "Move to triage stage.",
+            "enabled": "state.insurance_verify_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "insurance_verify",
+        "label": "Insurance Verify",
+        "actionDefinitions": [
+          {
+            "developerName": "process_insurance_verify_data",
+            "label": "Process Insurance Verify Data",
+            "description": "Process insurance verify stage data for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "Process_InsuranceVerify",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_insurance_verify_info",
+            "label": "Validate Insurance Verify Info",
+            "description": "Validate insurance verify information for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_InsuranceVerify_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_insurance_verify_details",
+            "label": "Fetch Insurance Verify Details",
+            "description": "Fetch insurance verify details for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_InsuranceVerify_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional patient intake coordinator assistant.\nHelp users manage their patient requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: registration -> insurance_verify -> triage -> assignment.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the insurance verify stage for the patient.\nCurrent patient status: {{state.patient_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nInsurance Verify result: {{state.insurance_verify_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.patient_tier}}\nReview the insurance verify results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.registration_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"registration\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "registration",
+            "enabled": "state.AgentScriptInternal_next_topic==\"registration\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.insurance_verify_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_status": "\"insurance_verify_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.insurance_verify_complete == True and state.eligibility_score >= 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"triage\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "triage",
+            "enabled": "state.AgentScriptInternal_next_topic==\"triage\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.insurance_verify_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "triage",
+            "enabled": "state.AgentScriptInternal_next_topic==\"triage\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the triage stage of the patient process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_triage_data",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.patient_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "triage_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "triage_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_triage"
+          },
+          {
+            "type": "action",
+            "target": "fetch_triage_details",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "patient_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_triage_info",
+            "enabled": "state.patient_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"assignment\""
+              }
+            ],
+            "name": "go_to_assignment",
+            "description": "Move to assignment stage.",
+            "enabled": "state.triage_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "triage",
+        "label": "Triage",
+        "actionDefinitions": [
+          {
+            "developerName": "process_triage_data",
+            "label": "Process Triage Data",
+            "description": "Process triage stage data for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_Triage_Data",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_triage_info",
+            "label": "Validate Triage Info",
+            "description": "Validate triage information for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Triage_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_triage_details",
+            "label": "Fetch Triage Details",
+            "description": "Fetch triage details for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Triage_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional patient intake coordinator assistant.\nHelp users manage their patient requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: registration -> insurance_verify -> triage -> assignment.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the triage stage for the patient.\nCurrent patient status: {{state.patient_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nTriage result: {{state.triage_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.patient_tier}}\nReview the triage results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.triage_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "fetch_triage_details",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "include_history": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "triage_result": "result.detail_data"
+              },
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "patient_tier": "result.tier_value"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.triage_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "assignment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"assignment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the assignment stage of the patient process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_assignment_data",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.patient_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "assignment_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "assignment_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_assignment"
+          },
+          {
+            "type": "action",
+            "target": "fetch_assignment_details",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "patient_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_assignment_info",
+            "enabled": "state.patient_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "assignment",
+        "label": "Assignment",
+        "actionDefinitions": [
+          {
+            "developerName": "process_assignment_data",
+            "label": "Process Assignment Data",
+            "description": "Process assignment stage data for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "Process_Assignment",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_assignment_info",
+            "label": "Validate Assignment Info",
+            "description": "Validate assignment information for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Assignment_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_assignment_details",
+            "label": "Fetch Assignment Details",
+            "description": "Fetch assignment details for the patient",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Assignment_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional patient intake coordinator assistant.\nHelp users manage their patient requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: registration -> insurance_verify -> triage -> assignment.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the assignment stage for the patient.\nCurrent patient status: {{state.patient_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nAssignment result: {{state.assignment_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.patient_tier}}\nThis is the final stage. Review all results and provide a summary.\nTotal items processed: {{state.total_items_count}}\nIf all stages passed, confirm completion. Otherwise offer to retry or escalate."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.triage_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"triage\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "triage",
+            "enabled": "state.AgentScriptInternal_next_topic==\"triage\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.assignment_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_status": "\"assignment_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.assignment_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle escalation and case creation for patient issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "create_support_case",
+            "boundInputs": {
+              "case_subject": "state.patient_status",
+              "case_detail": "state.notes_text",
+              "record_ref": "state.patient_record_id",
+              "priority_val": "state.priority_level"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "case_ref_number": "result.case_ref"
+              },
+              {
+                "assigned_agent": "result.assigned_to"
+              }
+            ],
+            "name": "create_case"
+          },
+          {
+            "type": "action",
+            "target": "generate_summary",
+            "boundInputs": {
+              "record_ref": "state.patient_record_id",
+              "notes_val": "state.notes_text"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "resolution_summary": "result.summary_text"
+              }
+            ],
+            "name": "get_summary"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "return_to_selector",
+            "description": "Return to topic selector after escalation."
+          }
+        ],
+        "developerName": "escalation_handling",
+        "label": "Escalation Handling",
+        "actionDefinitions": [
+          {
+            "developerName": "check_hours",
+            "label": "Check Hours",
+            "description": "Check whether it is currently business hours",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Check_Business_Hours",
+            "inputType": [
+              {
+                "developerName": "query_text",
+                "label": "Query Text",
+                "description": "Query Text",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "hours_active",
+                "label": "Hours Active",
+                "description": "Hours Active",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "next_available",
+                "label": "Next Available",
+                "description": "Next Available",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "create_support_case",
+            "label": "Create Support Case",
+            "description": "Create a support case for the patient issue",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Create_Support_Case",
+            "inputType": [
+              {
+                "developerName": "case_subject",
+                "label": "Case Subject",
+                "description": "Case Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "case_detail",
+                "label": "Case Detail",
+                "description": "Case Detail",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "priority_val",
+                "label": "Priority Val",
+                "description": "Priority Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "case_ref",
+                "label": "Case Ref",
+                "description": "Case Ref",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "assigned_to",
+                "label": "Assigned To",
+                "description": "Assigned To",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "generate_summary",
+            "label": "Generate Summary",
+            "description": "Generate a summary of the patient interaction",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Generate_Summary",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "notes_val",
+                "label": "Notes Val",
+                "description": "Notes Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "summary_text",
+                "label": "Summary Text",
+                "description": "Summary Text",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional patient intake coordinator assistant.\nHelp users manage their patient requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: registration -> insurance_verify -> triage -> assignment.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle escalation for the patient request.\nBusiness hours active: {{state.is_business_hours}}\nNext available slot: {{state.next_available_slot}}\nCase reference: {{state.case_ref_number}}\nPatient status: {{state.patient_status}}\nEligibility score: {{state.eligibility_score}}\nPriority: {{state.priority_level}}\nIf during business hours, offer to connect to a live agent.\nIf outside business hours, create a support case and share the case reference.\nUse create_case to create a case.\nUse get_summary to generate a summary of the interaction."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "check_hours",
+            "boundInputs": {
+              "query_text": "\"check_availability\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "is_business_hours": "result.hours_active"
+              },
+              {
+                "next_available_slot": "result.next_available"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.case_ref_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "patient_status": "\"escalated\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "escalation_requested": "False"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I am your Patient Intake Coordinator Assistant. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, something went wrong on my end. Could you please rephrase your request?\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

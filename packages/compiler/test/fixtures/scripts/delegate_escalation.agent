@@ -1,0 +1,25 @@
+config:
+  agent_name: "EscalationRouter"
+  agent_type: "AgentforceServiceAgent"
+  default_agent_user: "service_user"
+
+system:
+  instructions: "You are a support coordinator that routes customers to specialized agents."
+
+start_agent Triage:
+  description: "Assess customer needs and route to the right agent"
+  reasoning:
+    instructions: ->
+      | Assess what the customer needs and route them to the appropriate agent.
+
+connected_subagent Refund_Agent:
+  target: "agent://Refund_Agent"
+  label: "Refund Agent"
+  description: "Handles refund requests with its own escalation flow"
+  delegate_escalation: False
+
+connected_subagent Billing_Agent:
+  target: "agent://Billing_Agent"
+  label: "Billing Agent"
+  description: "Handles billing inquiries using orchestrator escalation"
+  delegate_escalation: True

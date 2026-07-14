@@ -91,7 +91,8 @@ export class FieldChild implements Emittable {
     }
     // Simple field (e.g., "description: ...")
     const indent = emitIndent(ctx);
-    emitted = `${indent}${this.key}: ${this._fieldType.emit(val, ctx)}`;
+    const prefix = `${indent}${this.key}: `;
+    emitted = `${prefix}${this._fieldType.emit(val, { ...ctx, continuationColumn: prefix.length })}`;
     return wrapWithComments(emitted, carrier, ctx, 1);
   }
 }

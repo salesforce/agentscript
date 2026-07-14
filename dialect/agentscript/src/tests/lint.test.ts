@@ -1908,6 +1908,40 @@ subagent main:
     expect(errors).toHaveLength(0);
   });
 
+  it('validates @system_variables.current_modality', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Use {!@system_variables.current_modality}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@system_variables.current_modality'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('validates @system_variables.current_connection', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Use {!@system_variables.current_connection}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@system_variables.current_connection'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
   it('reports undefined system_variables member', () => {
     const diagnostics = runLint(`
 subagent main:
@@ -3166,6 +3200,137 @@ subagent main:
   });
 });
 
+describe('variableDefaultTypeCheckRule', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  function wrap(variablesBlock: string): string {
+    return `
+variables:
+${variablesBlock}
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+`;
+  }
+
+  // Positive cases
+  it('flags string declared with number default', () => {
+    const diagnostics = runLint(wrap(`  x: string = 42`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].code).toBe('variable-default-type-mismatch');
+  });
+
+  it('flags number declared with string default', () => {
+    const diagnostics = runLint(wrap(`  n: number = "x"`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('flags boolean declared with number default', () => {
+    const diagnostics = runLint(wrap(`  b: boolean = 1`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('flags string declared with boolean default', () => {
+    const diagnostics = runLint(wrap(`  s: string = True`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  // Negative cases
+  it('passes matching string default', () => {
+    const diagnostics = runLint(wrap(`  x: string = "hello"`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes matching number default', () => {
+    const diagnostics = runLint(wrap(`  n: number = 5`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes matching boolean default', () => {
+    const diagnostics = runLint(wrap(`  b: boolean = True`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes matching default with mutable modifier', () => {
+    const diagnostics = runLint(wrap(`  m: mutable string = "ok"`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes object wildcard against any literal', () => {
+    const diagnostics = runLint(wrap(`  o: object = 42`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes when no default is provided', () => {
+    const diagnostics = runLint(wrap(`  v: string`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('skips variable reference defaults', () => {
+    const diagnostics = runLint(
+      wrap(`  other: string = "seed"
+  v: string = @variables.other`)
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes template string into string', () => {
+    const diagnostics = runLint(
+      wrap(`  x: string = "seed"
+  t: string = "hi {!@variables.x}"`)
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+});
+
 // ============================================================================
 // Diagnostic attachment to AST nodes
 // ============================================================================
@@ -4061,7 +4226,7 @@ subagent main:
     expect(warnings).toHaveLength(0);
   });
 
-  it('reports unreachable code after exhaustive if/elif/else transitions', () => {
+  it('reports unreachable code after exhaustive if/else if/else transitions', () => {
     const warnings = unreachableWarnings(`
 subagent main:
   label: "Main"
@@ -4069,17 +4234,17 @@ subagent main:
     instructions: ->
       if @variables.x == "a":
         transition to @subagent.main
-      elif @variables.x == "b":
+      else if @variables.x == "b":
         transition to @subagent.main
       else:
         transition to @subagent.main
-      | Unreachable after elif chain
+      | Unreachable after else if chain
 `);
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain("'if' block");
   });
 
-  it('does not flag code after if/elif without else', () => {
+  it('does not flag code after if/else if without else', () => {
     const warnings = unreachableWarnings(`
 subagent main:
   label: "Main"
@@ -4087,7 +4252,7 @@ subagent main:
     instructions: ->
       if @variables.x == "a":
         transition to @subagent.main
-      elif @variables.x == "b":
+      else if @variables.x == "b":
         transition to @subagent.main
       | Reachable because there is no else branch
 `);
@@ -4757,6 +4922,20 @@ subagent main:
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain('a number');
+  });
+
+  it('reports list variable in available when (dialect-specific type)', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @variables.items
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'list[string]'");
   });
 });
 
