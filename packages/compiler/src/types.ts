@@ -11,10 +11,16 @@
  * All types are inferred from the generated zod schemas in ./generated/agent-dsl.ts.
  * The generator + post-processing script produces snake_case property names
  * matching the AgentJSON output format.
+ *
+ * We use `z.input<>` rather than `z.infer<>` because the compiler emits the
+ * pre-validation shape (before Zod applies `.default()` etc). Using `z.input`
+ * keeps fields like `LanguageConfiguration.adaptive` optional in TypeScript,
+ * matching what the compiler actually writes.
  */
 
 import { z } from 'zod';
 import * as schema from './generated/agent-dsl.js';
+import { recommendedPromptsConfiguration as _recommendedPromptsConfigurationBase } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
 // Re-export zod schemas (for runtime validation)
@@ -41,6 +47,9 @@ export {
   outputParameter as outputParameterSchema,
   byonNode as byonNodeSchema,
   byoClientConfig as byoClientConfigSchema,
+  responseFormat as responseFormatSchema,
+  responseAction as responseActionSchema,
+  skill as skillSchema,
 } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
@@ -48,70 +57,111 @@ export {
 // ---------------------------------------------------------------------------
 
 // -- Top-level --
-
-/**
- * Base AgentDSLAuthoring type from generated OpenAPI schema.
- */
-export type AgentDSLAuthoring = z.infer<typeof schema.agentDslAuthoring>;
+export type AgentDSLAuthoring = z.input<typeof schema.agentDslAuthoring>;
 
 // -- Global Configuration --
-export type GlobalAgentConfiguration = z.infer<
+export type GlobalAgentConfiguration = z.input<
   typeof schema.globalAgentConfiguration
 >;
-export type ContextVariable = z.infer<typeof schema.contextVariable>;
+export type ContextVariable = z.input<typeof schema.contextVariable>;
 
 // -- Context Configuration --
-export type ContextConfiguration = z.infer<typeof schema.contextConfiguration>;
-export type MemoryConfiguration = z.infer<typeof schema.memoryConfiguration>;
+export type ContextConfiguration = z.input<typeof schema.contextConfiguration>;
+export type MemoryConfiguration = z.input<typeof schema.memoryConfiguration>;
+
+// -- Recommended Prompts Configuration --
+//
+// NOTE: max-entries (20) and per-string-length (1-50) limits are NOT
+// duplicated here — they already live on the OpenAPI-generated
+// `recommendedPromptsConfiguration` schema (see ./generated/agent-dsl.ts).
+// `safeParse()` against that base schema enforces them; friendly messages
+// for those specific Zod issues are derived at the call site
+// (compile-agent-version.ts) instead of being hardcoded a second time here.
+//
+// Only refinements for rules that are NOT expressible in the OpenAPI spec
+// belong here.
+export const recommendedPromptsConfigurationSchema =
+  _recommendedPromptsConfigurationBase
+    .refine(data => !data.starter_prompts || data.welcome_screen, {
+      message: 'starter_prompts can only be set when welcome_screen is True',
+    })
+    .refine(data => !data.starter_prompts || data.starter_prompts.length >= 3, {
+      message: 'starter_prompts must contain at least 3 entries',
+    });
+
+export type RecommendedPromptsConfiguration = z.input<
+  typeof schema.recommendedPromptsConfiguration
+>;
 
 // -- Agent Version --
-export type AgentVersion = z.infer<typeof schema.agentVersion>;
+export type AgentVersion = z.input<typeof schema.agentVersion>;
 
 // -- System Messages --
-export type SystemMessage = z.infer<typeof schema.systemMessage>;
+export type SystemMessage = z.input<typeof schema.systemMessage>;
 
 // -- Modality --
-export type ModalityParameters = z.infer<typeof schema.modalityParameters>;
-export type LanguageConfiguration = z.infer<
+export type ModalityParameters = z.input<typeof schema.modalityParameters>;
+export type LanguageConfiguration = z.input<
   typeof schema.languageConfiguration
 >;
-export type VoiceConfiguration = z.infer<typeof schema.voiceConfiguration>;
+export type VoiceConfiguration = z.input<typeof schema.voiceConfiguration>;
 
 // -- State Variables --
-export type StateVariable = z.infer<typeof schema.stateVariable>;
+export type StateVariable = z.input<typeof schema.stateVariable>;
 
 // -- Nodes --
-export type SubAgentNode = z.infer<typeof schema.subAgentNode>;
-export type RouterNode = z.infer<typeof schema.routerNode>;
-export type RelatedAgentNode = z.infer<typeof schema.relatedAgentNode>;
-export type BYONNode = z.infer<typeof schema.byonNode>;
-export type BYOClientConfig = z.infer<typeof schema.byoClientConfig>;
+export type SubAgentNode = z.input<typeof schema.subAgentNode>;
+export type RouterNode = z.input<typeof schema.routerNode>;
+export type RelatedAgentNode = z.input<typeof schema.relatedAgentNode>;
+export type BYONNode = z.input<typeof schema.byonNode>;
+export type BYOClientConfig = z.input<typeof schema.byoClientConfig>;
 export type AgentNode = SubAgentNode | RouterNode | RelatedAgentNode | BYONNode;
 
 // -- Actions & Tools --
-export type Action = z.infer<typeof schema.action>;
-export type HandOffAction = z.infer<typeof schema.handOffAction>;
-export type Tool = z.infer<typeof schema.tool>;
-export type SupervisionTool = z.infer<typeof schema.supervisionTool>;
-export type PostToolCall = z.infer<typeof schema.postToolCall>;
-export type RouterTool = z.infer<typeof schema.nodeReference>;
+// `type` is `.optional()` in the upstream schema (no `.default()` since the
+// switch to `enum: [action]` discriminants in agent-dsl), so `z.input` produces
+// `type?: 'action' | 'handoff' | undefined`. The downstream union types
+// (`actionOrHandoff`, `actionOrSupervision`) require the literal-narrowed
+// branch, and the compiler always emits an explicit `type` — narrow it here.
+export type Action = z.input<typeof schema.action> & { type: 'action' };
+export type HandOffAction = z.input<typeof schema.handOffAction> & {
+  type: 'handoff';
+};
+export type Tool = z.input<typeof schema.tool> & { type: 'action' };
+export type SupervisionTool = z.input<typeof schema.supervisionTool> & {
+  type: 'supervision';
+};
+export type PostToolCall = z.input<typeof schema.postToolCall>;
+export type RouterTool = z.input<typeof schema.nodeReference>;
 
 // -- Action Definitions --
-export type ActionDefinition = z.infer<typeof schema.actionConfiguration>;
-export type InputParameter = z.infer<typeof schema.inputParameter>;
-export type OutputParameter = z.infer<typeof schema.outputParameter>;
+export type ActionDefinition = z.input<typeof schema.actionConfiguration>;
+export type InputParameter = z.input<typeof schema.inputParameter>;
+export type OutputParameter = z.input<typeof schema.outputParameter>;
+export type Skill = z.input<typeof schema.skill>;
 
 // -- Surfaces --
-export type Surface = z.infer<typeof schema.surface>;
-export type OutboundRouteConfig = z.infer<typeof schema.outboundRouteConfig>;
+export type Surface = z.input<typeof schema.surface>;
+export type OutboundRouteConfig = z.input<typeof schema.outboundRouteConfig>;
+
+export type SurfaceInputParameter = z.input<
+  typeof schema.surfaceInputParameter
+>;
+
+// -- Surface Response Formats --
+export type ResponseFormat = z.input<typeof schema.responseFormat>;
+export type ResponseAction = z.input<typeof schema.responseAction>;
 
 // -- Model Configuration --
-export type ModelConfiguration = z.infer<typeof schema.modelConfig>;
+export type ModelConfiguration = z.input<typeof schema.modelConfig>;
 
 // -- Security Configuration --
-export type SecurityConfiguration = z.infer<
+export type SecurityConfiguration = z.input<
   typeof schema.securityConfiguration
 >;
+
+// -- Runtime Configuration --
+export type RuntimeConfiguration = z.input<typeof schema.runtimeConfiguration>;
 
 // ---------------------------------------------------------------------------
 // Additional types not in the OpenAPI schema (compiler-specific)
@@ -135,29 +185,3 @@ export interface AdditionalParameters {
 
 /** A single state_updates entry: { variable_name: expression } */
 export type StateUpdate = Record<string, string>;
-
-/** Response action for surfaces */
-export interface ResponseAction {
-  developer_name: string;
-  label: string;
-  description: string;
-}
-
-/** Response format for surfaces (not in OpenAPI schema) */
-export interface ResponseFormat {
-  developer_name: string;
-  label: string;
-  description: string;
-  source?: string;
-  invocation_target_type?: string;
-  invocation_target_name?: string;
-  input_schema?: string;
-}
-
-/** Format tool for response_formats in reasoning (not in OpenAPI schema) */
-export interface FormatTool {
-  type: 'format';
-  target: string;
-  name: string;
-  description: string;
-}

@@ -1,0 +1,253 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Standard_Invocable_Agent",
+    "label": "Standard Invocable Agent",
+    "description": "Agent with standardInvocableAction:// targets",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help you manage records.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while processing your request.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with standardInvocableAction:// targets",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Record",
+            "boundInputs": {},
+            "llmInputs": [
+              "record_id",
+              "object_type"
+            ],
+            "stateUpdates": [],
+            "name": "Get_Action"
+          },
+          {
+            "type": "action",
+            "target": "Create_Record",
+            "boundInputs": {},
+            "llmInputs": [
+              "object_type",
+              "field_values"
+            ],
+            "stateUpdates": [],
+            "name": "Create_Action"
+          },
+          {
+            "type": "action",
+            "target": "Update_Record",
+            "boundInputs": {},
+            "llmInputs": [
+              "record_id",
+              "field_values"
+            ],
+            "stateUpdates": [],
+            "name": "Update_Action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Get_Record",
+            "label": "Get Record",
+            "description": "Get a record using standard invocable",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "GetRecord",
+            "inputType": [
+              {
+                "developerName": "record_id",
+                "label": "Record ID",
+                "description": "Record ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "object_type",
+                "label": "Object Type",
+                "description": "Object Type",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "record_data",
+                "label": "Record Data",
+                "description": "Record Data",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ]
+          },
+          {
+            "developerName": "Create_Record",
+            "label": "Create Record",
+            "description": "Create a record using standard invocable",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "CreateRecord",
+            "inputType": [
+              {
+                "developerName": "object_type",
+                "label": "Object Type",
+                "description": "Object Type",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "field_values",
+                "label": "Field Values",
+                "description": "Field Values",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": true,
+                "isUserInput": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "record_id",
+                "label": "New Record ID",
+                "description": "Record Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "success",
+                "label": "Creation Success",
+                "description": "Success",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Update_Record",
+            "label": "Update Record",
+            "description": "Update a record using standard invocable",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "UpdateRecord",
+            "inputType": [
+              {
+                "developerName": "record_id",
+                "label": "Record ID",
+                "description": "Record ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "field_values",
+                "label": "Field Values",
+                "description": "Field Values",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": true,
+                "isUserInput": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "success",
+                "label": "Update Success",
+                "description": "Success",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful assistant for managing records.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user manage records using standard invocable actions."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help you manage records.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while processing your request.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

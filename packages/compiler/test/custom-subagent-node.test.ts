@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Custom subagent compilation tests for the Commerce Cloud Shopper variant.
  *
@@ -663,5 +670,167 @@ subagent Custom_Node:
       auth_token: 'variables.EndUserId',
       session_id: 'variables.RoutableId',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tableau Analyze Data variant compilation
+// ---------------------------------------------------------------------------
+
+const baseTableauSubagent = `
+subagent Tableau_Analyze:
+    schema: "node://tableau/analyze_data/v1"
+    description: "Tableau Analyze Data agent"
+`;
+
+describe('Tableau Analyze Data subagent compilation', () => {
+  it('should compile a tableau analyze data subagent with hardcoded byo_client', () => {
+    const source = `${baseConfig}${baseTableauSubagent}`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = findNode(output, 'Tableau_Analyze') as BYONNode;
+
+    expect(node).toBeDefined();
+    expect(node.type).toBe('byon');
+    expect(node.developer_name).toBe('Tableau_Analyze');
+    expect(node.description).toBe('Tableau Analyze Data agent');
+    expect(node.byo_client.client_ref).toBe('icr-default');
+    expect(node.byo_client.configuration).toEqual({
+      node_type_id: 'waii_analytics_agent',
+      node_namespace: 'waiianalyticsagent',
+    });
+
+    const schemaErrors = diagnostics.filter(
+      d => d.code === 'schema-validation'
+    );
+    expect(schemaErrors).toHaveLength(0);
+  });
+
+  it('should compile parameters.context to input_parameters', () => {
+    const source = `
+${baseConfig}
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+
+subagent Tableau_Analyze:
+    schema: "node://tableau/analyze_data/v1"
+    description: "Tableau Analyze Data agent"
+    parameters:
+        context:
+            auth_token: @variables.EndUserId
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Tableau_Analyze') as BYONNode;
+
+    expect(node).toBeDefined();
+    expect(node.input_parameters).toBeDefined();
+    expect(node.input_parameters!['auth_token']).toBe('variables.EndUserId');
+  });
+
+  it('should compile action definitions', () => {
+    const source = `
+${baseConfig}
+subagent Tableau_Analyze:
+    schema: "node://tableau/analyze_data/v1"
+    description: "Tableau Analyze Data agent"
+    actions:
+        Analyze_Data:
+            description: "Analyze data"
+            target: "flow://analyze_data"
+            inputs:
+                query: string
+                    description: "Analysis query"
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Tableau_Analyze') as BYONNode;
+
+    expect(node).toBeDefined();
+    expect(node.action_definitions).toBeDefined();
+    expect(node.action_definitions).toHaveLength(1);
+    expect(node.action_definitions![0].developer_name).toBe('Analyze_Data');
+  });
+
+  it('should compile an agent whose only node is a Tableau Analyze Data start_agent', () => {
+    const source = `
+config:
+    agent_name: "TableauOnly"
+
+start_agent Tableau_Analyze:
+    schema: "node://tableau/analyze_data/v1"
+    description: "Tableau Analyze Data agent"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const version = getVersion(output);
+
+    expect(version.nodes).toHaveLength(1);
+    const node = version.nodes[0] as BYONNode;
+    expect(node.type).toBe('byon');
+    expect(node.developer_name).toBe('Tableau_Analyze');
+    expect(node.byo_client.client_ref).toBe('icr-default');
+    expect(node.byo_client.configuration).toEqual({
+      node_type_id: 'waii_analytics_agent',
+      node_namespace: 'waiianalyticsagent',
+    });
+    expect(version.initial_node).toBe('Tableau_Analyze');
+
+    const blockingErrors = diagnostics.filter(
+      d => d.code === 'schema-validation' || d.code === 'unknown-variant'
+    );
+    expect(blockingErrors).toHaveLength(0);
+  });
+
+  it('should compile tableau alongside regular subagents and start_agent', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent router:
+    description: "Route requests"
+    reasoning:
+        instructions: ->
+            | Route requests
+
+subagent Order_Management:
+    description: "Handles orders"
+    reasoning:
+        instructions: ->
+            | Handle orders
+
+subagent Tableau_Analyze:
+    schema: "node://tableau/analyze_data/v1"
+    description: "Tableau Analyze Data agent"
+`;
+    const { output } = compile(parseSource(source));
+
+    const router = findNode(output, 'router');
+    const orders = findNode(output, 'Order_Management');
+    const tableau = findNode(output, 'Tableau_Analyze') as BYONNode;
+
+    expect(router).toBeDefined();
+    expect(orders).toBeDefined();
+    expect(tableau).toBeDefined();
+    expect(tableau.type).toBe('byon');
+    // Regular subagent compiles as 'subagent' type
+    expect(orders!.type).toBe('subagent');
+  });
+
+  it('sets enable_propagate_internal_org_jwt_to_icr when a tableau node is present', () => {
+    const source = `${baseConfig}${baseTableauSubagent}`;
+    const { output } = compile(parseSource(source));
+    const version = getVersion(output);
+
+    expect(
+      version.additional_parameters!.enable_propagate_internal_org_jwt_to_icr
+    ).toBe(true);
+  });
+
+  it('does not set enable_propagate_internal_org_jwt_to_icr without a tableau node', () => {
+    const source = `${baseConfig}${baseShopperSubagent}`;
+    const { output } = compile(parseSource(source));
+    const version = getVersion(output);
+
+    expect(
+      version.additional_parameters?.enable_propagate_internal_org_jwt_to_icr
+    ).toBeUndefined();
   });
 });

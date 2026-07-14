@@ -18,7 +18,16 @@
  */
 import { describe, it, expect } from 'vitest';
 import { DiagnosticSeverity } from '@agentscript/types';
+import {
+  AtIdentifier,
+  MemberExpression,
+  ToClause,
+} from '@agentscript/language';
 import { compile } from '../src/compile.js';
+import { compileTransition } from '../src/nodes/compile-transition.js';
+import { CompilerContext } from '../src/compiler-context.js';
+import type { ParsedTool } from '../src/parsed-types.js';
+import * as schema from '../src/generated/agent-dsl.js';
 import { parseSource } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
@@ -498,5 +507,211 @@ start_agent main:
     );
     expect(readyVar).toBeDefined();
     expect(readyVar!.data_type).toBe('boolean');
+  });
+});
+
+describe('end_turn_first handoff option', () => {
+  /**
+   * Build a minimal @utils.transition action body (`to @topic.<target>`) so we
+   * can drive compileTransition directly and assert on the emitted handoff.
+   */
+  function transitionTo(target: string): {
+    name: string;
+    def: ParsedTool;
+    body: ToClause[];
+  } {
+    const toClause = new ToClause(
+      new MemberExpression(new AtIdentifier('topic'), target)
+    );
+    // ParsedTool fields read by compileTransition (label/description/value) are
+    // all optional here; only the body drives the transition target.
+    const def = {} as ParsedTool;
+    return { name: 'my_transition', def, body: [toClause] };
+  }
+
+  it('should not emit end_turn_first by default', () => {
+    const ctx = new CompilerContext();
+    const { name, def, body } = transitionTo('destination');
+
+    const { handOffActions } = compileTransition(
+      name,
+      def,
+      body,
+      'source',
+      {},
+      ctx
+    );
+
+    expect(handOffActions.length).toBe(1);
+    const handoff = handOffActions[0];
+    expect(handoff.target).toBe('destination');
+    expect(handoff.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="destination"`);
+    expect(handoff.state_updates).toEqual([
+      { [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE },
+    ]);
+    // Default behavior: no end_turn_first key emitted.
+    expect(handoff.end_turn_first).toBeUndefined();
+    expect('end_turn_first' in handoff).toBe(false);
+  });
+
+  it('should emit end_turn_first=true when the option is set', () => {
+    const ctx = new CompilerContext();
+    const { name, def, body } = transitionTo('destination');
+
+    const { handOffActions } = compileTransition(
+      name,
+      def,
+      body,
+      'source',
+      {},
+      ctx,
+      {
+        endTurnFirst: true,
+      }
+    );
+
+    expect(handOffActions.length).toBe(1);
+    const handoff = handOffActions[0];
+    expect(handoff.target).toBe('destination');
+    expect(handoff.end_turn_first).toBe(true);
+  });
+
+  it('should not emit end_turn_first when the option is explicitly false', () => {
+    const ctx = new CompilerContext();
+    const { name, def, body } = transitionTo('destination');
+
+    const { handOffActions } = compileTransition(
+      name,
+      def,
+      body,
+      'source',
+      {},
+      ctx,
+      {
+        endTurnFirst: false,
+      }
+    );
+
+    expect(handOffActions.length).toBe(1);
+    expect(handOffActions[0].end_turn_first).toBeUndefined();
+  });
+
+  it('should set end_turn_first on every handoff for multi-target transitions', () => {
+    const ctx = new CompilerContext();
+    // A single @utils.transition action body can list multiple `to @topic.X`
+    // clauses; each lowers to its own handoff and all must carry the flag.
+    const body = [
+      new ToClause(new MemberExpression(new AtIdentifier('topic'), 'first')),
+      new ToClause(new MemberExpression(new AtIdentifier('topic'), 'second')),
+    ];
+
+    const { handOffActions } = compileTransition(
+      'my_transition',
+      {} as ParsedTool,
+      body,
+      'source',
+      {},
+      ctx,
+      { endTurnFirst: true }
+    );
+
+    expect(handOffActions.length).toBe(2);
+    expect(handOffActions.map(h => h.target)).toEqual(['first', 'second']);
+    expect(handOffActions.every(h => h.end_turn_first === true)).toBe(true);
+  });
+
+  it('should accept end_turn_first as a valid handOffAction schema field', () => {
+    const handoff = schema.handOffAction.parse({
+      type: 'handoff',
+      target: 'destination',
+      end_turn_first: true,
+    });
+    expect(handoff.end_turn_first).toBe(true);
+
+    // Field is optional: omitting it still parses.
+    const without = schema.handOffAction.parse({
+      type: 'handoff',
+      target: 'destination',
+    });
+    expect(without.end_turn_first).toBeUndefined();
+  });
+
+  it('should accept false and null for end_turn_first (nullable boolean)', () => {
+    // Upstream types end_turn_first as a nullable boolean, lowered to
+    // z.boolean().nullish(); false and null are both valid inputs.
+    const falsey = schema.handOffAction.parse({
+      type: 'handoff',
+      target: 'destination',
+      end_turn_first: false,
+    });
+    expect(falsey.end_turn_first).toBe(false);
+
+    const nulled = schema.handOffAction.parse({
+      type: 'handoff',
+      target: 'destination',
+      end_turn_first: null,
+    });
+    expect(nulled.end_turn_first).toBeNull();
+  });
+
+  it('should reject a non-boolean end_turn_first', () => {
+    const result = schema.handOffAction.safeParse({
+      type: 'handoff',
+      target: 'destination',
+      end_turn_first: 'yes',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should not emit end_turn_first on handoffs from a full authored compile (default)', () => {
+    // End-to-end guarantee: authored transitions never carry end_turn_first
+    // until collect auto-resume wires it (a later story). Both the reasoning
+    // action handoff and the after_reasoning directive handoff must be clean.
+    const source = `
+config:
+    agent_name: "test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+start_agent test:
+    description: "test"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            my_transition: @utils.transition to @topic.destination
+                description: "Test transition"
+    after_reasoning:
+        transition to @topic.other
+
+topic destination:
+    description: "destination"
+    reasoning:
+        instructions: ->
+            | destination
+
+topic other:
+    description: "other"
+    reasoning:
+        instructions: ->
+            | other
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+
+    const handoffs = [
+      ...(node.after_all_tool_calls ?? []),
+      ...(node.after_reasoning ?? []),
+    ].filter((a: Record<string, unknown>) => a.type === 'handoff');
+
+    expect(handoffs.length).toBeGreaterThanOrEqual(2);
+    for (const handoff of handoffs) {
+      expect(
+        (handoff as Record<string, unknown>).end_turn_first
+      ).toBeUndefined();
+      expect('end_turn_first' in handoff).toBe(false);
+    }
   });
 });

@@ -11,34 +11,41 @@
  * Validates:
  * - developer_name / agent_name mutual exclusivity (must have exactly one)
  * - default_agent_user required for AgentforceServiceAgent
- * - default_agent_user ignored warning for AgentforceEmployeeAgent
+ * - default_agent_user may be `None` only for AgentforceEmployeeAgent
  *
  * Diagnostics: config-missing-agent-name, config-duplicate-agent-name,
- *              config-missing-default-agent-user, config-ignored-default-agent-user
+ *              config-missing-default-agent-user, config-invalid-default-agent-user-none
  */
 
-import type { AstRoot, AstNodeLike } from '@agentscript/language';
-import type { LintPass, PassStore } from '@agentscript/language';
+import type {
+  AstRoot,
+  AstNodeLike,
+  LintPass,
+  PassStore,
+} from '@agentscript/language';
 import {
   storeKey,
   attachDiagnostic,
   lintDiagnostic,
+  isNoneLiteral,
+  isAstNodeLike,
 } from '@agentscript/language';
-import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { getBlockRange } from '../utils.js';
+import { isAllowedAgentType } from '../agent-types.js';
 
-/** Extract a string value from a StringLiteral AST node. */
-function getStringValue(
-  node: unknown
-): { value: string; astNode: AstNodeLike } | undefined {
-  if (!node || typeof node !== 'object') return undefined;
-  const obj = node as Record<string, unknown>;
-  if (obj.__kind !== 'StringLiteral' && obj.__kind !== 'TemplateExpression')
+/** Extract a non-empty string value from a StringLiteral/TemplateExpression node. */
+function getStringValue(node: unknown): string | undefined {
+  if (
+    !isAstNodeLike(node) ||
+    !node.__kind ||
+    !['StringLiteral', 'TemplateExpression'].includes(node.__kind) ||
+    typeof node.value !== 'string' ||
+    node.value.trim().length === 0
+  ) {
     return undefined;
-  if (typeof obj.value !== 'string' || obj.value.trim().length === 0)
-    return undefined;
-  return { value: obj.value, astNode: obj as AstNodeLike };
+  }
+  return node.value;
 }
 
 class ConfigValidationPass implements LintPass {
@@ -47,10 +54,8 @@ class ConfigValidationPass implements LintPass {
     'Validates Agentforce config block constraints (agent name, default_agent_user)';
 
   run(_store: PassStore, root: AstRoot): void {
-    const config = (root as Record<string, unknown>).config as
-      | AstNodeLike
-      | undefined;
-    if (!config) return;
+    const config = root.config;
+    if (!isAstNodeLike(config)) return;
 
     const developerName = getStringValue(config.developer_name);
     const agentName = getStringValue(config.agent_name);
@@ -78,23 +83,147 @@ class ConfigValidationPass implements LintPass {
       );
     }
 
-    // Validate default_agent_user based on agent_type
-    const agentTypeNode = config.agent_type as AstNodeLike | undefined;
-    if (!agentTypeNode || typeof agentTypeNode !== 'object') return;
-    const agentTypeValue =
-      typeof (agentTypeNode as Record<string, unknown>).value === 'string'
-        ? ((agentTypeNode as Record<string, unknown>).value as string)
-        : undefined;
-    if (!agentTypeValue) return;
+    // Validate default_agent_user. The user may set it under the legacy
+    // `config.default_agent_user` (deprecated) or the new
+    // `access.default_agent_user`. The field may also be explicitly `None`
+    // for AgentforceEmployeeAgent.
+    const access = isAstNodeLike(root.access) ? root.access : undefined;
+    const configDauNode = config.default_agent_user;
+    const accessDauNode = access?.default_agent_user;
 
-    const agentTypeLower = agentTypeValue.toLowerCase();
-    const defaultAgentUser = getStringValue(config.default_agent_user);
+    const accessDauString = getStringValue(accessDauNode);
+    const configDauString = getStringValue(configDauNode);
+    const accessDauIsNone = isNoneLiteral(accessDauNode);
+    const configDauIsNone = isNoneLiteral(configDauNode);
+
+    // Has a non-empty string user set (in either block).
+    const hasStringDau = accessDauString || configDauString;
+
+    // When both are set, access wins — flag the config one with a warning.
+    if (
+      (accessDauString || accessDauIsNone) &&
+      (configDauString || configDauIsNone)
+    ) {
+      const dauNode = configDauNode as AstNodeLike;
+      attachDiagnostic(
+        dauNode,
+        lintDiagnostic(
+          getBlockRange(dauNode),
+          "'default_agent_user' is set in both 'config' and 'access' — 'access.default_agent_user' takes precedence and 'config.default_agent_user' will be ignored.",
+          DiagnosticSeverity.Warning,
+          'config-default-agent-user-conflict'
+        )
+      );
+    }
+
+    const agentTypeValue = getStringValue(config.agent_type);
+    const agentTypeLower = agentTypeValue?.toLowerCase();
+
+    // agent_type must be a recognized agent type. An unknown value is rejected
+    // so typos and unsupported types surface before deploy.
+    if (agentTypeValue && !isAllowedAgentType(agentTypeValue)) {
+      const agentTypeNode = config.agent_type as AstNodeLike;
+      attachDiagnostic(
+        agentTypeNode,
+        lintDiagnostic(
+          getBlockRange(agentTypeNode),
+          `'${agentTypeValue}' is not a supported agent_type.`,
+          DiagnosticSeverity.Error,
+          'agent-type-not-allowed'
+        )
+      );
+    }
+
+    const isEmployeeAgent =
+      agentTypeLower === 'agentforceemployeeagent' ||
+      agentTypeLower === 'agentforce employee agent';
+
+    // None is only valid for employee agents. Flag it everywhere else,
+    // including when agent_type is unset (we can't infer the intent).
+    if (!isEmployeeAgent) {
+      const noneMessage = agentTypeValue
+        ? `'default_agent_user' may only be 'None' for AgentforceEmployeeAgent (got ${agentTypeValue}).`
+        : "'default_agent_user' may only be 'None' when 'agent_type' is 'AgentforceEmployeeAgent'.";
+
+      if (configDauIsNone) {
+        const dauNode = configDauNode as unknown as AstNodeLike;
+        attachDiagnostic(
+          dauNode,
+          lintDiagnostic(
+            getBlockRange(dauNode),
+            noneMessage,
+            DiagnosticSeverity.Error,
+            'config-invalid-default-agent-user-none'
+          )
+        );
+      }
+      if (accessDauIsNone && access) {
+        const dauNode = accessDauNode as unknown as AstNodeLike;
+        attachDiagnostic(
+          dauNode,
+          lintDiagnostic(
+            getBlockRange(dauNode),
+            noneMessage,
+            DiagnosticSeverity.Error,
+            'config-invalid-default-agent-user-none'
+          )
+        );
+      }
+    }
+
+    // recommended_prompts is only valid for employee agents.
+    const system = isAstNodeLike(root.system) ? root.system : undefined;
+    const recommendedPrompts = system?.recommended_prompts;
+    if (isAstNodeLike(recommendedPrompts) && !isEmployeeAgent) {
+      attachDiagnostic(
+        recommendedPrompts,
+        lintDiagnostic(
+          getBlockRange(recommendedPrompts),
+          `'recommended_prompts' is only supported for AgentforceEmployeeAgent${agentTypeValue ? ` (got ${agentTypeValue})` : ''}.`,
+          DiagnosticSeverity.Error,
+          'recommended-prompts-agent-type'
+        )
+      );
+    }
+
+    // Employee agents may not configure sharing_policy or
+    // verified_customer_record_access — those entitlements only apply to
+    // service agents.
+    if (isEmployeeAgent && access) {
+      const sharingPolicy = access.sharing_policy;
+      if (isAstNodeLike(sharingPolicy)) {
+        attachDiagnostic(
+          sharingPolicy,
+          lintDiagnostic(
+            getBlockRange(sharingPolicy),
+            "'sharing_policy' is not allowed for AgentforceEmployeeAgent.",
+            DiagnosticSeverity.Error,
+            'access-sharing-policy-not-allowed'
+          )
+        );
+      }
+      const vcra = access.verified_customer_record_access;
+      if (isAstNodeLike(vcra)) {
+        attachDiagnostic(
+          vcra,
+          lintDiagnostic(
+            getBlockRange(vcra),
+            "'verified_customer_record_access' is not allowed for AgentforceEmployeeAgent.",
+            DiagnosticSeverity.Error,
+            'access-verified-customer-record-access-not-allowed'
+          )
+        );
+      }
+    }
+
+    if (!agentTypeValue) return;
 
     if (
       agentTypeLower === 'agentforceserviceagent' ||
       agentTypeLower === 'agentforce service agent'
     ) {
-      if (!defaultAgentUser) {
+      // Service agents need a real user — neither absent nor None counts.
+      if (!hasStringDau) {
         attachDiagnostic(
           config,
           lintDiagnostic(
@@ -105,28 +234,9 @@ class ConfigValidationPass implements LintPass {
           )
         );
       }
-    } else if (
-      agentTypeLower === 'agentforceemployeeagent' ||
-      agentTypeLower === 'agentforce employee agent'
-    ) {
-      if (defaultAgentUser) {
-        const dauNode = config.default_agent_user as AstNodeLike;
-        const dauCst = (dauNode as Record<string, unknown>).__cst as
-          | CstMeta
-          | undefined;
-        const dauRange = dauCst?.range ?? getBlockRange(config);
-
-        attachDiagnostic(
-          dauNode,
-          lintDiagnostic(
-            dauRange,
-            `'default_agent_user' is ignored for ${agentTypeValue} type agents.`,
-            DiagnosticSeverity.Warning,
-            'config-ignored-default-agent-user'
-          )
-        );
-      }
     }
+    // Employee agents can: omit the field, set it to None, or set a string.
+    // No additional diagnostics needed here.
   }
 }
 

@@ -68,7 +68,7 @@ export function makeMissing(ctx: ParserContext, type: string): CSTNode {
 }
 
 /**
- * Parse a standalone else/elif/for (without a preceding if, or unsupported).
+ * Parse a standalone else/for (without a preceding if, or unsupported).
  * Wraps the entire block in an ERROR node, preserving parsed statements inside.
  *
  * @param parseProcedure - callback to parse procedure bodies, avoiding circular

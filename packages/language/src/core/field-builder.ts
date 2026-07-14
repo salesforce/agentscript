@@ -78,11 +78,24 @@ export interface BuilderMethods<
   experimental(): ConstrainedBuilder<S, V, F>;
   required(): ConstrainedBuilder<S, V, F>;
   accepts(kinds: string[]): ConstrainedBuilder<S, V, F>;
+  /**
+   * Attach completion-only value hints. These are offered as autocomplete
+   * candidates but are NOT validated — unlike `enum`, values outside the list
+   * are still accepted. Use when validation lives elsewhere (e.g. a lint pass).
+   */
+  suggest(values: ReadonlyArray<string>): ConstrainedBuilder<S, V, F>;
   pick(keys: string[]): ConstrainedBuilder<S, V, F>;
   omitArrow(): ConstrainedBuilder<S, V, F>;
   disallowTemplates(suggestion?: string): ConstrainedBuilder<S, V, F>;
   allowedNamespaces(namespaces: string[]): ConstrainedBuilder<S, V, F>;
   resolvedType(type: BlockCapability): ConstrainedBuilder<S, V, F>;
+  /**
+   * Mark a value field as referencing an external connection of one of the
+   * given kinds. The kind vocabulary is dialect-defined (core treats the
+   * strings opaquely). A schema-level tooling hint consumed by completion to
+   * offer the available connections — not a validation rule.
+   */
+  connectionRef(kinds: readonly string[]): ConstrainedBuilder<S, V, F>;
   crossBlockReferenceable(): ConstrainedBuilder<S, V, F>;
   /**
    * Mark a `ProcedureValue` field as a transition container — its body is
@@ -113,6 +126,13 @@ export interface BuilderMethods<
    * label without hardcoding the field name.
    */
   displayLabelField(): ConstrainedBuilder<S, V, F>;
+  /**
+   * Mark a field as holding a node's enumerable structured-output block.
+   * Schema-driven node-result completion locates the block via this marker
+   * (reading its `properties` map) without hardcoding where the dialect
+   * nests the field, e.g. `reasoning.outputs` vs a top-level `outputs`.
+   */
+  structuredOutputField(): ConstrainedBuilder<S, V, F>;
   hidden(): ConstrainedBuilder<S, V, F>;
   // Structural methods — delegate to base type's extend/omit/etc. when present.
   // Throws at runtime for types that don't support them (e.g., primitives).
@@ -443,10 +463,14 @@ export function addBuilderMethods<
       clone.__accepts = [...kinds];
       return enhance(meta, clone);
     };
+    target.suggest = (values: ReadonlyArray<string>) =>
+      withMeta({ suggestions: [...values] });
     target.allowedNamespaces = (namespaces: string[]) =>
       withConstraint({ allowedNamespaces: namespaces });
     target.resolvedType = (type: BlockCapability) =>
       withConstraint({ resolvedType: type });
+    target.connectionRef = (kinds: readonly string[]) =>
+      withConstraint({ connectionRef: kinds });
     if (!skipFactoryOverridden) {
       target.crossBlockReferenceable = () =>
         withMeta({ crossBlockReferenceable: true });
@@ -455,6 +479,8 @@ export function addBuilderMethods<
       target.predicateField = () => withMeta({ predicateField: true });
       target.outputNameField = () => withMeta({ outputNameField: true });
       target.displayLabelField = () => withMeta({ displayLabelField: true });
+      target.structuredOutputField = () =>
+        withMeta({ structuredOutputField: true });
       target.pick = (keys: string[]) => {
         if ('pick' in base && typeof base.pick === 'function') {
           return enhance(meta, base.pick(keys));

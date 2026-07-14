@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Lint pass that validates `language.adaptive: True` configurations.
  *
@@ -51,18 +58,15 @@ class AdaptiveLanguageValidationPass implements LintPass {
     'Validates configurations that conflict with language.adaptive=True';
 
   run(_store: PassStore, root: AstRoot): void {
-    const language = (root as Record<string, unknown>).language as
-      | AstNodeLike
-      | undefined;
+    const language = root.language as AstNodeLike | undefined;
     if (!language || typeof language !== 'object') return;
 
-    const lang = language as Record<string, unknown>;
-    const adaptive = extractBooleanValue(lang.adaptive);
+    const adaptive = extractBooleanValue(language.adaptive);
     if (adaptive !== true) return;
 
     // 1. Sibling fields on the language block are ignored when adaptive=True.
     for (const field of OVERRIDDEN_FIELDS) {
-      const fieldNode = lang[field];
+      const fieldNode = language[field];
       if (fieldNode === undefined || fieldNode === null) continue;
       attachDiagnostic(
         language,
@@ -76,12 +80,12 @@ class AdaptiveLanguageValidationPass implements LintPass {
     }
 
     // 2. Voice modality cannot coexist with adaptive language.
-    const modality = (root as Record<string, unknown>).modality;
-    if (modality && isNamedMap(modality) && modality.has('voice')) {
+    const modality = root.modality;
+    if (isNamedMap(modality) && modality.has('voice')) {
       attachDiagnostic(
         language,
         lintDiagnostic(
-          getBlockRange(lang.adaptive),
+          getBlockRange(language.adaptive),
           'Adaptive mode cannot be used over voice modality. The adaptive language setting will be ignored if this agent is attached to a voice channel.',
           DiagnosticSeverity.Warning,
           'voice-adaptive-conflict'

@@ -1,0 +1,671 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Matrix",
+    "label": "Matrix",
+    "description": "Eternal virtual digital illusionary world hallucinated in human brain.",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "human_profile_id",
+        "label": "Human Profile Id",
+        "description": "Human_Profile_Id",
+        "dataType": "string",
+        "fieldMapping": "creator.human_profile_id"
+      }
+    ],
+    "defaultAgentUser": "agent_anderson"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hi, welcome to the Matrix, I am Agent Anderson. How can I help you?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Oops. Are you Neo?!",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "human_profile",
+        "label": "Human Profile",
+        "description": "Human Profile",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "activities",
+        "label": "Activities",
+        "description": "Activities",
+        "dataType": "object",
+        "isList": true,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "power_gained",
+        "label": "Power Gained",
+        "description": "Power Gained",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "result",
+        "label": "Result",
+        "description": "Result",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "selector",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Step 0 of processing a human",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"red_pill_or_blue_pill\""
+              }
+            ],
+            "name": "transition_to_choice",
+            "description": "Choose to either destroy them, or harvest their brain for power."
+          }
+        ],
+        "developerName": "selector",
+        "label": "selector",
+        "actionDefinitions": [
+          {
+            "developerName": "retrieve_human_profile",
+            "label": "Retrieve Human Profile",
+            "description": "Retrieves human profile from the machine database.",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "retrieve_human_profile",
+            "inputType": [
+              {
+                "developerName": "profile_id",
+                "label": "Profile Id",
+                "description": "Profile Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "profile",
+                "label": "Profile",
+                "description": "Profile",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "get_human_activity",
+            "label": "Get Human Activity",
+            "description": "Gets the recent activities of the human.",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "get_human_activity",
+            "inputType": [
+              {
+                "developerName": "profile_id",
+                "label": "Profile Id",
+                "description": "Profile Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "activities",
+                "label": "Activities",
+                "description": "Activities",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ]
+          }
+        ],
+        "instructions": "You run the Matrix, a world of digital illusion created by AI to survive the aftermath of human destruction.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCall transition_to_choice to proceed to the choice phase."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "retrieve_human_profile",
+            "boundInputs": {
+              "profile_id": "variables.human_profile_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "human_profile": "result.profile"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.human_profile"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "get_human_activity",
+            "boundInputs": {
+              "profile_id": "variables.human_profile_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "activities": "result.activities"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "red_pill_or_blue_pill",
+            "enabled": "state.AgentScriptInternal_next_topic==\"red_pill_or_blue_pill\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Choose to either destroy them, or harvest their brain for power.",
+        "instructions": "You run the Matrix, a world of digital illusion created by AI to survive the aftermath of human destruction.\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "destroy_human",
+            "target": "destroy_human",
+            "description": "Destroy human whom you are unable to control."
+          },
+          {
+            "name": "consume_human",
+            "target": "consume_human",
+            "description": "Use human's electrical impulses to survive."
+          }
+        ],
+        "developerName": "red_pill_or_blue_pill",
+        "label": "You have a choice.",
+        "actionDefinitions": [],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nIf the human profile is available, and the human has no rule violations in the recent\nactivities, invoke the tool `consume_human` to control the human.\nIf the human has rule violations or has no profile, destroy the intruder by invoking\nthe tool `destroy_human`."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Use human's electrical impulses to survive.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "connect_to_brain",
+            "boundInputs": {
+              "human_profile_id": "variables.human_profile_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "power_gained": "result.power_gained"
+              }
+            ],
+            "name": "connect_to_brain"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"destroy_human\""
+              }
+            ],
+            "name": "destroy_human",
+            "description": "Destroy human whom you are unable to control."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"neo\""
+              }
+            ],
+            "name": "found_neo",
+            "description": "Oops! Found Neo! Time to survive and close the connection!"
+          }
+        ],
+        "developerName": "consume_human",
+        "label": "consume_human",
+        "actionDefinitions": [
+          {
+            "developerName": "connect_to_brain",
+            "label": "Connect To Brain",
+            "description": "Connects to human brain.",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "connect_to_brain",
+            "inputType": [
+              {
+                "developerName": "human_profile_id",
+                "label": "Human Profile Id",
+                "description": "Human Profile Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "power_gained",
+                "label": "Power Gained",
+                "description": "Power Gained",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You run the Matrix, a world of digital illusion created by AI to survive the aftermath of human destruction.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nBased on the power gained from connecting to the brain:\n- If power_gained is 0, call destroy_human to destroy the human.\n- If power_gained is negative, call found_neo as this might be Neo."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "connect_to_brain",
+            "boundInputs": {},
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "destroy_human",
+            "enabled": "state.AgentScriptInternal_next_topic==\"destroy_human\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "neo",
+            "enabled": "state.AgentScriptInternal_next_topic==\"neo\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Destroy human whom you are unable to control.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "destroy_human",
+            "boundInputs": {
+              "human_profile_id": "variables.human_profile_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "result": "result.result"
+              }
+            ],
+            "name": "destroy_human"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"neo\""
+              }
+            ],
+            "name": "found_neo",
+            "description": "Oops! Found Neo! Time to survive and close the connection!"
+          }
+        ],
+        "developerName": "destroy_human",
+        "label": "destroy_human",
+        "actionDefinitions": [
+          {
+            "developerName": "destroy_human",
+            "label": "Destroy Human",
+            "description": "Destroy human.",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "destroy_human",
+            "inputType": [
+              {
+                "developerName": "human_profile_id",
+                "label": "Human Profile Id",
+                "description": "Human Profile Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result",
+                "label": "Result",
+                "description": "Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You run the Matrix, a world of digital illusion created by AI to survive the aftermath of human destruction.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCall destroy_human to destroy the human.\nIf the result is not \"success\", call found_neo as this might be Neo."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "neo",
+            "enabled": "state.AgentScriptInternal_next_topic==\"neo\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Oops! Found Neo! Time to survive and close the connection!",
+        "tools": [
+          {
+            "type": "action",
+            "target": "terminate_connection",
+            "boundInputs": {
+              "human_profile_id": "variables.human_profile_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "terminate_connection"
+          }
+        ],
+        "developerName": "neo",
+        "label": "neo",
+        "actionDefinitions": [
+          {
+            "developerName": "terminate_connection",
+            "label": "Terminate Connection",
+            "description": "Terminates the established connection.",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "terminate_connection",
+            "inputType": [
+              {
+                "developerName": "human_profile_id",
+                "label": "Human Profile Id",
+                "description": "Human Profile Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": []
+          },
+          {
+            "developerName": "blacklist_neo_profile",
+            "label": "Blacklist Neo Profile",
+            "description": "Blacklists Neo's profile.",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "externalService",
+            "invocationTargetName": "blacklist_neo_profile",
+            "inputType": [
+              {
+                "developerName": "profile_id",
+                "label": "Profile Id",
+                "description": "Profile Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": []
+          }
+        ],
+        "instructions": "You run the Matrix, a world of digital illusion created by AI to survive the aftermath of human destruction.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCall terminate_connection to terminate the connection and blacklist Neo."
+              }
+            ]
+          }
+        ],
+        "postToolCall": [
+          {
+            "target": "terminate_connection",
+            "actions": [
+              {
+                "type": "action",
+                "target": "blacklist_neo_profile",
+                "boundInputs": {
+                  "profile_id": "variables.human_profile_id"
+                },
+                "llmInputs": [],
+                "stateUpdates": []
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": true
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "rag_feature_config_id": "the_oracle",
+      "system_messages": "[{\"message\": \"Hi, welcome to the Matrix, I am Agent Anderson. How can I help you?\", \"messageType\": \"Welcome\"}, {\"message\": \"Oops. Are you Neo?!\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "TableauBot",
+    "label": "Tableau Bot",
+    "description": "Tableau Bot",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "EndUserId",
+        "label": "End User Id",
+        "description": "MessagingEndUser Id",
+        "dataType": "string",
+        "fieldMapping": "MessagingSession.MessagingEndUserId"
+      }
+    ]
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "Main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Main entry point",
+        "tools": [],
+        "developerName": "Main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle requests"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "byon",
+        "developerName": "Tableau_Analyze",
+        "description": "Tableau Analyze Data agent",
+        "label": "Tableau Analyze",
+        "byoClient": {
+          "clientRef": "icr-default",
+          "configuration": {
+            "node_type_id": "waii_analytics_agent",
+            "node_namespace": "waiianalyticsagent"
+          }
+        },
+        "inputParameters": {
+          "auth_token": "variables.EndUserId"
+        }
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "enable_propagate_internal_org_jwt_to_icr": true
+    }
+  }
+}

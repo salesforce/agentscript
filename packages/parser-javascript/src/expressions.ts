@@ -32,7 +32,6 @@ const VALID_ESCAPES = new Set(['"', "'", '\\', 'n', 'r', 't', '0']);
 
 const KEY_STOP_KEYWORDS = new Set([
   'if',
-  'elif',
   'else',
   'run',
   'set',

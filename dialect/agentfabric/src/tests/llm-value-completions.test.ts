@@ -1,8 +1,15 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
  * Regression tests: value-position completions for enum-typed fields inside
  * an LLM entry should include the enum members.
  *
- * Bug: when the cursor is at value position (after `key: `) for
+ * Bug (W-22415806): when the cursor is at value position (after `key: `) for
  * an enum-typed field, the LSP returns no completions for:
  *   - `kind:` → expected to suggest the discriminator enum members
  *     (OpenAI, Gemini)

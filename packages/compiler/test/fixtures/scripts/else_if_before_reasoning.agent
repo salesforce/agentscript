@@ -1,0 +1,31 @@
+system:
+    instructions: "You are a router that picks a branch based on state."
+    messages:
+        welcome: "Welcome!"
+        error: "Something went wrong."
+
+config:
+    developer_name: "Else_If_Before_Reasoning"
+    default_agent_user: "test_user"
+    description: "if / else if / else chain in before_reasoning"
+
+variables:
+    state: mutable string = "a"
+    routed_to: mutable string = ""
+
+start_agent main:
+    description: "Routes by state via before_reasoning"
+
+    before_reasoning:
+        if @variables.state == "a":
+            set @variables.routed_to = "branch_a"
+        else if @variables.state == "b":
+            set @variables.routed_to = "branch_b"
+        else if @variables.state == "c":
+            set @variables.routed_to = "branch_c"
+        else:
+            set @variables.routed_to = "fallback"
+
+    reasoning:
+        instructions: ->
+            | Acknowledge the routed_to: {! @variables.routed_to }

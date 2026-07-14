@@ -18,13 +18,18 @@ import type {
   ParsedTopicLike,
   ParsedConnectedAgent,
 } from '../parsed-types.js';
-import { DEFAULT_PLANNER_TYPE } from '../constants.js';
+import {
+  DEFAULT_PLANNER_TYPE,
+  chainConditionStateVariable,
+} from '../constants.js';
 import { ParameterDeclarationNode } from '@agentscript/language';
 import {
   extractStringValue,
   extractDescriptionValue,
   iterateNamedMap,
 } from '../ast-helpers.js';
+import { compileRecommendedPrompts } from '../recommendations/compile-recommendations.js';
+import { recommendedPromptsConfigurationSchema } from '../types.js';
 import { compileStateVariables } from '../variables/state-variables.js';
 import {
   compileSystemMessages,
@@ -36,16 +41,43 @@ import { compileConnectedAgentNode } from '../nodes/compile-connected-agent-node
 import {
   compileCustomSubagentNode,
   COMMERCE_SHOPPER_BYO_CLIENT,
+  TABLEAU_ANALYZE_DATA_BYO_CLIENT,
   deriveByonClient,
 } from '../nodes/compile-custom-subagent-node.js';
 import type { BYOClientConfig } from '../types.js';
 import {
   COMMERCE_SHOPPER_SCHEMA,
+  TABLEAU_ANALYZE_DATA_SCHEMA,
   BYON_SCHEMA_PREFIX,
 } from '@agentscript/agentforce-dialect';
 import { compileSurfaces } from '../surfaces/compile-surfaces.js';
 import { extractCompanyAndRole } from '../config/agent-configuration.js';
 import { extractGlobalModelConfiguration } from '../config/model-config.js';
+import type { z } from 'zod';
+
+/**
+ * Translate a Zod issue from `recommendedPromptsConfigurationSchema` into an
+ * author-facing message. The max-items (20) and per-string-length (1-50)
+ * limits live on the OpenAPI-generated base schema and only surface as
+ * generic Zod text ("Too big: expected array to have <=20 items"), so we map
+ * those specific issues to friendly wording here rather than duplicating the
+ * constraints. Refinement messages (welcome_screen, >=3 entries) are already
+ * human-readable and pass through unchanged.
+ */
+function friendlyRecommendedPromptsMessage(issue: z.core.$ZodIssue): string {
+  if (issue.code === 'too_big') {
+    if (issue.origin === 'array') {
+      return 'starter_prompts can have at most 20 entries';
+    }
+    if (issue.origin === 'string') {
+      return 'Each starter prompt must be between 1 and 50 characters';
+    }
+  }
+  if (issue.code === 'too_small' && issue.origin === 'string') {
+    return 'Each starter prompt must be between 1 and 50 characters';
+  }
+  return issue.message;
+}
 
 /**
  * Compile the agent version from the parsed AST.
@@ -80,6 +112,9 @@ export function compileAgentVersion(
 
   // Get initial node (from start_agent block)
   const initialNode = getInitialNodeName(parsed, ctx);
+  // Expose the initial node to downstream node compilation (collect lowering
+  // targets the completion handoff at the graph router / initial node).
+  ctx.initialNode = initialNode;
 
   // Build topic descriptions for transition inheritance
   const topicDescriptions = createTopicDescriptions(blocks);
@@ -102,8 +137,14 @@ export function compileAgentVersion(
 
   // Compile all nodes
   const nodes: AgentNode[] = [];
+  // Tracks whether the agent contains a Tableau Analyze Data node, which
+  // requires an agent-wide additional parameter (see merge step below).
+  let hasTableauAnalyzeDataNode = false;
   for (const { name, block } of blocks) {
     const schemaValue = extractStringValue(block.schema);
+    if (schemaValue === TABLEAU_ANALYZE_DATA_SCHEMA) {
+      hasTableauAnalyzeDataNode = true;
+    }
     const byoClient = resolveByoClient(schemaValue, name, ctx);
     if (byoClient) {
       nodes.push(
@@ -140,6 +181,15 @@ export function compileAgentVersion(
     }
   }
 
+  // Append per-chain-link condition slot variables. Node compilation tracks
+  // the maximum chain depth observed across the agent in
+  // `ctx.maxChainConditionSlot`; we declare slots 1..N here, after nodes have
+  // been compiled. Sharing the counter across all nodes means a node with a
+  // shallower chain doesn't allocate fresh indices.
+  for (let i = 1; i <= ctx.maxChainConditionSlot; i++) {
+    stateVariables.push(chainConditionStateVariable(i));
+  }
+
   // Compile surfaces
   const agentType = extractStringValue(parsed.config?.agent_type);
   const surfaces = compileSurfaces(
@@ -154,7 +204,8 @@ export function compileAgentVersion(
   // Merge system messages into additional_parameters
   const mergedAdditionalParams = mergeSystemMessagesIntoAdditionalParams(
     additionalParameters,
-    systemMessages
+    systemMessages,
+    hasTableauAnalyzeDataNode
   );
 
   // Determine if modality_parameters should be included
@@ -182,6 +233,34 @@ export function compileAgentVersion(
   if (company !== null || role !== null) {
     version.company = company;
     version.role = role;
+  }
+
+  // Compile recommended prompts from system > recommended_prompts
+  const systemBlock = parsed.system as
+    | { recommended_prompts?: Record<string, unknown> }
+    | null
+    | undefined;
+  const recommendedPrompts = compileRecommendedPrompts(
+    systemBlock?.recommended_prompts as
+      | Record<string, unknown>
+      | null
+      | undefined,
+    ctx
+  );
+  if (recommendedPrompts) {
+    const recsValidation =
+      recommendedPromptsConfigurationSchema.safeParse(recommendedPrompts);
+    if (recsValidation.success) {
+      (version as Record<string, unknown>).recommended_prompts =
+        recommendedPrompts;
+    } else {
+      const messages = recsValidation.error.issues.map(
+        friendlyRecommendedPromptsMessage
+      );
+      ctx.error(
+        `Recommended prompts validation failed: ${messages.join('; ')}`
+      );
+    }
   }
 
   return version as AgentVersion;
@@ -284,6 +363,8 @@ function resolveByoClient(
   if (!schemaValue) return undefined;
   if (schemaValue === COMMERCE_SHOPPER_SCHEMA)
     return COMMERCE_SHOPPER_BYO_CLIENT;
+  if (schemaValue === TABLEAU_ANALYZE_DATA_SCHEMA)
+    return TABLEAU_ANALYZE_DATA_BYO_CLIENT;
   if (!schemaValue.startsWith(BYON_SCHEMA_PREFIX)) return undefined;
   const client = deriveByonClient(schemaValue);
   if (!client) {
@@ -317,7 +398,8 @@ function populateConnectedAgentInputSignature(
 
 function mergeSystemMessagesIntoAdditionalParams(
   additionalParameters: AdditionalParameters | undefined,
-  systemMessages: import('../types.js').SystemMessage[]
+  systemMessages: import('../types.js').SystemMessage[],
+  hasTableauAnalyzeDataNode: boolean
 ): AdditionalParameters | undefined {
   const serialized = serializeSystemMessagesForAdditionalParams(systemMessages);
 
@@ -329,6 +411,13 @@ function mergeSystemMessagesIntoAdditionalParams(
 
   if (serialized) {
     result.system_messages = serialized;
+  }
+
+  // TEMPORARY: The Tableau Analyze Data node routes through ICR and needs the
+  // internal org JWT propagated to it. This flag is a stopgap until ICR JWT
+  // propagation is handled by default; remove it once that lands.
+  if (hasTableauAnalyzeDataNode) {
+    result.enable_propagate_internal_org_jwt_to_icr = true;
   }
 
   return result;

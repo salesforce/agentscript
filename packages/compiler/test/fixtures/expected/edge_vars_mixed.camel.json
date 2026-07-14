@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Mixed_Vars_Agent",
+    "label": "Mixed Vars Agent",
+    "description": "Agent with both linked and mutable variables",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "session_id",
+        "label": "Session Id",
+        "description": "Linked session ID",
+        "dataType": "string",
+        "fieldMapping": "MessagingSession.Id"
+      },
+      {
+        "developerName": "user_name",
+        "label": "User Name",
+        "description": "Linked end user name",
+        "dataType": "string",
+        "fieldMapping": "MessagingEndUser.Name"
+      },
+      {
+        "developerName": "contact_id",
+        "label": "Contact Id",
+        "description": "Linked contact ID",
+        "dataType": "string",
+        "fieldMapping": "MessagingEndUser.ContactId"
+      }
+    ]
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello {!@variables.user_name}! How can I help?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, an error occurred.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "intent",
+        "label": "Intent",
+        "description": "Detected user intent",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "sentiment",
+        "label": "Sentiment",
+        "description": "Detected sentiment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'neutral'"
+      },
+      {
+        "developerName": "turn_count",
+        "label": "Turn Count",
+        "description": "Number of conversation turns",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "is_authenticated",
+        "label": "Is Authenticated",
+        "description": "Whether user is authenticated",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "context_data",
+        "label": "Context Data",
+        "description": "Conversation context data",
+        "dataType": "object",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "previous_topics",
+        "label": "Previous Topics",
+        "description": "Previously visited topics",
+        "dataType": "string",
+        "isList": true,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle mixed variable types",
+        "tools": [],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "You are an agent with both linked and mutable variables.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAuthenticate the user and route based on intent"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello {!@variables.user_name}! How can I help?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, an error occurred.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

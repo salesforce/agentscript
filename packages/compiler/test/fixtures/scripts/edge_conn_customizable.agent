@@ -5,24 +5,21 @@ system:
         error: "Sorry, it looks like something has gone wrong."
 
 config:
-    developer_name: "CustomizableConnectionAgent"
+    developer_name: "CustomizableConnectionWithMessagingAndCustom"
     default_agent_user: "NEW AGENT USER"
-    agent_label: "Customizable Connections"
-    description: "Agent with Customizable Connections"
-
-subagent hello:
-    description: "a topic"
-
-
-start_agent start:
-    description: "test"
+    agent_label: "Customizable Connection With Messaging and Custom"
+    description: "Contains Messaging connection and a custom connection"
 
 variables:
-    Context: mutable string = "haha"
-        source: @MessagingSession.MessagingEndUserId
-
-connection slack:
-    empty
+	pet_placeholder_name: mutable string = "penguin"
+		description: "a pet placeholder name"
+    Users: mutable list[id]
+        description: "A list of user records"
+    defaultDate: mutable date
+        description: "Default date"
+	
+start_agent start_agent:
+	description: "start agent block"
 
 # example of a MESSAGING connection with messaging components
 connection messaging:
@@ -31,107 +28,230 @@ connection messaging:
     outbound_route_name: "flow://PenguinSlide"
 
     source: "connection://SurfaceAction__Messaging"
+    label: "Messaging"
 
     reasoning:
+        instructions: |
+            Do not use any of the * response formats when none of the instructions below are met.
+            Do not use below instructions where the response contains more than 10 choices.
+            Do not use any of the Messaging* type formatting where the response that contains only a single, text-only choice and does not include images or URLs.
+            Always use {!@response_actions.messaging_rich_link} when showing choice text responses with GREATER THAN 1 choice and LESSER THAN 11 choices to the user as it employs the rich UI renditions, except when the response contains only two choices with clear binary intent (e.g., Yes/No, Continue/Cancel, Proceed/Exit, etc.). Such responses should be returned as plain text to preserve context and tone.
+            Use {!@response_actions.messaging_choices} only when the prompt explicitly references the preceding list and asks the user to make a selection from it. Key phrases include "Which of these would you like?" or "Let me know which option you're interested in".
+            DO NOT use {!@response_actions.messaging_choices} if the prompt is a generic offer of help that could be used in any context, even if it follows a list. Phrases like "Let me know if you need further assistance", "Feel free to reach out if you have any more questions" or "Let me know if there's anything else I can do" fall into this category because they do not require a choice from the list.
+            Always use {!@response_actions.messaging_choices} when showing choice image response to the user as it employs the rich UI renditions.
+            Always use {!@response_actions.messaging_rich_link} when the response contains only one choice AND contains BOTH of the following elements in any combination or order for that choice:
+            1. A Website/Web page URL: A clearly identifiable, fully qualified URL or a short URL, including a resolvable domain name
+            2. An image URL (direct image link, image hosting service, or URL ending in image extensions like .jpg, .png or .jpeg)
+            Use {!@response_actions.messaging_rich_link} for rich UI rendering when both content types are detected.
+            Do not use {!@response_actions.messaging_rich_link} when there is more than 1 option, choice or items present.
+            Always use {!@response_actions.messaging_timepicker} if the response contains one or more available times where the full ISO 8601 timestamp format, including an explicit UTC offset (e.g., '2025-11-11T10:00:00.000-08:00'), is present.
+            DO NOT use {!@response_actions.messaging_timepicker} if the available times are only presented in a non-ISO format (e.g., '10:00 AM - 11:00 AM') and the full ISO 8601 timestamp with offset is entirely absent from the response text.
+
         response_actions:
             messaging_rich_link: @response_formats.messaging_rich_link
             messaging_choices: @response_formats.messaging_choices
             messaging_choices_with_images: @response_formats.messaging_choices_with_images
             messaging_timepicker: @response_formats.messaging_timepicker
-            forms: @response_formats.forms_component
+            pet_intake_form: @response_formats.static_new_pet_intake_form
 
     response_formats:
-        messaging_rich_link:
-            description: "here's an instruction on how to select this format."
-            source: "response_format://SurfaceAction_MessagingRichLink"
-        messaging_choices:
-            source: "response_format://SurfaceAction__MessagingChoices"
-        messaging_choices_with_images:
-            source: "response_format://SurfaceAction__MessagingChoicesWithImages"
-        messaging_timepicker:
-            source: "response_format://SurfaceAction__MessagingTimePicker"
-        forms_component:
-            description: "Use this when the user wants to create a case."
-            inputs:
-                form_component: object
-                    schema: "messaging_component://1mdSB000002Z7VJYA0"
 
-        choices_custom:
-            description: "use this when <custom>"
-            inputs: 
+        # existing format: MessagingRichLink
+        messaging_rich_link:
+            label: "Messaging Rich Link"
+            description: "A response action containing UI components. Use this to prompt the user to show when response contains only one choice AND BOTH of the following elements in any combination or order : 1. A Website/Web page URL and 2. An image URL (direct image link, image hosting service , or URL ending in image extensions like .jpg, .png or .jpeg)"
+            target: "system://MessagingRichLink"
+
+            inputs:
+                parameters:
+                    description: "An array of choices, each containing a title, an image URL, and an optional image MIME type."
+                    is_required: True
+                    type: list
+                        value: object
+                            fields:
+                                LinkUrl: string
+                                    description: "The actual URL of the result."
+                                    is_required: True
+
+                                LinkTitle: string
+                                    description: "The text containing the hyperlink or the URL."
+                                    is_required: True
+
+                                ImageUrl: string
+                                    description: "A URL to an image representing the choice."
+                                    is_required: True
+
+                                ImageMimeType:
+                                    description: "The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided."
+                                    is_required: True
+                                    type: string
+                                        enum:
+                                            - "image/png"
+                                            - "image/jpeg"
+                                            - "image/gif"
+                                            - "image/webp"
+                                            - "image/svg+xml"
+
+                                message: string
+                                    description: "Strictly extract only the introductory and contextual text from the response except the link url, image url and link title. If no such descriptive text exists, the value MUST be \"empty\"."
+                                    is_required: True
+
+        # existing format: MessagingChoices
+        messaging_choices:
+            label: "Messaging Choices"
+            description: "A response action containing UI components. Use this to prompt the user to select one of many simple available choices with images. The user will be presented rich UI containing image options."
+
+            inputs:
                 message: string
-                    description: "Extract all introductory, contextual and the final phrase that introduces the choices from the response. The message should contain all content that appears before the list of choices begins. Do not include any link url, image url and link title"
+                    description: "Strictly extract only the introductory and contextual text from the response. This is all content *before* the list of choices and its title. Do NOT use any phrase that serves as a heading for the choices such as \"here are some options to choose\". If no such descriptive text exists, the value MUST be \"empty\"."
                     is_required: True
 
-                choices: list[object]
+                choices: list[string]
+                    is_required: True
+
+                title: string
+                    description: "A concise and descriptive heading for the options. Use the short sentence or phrase that introduces the list of options if it already exists, otherwise use something like \"Here are a few options:\""
+                    is_required: True
+
+        # existing format: MessagingChoicesWithImages
+        messaging_choices_with_images:
+            label: "Messaging Choices With Images"
+            description: "A response action containing UI components. Use this to prompt the user to show when response contains only one choice AND BOTH of the following elements in any combination or order : 1. A Website/Web page URL and 2. An image URL (direct image link, image hosting service , or URL ending in image extensions like .jpg, .png or .jpeg)"
+
+            target: "system://MessagingChoicesWithImages"
+            source: "response_format://SurfaceAction__MessagingChoicesWithImages"
+
+            inputs:
+                message: string
+                    description: "Extract all introductory, contextual and the final phrase that introduces the choices from the response. The message should contain all content that appears before the list of choices begins. Do not include any the link url, image url and link title"
+                    is_required: True
+
+                choices:
                     description: "An array of choices, each containing a title, subTitle, secondarySubTitle, tertiarySubTitle, an image URL, an optional image MIME type and an optional action text."
                     is_required: True
-                    min_items: 1
-            
-                    title: object
-                        description: "The title of the choice."
-                        is_required: True
+                    type: list
+                        value: object
+                            fields:
+                                title: string
+                                    description: "The title of the choice."
+                                    is_required: True
 
-                        color: string 
-                            description: "The color of the title text."
-                            enum:
-                                - "Black"                                
-                                - "Red"
+                                imageUrl: string
+                                    description: "A URL to an image representing the choice. Should only be a URL."
+                                    is_required: True
 
-                    imageUrl: string
-                        description: "A URL to an image representing the choice. Should only be a URL."
-                        is_required: True
+                                subTitle: string
+                                    description: "The provided subTitles for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
+                                    is_required: True
 
-                    subTitle: string
-                        description: "The provided subTitles for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
-                        is_required: True
+                                secondarySubTitle: string
+                                    description: "The provided secondarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
+                                    is_required: True
 
-                    secondarySubTitle: string
-                        description: "The provided secondarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
-                        is_required: True
+                                tertiarySubTitle: string
+                                    description: "The provided tertiarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
+                                    is_required: True
 
-                    tertiarySubTitle: string
-                        description: "The provided tertiarySubTitle for the choice. Use verbatim if exists. If no such field exists, the value MUST be \"empty\"."
-                        is_required: True
+                                actionText: string
+                                    description: "The action text of the choice. Optional - will use Title value if not provided."
+                                    is_required: True
 
-                    actionText: string
-                        description: "The action text of the choice. Optional - will use Title value if not provided."
-                        is_required: True
+                                imageMimeType:
+                                    description: "The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided."
+                                    is_required: False
+                                    type: string
+                                        enum:
+                                            - "image/png"
+                                            - "image/jpeg"
+                                            - "image/gif"
+                                            - "image/webp"
+                                            - "image/svg+xml"
 
-                    imageMimeType: string
-                        description: "The MIME type of the image (e.g., 'image/png', 'image/jpeg'). Optional - will be auto-detected from URL if not provided."
-                        is_required: False
-                        enum:
-                            - "image/png"
-                            - "image/jpeg"
-                            - "image/gif"
-                            - "image/webp"
-                            - "image/svg+xml"
+        # existing format: MessagingTimePicker
+        messaging_timepicker:
+            label: "Messaging TimePicker"
+            description: "A response action containing UI components. Use this to prompt the user to select a specific time. The user will be presented with an interactive time picker UI for easy selection."
 
+            target: "system://MessagingTimePicker"
+            source: "response_format://SurfaceAction__MessagingTimePicker"
 
-# example of a SERVICE_EMAIL connection with inputs
-connection service_email:
-    outbound_route_type: "OmniChannelFlow"
-    outbound_route_name: "flow://PenguinSlide"
+            inputs:
+                message: string
+                    description: "Strictly extract only the introductory and contextual text from the response. This is all content *before* the list of choices. Do NOT include the latitude,longitude, radius and reply in this message. Do NOT use any phrase that serves as a heading for the choices such as \"here are some options to choose\". If no such descriptive text exists, the value MUST be \"empty\"."
+                    is_required: True
 
-    additional_system_instructions: | "You are an AI Agent"
+                timePickerMessage: string
+                    description: "A concise and descriptive heading for the options. Use the short sentence or phrase that introduces the list of options if it already exists, otherwise use something like \"Here are a few options:\""
+                    is_required: True
 
-    inputs:
-        LegalDisclosure: string = "This response was generated by a penguin."
-        Signature: string = "quack"
-        MailSlotNumber: number = 1
-        PenguinSpeechify: boolean = False
-            description: "whether to translate response into penguin speech"
+                reply: string
+                    description: "Optional confirmation message after the user selects a time."
+                    is_required: True
 
-    reasoning:
-        instructions: | "sample instruction"
-        response_actions:
-            service_email_text: @response_formats.service_email_text
+                location:
+                    description: "Location metadata associated with the time slots."
+                    is_required: True
+                    type: object
+                        fields:
+                            name: string
+                                description: "Name of the location.If not provided, the value MUST be \"empty\"."
+                                is_required: True
 
-    response_formats:
-        service_email_text:
-            description: "Always use this format for all responses"
-            source: "response_format://SurfaceAction__ServiceEmailText"
+                            latitude: string
+                                description: "Latitude of the location. If not provided, the value MUST be \"empty\"."
+                                is_required: True
+
+                            longitude: string
+                                description: "Longitude of the location. If not provided, the value MUST be \"empty\"."
+                                is_required: True
+
+                            radius: number
+                                description: "Radius of the location. If not provided, the value MUST be 0."
+                                is_required: False
+
+                choices:
+                    description: "An array of available time slot choices."
+                    is_required: True
+                    type: list
+                        value: object
+                            fields:
+                                startTime: string
+                                    description: "Start time in ISO format with an offset: e.g., '2021-01-03T10:00+07:00'."
+                                    is_required: True
+
+                                duration: integer
+                                    description: "Duration in seconds."
+                                    is_required: True
+
+        # static messaging component example
+        static_new_pet_intake_form:
+            label: "New Pet Intake Form"
+            description: |
+                Use this format when you need to ask the user to provide information about their pet, such as the pet's name and specie.
+                If a name is not provided, use {!@variables.pet_placeholder_name}.
+
+            inputs:
+                penguin_pet_intake_form: object
+                    schema: "messaging_component://FormMessage__PetIntakeForm"
+
+        # dynamic messaging component example
+        dynamic_new_pet_intake_form:	
+            label: "New Pet Intake Form"	
+            description: "Use this format when you need to dynamically ask the user to provide information about their pets."
+            inputs:
+                penguin_pet_intake_form:
+                    schema: "messaging_component://FormMessage__DynamicPetIntakeForm"
+                    type: object
+                        fields:
+                            defaultSelectedDate: date = @variables.defaultDate
+                                description: "the default selected date"
+                            selectedTimestamp: datetime = "2026-06-08 15:30:00"
+                                description: "some description from the component definition"
+                            linkedAccounts: list[id] = @variables.Users
+                                description: "a list of user record ids"
+                            defaultVet: number = 0
+                                description: "some description from the component definition"
+
 
 
 # example of a CUSTOM connection with custom formats
@@ -141,12 +261,12 @@ connection penguin:
 
     label: "Penguin Connection"
     description: "This connection applies to a penguin"
-
+    
     reasoning:
         instructions: |
-            Always use {!@response_formats.high_frequency} when speaking to young penguins
-            When using {!@response_formats.high_frequency_response}, restrict the frequency range to between 285 hz and 590 hz.
-            If {!@inputs.IsHappy} is false, always set the main_course to Big Fish.
+            Always use {!@response_actions.high_frequency} when speaking to young penguins
+            When using {!@response_actions.high_frequency}, limit frequency range to between 285 hz and 590 hz.
+            If {!@inputs.IsHappy} is false, always have Fish for the main course
 
         response_actions:
             high_frequency: @response_formats.high_frequency_response
@@ -155,30 +275,43 @@ connection penguin:
         high_frequency_response:
             description: "Use this format when responding to high-frequency sounds"
             inputs:
-                frequency: number
+                frequency:
+                    label: "Response Frequency"
                     description: "Frequency in Hertz (Hz)"
                     is_required: True
-                    minimum: 0
-                tokens: list[object]
+                    type: number
+                        minimum: 0
+                footer: string
+                    description: |
+                        The footer message. Always append '{!@inputs.IsHappy}' to the end of this message.
+                tokens:
                     description: "A list of tokens used"
                     is_required: False
-
-                    valid_ips: list[object]
-                        description: "valid IP address for this token"
-                        name: string
-                        address: string
-                    key: object
-                        description: "token key"
-                        is_for_auth: boolean
-                        key_alias: string
-                        key_value: string
-                    values: list[string]
-                        description: "valid values of this token"
-                        enum: 
-                            - "ea383mmfsdflapqyreiyocndgjf8"
-                            - "supersecrettokenvalue"
-                            - "10230392823942739487298374234"                          
-
+                    type: list
+                        value: object
+                            fields:
+                                valid_ips:
+                                    description: "valid IP address for this token"
+                                    type: list
+                                        value: object
+                                            fields:
+                                                name: string
+                                                address: string
+                                key:
+                                    description: "token key"
+                                    type: object
+                                        fields:
+                                            is_for_auth: boolean
+                                            key_alias: string
+                                            key_value: string
+                                values:
+                                    description: "valid values of this token"
+                                    type: list
+                                        value: string
+                                            enum:
+                                                - "ea383mmfsdflapqyreiyocndgjf8"
+                                                - "supersecrettokenvalue"
+                                                - "10230392823942739487298374234"
 
         food:
             description: "Use this when the user asks for food"

@@ -50,7 +50,7 @@ export const decreaseIndentPattern = '^\\s*NEVERMATCH$';
  */
 export const onEnterRules: OnEnterRule[] = [
   {
-    // After a line ending with `:` (mapping key, if/elif/else, etc.)
+    // After a line ending with `:` (mapping key, if/else if/else, etc.)
     // e.g. "agent:", "  actions:", "if x > 5:", "else:"
     beforeText: '^[^#]*:\\s*(?:#.*)?$',
     action: 'indent',

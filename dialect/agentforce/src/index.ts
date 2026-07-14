@@ -18,7 +18,14 @@ export {
   KnowledgeBlock,
   ConnectionBlock,
   ConnectionsBlock,
-  SecurityBlock,
+  ConnectionReasoningBlock,
+  AvailableFormatBlock,
+  AvailableFormatsBlock,
+  ResponseFormatBlock,
+  ResponseFormatsBlock,
+  ResponseFormatInputsBlock,
+  ResponseFormatInputPropertiesBlock,
+  AccessBlock,
   AFActionsBlock,
   ModelConfigBlock,
   ContextBlock,
@@ -30,10 +37,10 @@ export {
   agentforceSchemaContext,
   InboundKeywordsBlock,
   PronunciationDictEntryBlock,
-  RESPONSE_FORMAT_INPUT_KEYWORDS,
 } from './schema.js';
 
 export { COMMERCE_SHOPPER_SCHEMA } from './variants/commerce-cloud-shopper.js';
+export { TABLEAU_ANALYZE_DATA_SCHEMA } from './variants/tableau-analyze-data.js';
 export { BYON_SCHEMA_PREFIX } from './variants/byon.js';
 
 export type {
@@ -62,7 +69,7 @@ import type {
   AFSubagentBlock,
   AFStartAgentBlock,
   ConnectionBlock,
-  SecurityBlock,
+  AccessBlock,
   ModalityBlock,
   VoiceModalitySchema,
   AdditionalConfigsBlock,
@@ -79,7 +86,7 @@ export type ParsedSubagent = InferFieldType<typeof AFSubagentBlock>;
 export type ParsedStartAgent = InferFieldType<typeof AFStartAgentBlock>;
 export type ParsedKnowledge = InferFieldType<typeof KnowledgeBlock>;
 export type ParsedConnection = InferFieldType<typeof ConnectionBlock>;
-export type ParsedSecurity = InferFieldType<typeof SecurityBlock>;
+export type ParsedAccess = InferFieldType<typeof AccessBlock>;
 export type ParsedModality = InferFieldType<typeof ModalityBlock>;
 export type ParsedVoiceModality = InferFields<typeof VoiceModalitySchema>;
 export type ParsedAdditionalConfigs = InferFieldType<

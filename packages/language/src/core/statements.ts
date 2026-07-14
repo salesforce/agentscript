@@ -491,7 +491,7 @@ export class RunStatement extends AstNodeBase implements Statement {
   }
 }
 
-// Python-style if/elif/else: elif is a nested IfStatement in orelse
+// Python-style if / else if / else: each `else if` is a nested IfStatement in orelse
 export class IfStatement extends AstNodeBase implements Statement {
   readonly __kind = 'IfStatement';
 
@@ -507,7 +507,10 @@ export class IfStatement extends AstNodeBase implements Statement {
     return this.__emitConditional(ctx, 'if');
   }
 
-  private __emitConditional(ctx: EmitContext, keyword: 'if' | 'elif'): string {
+  private __emitConditional(
+    ctx: EmitContext,
+    keyword: 'if' | 'else if'
+  ): string {
     const indent = emitIndent(ctx);
 
     // When the body and orelse are both empty (broken condition caused
@@ -535,7 +538,7 @@ export class IfStatement extends AstNodeBase implements Statement {
     // CST node's first line which contains the full `if <cond>:` text.
     if (this.__cst?.node) {
       const firstLine = this.__cst.node.text?.split('\n')[0]?.trim() ?? '';
-      const match = firstLine.match(/^(?:if|elif)\s+(.*?):\s*$/);
+      const match = firstLine.match(/^(?:if|else\s+if)\s+(.*?):\s*$/);
       if (match && match[1].length > condText.trim().length) {
         condText = match[1];
       }
@@ -550,7 +553,7 @@ export class IfStatement extends AstNodeBase implements Statement {
 
     if (this.orelse.length > 0) {
       if (this.orelse.length === 1 && this.orelse[0] instanceof IfStatement) {
-        out += '\n' + this.orelse[0].__emitConditional(ctx, 'elif');
+        out += '\n' + this.orelse[0].__emitConditional(ctx, 'else if');
       } else {
         out += '\n' + `${indent}else:\n`;
         out += this.orelse
@@ -583,12 +586,14 @@ export class IfStatement extends AstNodeBase implements Statement {
       if (alt.type === 'else_clause') {
         const elseConsequence = alt.childForFieldName('consequence');
         orelse = elseConsequence ? parseProcedure(elseConsequence) : [];
-      } else if (alt.type === 'elif_clause') {
-        const elifCondition = parseExpr(alt.childForFieldName('condition')!);
-        const elifConsequence = alt.childForFieldName('consequence');
-        const elifBody = elifConsequence ? parseProcedure(elifConsequence) : [];
+      } else if (alt.type === 'else_if_clause') {
+        const elseIfCondition = parseExpr(alt.childForFieldName('condition')!);
+        const elseIfConsequence = alt.childForFieldName('consequence');
+        const elseIfBody = elseIfConsequence
+          ? parseProcedure(elseIfConsequence)
+          : [];
         orelse = [
-          withCst(new IfStatement(elifCondition, elifBody, orelse), alt),
+          withCst(new IfStatement(elseIfCondition, elseIfBody, orelse), alt),
         ];
       }
     }
@@ -648,6 +653,68 @@ export class TransitionStatement extends AstNodeBase implements Statement {
 }
 
 /**
+ * `collect @variables.X: message: "..."` — sugar for gathering a single
+ * variable from the user, one field at a time, inside reasoning.instructions.
+ *
+ * The compiler lowers a `collect` into a guarded instruction (ask the user for
+ * the field while it is unset), a capture action, and a self-targeted
+ * end-turn-first handoff that resumes the subagent until the gather completes.
+ */
+export class CollectClause extends AstNodeBase implements Statement {
+  readonly __kind = 'CollectClause';
+
+  constructor(
+    public target: Expression,
+    public message: Expression
+  ) {
+    super();
+  }
+
+  __emit(ctx: EmitContext): string {
+    const indent = emitIndent(ctx);
+    const bodyCtx = { ...ctx, indent: ctx.indent + 1 };
+    const bodyIndent = emitIndent(bodyCtx);
+    const targetText = this.target
+      ? this.target.__emit({ ...ctx, indent: 0 })
+      : (this.__cst?.node?.childForFieldName('target')?.text ?? '');
+    const messageText = this.message
+      ? this.message.__emit({ ...ctx, indent: 0 })
+      : '';
+    return (
+      `${indent}collect ${targetText}:\n` +
+      `${bodyIndent}message: ${messageText}`
+    );
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression
+  ): Parsed<CollectClause> {
+    const targetNode = node.childForFieldName('target');
+    const target = targetNode ? parseExpr(targetNode) : null!;
+
+    // The body is a `mapping`; find the `message:` element's value.
+    let message: Expression = null!;
+    const bodyNode = node.childForFieldName('body');
+    if (bodyNode) {
+      for (const element of bodyNode.namedChildren) {
+        if (element.type !== 'mapping_element') continue;
+        const keyNode = element.childForFieldName('key');
+        const keyChild = keyNode?.namedChildren[0];
+        const keyText = keyChild ? getKeyText(keyChild) : '';
+        if (keyText !== 'message') continue;
+        const valueNode =
+          element.childForFieldName('colinear_value') ??
+          element.childForFieldName('expression');
+        if (valueNode) message = parseExpr(valueNode);
+      }
+    }
+
+    return withCst(new CollectClause(target, message), node);
+  }
+}
+
+/**
  * Represents an unrecognized CST node found in a statement context.
  * Preserves the original text so round-trip emit doesn't silently lose content,
  * and carries a diagnostic so the user is informed of the problem.
@@ -677,6 +744,7 @@ export const statementParsers: Record<string, StatementParser> = {
     AvailableWhen.parse(node, parseExpr),
   transition_statement: (node, parseExpr) =>
     TransitionStatement.parse(node, parseExpr),
+  collect_statement: (node, parseExpr) => CollectClause.parse(node, parseExpr),
 
   run_statement: (node, parseExpr, _parseProcedure, parseStmt) =>
     RunStatement.parse(node, parseExpr, parseStmt),

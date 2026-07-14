@@ -25,6 +25,9 @@ import {
   EMPTY_TOPIC_VALUE,
   AGENT_INSTRUCTIONS_VARIABLE,
 } from '../src/constants.js';
+
+/** Slot 1 — used by plain `if`/`else` and chain heads. */
+const CONDITION_SLOT_1 = `${RUNTIME_CONDITION_VARIABLE}_1`;
 import type { Action, HandOffAction, SubAgentNode } from '../src/types.js';
 
 /**
@@ -86,17 +89,18 @@ start_agent main:
     // Should have: reset + condition capture + then-set + else-set + template
     expect(bri.length).toBeGreaterThanOrEqual(4);
 
-    // Find the condition capture action (sets RUNTIME_CONDITION_VARIABLE)
+    // Find the condition capture action (sets condition_1, the slot used by
+    // plain if/else and shared with sequential plain ifs).
     const condCapture = bri.find((a: Record<string, unknown>) => {
       const updates = a.state_updates as Array<Record<string, string>>;
-      return updates?.some(u => RUNTIME_CONDITION_VARIABLE in u);
+      return updates?.some(u => CONDITION_SLOT_1 in u);
     }) as Action;
     expect(condCapture).toBeDefined();
     expect(condCapture.target).toBe(STATE_UPDATE_ACTION);
     const condUpdate = condCapture.state_updates!.find(
-      u => RUNTIME_CONDITION_VARIABLE in u
+      u => CONDITION_SLOT_1 in u
     ) as Record<string, string>;
-    expect(condUpdate[RUNTIME_CONDITION_VARIABLE]).toContain('x');
+    expect(condUpdate[CONDITION_SLOT_1]).toContain('x');
 
     // Then block: sets x = False, should be gated on condition being positive
     const thenAction = bri.find((a: Record<string, unknown>) => {
@@ -105,7 +109,7 @@ start_agent main:
     }) as Action;
     expect(thenAction).toBeDefined();
     expect(thenAction.enabled).toBeDefined();
-    expect(thenAction.enabled).toContain(`state.${RUNTIME_CONDITION_VARIABLE}`);
+    expect(thenAction.enabled).toContain(`state.${CONDITION_SLOT_1}`);
     // Should NOT contain 'not' — this is the positive branch
     expect(thenAction.enabled).not.toContain('not');
 
@@ -116,9 +120,7 @@ start_agent main:
     }) as Action;
     expect(elseAction).toBeDefined();
     expect(elseAction.enabled).toBeDefined();
-    expect(elseAction.enabled).toContain(
-      `not (state.${RUNTIME_CONDITION_VARIABLE})`
-    );
+    expect(elseAction.enabled).toContain(`not (state.${CONDITION_SLOT_1})`);
   });
 });
 
@@ -152,13 +154,13 @@ start_agent main:
     // Find the condition capture
     const condCapture = bri.find((a: Record<string, unknown>) => {
       const updates = a.state_updates as Array<Record<string, string>>;
-      return updates?.some(u => RUNTIME_CONDITION_VARIABLE in u);
+      return updates?.some(u => CONDITION_SLOT_1 in u);
     }) as Action;
     expect(condCapture).toBeDefined();
     const condUpdate = condCapture.state_updates!.find(
-      u => RUNTIME_CONDITION_VARIABLE in u
+      u => CONDITION_SLOT_1 in u
     ) as Record<string, string>;
-    expect(condUpdate[RUNTIME_CONDITION_VARIABLE]).toContain('is_admin');
+    expect(condUpdate[CONDITION_SLOT_1]).toContain('is_admin');
 
     // Then block: set access = "granted"
     const thenAction = bri.find((a: Record<string, unknown>) => {
@@ -166,14 +168,12 @@ start_agent main:
       return updates?.some(u => 'access' in u);
     }) as Action;
     expect(thenAction).toBeDefined();
-    expect(thenAction.enabled).toContain(`state.${RUNTIME_CONDITION_VARIABLE}`);
+    expect(thenAction.enabled).toContain(`state.${CONDITION_SLOT_1}`);
 
     // No else actions — there should be no action with 'not' condition
     const elseActions = bri.filter((a: Record<string, unknown>) => {
       const enabled = a.enabled as string | undefined;
-      return (
-        enabled?.includes(`not (state.${RUNTIME_CONDITION_VARIABLE})`) ?? false
-      );
+      return enabled?.includes(`not (state.${CONDITION_SLOT_1})`) ?? false;
     });
     expect(elseActions.length).toBe(0);
   });
@@ -216,9 +216,7 @@ start_agent main:
       );
     }) as Action;
     expect(thenTemplate).toBeDefined();
-    expect(thenTemplate.enabled).toContain(
-      `state.${RUNTIME_CONDITION_VARIABLE}`
-    );
+    expect(thenTemplate.enabled).toContain(`state.${CONDITION_SLOT_1}`);
     expect(thenTemplate.enabled).not.toContain('not');
 
     // Else block template append: "Goodbye!" with negative condition
@@ -231,9 +229,7 @@ start_agent main:
       );
     }) as Action;
     expect(elseTemplate).toBeDefined();
-    expect(elseTemplate.enabled).toContain(
-      `not (state.${RUNTIME_CONDITION_VARIABLE})`
-    );
+    expect(elseTemplate.enabled).toContain(`not (state.${CONDITION_SLOT_1})`);
   });
 });
 
@@ -241,8 +237,8 @@ start_agent main:
 // Python: TestSequentialConditionals.test_multiple_sequential_if_statements
 // ---------------------------------------------------------------------------
 
-describe('multiple sequential if statements reuse condition variable', () => {
-  it('should emit two condition captures each writing RUNTIME_CONDITION_VARIABLE', () => {
+describe('multiple sequential if statements reuse condition_1 slot', () => {
+  it('should emit two condition captures each writing condition_1', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -268,23 +264,27 @@ start_agent main:
     // Find all condition capture actions
     const condCaptures = bri.filter((a: Record<string, unknown>) => {
       const updates = a.state_updates as Array<Record<string, string>>;
-      return updates?.some(u => RUNTIME_CONDITION_VARIABLE in u);
+      return updates?.some(u => CONDITION_SLOT_1 in u);
     }) as Action[];
 
-    // Two sequential if statements should produce two condition captures
+    // Two sequential plain ifs should produce two condition captures, both
+    // writing to the SAME slot (condition_1). Reuse is safe because each
+    // plain if writes its slot before its body executes — no later read
+    // crosses the boundary.
     expect(condCaptures.length).toBe(2);
 
-    // Both should target the SAME RUNTIME_CONDITION_VARIABLE (reuse)
     const firstCondValue = (
-      condCaptures[0].state_updates!.find(
-        u => RUNTIME_CONDITION_VARIABLE in u
-      ) as Record<string, string>
-    )[RUNTIME_CONDITION_VARIABLE];
+      condCaptures[0].state_updates!.find(u => CONDITION_SLOT_1 in u) as Record<
+        string,
+        string
+      >
+    )[CONDITION_SLOT_1];
     const secondCondValue = (
-      condCaptures[1].state_updates!.find(
-        u => RUNTIME_CONDITION_VARIABLE in u
-      ) as Record<string, string>
-    )[RUNTIME_CONDITION_VARIABLE];
+      condCaptures[1].state_updates!.find(u => CONDITION_SLOT_1 in u) as Record<
+        string,
+        string
+      >
+    )[CONDITION_SLOT_1];
 
     expect(firstCondValue).toContain('check1');
     expect(secondCondValue).toContain('check2');
@@ -295,6 +295,7 @@ start_agent main:
       return updates?.some(u => 'result1' in u);
     }) as Action;
     expect(result1Set).toBeDefined();
+    expect(result1Set.enabled).toContain(`state.${CONDITION_SLOT_1}`);
 
     // Second if then block
     const result2Set = bri.find((a: Record<string, unknown>) => {
@@ -302,6 +303,7 @@ start_agent main:
       return updates?.some(u => 'result2' in u);
     }) as Action;
     expect(result2Set).toBeDefined();
+    expect(result2Set.enabled).toContain(`state.${CONDITION_SLOT_1}`);
   });
 });
 
@@ -347,6 +349,188 @@ start_agent main:
 });
 
 // ---------------------------------------------------------------------------
+// `else if` chain links — supported syntax, must NOT trigger nested-if warning
+// ---------------------------------------------------------------------------
+
+function findNestedIfWarning(diagnostics: { message: string }[]) {
+  return diagnostics.find(
+    d =>
+      d.message.toLowerCase().includes('nested') &&
+      d.message.toLowerCase().includes('if')
+  );
+}
+
+describe('else if chain links', () => {
+  it('should compile a single else if to per-link suffixed condition slots', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    x: mutable string = "a"
+    seen_a: mutable boolean = False
+    seen_b: mutable boolean = False
+
+start_agent main:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            if @variables.x == "a":
+                set @variables.seen_a = True
+            else if @variables.x == "b":
+                set @variables.seen_b = True
+            | Done
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+
+    expect(output.agent_version.nodes.length).toBe(1);
+    expect(findNestedIfWarning(diagnostics)).toBeUndefined();
+
+    const bri = getBriActions(source, 'main');
+
+    // Two condition-write actions, one per chain link, into condition_1
+    // and condition_2 slots (per-node counter starts at 1).
+    const slot1Write = bri.find((a: Record<string, unknown>) => {
+      const updates = a.state_updates as Array<Record<string, string>>;
+      return updates?.some(u => `${RUNTIME_CONDITION_VARIABLE}_1` in u);
+    }) as Action;
+    expect(slot1Write).toBeDefined();
+    const slot1Cond = (
+      slot1Write.state_updates!.find(
+        u => `${RUNTIME_CONDITION_VARIABLE}_1` in u
+      ) as Record<string, string>
+    )[`${RUNTIME_CONDITION_VARIABLE}_1`];
+    expect(slot1Cond).toContain('state.x == "a"');
+
+    const slot2Write = bri.find((a: Record<string, unknown>) => {
+      const updates = a.state_updates as Array<Record<string, string>>;
+      return updates?.some(u => `${RUNTIME_CONDITION_VARIABLE}_2` in u);
+    }) as Action;
+    expect(slot2Write).toBeDefined();
+    const slot2Cond = (
+      slot2Write.state_updates!.find(
+        u => `${RUNTIME_CONDITION_VARIABLE}_2` in u
+      ) as Record<string, string>
+    )[`${RUNTIME_CONDITION_VARIABLE}_2`];
+    expect(slot2Cond).toContain('state.x == "b"');
+
+    // Branch-a body: gated on slot 1 positive.
+    const branchA = bri.find((a: Record<string, unknown>) => {
+      const updates = a.state_updates as Array<Record<string, string>>;
+      return updates?.some(u => 'seen_a' in u && u['seen_a'] === 'True');
+    }) as Action;
+    expect(branchA).toBeDefined();
+    expect(branchA.enabled).toContain(`state.${RUNTIME_CONDITION_VARIABLE}_1`);
+    expect(branchA.enabled).not.toContain('not');
+
+    // Branch-b body: gated on slot 1 negated AND slot 2 positive. The shared
+    // (unsuffixed) runtime variable is NOT used by chain links.
+    const branchB = bri.find((a: Record<string, unknown>) => {
+      const updates = a.state_updates as Array<Record<string, string>>;
+      return updates?.some(u => 'seen_b' in u && u['seen_b'] === 'True');
+    }) as Action;
+    expect(branchB).toBeDefined();
+    expect(branchB.enabled).toContain(
+      `not (state.${RUNTIME_CONDITION_VARIABLE}_1)`
+    );
+    expect(branchB.enabled).toContain(`state.${RUNTIME_CONDITION_VARIABLE}_2`);
+  });
+
+  it('should compile a multi-link if/else if/else if/else chain', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    x: mutable string = "a"
+    branch: mutable string = ""
+
+start_agent main:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            if @variables.x == "a":
+                set @variables.branch = "a"
+            else if @variables.x == "b":
+                set @variables.branch = "b"
+            else if @variables.x == "c":
+                set @variables.branch = "c"
+            else:
+                set @variables.branch = "other"
+            | Done
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+
+    expect(output.agent_version.nodes.length).toBe(1);
+    expect(findNestedIfWarning(diagnostics)).toBeUndefined();
+
+    const bri = getBriActions(source, 'main');
+    const branchActions = bri.filter((a: Record<string, unknown>) => {
+      const updates = a.state_updates as Array<Record<string, string>>;
+      return updates?.some(u => 'branch' in u);
+    }) as Action[];
+    expect(branchActions).toHaveLength(4);
+
+    // The trailing `else:` body negates every prior chain slot.
+    const elseAction = branchActions.find(a =>
+      (a.state_updates ?? []).some(
+        u => 'branch' in u && u['branch'] === '"other"'
+      )
+    ) as Action;
+    expect(elseAction).toBeDefined();
+    expect(elseAction.enabled).toContain(
+      `not (state.${RUNTIME_CONDITION_VARIABLE}_1)`
+    );
+    expect(elseAction.enabled).toContain(
+      `not (state.${RUNTIME_CONDITION_VARIABLE}_2)`
+    );
+    expect(elseAction.enabled).toContain(
+      `not (state.${RUNTIME_CONDITION_VARIABLE}_3)`
+    );
+
+    // The agent declares condition_1, _2, _3 in state_variables, declared on
+    // demand based on the deepest chain encountered.
+    const stateVarNames = (output.agent_version.state_variables ?? []).map(
+      v => v.developer_name
+    );
+    expect(stateVarNames).toContain(`${RUNTIME_CONDITION_VARIABLE}_1`);
+    expect(stateVarNames).toContain(`${RUNTIME_CONDITION_VARIABLE}_2`);
+    expect(stateVarNames).toContain(`${RUNTIME_CONDITION_VARIABLE}_3`);
+  });
+
+  it('should still warn when a real `if` is nested inside an else: branch', () => {
+    // Regression guard: the nested-if check is only suppressed for chain links
+    // (CST type else_if_clause), not for any IfStatement that happens to live
+    // in another IfStatement's orelse.
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    outer: mutable boolean = True
+    inner: mutable boolean = True
+    flag: mutable boolean = False
+
+start_agent main:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            if @variables.outer:
+                | outer branch
+            else:
+                if @variables.inner:
+                    set @variables.flag = True
+                else:
+                    | inner else
+            | Done
+`;
+    const { diagnostics } = compile(parseSource(source));
+
+    expect(findNestedIfWarning(diagnostics)).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Python: TestConditionalWithTransitions.test_if_else_with_transitions
 // ---------------------------------------------------------------------------
 
@@ -387,14 +571,15 @@ topic login:
     // Condition capture
     const condCapture = afterReasoning.find((a: Record<string, unknown>) => {
       const updates = a.state_updates as Array<Record<string, string>>;
-      return updates?.some(u => RUNTIME_CONDITION_VARIABLE in u);
+      return updates?.some(u => CONDITION_SLOT_1 in u);
     }) as Action;
     expect(condCapture).toBeDefined();
     const condValue = (
-      condCapture.state_updates!.find(
-        u => RUNTIME_CONDITION_VARIABLE in u
-      ) as Record<string, string>
-    )[RUNTIME_CONDITION_VARIABLE];
+      condCapture.state_updates!.find(u => CONDITION_SLOT_1 in u) as Record<
+        string,
+        string
+      >
+    )[CONDITION_SLOT_1];
     expect(condValue).toContain('authenticated');
 
     // Then block: state update setting next_topic = "dashboard"
@@ -409,9 +594,7 @@ topic login:
       }
     ) as Action;
     expect(thenStateUpdate).toBeDefined();
-    expect(thenStateUpdate.enabled).toContain(
-      `state.${RUNTIME_CONDITION_VARIABLE}`
-    );
+    expect(thenStateUpdate.enabled).toContain(`state.${CONDITION_SLOT_1}`);
     expect(thenStateUpdate.enabled).not.toContain('not');
 
     // Then block: handoff to dashboard
@@ -439,7 +622,7 @@ topic login:
     ) as Action;
     expect(elseStateUpdate).toBeDefined();
     expect(elseStateUpdate.enabled).toContain(
-      `not (state.${RUNTIME_CONDITION_VARIABLE})`
+      `not (state.${CONDITION_SLOT_1})`
     );
 
     // Else block: handoff to login
@@ -497,7 +680,7 @@ start_agent main:
     // Condition capture
     const condCapture = afterReasoning.find((a: Record<string, unknown>) => {
       const updates = a.state_updates as Array<Record<string, string>>;
-      return updates?.some(u => RUNTIME_CONDITION_VARIABLE in u);
+      return updates?.some(u => CONDITION_SLOT_1 in u);
     }) as Action;
     expect(condCapture).toBeDefined();
 
@@ -506,7 +689,7 @@ start_agent main:
       (a: Record<string, unknown>) => a.target === 'send_notification'
     ) as Action;
     expect(thenAction).toBeDefined();
-    expect(thenAction.enabled).toContain(`state.${RUNTIME_CONDITION_VARIABLE}`);
+    expect(thenAction.enabled).toContain(`state.${CONDITION_SLOT_1}`);
     expect(thenAction.enabled).not.toContain('not');
     expect(thenAction.bound_inputs).toEqual({ message: '"User notified"' });
 
@@ -515,9 +698,7 @@ start_agent main:
       (a: Record<string, unknown>) => a.target === 'log_event'
     ) as Action;
     expect(elseAction).toBeDefined();
-    expect(elseAction.enabled).toContain(
-      `not (state.${RUNTIME_CONDITION_VARIABLE})`
-    );
+    expect(elseAction.enabled).toContain(`not (state.${CONDITION_SLOT_1})`);
     expect(elseAction.bound_inputs).toEqual({
       event: '"Notification skipped"',
     });

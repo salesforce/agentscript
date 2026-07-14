@@ -74,3 +74,6 @@ export {
   LINT_SOURCE,
   SUGGESTION_THRESHOLD,
 } from './lint-utils.js';
+
+export { inferExpressionType, inferredTypeLabel } from './expression-type.js';
+export type { VariableTypeResolver } from './expression-type.js';

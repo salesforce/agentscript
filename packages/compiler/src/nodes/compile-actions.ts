@@ -64,9 +64,16 @@ function compileActionDefinition(
   def: Record<string, unknown>,
   ctx: CompilerContext
 ): ActionDefinition | undefined {
-  const description = extractSourcedDescription(def['description']) ?? '';
   const label =
     extractSourcedString(def['label']) ?? normalizeDeveloperName(name);
+  const explicitDescription = extractSourcedDescription(def['description']);
+  const description = explicitDescription ?? normalizeDeveloperName(name);
+  if (!explicitDescription) {
+    ctx.info(
+      `Action '${name}' has no description; deriving it from the action name.`,
+      getCstRange(def)
+    );
+  }
 
   const requireUserConfirmation =
     extractSourcedBoolean(def['require_user_confirmation']) ?? false;

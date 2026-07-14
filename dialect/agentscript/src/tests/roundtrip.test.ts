@@ -959,7 +959,6 @@ function expectContentPreserved(source: string) {
     '|',
     'topic',
     'if',
-    'elif',
     'else',
     'run',
     'with',
@@ -1465,6 +1464,165 @@ describe('normalized round-trips — templates', () => {
   });
 });
 
+describe('template whitespace round-trip — continuation column', () => {
+  test('inline template with short key', () => {
+    const source = `system:
+    instructions: | line1
+                    line2 indented`;
+    expect(emitDocument(parseDocument(source))).toBe(source);
+  });
+
+  test('inline template preserves relative indent across key lengths', () => {
+    const source1 = `system:
+    instructions: | line1
+                    line2`;
+    const source2 = `subagent main:
+    label: "Main"
+    description: | line1
+                   line2`;
+    expect(emitDocument(parseDocument(source1))).toBe(source1);
+    expect(emitDocument(parseDocument(source2))).toBe(source2);
+  });
+
+  test('bare pipe multiline template in colinear position', () => {
+    const source = `subagent test:
+    label: "Test"
+    reasoning:
+        instructions: |
+            Line one
+            Line two`;
+    expect(emitDocument(parseDocument(source))).toBe(source);
+  });
+
+  test('bare pipe multiline preserves relative indent', () => {
+    const source = `subagent test:
+    label: "Test"
+    reasoning:
+        instructions: |
+            Line one
+              Line two indented
+            Line three back`;
+    expect(emitDocument(parseDocument(source))).toBe(source);
+  });
+
+  test('colinear inline template with long key name', () => {
+    const source = `subagent test:
+    label: "Test"
+    reasoning:
+        instructions: | Select the best tool to call.
+                        Second line with relative indent.
+                          Third line further indented.`;
+    expect(emitDocument(parseDocument(source))).toBe(source);
+  });
+
+  test('template statement in arrow-form procedure', () => {
+    const source = `subagent main:
+    label: "Main"
+    reasoning:
+        instructions: ->
+            | line1
+              line2 indented`;
+    expect(emitDocument(parseDocument(source))).toBe(source);
+  });
+
+  test('deeply nested template in value position', () => {
+    const source = `subagent outer:
+    label: "Outer"
+    reasoning:
+        instructions: | First level content
+                        with continuation`;
+    expect(emitDocument(parseDocument(source))).toBe(source);
+  });
+
+  test('bare pipe with trailing whitespace preserves relative indent', () => {
+    // Non-canonical source (no space after colon, trailing whitespace on pipe line).
+    // Can't assert emitted === source due to normalization, but content must be correct.
+    const source = [
+      'system:',
+      '    instructions: "You are an AI Agent."',
+      '    messages:',
+      '        welcome:|   ',
+      '         An h1 header',
+      '                    ============',
+    ].join('\n');
+    const ast = parseDocument(source);
+    expect(ast.system!.messages!.welcome!.content).toBe(
+      '\nAn h1 header\n           ============'
+    );
+    const emitted = emitDocument(ast);
+    expect(emitDocument(parseDocument(emitted))).toBe(emitted);
+  });
+
+  test('bare pipe no-space with content indented past pipe', () => {
+    // welcome:| (no space after colon) with content properly indented
+    const source = [
+      'system:',
+      '    instructions: "You are an AI Agent."',
+      '    messages:',
+      '        welcome:|',
+      '                  An h1 header',
+      '                    ============',
+    ].join('\n');
+    const ast = parseDocument(source);
+    expect(ast.system!.messages!.welcome!.content).toBe(
+      'An h1 header\n  ============'
+    );
+    const emitted = emitDocument(ast);
+    expect(emitDocument(parseDocument(emitted))).toBe(emitted);
+  });
+
+  describe('bare pipe preserves relative indent between content lines', () => {
+    function relativeIndent(source: string): number {
+      const lines = source.split('\n');
+      const h1Line = lines.find(l => l.includes('An h1 header'))!;
+      const eqLine = lines.find(l => l.includes('============'))!;
+      return h1Line.search(/\S/) - eqLine.search(/\S/);
+    }
+
+    function expectRelativeIndentStable(source: string) {
+      expect(relativeIndent(emitDocument(parseDocument(source)))).toBe(
+        relativeIndent(source)
+      );
+    }
+
+    test('h1 less indented than separator', () => {
+      const source = [
+        'system:',
+        '    instructions: "You are an AI Agent."',
+        '    messages:',
+        '        welcome: |',
+        '         An h1 header',
+        '                    ============',
+      ].join('\n');
+      expectRelativeIndentStable(source);
+    });
+
+    test('h1 slightly more indented than separator', () => {
+      const source = [
+        'system:',
+        '    instructions: "You are an AI Agent."',
+        '    messages:',
+        '        welcome: |',
+        '                An h1 header',
+        '                    ============',
+      ].join('\n');
+      expectRelativeIndentStable(source);
+    });
+
+    test('h1 much more indented than separator', () => {
+      const source = [
+        'system:',
+        '    instructions: "You are an AI Agent."',
+        '    messages:',
+        '        welcome: |',
+        '                            An h1 header',
+        '                    ============',
+      ].join('\n');
+      expectRelativeIndentStable(source);
+    });
+  });
+});
+
 describe('normalized round-trips — procedures', () => {
   test('before_reasoning with run (arrow dropped by design)', () => {
     // before_reasoning: -> normalizes to before_reasoning: (by design)
@@ -1586,13 +1744,13 @@ describe('normalized round-trips — procedures', () => {
             run @actions.wait`);
   });
 
-  test('if-elif-else', () => {
+  test('if-else if-else', () => {
     expectNormalizedRoundTrip(`topic main:
     label: "Main"
     after_reasoning:
         if @variables.state == "a":
             run @actions.a
-        elif @variables.state == "b":
+        else if @variables.state == "b":
             run @actions.b
         else:
             run @actions.c`);
@@ -2706,7 +2864,7 @@ topic main:
     expect(emitted).toContain('invalid');
   });
 
-  test('elif with broken condition', () => {
+  test('else if with broken condition', () => {
     // Tree-sitter loses `@@@` tokens from broken condition.
     // Re-parse not idempotent due to fragmentation.
     // Verify parse + emit doesn't crash and key content survives.
@@ -2715,7 +2873,7 @@ topic main:
     after_reasoning:
         if @variables.ok:
             run @actions.a
-        elif @@@ invalid:
+        else if @@@ invalid:
             run @actions.b
         else:
             run @actions.c`);

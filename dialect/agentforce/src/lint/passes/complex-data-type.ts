@@ -25,6 +25,7 @@ import {
   attachDiagnostic,
   lintDiagnostic,
   isNamedMap,
+  isAstNodeLike,
   schemaContextKey,
   resolveNamespaceKeys,
 } from '@agentscript/language';
@@ -33,9 +34,9 @@ import { DiagnosticSeverity } from '@agentscript/types';
 import { getBlockRange as getDeclRange } from '../utils.js';
 
 /** Get type text from a declaration's `type` field via CST source. */
-function getTypeText(decl: Record<string, unknown>): string | null {
-  const type = decl.type as Record<string, unknown> | undefined;
-  if (!type) return null;
+function getTypeText(decl: AstNodeLike): string | null {
+  const type = decl.type;
+  if (!isAstNodeLike(type)) return null;
   const cst = type.__cst as CstMeta | undefined;
   return cst?.node?.text?.trim() ?? null;
 }
@@ -72,30 +73,26 @@ class ComplexDataTypePass implements LintPass {
     const ctx = store.get(schemaContextKey);
     if (!ctx) return;
 
-    const rootObj = root as AstNodeLike;
-
     const allKeys = new Set([
       ...resolveNamespaceKeys('topic', ctx),
       ...resolveNamespaceKeys('subagent', ctx),
     ]);
 
     for (const topicKey of allKeys) {
-      const topicMap = rootObj[topicKey];
-      if (!topicMap || !isNamedMap(topicMap)) continue;
+      const topicMap = root[topicKey];
+      if (!isNamedMap(topicMap)) continue;
 
-      for (const [, block] of topicMap as NamedMap<unknown>) {
-        if (!block || typeof block !== 'object') continue;
-        const topic = block as AstNodeLike;
+      for (const [, block] of topicMap) {
+        if (!isAstNodeLike(block)) continue;
 
-        const actionsMap = topic.actions;
-        if (!actionsMap || !isNamedMap(actionsMap)) continue;
+        const actionsMap = block.actions;
+        if (!isNamedMap(actionsMap)) continue;
 
-        for (const [actionName, actBlock] of actionsMap as NamedMap<unknown>) {
-          if (!actBlock || typeof actBlock !== 'object') continue;
-          const act = actBlock as Record<string, unknown>;
+        for (const [actionName, actBlock] of actionsMap) {
+          if (!isAstNodeLike(actBlock)) continue;
 
-          this.checkDecls(act.inputs, actionName, 'input');
-          this.checkDecls(act.outputs, actionName, 'output');
+          this.checkDecls(actBlock.inputs, actionName, 'input');
+          this.checkDecls(actBlock.outputs, actionName, 'output');
         }
       }
     }
@@ -109,14 +106,12 @@ class ComplexDataTypePass implements LintPass {
     if (!decls || !isNamedMap(decls)) return;
 
     for (const [paramName, decl] of decls as NamedMap<unknown>) {
-      if (!decl || typeof decl !== 'object') continue;
-      const obj = decl as AstNodeLike;
-      const typeText = getTypeText(obj as Record<string, unknown>);
+      if (!isAstNodeLike(decl)) continue;
+      const obj = decl;
+      const typeText = getTypeText(obj);
       if (!typeText) continue;
 
-      const props = (obj as Record<string, unknown>).properties as
-        | Record<string, unknown>
-        | undefined;
+      const props = obj.properties as Record<string, unknown> | undefined;
       const hasComplexDataTypeField = hasStringField(
         props,
         'complex_data_type_name'

@@ -1,0 +1,37 @@
+config:
+    agent_name: "Comms_Preference_Collect"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    communication_preference: mutable string
+        description: "How the user prefers to be contacted — 'email' or 'phone'."
+    contact_email: mutable string
+        description: "Email address to contact the user."
+    contact_phone: mutable string
+        description: "Phone number to contact the user."
+
+start_agent router:
+    description: "Top-level router. Sends the user to comms preference intake."
+    reasoning:
+        instructions: ->
+            | Determine whether the user wants to set their contact preference.
+            | If so, call {!@actions.go_to_intake} immediately.
+        actions:
+            go_to_intake: @utils.transition to @subagent.comms_intake
+                description: "Route to comms intake."
+
+subagent comms_intake:
+    description: "Gather the communication preference, then branch to email or phone."
+    reasoning:
+        instructions: ->
+            collect @variables.communication_preference:
+                message: "How would you like us to contact you — email or phone?"
+
+            if @variables.communication_preference == "email":
+                collect @variables.contact_email:
+                    message: "What is your email address?"
+
+            if @variables.communication_preference == "phone":
+                collect @variables.contact_phone:
+                    message: "What is your phone number?"

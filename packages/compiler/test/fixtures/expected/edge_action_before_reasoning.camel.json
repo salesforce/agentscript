@@ -1,0 +1,407 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "EdgeActionBeforeReasoning",
+    "label": "Edge Action Before Reasoning",
+    "description": "Tests before_reasoning block with run @actions, conditionals, and set",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "customer_id",
+        "label": "Customer Id",
+        "description": "Customer ID from context",
+        "dataType": "string"
+      }
+    ],
+    "defaultAgentUser": "admin@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "account_status",
+        "label": "Account Status",
+        "description": "Account status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "is_verified",
+        "label": "Is Verified",
+        "description": "Verification status",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "balance",
+        "label": "Balance",
+        "description": "Account balance",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "has_open_cases",
+        "label": "Has Open Cases",
+        "description": "Whether customer has open cases",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "open_case_count",
+        "label": "Open Case Count",
+        "description": "Number of open cases",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "welcome_message",
+        "label": "Welcome Message",
+        "description": "Customized welcome message",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Pre-process customer data before reasoning",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "'__human__'"
+              }
+            ],
+            "name": "escalate_to_human",
+            "description": "Escalate to human agent"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "get_customer",
+            "label": "Get Customer",
+            "description": "Get customer details",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Get_Customer",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "name",
+                "label": "Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "verified",
+                "label": "Verified",
+                "description": "Verified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "balance",
+                "label": "Balance",
+                "description": "Balance",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "get_open_cases",
+            "label": "Get Open Cases",
+            "description": "Get open case count",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Get_Open_Cases",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "count",
+                "label": "Count",
+                "description": "Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "has_cases",
+                "label": "Has Cases",
+                "description": "Has Cases",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "log_visit",
+            "label": "Log Visit",
+            "description": "Log customer visit",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Log_Visit",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer Id",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "channel",
+                "label": "Channel",
+                "description": "Channel",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "logged",
+                "label": "Logged",
+                "description": "Logged",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a pre-processing agent that runs actions before reasoning.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nCustomer data has been pre-loaded. Help the customer based on their status.\nIf they have open cases, reference those first."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "get_customer",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "customer_name": "result.name"
+              },
+              {
+                "account_status": "result.status"
+              },
+              {
+                "is_verified": "result.verified"
+              },
+              {
+                "balance": "result.balance"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.is_verified == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "get_open_cases",
+            "boundInputs": {
+              "customer_id": "variables.customer_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "open_case_count": "result.count"
+              },
+              {
+                "has_open_cases": "result.has_cases"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.account_status == \"suspended\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "welcome_message": "\"Your account is currently suspended. Let me help you resolve this.\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "log_visit",
+            "boundInputs": {
+              "customer_id": "variables.customer_id",
+              "channel": "\"messaging\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (not (state.AgentScriptInternal_condition_1))"
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "__human__",
+            "enabled": "state.AgentScriptInternal_next_topic == '__human__'",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

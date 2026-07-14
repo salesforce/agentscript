@@ -20,10 +20,6 @@ import {
   RunStatement,
 } from '../core/statements.js';
 
-const ELIF_MESSAGE =
-  "AgentScript does not support 'elif'. " +
-  "Restructure as nested 'if'/'else' blocks or separate 'if' statements.";
-
 const NESTED_IF_MESSAGE =
   "AgentScript does not support nested 'if' statements. " +
   "Combine conditions with 'and'/'or', or restructure the logic.";
@@ -36,23 +32,10 @@ function isStatement(value: unknown): value is Statement {
   );
 }
 
-function isElifClause(stmt: IfStatement): boolean {
-  return stmt.__cst?.node?.type === 'elif_clause';
-}
-
-function flagElif(stmt: IfStatement): void {
-  const range = stmt.__cst?.range;
-  if (!range) return;
-  if (!isAstNodeLike(stmt)) return;
-  attachDiagnostic(
-    stmt,
-    lintDiagnostic(
-      range,
-      ELIF_MESSAGE,
-      DiagnosticSeverity.Error,
-      'unsupported-elif'
-    )
-  );
+// `else if` chain links surface as IfStatements in the parent's `orelse`,
+// distinguished from a user-written nested `if` only by their CST type.
+function isElseIfChainLink(stmt: IfStatement): boolean {
+  return stmt.__cst?.node?.type === 'else_if_clause';
 }
 
 function flagNestedIf(stmt: IfStatement): void {
@@ -72,16 +55,14 @@ function flagNestedIf(stmt: IfStatement): void {
 
 /**
  * Walk a list of statements that lives *inside* another IfStatement
- * (its body or its orelse). Any IfStatement found here is either an
- * elif chain link (CST type `elif_clause`) or a real nested if; we flag
- * accordingly and recurse into the next level.
+ * (its body or its orelse). `else if` chain links (CST type `else_if_clause`)
+ * are part of the supported syntax and pass through; user-written nested
+ * `if` statements get flagged.
  */
 function checkInside(stmts: readonly Statement[]): void {
   for (const stmt of stmts) {
     if (!(stmt instanceof IfStatement)) continue;
-    if (isElifClause(stmt)) {
-      flagElif(stmt);
-    } else {
+    if (!isElseIfChainLink(stmt)) {
       flagNestedIf(stmt);
     }
     checkInside(stmt.body);
@@ -114,7 +95,7 @@ function checkProcedure(stmts: readonly unknown[]): void {
 class UnsupportedConditionalsPass implements LintPass {
   readonly id = storeKey('unsupported-conditionals');
   readonly description =
-    "Flags 'elif' and nested 'if' statements as unsupported by the AgentScript language spec.";
+    "Flags nested 'if' statements as unsupported by the AgentScript language spec.";
 
   private procedures: AstNodeLike[] = [];
 

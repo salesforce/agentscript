@@ -25,7 +25,6 @@ import { parseSource } from './test-utils.js';
 import {
   ALWAYS_PRESENT_STATE_VARIABLES,
   INSTRUCTION_STATE_VARIABLE,
-  CONDITION_STATE_VARIABLE,
   DEFAULT_PLANNER_TYPE,
 } from '../src/constants.js';
 
@@ -92,11 +91,11 @@ topic secondary:
     expect(av.modality_parameters.language).toBeDefined();
     expect(av.modality_parameters.language?.default_locale).toBe('en_US');
 
-    // State variables include built-in + user-defined
+    // State variables include built-in + user-defined. The fixture has no
+    // if/else, so no AgentScriptInternal_condition_N slot is declared.
     const varNames = av.state_variables?.map(v => v.developer_name) ?? [];
     expect(varNames).toContain('AgentScriptInternal_next_topic');
     expect(varNames).toContain('AgentScriptInternal_agent_instructions');
-    expect(varNames).toContain('AgentScriptInternal_condition');
     expect(varNames).toContain('test_var');
 
     // No schema-validation diagnostics for valid input
@@ -349,11 +348,12 @@ start_agent main:
     const { output } = compileSource(source);
     const vars = output.agent_version.state_variables ?? [];
 
-    // Should have the always-present variables plus instruction + condition
+    // Always-present variables: next_topic + agent_instructions. The
+    // condition slots are not declared here because the fixture has no
+    // if/else.
     const builtInNames = [
       ...ALWAYS_PRESENT_STATE_VARIABLES.map(v => v.developer_name),
       INSTRUCTION_STATE_VARIABLE.developer_name,
-      CONDITION_STATE_VARIABLE.developer_name,
     ];
 
     for (const name of builtInNames) {

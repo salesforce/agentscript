@@ -72,6 +72,7 @@ export {
 
 export {
   StringValue,
+  NullableStringValue,
   NumberValue,
   BooleanValue,
   ProcedureValue,
@@ -96,6 +97,11 @@ export {
   NamedCollectionBlock,
 } from './collection-block-factory.js';
 export { TypedMap } from './typed-map-factory.js';
+export { TypeDescriptor, TypeDescriptorNode } from './type-descriptor.js';
+export type {
+  TypeDescriptorOptions,
+  TypeParameterSchemaMap,
+} from './type-descriptor.js';
 
 export type {
   BlockClass,
@@ -171,6 +177,7 @@ export {
   isMemberExpression,
   isIdentifier,
   isStringLiteral,
+  isNoneLiteral,
   isSubscriptExpression,
   isAtIdentifier,
   isIfStatement,

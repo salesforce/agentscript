@@ -1,9 +1,16 @@
 #!/usr/bin/env tsx
 
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 /**
- * Regenerate the expected YAML fixtures used by `test/compare-all.test.ts`.
+ * Regenerate the expected JSON fixtures used by `test/compare-all.test.ts`.
  *
- * The fixture pair list is imported directly from the test file, so the script
+ * The fixture list is imported directly from the test module, so the script
  * and the test stay in sync.
  *
  * Use this whenever a deliberate compiler-output change makes the parity test
@@ -20,14 +27,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stringify as yamlStringify } from 'yaml';
 import { parse } from '@agentscript/parser';
 import { Dialect } from '@agentscript/language';
 import { AgentforceSchema } from '@agentscript/agentforce-dialect';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
+import { snakeKeysToCamel } from '../src/snake-to-camel.js';
+import { agentDslAuthoring } from '../src/types.js';
 import { toParsedAgentforce } from '../test/test-utils.js';
-import { FIXTURE_PAIRS } from '../test/fixture-pairs.js';
+import { FIXTURES, fixtureBase } from '../test/fixture-pairs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,9 +43,15 @@ const __dirname = path.dirname(__filename);
 const SCRIPTS_DIR = path.resolve(__dirname, '../test/fixtures/scripts');
 const EXPECTED_DIR = path.resolve(__dirname, '../test/fixtures/expected');
 
-function regenOne(agentFile: string, yamlFile: string): 'updated' | 'skipped' {
+function writeJson(file: string, value: unknown): void {
+  // JSON.parse(JSON.stringify(...)) strips Sourced<T> wrappers and any
+  // non-serializable fields, matching what the test will compare against.
+  const serializable = JSON.parse(JSON.stringify(value));
+  fs.writeFileSync(file, JSON.stringify(serializable, null, 2) + '\n', 'utf-8');
+}
+
+function regenOne(agentFile: string): 'updated' | 'skipped' {
   const agentPath = path.join(SCRIPTS_DIR, agentFile);
-  const expectedPath = path.join(EXPECTED_DIR, yamlFile);
   if (!fs.existsSync(agentPath)) {
     console.warn(`SKIP ${agentFile}: source file not found`);
     return 'skipped';
@@ -63,16 +77,29 @@ function regenOne(agentFile: string, yamlFile: string): 'updated' | 'skipped' {
     );
     return 'skipped';
   }
-  fs.writeFileSync(expectedPath, yamlStringify(compiled.output), 'utf-8');
+
+  const base = fixtureBase(agentFile);
+  writeJson(path.join(EXPECTED_DIR, `${base}.snake.json`), compiled.output);
+
+  const camelOut = snakeKeysToCamel(
+    compiled.output,
+    compiled.ranges,
+    agentDslAuthoring
+  ).value;
+  writeJson(path.join(EXPECTED_DIR, `${base}.camel.json`), camelOut);
+
   return 'updated';
 }
 
 function main(): void {
-  console.log(`Regenerating ${FIXTURE_PAIRS.length} fixtures...`);
+  if (!fs.existsSync(EXPECTED_DIR)) {
+    fs.mkdirSync(EXPECTED_DIR, { recursive: true });
+  }
+  console.log(`Regenerating ${FIXTURES.length} fixtures...`);
   let updated = 0;
   let skipped = 0;
-  for (const [agent, yaml] of FIXTURE_PAIRS) {
-    if (regenOne(agent, yaml) === 'updated') updated++;
+  for (const agent of FIXTURES) {
+    if (regenOne(agent) === 'updated') updated++;
     else skipped++;
   }
   console.log(`\nUpdated: ${updated}, Skipped: ${skipped}`);

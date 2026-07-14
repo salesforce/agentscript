@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import {
   NamedMap,
   ParameterDeclarationNode,
@@ -43,6 +50,18 @@ export const COMMERCE_SHOPPER_BYO_CLIENT: BYOClientConfig = {
   },
 };
 
+/**
+ * Hardcoded byo_client configuration for the Tableau Analyze Data variant.
+ * Users don't write byo_client in .agent files — it's derived from the schema URI.
+ */
+export const TABLEAU_ANALYZE_DATA_BYO_CLIENT: BYOClientConfig = {
+  client_ref: 'icr-default',
+  configuration: {
+    node_type_id: 'waii_analytics_agent',
+    node_namespace: 'waiianalyticsagent',
+  },
+};
+
 const NODE_URI_SCHEME = 'node://';
 const BYON_PATH_PREFIX = 'byon/';
 
@@ -76,9 +95,12 @@ export function deriveByonClient(
 /**
  * Compile a custom subagent block into a BYONNode.
  *
- * The byo_client configuration is determined by the schema discriminant value.
- * Currently supports:
- *   - node://commerce/shopper_agent/v1 → icr-commerce-shopper / commerce_cloud_shopper
+ * The byo_client configuration is determined by the schema discriminant value
+ * via `resolveByoClient` in compile-agent-version.ts. Named variants (exact URI
+ * match) take precedence over the generic node://byon/* derivation:
+ *   - node://commerce/shopper_agent/v1 → COMMERCE_SHOPPER_BYO_CLIENT
+ *   - node://tableau/analyze_data/v1   → TABLEAU_ANALYZE_DATA_BYO_CLIENT
+ *   - node://byon/<namespace>/<type>/<version> → derived via deriveByonClient()
  */
 export function compileCustomSubagentNode(
   name: string,

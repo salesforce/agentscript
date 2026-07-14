@@ -12,10 +12,13 @@ import {
   CallExpression,
   ComparisonExpression,
   decomposeAtMemberExpression,
+  Identifier,
   TernaryExpression,
   UnaryExpression,
 } from '@agentscript/language';
-import { normalizeId } from '../../utils.js';
+import { normalizeId } from '../../../utils.js';
+import { TRANSITION_TARGET_NAMESPACES } from '../../../constants.js';
+
 export const AGENTFABRIC_LINT_SOURCE = 'agentfabric-lint';
 const ERROR_SEVERITY = 1;
 const WARNING_SEVERITY = 2;
@@ -143,14 +146,7 @@ export function hasOwnNonNull(
   );
 }
 
-const SWITCH_TARGET_NAMESPACES = new Set([
-  'orchestrator',
-  'subagent',
-  'generator',
-  'executor',
-  'router',
-  'echo',
-]);
+const SWITCH_TARGET_NAMESPACES = new Set<string>(TRANSITION_TARGET_NAMESPACES);
 
 export function extractSwitchTarget(value: unknown): string | undefined {
   const candidates: unknown[] = [value];
@@ -234,4 +230,43 @@ export function isBooleanLikeExpression(
     default:
       return false;
   }
+}
+
+interface ComparisonLike {
+  __kind?: string;
+  left?: unknown;
+  right?: unknown;
+}
+
+interface IdentifierLike {
+  __kind?: string;
+  name?: string;
+}
+
+const BOOLEAN_IDENTIFIER_NAMES = new Set(['true', 'false']);
+
+function isBooleanLikeOperand(operand: unknown): boolean {
+  if (operand == null || typeof operand !== 'object') return false;
+  const node = operand as ExpressionLike;
+  if (node.__kind === BooleanLiteral.kind) return true;
+  if (node.__kind === Identifier.kind) {
+    const id = operand as IdentifierLike;
+    return BOOLEAN_IDENTIFIER_NAMES.has(id.name ?? '');
+  }
+  return false;
+}
+
+/**
+ * Detects comparisons where one operand is a boolean literal or an
+ * identifier that looks like a boolean (`true`/`false`). The grammar
+ * only recognises `True`/`False` as `BooleanLiteral`; lowercase
+ * variants are parsed as `Identifier` and produce broken runtime
+ * expressions.
+ */
+export function hasBooleanLiteralComparison(value: unknown): boolean {
+  if (value == null || typeof value !== 'object') return false;
+  const expr = value as ComparisonLike;
+  if (expr.__kind !== ComparisonExpression.kind) return false;
+
+  return isBooleanLikeOperand(expr.left) || isBooleanLikeOperand(expr.right);
 }

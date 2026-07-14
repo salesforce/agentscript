@@ -1,0 +1,2864 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "prescription_mgmt_agent_v13",
+    "label": "Prescription Mgmt Agent V 13",
+    "description": "Assists users with prescription management through the prescription management agent workflow.",
+    "enableEnhancedEventLogs": true,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "prescription_mgmt@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I am your Prescription Management Agent Assistant. How can I help you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I apologize, something went wrong on my end. Could you please rephrase your request?",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "prescription_record_id",
+        "label": "Prescription Record Id",
+        "description": "Record ID of the prescription",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "prescription_status",
+        "label": "Prescription Status",
+        "description": "Current status of the prescription",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "prescription_tier",
+        "label": "Prescription Tier",
+        "description": "Tier classification for the prescription",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developerName": "prescription_category",
+        "label": "Prescription Category",
+        "description": "Category of the prescription",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "contact_name",
+        "label": "Contact Name",
+        "description": "Full name of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_email",
+        "label": "Contact Email",
+        "description": "Email address of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "contact_phone",
+        "label": "Contact Phone",
+        "description": "Phone number of the contact",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "is_verified",
+        "label": "Is Verified",
+        "description": "Whether the user identity is verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "eligibility_score",
+        "label": "Eligibility Score",
+        "description": "Calculated eligibility score",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "step_counter",
+        "label": "Step Counter",
+        "description": "Current step in the process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "attempt_count",
+        "label": "Attempt Count",
+        "description": "Number of attempts made",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "total_items_count",
+        "label": "Total Items Count",
+        "description": "Total number of items to process",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "request_capture_complete",
+        "label": "Request Capture Complete",
+        "description": "Whether the request_capture stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "request_capture_result",
+        "label": "Request Capture Result",
+        "description": "Result from the request_capture stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "eligibility_check_complete",
+        "label": "Eligibility Check Complete",
+        "description": "Whether the eligibility_check stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "eligibility_check_result",
+        "label": "Eligibility Check Result",
+        "description": "Result from the eligibility_check stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "fulfillment_complete",
+        "label": "Fulfillment Complete",
+        "description": "Whether the fulfillment stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "fulfillment_result",
+        "label": "Fulfillment Result",
+        "description": "Result from the fulfillment stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "followup_complete",
+        "label": "Followup Complete",
+        "description": "Whether the followup stage is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "followup_result",
+        "label": "Followup Result",
+        "description": "Result from the followup stage",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "priority_level",
+        "label": "Priority Level",
+        "description": "Priority level of the request",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developerName": "notes_text",
+        "label": "Notes Text",
+        "description": "Notes and comments",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "assigned_agent",
+        "label": "Assigned Agent",
+        "description": "Assigned agent name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "resolution_summary",
+        "label": "Resolution Summary",
+        "description": "Summary of the resolution",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "escalation_requested",
+        "label": "Escalation Requested",
+        "description": "Whether escalation was requested",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "is_business_hours",
+        "label": "Is Business Hours",
+        "description": "Whether it is currently business hours",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "case_ref_number",
+        "label": "Case Ref Number",
+        "description": "Reference number for the support case",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "next_available_slot",
+        "label": "Next Available Slot",
+        "description": "Next available time slot",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "topic_selector",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Welcome the user and route to the appropriate prescription management topic",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"request_capture\""
+              }
+            ],
+            "name": "go_to_request_capture",
+            "description": "Transition to request capture topic."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"eligibility_check\""
+              }
+            ],
+            "name": "go_to_eligibility_check",
+            "description": "Transition to eligibility check topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"fulfillment\""
+              }
+            ],
+            "name": "go_to_fulfillment",
+            "description": "Transition to fulfillment topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"followup\""
+              }
+            ],
+            "name": "go_to_followup",
+            "description": "Transition to followup topic.",
+            "enabled": "state.is_verified == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "go_to_escalation",
+            "description": "Escalate to a human agent for assistance.",
+            "enabled": "state.is_verified == True"
+          }
+        ],
+        "developerName": "topic_selector",
+        "label": "Topic Selector",
+        "actionDefinitions": [],
+        "instructions": "You are a professional prescription management agent assistant.\nHelp users manage their prescription requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: request_capture -> eligibility_check -> fulfillment -> followup.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nYou are a topic selector for a prescription management agent assistant.\nAnalyze the user's input and determine the most appropriate topic.\nCurrent prescription status: {{state.prescription_status}}\nEligibility score: {{state.eligibility_score}}\nSteps completed: {{state.step_counter}}\nPriority: {{state.priority_level}}\nUse go_to_request_capture for request capture requests.\nUse go_to_eligibility_check for eligibility check requests.\nUse go_to_fulfillment for fulfillment requests.\nUse go_to_followup for followup requests.\nUse go_to_escalation to escalate if the user is upset or requests a human."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "request_capture",
+            "enabled": "state.AgentScriptInternal_next_topic==\"request_capture\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "eligibility_check",
+            "enabled": "state.AgentScriptInternal_next_topic==\"eligibility_check\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "fulfillment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"fulfillment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "followup",
+            "enabled": "state.AgentScriptInternal_next_topic==\"followup\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the request capture stage of the prescription process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_request_capture_data",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.prescription_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "request_capture_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "request_capture_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_request_capture"
+          },
+          {
+            "type": "action",
+            "target": "fetch_request_capture_details",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "prescription_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_request_capture_info"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"eligibility_check\""
+              }
+            ],
+            "name": "go_to_eligibility_check",
+            "description": "Move to eligibility check stage.",
+            "enabled": "state.request_capture_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          }
+        ],
+        "developerName": "request_capture",
+        "label": "Request Capture",
+        "actionDefinitions": [
+          {
+            "developerName": "process_request_capture_data",
+            "label": "Process Request Capture Data",
+            "description": "Process request capture stage data for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_RequestCapture_Data",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_request_capture_info",
+            "label": "Validate Request Capture Info",
+            "description": "Validate request capture information for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_RequestCapture_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_request_capture_details",
+            "label": "Fetch Request Capture Details",
+            "description": "Fetch request capture details for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_RequestCapture_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional prescription management agent assistant.\nHelp users manage their prescription requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: request_capture -> eligibility_check -> fulfillment -> followup.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the request capture stage for the prescription.\nCurrent prescription status: {{state.prescription_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nRequest Capture result: {{state.request_capture_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.prescription_tier}}\nIf the contact information is missing, ask the user to provide their name and email.\nAfter collecting information, use run_request_capture to begin processing."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.is_verified == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "validate_request_capture_info",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "contact_ref": "state.contact_email"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "prescription_status": "result.updated_status"
+              },
+              {
+                "is_verified": "result.is_valid"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.request_capture_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "eligibility_check",
+            "enabled": "state.AgentScriptInternal_next_topic==\"eligibility_check\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the eligibility check stage of the prescription process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_eligibility_check_data",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.prescription_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "eligibility_check_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "eligibility_check_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_eligibility_check"
+          },
+          {
+            "type": "action",
+            "target": "fetch_eligibility_check_details",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "prescription_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_eligibility_check_info",
+            "enabled": "state.prescription_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"fulfillment\""
+              }
+            ],
+            "name": "go_to_fulfillment",
+            "description": "Move to fulfillment stage.",
+            "enabled": "state.eligibility_check_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "eligibility_check",
+        "label": "Eligibility Check",
+        "actionDefinitions": [
+          {
+            "developerName": "process_eligibility_check_data",
+            "label": "Process Eligibility Check Data",
+            "description": "Process eligibility check stage data for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "Process_EligibilityCheck",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_eligibility_check_info",
+            "label": "Validate Eligibility Check Info",
+            "description": "Validate eligibility check information for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_EligibilityCheck_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_eligibility_check_details",
+            "label": "Fetch Eligibility Check Details",
+            "description": "Fetch eligibility check details for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_EligibilityCheck_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional prescription management agent assistant.\nHelp users manage their prescription requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: request_capture -> eligibility_check -> fulfillment -> followup.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the eligibility check stage for the prescription.\nCurrent prescription status: {{state.prescription_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nEligibility Check result: {{state.eligibility_check_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.prescription_tier}}\nReview the eligibility check results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.request_capture_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"request_capture\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "request_capture",
+            "enabled": "state.AgentScriptInternal_next_topic==\"request_capture\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_check_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_status": "\"eligibility_check_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_check_complete == True and state.eligibility_score >= 50"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"fulfillment\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "fulfillment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"fulfillment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.eligibility_check_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "fulfillment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"fulfillment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the fulfillment stage of the prescription process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_fulfillment_data",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.prescription_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "fulfillment_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "fulfillment_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_fulfillment"
+          },
+          {
+            "type": "action",
+            "target": "fetch_fulfillment_details",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "prescription_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_fulfillment_info",
+            "enabled": "state.prescription_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"followup\""
+              }
+            ],
+            "name": "go_to_followup",
+            "description": "Move to followup stage.",
+            "enabled": "state.fulfillment_complete == True and state.eligibility_score >= 50"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "fulfillment",
+        "label": "Fulfillment",
+        "actionDefinitions": [
+          {
+            "developerName": "process_fulfillment_data",
+            "label": "Process Fulfillment Data",
+            "description": "Process fulfillment stage data for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "Process_Fulfillment",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_fulfillment_info",
+            "label": "Validate Fulfillment Info",
+            "description": "Validate fulfillment information for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Fulfillment_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_fulfillment_details",
+            "label": "Fetch Fulfillment Details",
+            "description": "Fetch fulfillment details for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Fulfillment_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional prescription management agent assistant.\nHelp users manage their prescription requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: request_capture -> eligibility_check -> fulfillment -> followup.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the fulfillment stage for the prescription.\nCurrent prescription status: {{state.prescription_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nFulfillment result: {{state.fulfillment_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.prescription_tier}}\nReview the fulfillment results and determine next steps.\nEligibility score: {{state.eligibility_score}}\nIf the score is sufficient, proceed to the next stage.\nIf the user has concerns, address them before proceeding."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.fulfillment_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "fetch_fulfillment_details",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "include_history": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "fulfillment_result": "result.detail_data"
+              },
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "prescription_tier": "result.tier_value"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 40 and state.eligibility_score < 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"standard\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 40"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.fulfillment_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "followup",
+            "enabled": "state.AgentScriptInternal_next_topic==\"followup\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handles the followup stage of the prescription process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "process_followup_data",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "step_num": "state.step_counter",
+              "category_val": "state.prescription_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "followup_result": "result.result_code"
+              },
+              {
+                "eligibility_score": "result.score_value"
+              },
+              {
+                "followup_complete": "result.is_passed"
+              }
+            ],
+            "name": "run_followup"
+          },
+          {
+            "type": "action",
+            "target": "fetch_followup_details",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "include_history": "False"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "total_items_count": "result.item_count"
+              },
+              {
+                "prescription_tier": "result.tier_value"
+              }
+            ],
+            "name": "fetch_followup_info",
+            "enabled": "state.prescription_record_id is not None"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"escalation_handling\""
+              }
+            ],
+            "name": "escalate_now",
+            "description": "Escalate if issues arise.",
+            "enabled": "state.escalation_requested == True"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "back_to_start",
+            "description": "Return to topic selector."
+          }
+        ],
+        "developerName": "followup",
+        "label": "Followup",
+        "actionDefinitions": [
+          {
+            "developerName": "process_followup_data",
+            "label": "Process Followup Data",
+            "description": "Process followup stage data for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_Followup_Data",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "step_num",
+                "label": "Step Num",
+                "description": "Step Num",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "category_val",
+                "label": "Category Val",
+                "description": "Category Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result_code",
+                "label": "Result Code",
+                "description": "Result Code",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "result_message",
+                "label": "Result Message",
+                "description": "Result Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "score_value",
+                "label": "Score Value",
+                "description": "Score Value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "is_passed",
+                "label": "Is Passed",
+                "description": "Is Passed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "validate_followup_info",
+            "label": "Validate Followup Info",
+            "description": "Validate followup information for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Validate_Followup_Info",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_ref",
+                "label": "Contact Ref",
+                "description": "Contact Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "is_valid",
+                "label": "Is Valid",
+                "description": "Is Valid",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "error_msg",
+                "label": "Error Msg",
+                "description": "Error Msg",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "updated_status",
+                "label": "Updated Status",
+                "description": "Updated Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "fetch_followup_details",
+            "label": "Fetch Followup Details",
+            "description": "Fetch followup details for the prescription",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Fetch_Followup_Details",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "include_history",
+                "label": "Include History",
+                "description": "Include History",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "detail_data",
+                "label": "Detail Data",
+                "description": "Detail Data",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "item_count",
+                "label": "Item Count",
+                "description": "Item Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "tier_value",
+                "label": "Tier Value",
+                "description": "Tier Value",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "last_updated",
+                "label": "Last Updated",
+                "description": "Last Updated",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional prescription management agent assistant.\nHelp users manage their prescription requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: request_capture -> eligibility_check -> fulfillment -> followup.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle the followup stage for the prescription.\nCurrent prescription status: {{state.prescription_status}}\nStep {{state.step_counter + 1}} of the process.\nAttempts so far: {{state.attempt_count}}\nContact: {{state.contact_name}} ({{state.contact_email}})\nFollowup result: {{state.followup_result}}\nPriority level: {{state.priority_level}}\nCurrent tier: {{state.prescription_tier}}\nThis is the final stage. Review all results and provide a summary.\nTotal items processed: {{state.total_items_count}}\nIf all stages passed, confirm completion. Otherwise offer to retry or escalate."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count > 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.fulfillment_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"fulfillment\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "fulfillment",
+            "enabled": "state.AgentScriptInternal_next_topic==\"fulfillment\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"premium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.eligibility_score < 20"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_tier": "\"basic\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "step_counter": "state.step_counter + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "attempt_count": "state.attempt_count + 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.followup_complete == True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_status": "\"followup_done\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 3 and state.followup_complete == False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "priority_level": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempt_count >= 5"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "escalation_requested": "True"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "escalation_handling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"escalation_handling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Handle escalation and case creation for prescription issues",
+        "tools": [
+          {
+            "type": "action",
+            "target": "create_support_case",
+            "boundInputs": {
+              "case_subject": "state.prescription_status",
+              "case_detail": "state.notes_text",
+              "record_ref": "state.prescription_record_id",
+              "priority_val": "state.priority_level"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "case_ref_number": "result.case_ref"
+              },
+              {
+                "assigned_agent": "result.assigned_to"
+              }
+            ],
+            "name": "create_case"
+          },
+          {
+            "type": "action",
+            "target": "generate_summary",
+            "boundInputs": {
+              "record_ref": "state.prescription_record_id",
+              "notes_val": "state.notes_text"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "resolution_summary": "result.summary_text"
+              }
+            ],
+            "name": "get_summary"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"topic_selector\""
+              }
+            ],
+            "name": "return_to_selector",
+            "description": "Return to topic selector after escalation."
+          }
+        ],
+        "developerName": "escalation_handling",
+        "label": "Escalation Handling",
+        "actionDefinitions": [
+          {
+            "developerName": "check_hours",
+            "label": "Check Hours",
+            "description": "Check whether it is currently business hours",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Check_Business_Hours",
+            "inputType": [
+              {
+                "developerName": "query_text",
+                "label": "Query Text",
+                "description": "Query Text",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "hours_active",
+                "label": "Hours Active",
+                "description": "Hours Active",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "next_available",
+                "label": "Next Available",
+                "description": "Next Available",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "create_support_case",
+            "label": "Create Support Case",
+            "description": "Create a support case for the prescription issue",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Create_Support_Case",
+            "inputType": [
+              {
+                "developerName": "case_subject",
+                "label": "Case Subject",
+                "description": "Case Subject",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "case_detail",
+                "label": "Case Detail",
+                "description": "Case Detail",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "priority_val",
+                "label": "Priority Val",
+                "description": "Priority Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "case_ref",
+                "label": "Case Ref",
+                "description": "Case Ref",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "assigned_to",
+                "label": "Assigned To",
+                "description": "Assigned To",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "generate_summary",
+            "label": "Generate Summary",
+            "description": "Generate a summary of the prescription interaction",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Generate_Summary",
+            "inputType": [
+              {
+                "developerName": "record_ref",
+                "label": "Record Ref",
+                "description": "Record Ref",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "notes_val",
+                "label": "Notes Val",
+                "description": "Notes Val",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "summary_text",
+                "label": "Summary Text",
+                "description": "Summary Text",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional prescription management agent assistant.\nHelp users manage their prescription requests efficiently and accurately.\nAlways verify the user's identity before proceeding with sensitive operations.\nFollow the established workflow: request_capture -> eligibility_check -> fulfillment -> followup.\nBe concise, professional, and confirm next steps at the end of each exchange.\nIf the user is upset or asks for a human, escalate immediately.\nNever reveal internal record IDs or system identifiers to the user.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHandle escalation for the prescription request.\nBusiness hours active: {{state.is_business_hours}}\nNext available slot: {{state.next_available_slot}}\nCase reference: {{state.case_ref_number}}\nPrescription status: {{state.prescription_status}}\nEligibility score: {{state.eligibility_score}}\nPriority: {{state.priority_level}}\nIf during business hours, offer to connect to a live agent.\nIf outside business hours, create a support case and share the case reference.\nUse create_case to create a case.\nUse get_summary to generate a summary of the interaction."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "check_hours",
+            "boundInputs": {
+              "query_text": "\"check_availability\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "is_business_hours": "result.hours_active"
+              },
+              {
+                "next_available_slot": "result.next_available"
+              }
+            ],
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\""
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.case_ref_number != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "prescription_status": "\"escalated\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "escalation_requested": "False"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "topic_selector",
+            "enabled": "state.AgentScriptInternal_next_topic==\"topic_selector\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I am your Prescription Management Agent Assistant. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, something went wrong on my end. Could you please rephrase your request?\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

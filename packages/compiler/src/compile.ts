@@ -19,7 +19,9 @@ import {
   extractAdditionalParameters,
 } from './config/agent-configuration.js';
 import { compileContextVariables } from './config/context-variables.js';
-import { compileSecurity } from './config/compile-security.js';
+import { compileAccess } from './config/compile-access.js';
+import { compileRuntime } from './config/compile-runtime.js';
+import { compileFileUpload } from './config/compile-file-upload.js';
 import { compileAgentVersion } from './agent-version/compile-agent-version.js';
 import { compileContext } from './context/compile-context.js';
 import { agentDslAuthoring, contextConfigurationSchema } from './types.js';
@@ -64,14 +66,28 @@ export function compile(ast: ParsedAgentforce): CompileResult {
   // Step 4: Compile global agent configuration
   const globalConfiguration = compileAgentConfiguration(
     ast.config,
+    ast.access,
     contextVariables,
     ctx
   );
 
-  // Step 4b: Compile security independently and attach to global configuration
-  const security = compileSecurity(ast.security, ctx);
+  // Step 4b: Compile access independently and attach to global configuration
+  // (output schema field is still named `security` for AgentJSON compatibility).
+  const security = compileAccess(ast.access, ctx);
   if (security) {
     globalConfiguration.security = security;
+  }
+
+  // Step 4c: Compile runtime block (nested under config) and attach to global configuration
+  const runtime = compileRuntime(ast.config?.runtime, ctx);
+  if (runtime) {
+    globalConfiguration.runtime = runtime;
+  }
+
+  // Step 4d: Compile file_upload (nested under config) and attach to global configuration
+  const fileUpload = compileFileUpload(ast.config?.file_upload, ctx);
+  if (fileUpload) {
+    (globalConfiguration as Record<string, unknown>).file_upload = fileUpload;
   }
 
   // Step 5: Extract additional parameters

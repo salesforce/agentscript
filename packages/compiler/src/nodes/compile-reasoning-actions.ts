@@ -18,6 +18,7 @@ import type { Range } from '@agentscript/types';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
   Tool,
+  SupervisionTool,
   RouterTool,
   PostToolCall,
   HandOffAction,
@@ -44,7 +45,6 @@ import { compileSupervision } from './compile-supervision.js';
 import { compileEscalate } from './compile-escalate.js';
 import { compileEndSession } from './compile-end-session.js';
 import { compileTool } from './compile-tool.js';
-import { warnIfConnectedAgentTransition } from './compile-utils.js';
 import { TRANSITION_TARGET_NAMESPACES } from '../constants.js';
 import type { Sourceable } from '../sourced.js';
 
@@ -67,7 +67,7 @@ export interface CompileReasoningActionsOptions {
  * Result of compiling reasoning actions.
  */
 export interface CompileReasoningActionsResult {
-  tools: Array<Tool | RouterTool>;
+  tools: Array<Tool | SupervisionTool | RouterTool>;
   postToolCalls: PostToolCall[];
   handOffActions: HandOffAction[];
   instructionTemplate: string | undefined;
@@ -92,7 +92,7 @@ export function compileReasoningActions(
 ): CompileReasoningActionsResult {
   const { nodeType, topicName, topicDescriptions } = options;
 
-  const tools: Array<Tool | RouterTool> = [];
+  const tools: Array<Tool | SupervisionTool | RouterTool> = [];
   const postToolCalls: PostToolCall[] = [];
   const handOffActions: HandOffAction[] = [];
 
@@ -384,7 +384,6 @@ function compileRouterTransition(
 
   for (const stmt of body) {
     if (stmt instanceof ToClause) {
-      warnIfConnectedAgentTransition(stmt.target, ctx);
       const resolved = resolveAtReference(
         stmt.target,
         TRANSITION_TARGET_NAMESPACES,
@@ -395,7 +394,6 @@ function compileRouterTransition(
     } else if (stmt instanceof TransitionStatement) {
       for (const clause of stmt.clauses) {
         if (clause instanceof ToClause) {
-          warnIfConnectedAgentTransition(clause.target, ctx);
           const resolved = resolveAtReference(
             clause.target,
             TRANSITION_TARGET_NAMESPACES,
@@ -438,7 +436,7 @@ function compileRouterTransition(
 // ---------------------------------------------------------------------------
 
 interface CompileActionResult {
-  tools: Tool[];
+  tools: Array<Tool | SupervisionTool>;
   postToolCalls: PostToolCall[];
   handOffActions: HandOffAction[];
 }
@@ -559,9 +557,9 @@ function compileAction(
  * - Router nodes: convert to simpler RouterTool (nodeReference) format
  */
 function adaptToolsForNodeType(
-  tools: Tool[],
+  tools: Array<Tool | SupervisionTool>,
   nodeType: 'router' | 'subagent'
-): Array<Tool | RouterTool> {
+): Array<Tool | SupervisionTool | RouterTool> {
   if (nodeType === 'subagent') {
     return tools;
   }

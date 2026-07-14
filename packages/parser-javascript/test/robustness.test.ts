@@ -171,8 +171,8 @@ describe('robustness: parser never crashes', () => {
     ['emoji', 'key: "hello 🌍"'],
     ['only operators', '+ - * / = == != < > <= >='],
     [
-      'if-elif-else chain',
-      'x: ->\n  if a:\n    run @a\n  elif b:\n    run @b\n  elif c:\n    run @c\n  else:\n    run @d',
+      'if-else if-else chain',
+      'x: ->\n  if a:\n    run @a\n  else if b:\n    run @b\n  else if c:\n    run @c\n  else:\n    run @d',
     ],
     [
       'run with deep with/set',

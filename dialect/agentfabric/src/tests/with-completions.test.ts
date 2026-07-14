@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import { describe, it, expect } from 'vitest';
 import { getWithCompletions } from '@agentscript/language';
 import { parseAndLintSource, testSchemaCtx } from './test-utils.js';
@@ -14,8 +21,8 @@ describe('getWithCompletions with agentfabric', () => {
       '    target: "mcp://conn"',
       '    tool_name: "search"',
       '    inputs:',
-      '      param1:',
-      '      param2:',
+      '      param1: string',
+      '      param2: string',
       'subagent:',
       '  greeting:',
       '    reasoning:',
@@ -54,7 +61,7 @@ describe('getWithCompletions with agentfabric', () => {
       '    target: "mcp://conn"',
       '    tool_name: "escalate"',
       '    inputs:',
-      '      input1:',
+      '      input1: string',
       'orchestrator:',
       '  triage:',
       '    reasoning:',

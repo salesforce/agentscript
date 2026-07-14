@@ -1,0 +1,245 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Edge_Knowledge_And_Actions",
+    "label": "Edge Knowledge And Actions",
+    "description": "Tests knowledge block combined with actions that use knowledge",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "test_user"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can search our knowledge base for answers.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while searching.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "search_query",
+        "label": "Search Query",
+        "description": "Search Query",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "article_content",
+        "label": "Article Content",
+        "description": "Article Content",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "articles_found",
+        "label": "Articles Found",
+        "description": "Articles Found",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with knowledge block and actions leveraging knowledge",
+        "tools": [
+          {
+            "type": "action",
+            "target": "search_articles",
+            "boundInputs": {
+              "query": "state.search_query",
+              "source_url": "\"https://help.example.com/articles\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "article_content": "result.content"
+              },
+              {
+                "articles_found": "result.count"
+              }
+            ],
+            "name": "search"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "search_query": "state.search_query"
+              }
+            ],
+            "name": "set_query",
+            "description": "Capture the search query",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "search_articles",
+            "label": "Search Articles",
+            "description": "Searches the knowledge base for relevant articles",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "SearchArticles",
+            "inputType": [
+              {
+                "developerName": "query",
+                "label": "Query",
+                "description": "Query",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "source_url",
+                "label": "Source Url",
+                "description": "Source Url",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "content",
+                "label": "Content",
+                "description": "Content",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "count",
+                "label": "Count",
+                "description": "Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a knowledge-powered assistant that searches and retrieves articles.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nI can search our knowledge base to find answers for you.\nWhat topic would you like to learn about?"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.search_query != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "search_articles",
+            "boundInputs": {
+              "query": "state.search_query",
+              "source_url": "\"https://help.example.com/articles\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "article_content": "result.content"
+              },
+              {
+                "articles_found": "result.count"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "rag_feature_config_id": "help_center_rag",
+      "system_messages": "[{\"message\": \"Hello! I can search our knowledge base for answers.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while searching.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

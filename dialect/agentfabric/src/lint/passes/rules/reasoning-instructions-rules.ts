@@ -7,6 +7,7 @@
 
 import { isNamedMap } from '@agentscript/language';
 import { attachError, extractStringValue, type AstLike } from './shared.js';
+import { Namespace } from '../../../constants.js';
 
 function hasNonEmptyTextOrProcedure(value: unknown): boolean {
   if (value == null) return false;
@@ -29,8 +30,8 @@ export function checkReasoningInstructionsRules(
   root: Record<string, unknown>
 ): void {
   const requireForGroups = [
-    ['orchestrator', root.orchestrator],
-    ['subagent', root.subagent],
+    [Namespace.Orchestrator, root.orchestrator],
+    [Namespace.Subagent, root.subagent],
   ] as const;
 
   for (const [groupName, group] of requireForGroups) {

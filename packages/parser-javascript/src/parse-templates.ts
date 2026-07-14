@@ -197,7 +197,6 @@ function templateContinues(
   if (tok.kind === TokenKind.ID) {
     switch (tok.text) {
       case 'if':
-      case 'elif':
       case 'else':
       case 'run':
       case 'set':

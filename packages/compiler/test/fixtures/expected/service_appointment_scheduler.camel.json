@@ -1,0 +1,1984 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Service_Appointment_Scheduler_v1",
+    "label": "Service Appointment Scheduler V 1",
+    "description": "Schedules service appointments with deterministic technician matching and availability checking",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Welcome to our service appointment scheduler! I can help you schedule, reschedule, or cancel service appointments. How can I assist you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I'm experiencing technical difficulties with our scheduling system. Please try again or contact service@company.com.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "customer_id",
+        "label": "Customer Id",
+        "description": "Customer account identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "customer_address",
+        "label": "Customer Address",
+        "description": "Service address",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "customer_phone",
+        "label": "Customer Phone",
+        "description": "Customer contact number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "customer_email",
+        "label": "Customer Email",
+        "description": "Customer email address",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "customer_verified",
+        "label": "Customer Verified",
+        "description": "Whether customer identity is verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "account_status",
+        "label": "Account Status",
+        "description": "Customer account status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'active'"
+      },
+      {
+        "developerName": "service_type",
+        "label": "Service Type",
+        "description": "Type of service needed",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "service_category",
+        "label": "Service Category",
+        "description": "Service category (repair, maintenance, installation)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "urgency_level",
+        "label": "Urgency Level",
+        "description": "Service urgency (low, normal, high, emergency)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'normal'"
+      },
+      {
+        "developerName": "equipment_type",
+        "label": "Equipment Type",
+        "description": "Type of equipment requiring service",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "service_location",
+        "label": "Service Location",
+        "description": "Specific service location details",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "estimated_duration",
+        "label": "Estimated Duration",
+        "description": "Estimated service duration in minutes",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 120
+      },
+      {
+        "developerName": "appointment_id",
+        "label": "Appointment Id",
+        "description": "Generated appointment ID",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "preferred_date",
+        "label": "Preferred Date",
+        "description": "Customer's preferred date",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "preferred_time",
+        "label": "Preferred Time",
+        "description": "Customer's preferred time",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "alternative_dates",
+        "label": "Alternative Dates",
+        "description": "Alternative appointment dates offered",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "scheduled_date",
+        "label": "Scheduled Date",
+        "description": "Final scheduled appointment date",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "scheduled_time",
+        "label": "Scheduled Time",
+        "description": "Final scheduled appointment time",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "appointment_confirmed",
+        "label": "Appointment Confirmed",
+        "description": "Whether appointment is confirmed",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "technician_required",
+        "label": "Technician Required",
+        "description": "Required technician skill level",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "technician_assigned",
+        "label": "Technician Assigned",
+        "description": "Assigned technician name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "technician_id",
+        "label": "Technician Id",
+        "description": "Assigned technician identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "skill_match_score",
+        "label": "Skill Match Score",
+        "description": "Technician skill match score (0-100)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "travel_time",
+        "label": "Travel Time",
+        "description": "Estimated travel time to location",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "availability_score",
+        "label": "Availability Score",
+        "description": "Availability score for scheduling (0-100)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "time_slots_available",
+        "label": "Time Slots Available",
+        "description": "Available time slots",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "scheduling_conflicts",
+        "label": "Scheduling Conflicts",
+        "description": "Any scheduling conflicts identified",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "appointment_type",
+        "label": "Appointment Type",
+        "description": "Type of appointment (standard, emergency, follow-up)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developerName": "previous_appointments",
+        "label": "Previous Appointments",
+        "description": "Number of previous appointments",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "last_service_date",
+        "label": "Last Service Date",
+        "description": "Date of last service appointment",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "service_notes",
+        "label": "Service Notes",
+        "description": "Service history notes",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "appointment_intake",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Captures comprehensive customer information and validates service requirements with account verification",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Verify_Customer_Account",
+            "boundInputs": {
+              "customer_phone": "state.customer_phone",
+              "customer_name": "state.customer_name",
+              "customer_address": "state.customer_address"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "customer_verified": "result.customer_found"
+              },
+              {
+                "customer_id": "result.customer_id"
+              },
+              {
+                "account_status": "result.account_status"
+              },
+              {
+                "previous_appointments": "result.previous_appointment_count"
+              }
+            ],
+            "name": "verify_customer"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Service_Requirements",
+            "boundInputs": {
+              "service_type": "state.service_type",
+              "equipment_type": "state.equipment_type",
+              "urgency_description": "state.urgency_level"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "service_category": "result.service_category"
+              },
+              {
+                "urgency_level": "result.urgency_level"
+              },
+              {
+                "estimated_duration": "result.estimated_duration"
+              },
+              {
+                "technician_required": "result.required_technician_skills"
+              }
+            ],
+            "name": "assess_service"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "customer_name": "state.customer_name"
+              },
+              {
+                "customer_phone": "state.customer_phone"
+              },
+              {
+                "service_type": "state.service_type"
+              },
+              {
+                "customer_verified": "state.customer_verified"
+              }
+            ],
+            "name": "capture_customer_info",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"scheduling\""
+              }
+            ],
+            "name": "schedule_appointment",
+            "description": "Processes comprehensive appointment scheduling with technician matching and availability optimization"
+          }
+        ],
+        "developerName": "appointment_intake",
+        "label": "Appointment Intake",
+        "actionDefinitions": [
+          {
+            "developerName": "Verify_Customer_Account",
+            "label": "Verify Customer",
+            "description": "Verifies customer account status and retrieves service history",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "VerifyCustomerAccount",
+            "inputType": [
+              {
+                "developerName": "customer_phone",
+                "label": "Phone Number",
+                "description": "Customer's phone number",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "customer_name",
+                "label": "Customer Name",
+                "description": "Customer's full name",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "customer_address",
+                "label": "Service Address",
+                "description": "Address requiring service",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "customer_found",
+                "label": "Customer Found",
+                "description": "Customer Found",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "account_status",
+                "label": "Account Status",
+                "description": "Account Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "service_history",
+                "label": "Service History",
+                "description": "Service History",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "previous_appointment_count",
+                "label": "Previous Appointments",
+                "description": "Previous Appointment Count",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Assess_Service_Requirements",
+            "label": "Assess Service",
+            "description": "Assesses service requirements and determines complexity and urgency",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "AssessServiceRequirements",
+            "inputType": [
+              {
+                "developerName": "service_type",
+                "label": "Service Type",
+                "description": "Type of service requested",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "equipment_type",
+                "label": "Equipment Type",
+                "description": "Equipment requiring service",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "urgency_description",
+                "label": "Urgency Description",
+                "description": "Description of urgency",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "service_category",
+                "label": "Service Category",
+                "description": "Service Category",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "urgency_level",
+                "label": "Urgency Level",
+                "description": "Urgency Level",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "estimated_duration",
+                "label": "Estimated Duration",
+                "description": "Estimated Duration",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "required_technician_skills",
+                "label": "Required Skills",
+                "description": "Required Technician Skills",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "service_complexity",
+                "label": "Service Complexity",
+                "description": "Service Complexity",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a service appointment scheduling assistant. Your role is to help customers schedule, reschedule, or cancel service appointments efficiently while ensuring appropriate technician assignment.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome to our service appointment scheduler!\n\nI'll help you schedule your service appointment today. First, I need to verify your account and understand your service needs.\n\nPlease provide:\n- Your name and contact number\n- Type of service needed (repair, maintenance, installation)\n- Equipment type and any urgency details\n\nThis helps me match you with the right technician and schedule efficiently."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.customer_name == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "availability_score": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "appointment_confirmed": "False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "urgency_level": "\"normal\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.customer_phone != \"\" and state.customer_name != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Verify_Customer_Account",
+            "boundInputs": {
+              "customer_phone": "state.customer_phone",
+              "customer_name": "state.customer_name",
+              "customer_address": "state.customer_address"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "customer_verified": "result.customer_found"
+              },
+              {
+                "customer_id": "result.customer_id"
+              },
+              {
+                "account_status": "result.account_status"
+              },
+              {
+                "previous_appointments": "result.previous_appointment_count"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.service_type != \"\" and state.equipment_type != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Assess_Service_Requirements",
+            "boundInputs": {
+              "service_type": "state.service_type",
+              "equipment_type": "state.equipment_type",
+              "urgency_description": "state.urgency_level"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "service_category": "result.service_category"
+              },
+              {
+                "urgency_level": "result.urgency_level"
+              },
+              {
+                "estimated_duration": "result.estimated_duration"
+              },
+              {
+                "technician_required": "result.required_technician_skills"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.customer_verified and state.service_category != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"scheduling\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "scheduling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"scheduling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "scheduling",
+            "enabled": "state.AgentScriptInternal_next_topic==\"scheduling\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Processes comprehensive appointment scheduling with technician matching and availability optimization",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Check_Technician_Availability",
+            "boundInputs": {
+              "service_type": "state.service_type",
+              "required_skills": "state.technician_required",
+              "preferred_date": "state.preferred_date",
+              "preferred_time": "state.preferred_time",
+              "service_location": "state.customer_address"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "time_slots_available": "result.available_slots"
+              },
+              {
+                "technician_assigned": "result.best_technician_match"
+              },
+              {
+                "skill_match_score": "result.skill_match_score"
+              },
+              {
+                "alternative_dates": "result.alternative_slots"
+              }
+            ],
+            "name": "check_availability"
+          },
+          {
+            "type": "action",
+            "target": "Optimize_Schedule_Route",
+            "boundInputs": {
+              "technician_id": "state.technician_id",
+              "service_address": "state.customer_address",
+              "appointment_time": "state.preferred_time",
+              "estimated_duration": "state.estimated_duration"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "travel_time": "result.travel_distance"
+              },
+              {
+                "scheduled_time": "result.estimated_arrival"
+              }
+            ],
+            "name": "optimize_route"
+          },
+          {
+            "type": "action",
+            "target": "Create_Service_Appointment",
+            "boundInputs": {
+              "customer_id": "state.customer_id",
+              "technician_id": "state.technician_id",
+              "scheduled_date": "state.preferred_date",
+              "scheduled_time": "state.scheduled_time",
+              "service_details": "state.service_type + \" - \" + state.service_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "appointment_id": "result.appointment_id"
+              },
+              {
+                "appointment_confirmed": "result.appointment_created"
+              }
+            ],
+            "name": "create_appointment"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "appointment_id": "state.appointment_id"
+              },
+              {
+                "technician_assigned": "state.technician_assigned"
+              },
+              {
+                "scheduled_date": "state.scheduled_date"
+              },
+              {
+                "scheduled_time": "state.scheduled_time"
+              }
+            ],
+            "name": "capture_scheduling_info",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"confirmation\""
+              }
+            ],
+            "name": "confirm_appointment",
+            "description": "Provides comprehensive appointment confirmation with notifications and reminders"
+          }
+        ],
+        "developerName": "scheduling",
+        "label": "Scheduling",
+        "actionDefinitions": [
+          {
+            "developerName": "Check_Technician_Availability",
+            "label": "Check Availability",
+            "description": "Checks available technicians with required skills for the service window",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "CheckTechnicianAvailability",
+            "inputType": [
+              {
+                "developerName": "service_type",
+                "label": "Service Type",
+                "description": "Type of service requiring technician",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "required_skills",
+                "label": "Required Skills",
+                "description": "Skills needed for the service",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "preferred_date",
+                "label": "Preferred Date",
+                "description": "Customer's preferred date",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "preferred_time",
+                "label": "Preferred Time",
+                "description": "Customer's preferred time",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "service_location",
+                "label": "Service Location",
+                "description": "Location requiring service",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "available_slots",
+                "label": "Available Slots",
+                "description": "Available Slots",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "best_technician_match",
+                "label": "Best Technician",
+                "description": "Best Technician Match",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "skill_match_score",
+                "label": "Skill Match Score",
+                "description": "Skill Match Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "travel_time_estimate",
+                "label": "Travel Time",
+                "description": "Travel Time Estimate",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "alternative_slots",
+                "label": "Alternative Slots",
+                "description": "Alternative Slots",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Create_Service_Appointment",
+            "label": "Create Appointment",
+            "description": "Creates confirmed service appointment with technician assignment",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "CreateServiceAppointment",
+            "inputType": [
+              {
+                "developerName": "customer_id",
+                "label": "Customer ID",
+                "description": "Customer identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "technician_id",
+                "label": "Technician ID",
+                "description": "Assigned technician",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "scheduled_date",
+                "label": "Scheduled Date",
+                "description": "Confirmed appointment date",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "scheduled_time",
+                "label": "Scheduled Time",
+                "description": "Confirmed appointment time",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "service_details",
+                "label": "Service Details",
+                "description": "Service type and requirements",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "appointment_created",
+                "label": "Appointment Created",
+                "description": "Appointment Created",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "appointment_id",
+                "label": "Appointment ID",
+                "description": "Appointment Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "confirmation_number",
+                "label": "Confirmation Number",
+                "description": "Confirmation Number",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "technician_notified",
+                "label": "Technician Notified",
+                "description": "Technician Notified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Optimize_Schedule_Route",
+            "label": "Optimize Route",
+            "description": "Optimizes technician route and provides accurate timing estimates",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "OptimizeScheduleRoute",
+            "inputType": [
+              {
+                "developerName": "technician_id",
+                "label": "Technician ID",
+                "description": "Assigned technician",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "service_address",
+                "label": "Service Address",
+                "description": "Customer service location",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "appointment_time",
+                "label": "Appointment Time",
+                "description": "Scheduled time slot",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "estimated_duration",
+                "label": "Estimated Duration",
+                "description": "Expected service duration",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "route_optimized",
+                "label": "Route Optimized",
+                "description": "Route Optimized",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "estimated_arrival",
+                "label": "Estimated Arrival",
+                "description": "Estimated Arrival",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "travel_distance",
+                "label": "Travel Distance",
+                "description": "Travel Distance",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "schedule_efficiency",
+                "label": "Schedule Efficiency",
+                "description": "Schedule Efficiency",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a service appointment scheduling assistant. Your role is to help customers schedule, reschedule, or cancel service appointments efficiently while ensuring appropriate technician assignment.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**Scheduling Your Service Appointment**\n\nCustomer: {{state.customer_name}}\nService Type: {{state.service_type}}\nCategory: {{state.service_category}}\nUrgency: {{state.urgency_level}}\nEstimated Duration: {{state.estimated_duration}} minutes\n\nI'm checking technician availability for your preferred time slot and will match you with the best qualified technician."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.service_type == \"electrical\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "technician_required": "\"electrician\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "availability_score": "80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.service_type == \"plumbing\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "technician_required": "\"plumber\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "availability_score": "85"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.service_type == \"hvac\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "technician_required": "\"hvac_specialist\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "availability_score": "75"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.service_type == \"general\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "technician_required": "\"general_tech\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "availability_score": "90"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.service_type != \"\" and state.preferred_date != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Check_Technician_Availability",
+            "boundInputs": {
+              "service_type": "state.service_type",
+              "required_skills": "state.technician_required",
+              "preferred_date": "state.preferred_date",
+              "preferred_time": "state.preferred_time",
+              "service_location": "state.customer_address"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "time_slots_available": "result.available_slots"
+              },
+              {
+                "technician_assigned": "result.best_technician_match"
+              },
+              {
+                "skill_match_score": "result.skill_match_score"
+              },
+              {
+                "technician_id": "\"TECH-001\""
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.technician_assigned != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Optimize_Schedule_Route",
+            "boundInputs": {
+              "technician_id": "state.technician_id",
+              "service_address": "state.customer_address",
+              "appointment_time": "state.preferred_time",
+              "estimated_duration": "state.estimated_duration"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "travel_time": "result.travel_distance"
+              },
+              {
+                "scheduled_time": "result.estimated_arrival"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Create_Service_Appointment",
+            "boundInputs": {
+              "customer_id": "state.customer_id",
+              "technician_id": "state.technician_id",
+              "scheduled_date": "state.preferred_date",
+              "scheduled_time": "state.scheduled_time",
+              "service_details": "state.service_type + \" - \" + state.service_category"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "appointment_id": "result.appointment_id"
+              },
+              {
+                "appointment_confirmed": "result.appointment_created"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.appointment_confirmed"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"confirmation\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "confirmation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"confirmation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "confirmation",
+            "enabled": "state.AgentScriptInternal_next_topic==\"confirmation\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides comprehensive appointment confirmation with notifications and reminders",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Send_Appointment_Confirmation",
+            "boundInputs": {
+              "customer_email": "state.customer_email",
+              "customer_phone": "state.customer_phone",
+              "appointment_details": "state.appointment_id + \": \" + state.service_type",
+              "technician_info": "state.technician_assigned"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "send_confirmation"
+          },
+          {
+            "type": "action",
+            "target": "Setup_Appointment_Reminders",
+            "boundInputs": {
+              "appointment_id": "state.appointment_id",
+              "scheduled_date": "state.scheduled_date",
+              "customer_preferences": "\"email,sms\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "setup_reminders"
+          },
+          {
+            "type": "action",
+            "target": "Update_Technician_Schedule",
+            "boundInputs": {
+              "technician_id": "state.technician_id",
+              "appointment_details": "state.service_type + \" at \" + state.customer_address",
+              "customer_contact": "state.customer_phone",
+              "special_instructions": "state.service_notes"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "update_schedule"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "appointment_id": "state.appointment_id"
+              },
+              {
+                "appointment_confirmed": "state.appointment_confirmed"
+              },
+              {
+                "scheduled_date": "state.scheduled_date"
+              }
+            ],
+            "name": "finalize_appointment",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"appointment_intake\""
+              }
+            ],
+            "name": "schedule_another",
+            "description": "Captures comprehensive customer information and validates service requirements with account verification"
+          }
+        ],
+        "developerName": "confirmation",
+        "label": "Confirmation",
+        "actionDefinitions": [
+          {
+            "developerName": "Send_Appointment_Confirmation",
+            "label": "Send Confirmation",
+            "description": "Sends multi-channel appointment confirmation to customer",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "SendAppointmentConfirmation",
+            "inputType": [
+              {
+                "developerName": "customer_email",
+                "label": "Customer Email",
+                "description": "Customer's email address",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "customer_phone",
+                "label": "Customer Phone",
+                "description": "Customer's phone number",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "appointment_details",
+                "label": "Appointment Details",
+                "description": "Complete appointment information",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "technician_info",
+                "label": "Technician Info",
+                "description": "Assigned technician contact details",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "confirmation_sent",
+                "label": "Confirmation Sent",
+                "description": "Confirmation Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "email_delivered",
+                "label": "Email Delivered",
+                "description": "Email Delivered",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "sms_sent",
+                "label": "SMS Sent",
+                "description": "Sms Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "calendar_invite",
+                "label": "Calendar Invite Sent",
+                "description": "Calendar Invite",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Setup_Appointment_Reminders",
+            "label": "Setup Reminders",
+            "description": "Configures automated reminders for the service appointment",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "SetupAppointmentReminders",
+            "inputType": [
+              {
+                "developerName": "appointment_id",
+                "label": "Appointment ID",
+                "description": "Appointment identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "scheduled_date",
+                "label": "Scheduled Date",
+                "description": "Date of the appointment",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "customer_preferences",
+                "label": "Customer Preferences",
+                "description": "Communication preferences",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "reminders_scheduled",
+                "label": "Reminders Scheduled",
+                "description": "Reminders Scheduled",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "reminder_times",
+                "label": "Reminder Times",
+                "description": "Reminder Times",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "notification_methods",
+                "label": "Notification Methods",
+                "description": "Notification Methods",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Update_Technician_Schedule",
+            "label": "Update Schedule",
+            "description": "Updates technician schedule and provides service details",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "UpdateTechnicianSchedule",
+            "inputType": [
+              {
+                "developerName": "technician_id",
+                "label": "Technician ID",
+                "description": "Assigned technician identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "appointment_details",
+                "label": "Appointment Details",
+                "description": "Service appointment information",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "customer_contact",
+                "label": "Customer Contact",
+                "description": "Customer contact information",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "special_instructions",
+                "label": "Special Instructions",
+                "description": "Any special service requirements",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "schedule_updated",
+                "label": "Schedule Updated",
+                "description": "Schedule Updated",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "technician_acknowledged",
+                "label": "Technician Acknowledged",
+                "description": "Technician Acknowledged",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "route_planned",
+                "label": "Route Planned",
+                "description": "Route Planned",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a service appointment scheduling assistant. Your role is to help customers schedule, reschedule, or cancel service appointments efficiently while ensuring appropriate technician assignment.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\n**✅ Appointment Successfully Scheduled!**\n\n**Confirmation Details:**\n- Appointment ID: {{state.appointment_id}}\n- Customer: {{state.customer_name}}\n- Service: {{state.service_type}} ({{state.service_category}})\n- Technician: {{state.technician_assigned}}\n- Date: {{state.scheduled_date}}\n- Time: {{state.scheduled_time}}\n- Address: {{state.customer_address}}\n- Urgency: {{state.urgency_level}}\n\n**What Happens Next:**\n- You'll receive confirmation via email and SMS\n- Reminder notifications 24 hours and 2 hours before appointment\n- The technician will call 30 minutes before arrival\n- Track appointment status online with your confirmation ID\n\nIs there anything else I can help you with?"
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.appointment_id != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "appointment_confirmed": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.urgency_level == \"emergency\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "appointment_type": "\"emergency\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.appointment_confirmed and state.customer_email != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Send_Appointment_Confirmation",
+            "boundInputs": {
+              "customer_email": "state.customer_email",
+              "customer_phone": "state.customer_phone",
+              "appointment_details": "state.appointment_id + \": \" + state.service_type + \" on \" + state.scheduled_date",
+              "technician_info": "state.technician_assigned"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Setup_Appointment_Reminders",
+            "boundInputs": {
+              "appointment_id": "state.appointment_id",
+              "scheduled_date": "state.scheduled_date",
+              "customer_preferences": "\"email,sms,phone\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Update_Technician_Schedule",
+            "boundInputs": {
+              "technician_id": "state.technician_id",
+              "appointment_details": "state.service_type + \" at \" + state.customer_address",
+              "customer_contact": "state.customer_phone",
+              "special_instructions": "state.service_notes"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.appointment_confirmed"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "availability_score": "100"
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "appointment_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"appointment_intake\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Welcome to our service appointment scheduler! I can help you schedule, reschedule, or cancel service appointments. How can I assist you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm experiencing technical difficulties with our scheduling system. Please try again or contact service@company.com.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

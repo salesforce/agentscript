@@ -17,7 +17,6 @@ import type { Range } from '@agentscript/types';
 import {
   ALWAYS_PRESENT_STATE_VARIABLES,
   INSTRUCTION_STATE_VARIABLE,
-  CONDITION_STATE_VARIABLE,
 } from '../constants.js';
 import { toStateVariableDataType, isStringType } from './variable-utils.js';
 import { normalizeDeveloperName } from '../utils.js';
@@ -55,9 +54,11 @@ export function compileStateVariables(
     result.push({ ...sv });
   }
 
-  // Always include instruction and condition variables
+  // Always include the instruction variable. Condition variables
+  // (AgentScriptInternal_condition_1, _2, ...) are declared on demand by the
+  // agent_version assembler after node compilation, based on the maximum
+  // chain depth observed across the agent.
   result.push({ ...INSTRUCTION_STATE_VARIABLE });
-  result.push({ ...CONDITION_STATE_VARIABLE });
 
   // User-defined mutable variables
   if (variables) {

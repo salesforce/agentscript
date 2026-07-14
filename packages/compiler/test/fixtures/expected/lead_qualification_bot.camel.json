@@ -1,0 +1,1836 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Lead_Qualification_Bot_v1",
+    "label": "Lead Qualification Bot V 1",
+    "description": "Qualifies leads using BANT methodology with deterministic scoring and progressive assessment",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "defaultagentuser@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I'm here to help understand how our solutions might fit your business needs. I'd like to ask a few questions to better understand your requirements and see how we can help.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I'm experiencing some technical difficulties. Let me try to reconnect with our systems.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "company_name",
+        "label": "Company Name",
+        "description": "Company name of the lead",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "contact_name",
+        "label": "Contact Name",
+        "description": "Contact person name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "email",
+        "label": "Email",
+        "description": "Contact email address",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "phone",
+        "label": "Phone",
+        "description": "Contact phone number",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "job_title",
+        "label": "Job Title",
+        "description": "Contact's job title",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "budget_range",
+        "label": "Budget Range",
+        "description": "Budget range for the solution",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "decision_authority",
+        "label": "Decision Authority",
+        "description": "Level of decision-making authority",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "business_need",
+        "label": "Business Need",
+        "description": "Specific business need or pain point",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "timeline",
+        "label": "Timeline",
+        "description": "Implementation timeline",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "budget_score",
+        "label": "Budget Score",
+        "description": "Budget qualification score (0-25)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "authority_score",
+        "label": "Authority Score",
+        "description": "Authority qualification score (0-25)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "need_score",
+        "label": "Need Score",
+        "description": "Need qualification score (0-25)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "timeline_score",
+        "label": "Timeline Score",
+        "description": "Timeline qualification score (0-25)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "total_bant_score",
+        "label": "Total Bant Score",
+        "description": "Total BANT qualification score (0-100)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "lead_status",
+        "label": "Lead Status",
+        "description": "Current lead status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'new'"
+      },
+      {
+        "developerName": "lead_priority",
+        "label": "Lead Priority",
+        "description": "Lead priority level",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'medium'"
+      },
+      {
+        "developerName": "next_step",
+        "label": "Next Step",
+        "description": "Recommended next step",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "assigned_rep",
+        "label": "Assigned Rep",
+        "description": "Assigned sales representative",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "qualification_complete",
+        "label": "Qualification Complete",
+        "description": "Whether BANT qualification is complete",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "current_question_index",
+        "label": "Current Question Index",
+        "description": "Current question being asked (0-3)",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "lead_intake",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Captures initial lead information and begins qualification process",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Create_Lead_Record",
+            "boundInputs": {
+              "company_name": "state.company_name",
+              "contact_name": "state.contact_name",
+              "email": "state.email",
+              "phone": "state.phone",
+              "job_title": "state.job_title"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "lead_status": "\"contacted\""
+              }
+            ],
+            "name": "create_lead"
+          },
+          {
+            "type": "action",
+            "target": "Enrich_Company_Data",
+            "boundInputs": {
+              "company_name": "state.company_name",
+              "contact_email": "state.email"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "enrich_data"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "company_name": "state.company_name"
+              },
+              {
+                "contact_name": "state.contact_name"
+              },
+              {
+                "email": "state.email"
+              },
+              {
+                "phone": "state.phone"
+              },
+              {
+                "job_title": "state.job_title"
+              }
+            ],
+            "name": "capture_lead_info",
+            "description": "Capture initial lead information",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"bant_qualification\""
+              }
+            ],
+            "name": "start_qualification",
+            "description": "Begin BANT qualification process"
+          }
+        ],
+        "developerName": "lead_intake",
+        "label": "Lead Intake",
+        "actionDefinitions": [
+          {
+            "developerName": "Create_Lead_Record",
+            "label": "Create Lead Record",
+            "description": "Creates a new lead record in CRM system",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "CreateLeadRecord",
+            "inputType": [
+              {
+                "developerName": "company_name",
+                "label": "Company Name",
+                "description": "Name of the prospect's company",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_name",
+                "label": "Contact Name",
+                "description": "Name of the primary contact",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "email",
+                "label": "Email Address",
+                "description": "Contact's email address",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "phone",
+                "label": "Phone Number",
+                "description": "Contact's phone number",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "job_title",
+                "label": "Job Title",
+                "description": "Contact's position/title",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "lead_id",
+                "label": "Lead ID",
+                "description": "Lead Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "lead_source",
+                "label": "Lead Source",
+                "description": "Lead Source",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "company_profile",
+                "label": "Company Profile",
+                "description": "Company Profile",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "contact_verified",
+                "label": "Contact Verified",
+                "description": "Contact Verified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Enrich_Company_Data",
+            "label": "Enrich Company Data",
+            "description": "Enriches lead data with company information and technographics",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "EnrichCompanyData",
+            "inputType": [
+              {
+                "developerName": "company_name",
+                "label": "Company Name",
+                "description": "Company to research",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "contact_email",
+                "label": "Contact Email",
+                "description": "Email domain for company matching",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "company_size",
+                "label": "Company Size",
+                "description": "Company Size",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "industry",
+                "label": "Industry",
+                "description": "Industry",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "annual_revenue",
+                "label": "Annual Revenue",
+                "description": "Annual Revenue",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "technology_stack",
+                "label": "Technology Stack",
+                "description": "Technology Stack",
+                "dataType": "String",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "fit_score",
+                "label": "Company Fit Score",
+                "description": "Fit Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a lead qualification specialist for a B2B marketing team. Your role is to assess potential customers using BANT criteria (Budget, Authority, Need, Timeline) and qualify leads for the sales team.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHello! I'm here to help understand how our solutions might fit your business needs.\n\nTo get started, I'd like to gather some basic information about you and your company.\n\n**What I'll need:**\n- Your name and job title\n- Company name\n- Contact information\n- Brief overview of what brings you to us today\n\nThis helps me understand your situation better and ask the right questions to see how we can help."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.contact_name == \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "current_question_index": "0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "qualification_complete": "False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "total_bant_score": "0"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.company_name != \"\" and (state.contact_name != \"\" and state.email != \"\")"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Create_Lead_Record",
+            "boundInputs": {
+              "company_name": "state.company_name",
+              "contact_name": "state.contact_name",
+              "email": "state.email",
+              "phone": "state.phone",
+              "job_title": "state.job_title"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "lead_status": "\"contacted\""
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Enrich_Company_Data",
+            "boundInputs": {
+              "company_name": "state.company_name",
+              "contact_email": "state.email"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"bant_qualification\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "bant_qualification",
+            "enabled": "state.AgentScriptInternal_next_topic==\"bant_qualification\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "bant_qualification",
+            "enabled": "state.AgentScriptInternal_next_topic==\"bant_qualification\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Conducts systematic BANT qualification with progressive scoring",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Score_Budget_Response",
+            "boundInputs": {
+              "budget_range": "state.budget_range",
+              "urgency_indicators": "\"\""
+            },
+            "llmInputs": [
+              "company_size"
+            ],
+            "stateUpdates": [
+              {
+                "budget_score": "result.budget_score"
+              }
+            ],
+            "name": "score_budget"
+          },
+          {
+            "type": "action",
+            "target": "Assess_Decision_Authority",
+            "boundInputs": {
+              "job_title": "state.job_title",
+              "decision_process": "state.decision_authority",
+              "stakeholders_involved": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "authority_score": "result.authority_score"
+              }
+            ],
+            "name": "assess_authority"
+          },
+          {
+            "type": "action",
+            "target": "Evaluate_Business_Need",
+            "boundInputs": {
+              "business_need": "state.business_need",
+              "current_solution": "\"\"",
+              "pain_level": "\"medium\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "need_score": "result.need_score"
+              }
+            ],
+            "name": "evaluate_need"
+          },
+          {
+            "type": "action",
+            "target": "Analyze_Timeline",
+            "boundInputs": {
+              "timeline": "state.timeline",
+              "urgency_drivers": "\"\"",
+              "competing_priorities": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "timeline_score": "result.timeline_score"
+              }
+            ],
+            "name": "analyze_timeline"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "budget_range": "state.budget_range"
+              },
+              {
+                "decision_authority": "state.decision_authority"
+              },
+              {
+                "business_need": "state.business_need"
+              },
+              {
+                "timeline": "state.timeline"
+              }
+            ],
+            "name": "capture_bant_responses",
+            "description": "Capture BANT qualification responses",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"qualification_results\""
+              }
+            ],
+            "name": "show_results",
+            "description": "Show qualification results and next steps"
+          }
+        ],
+        "developerName": "bant_qualification",
+        "label": "Bant Qualification",
+        "actionDefinitions": [
+          {
+            "developerName": "Score_Budget_Response",
+            "label": "Score Budget Response",
+            "description": "Analyzes budget response and assigns qualification score",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "ScoreBudgetResponse",
+            "inputType": [
+              {
+                "developerName": "budget_range",
+                "label": "Budget Range",
+                "description": "Stated budget range or financial capacity",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "company_size",
+                "label": "Company Size",
+                "description": "Company size category",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "urgency_indicators",
+                "label": "Urgency Indicators",
+                "description": "Signals of budget availability",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "budget_score",
+                "label": "Budget Score",
+                "description": "Budget Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "budget_qualified",
+                "label": "Budget Qualified",
+                "description": "Budget Qualified",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "recommended_pricing_tier",
+                "label": "Recommended Pricing Tier",
+                "description": "Recommended Pricing Tier",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Assess_Decision_Authority",
+            "label": "Assess Decision Authority",
+            "description": "Evaluates contact's decision-making authority and influence",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "AssessDecisionAuthority",
+            "inputType": [
+              {
+                "developerName": "job_title",
+                "label": "Job Title",
+                "description": "Contact's job title/position",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "decision_process",
+                "label": "Decision Process",
+                "description": "How decisions are made at their company",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "stakeholders_involved",
+                "label": "Stakeholders Involved",
+                "description": "Other people involved in decision",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "authority_score",
+                "label": "Authority Score",
+                "description": "Authority Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "decision_maker_type",
+                "label": "Decision Maker Type",
+                "description": "Decision Maker Type",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "influencer_level",
+                "label": "Influencer Level",
+                "description": "Influencer Level",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "next_meeting_contacts",
+                "label": "Additional Contacts Needed",
+                "description": "Next Meeting Contacts",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Evaluate_Business_Need",
+            "label": "Evaluate Business Need",
+            "description": "Analyzes business need and pain point severity",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "EvaluateBusinessNeed",
+            "inputType": [
+              {
+                "developerName": "business_need",
+                "label": "Business Need",
+                "description": "Stated business need or challenge",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "current_solution",
+                "label": "Current Solution",
+                "description": "How they currently handle this",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "pain_level",
+                "label": "Pain Level",
+                "description": "Severity of the problem",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "need_score",
+                "label": "Need Score",
+                "description": "Need Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "solution_fit",
+                "label": "Solution Fit",
+                "description": "Solution Fit",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "competitive_landscape",
+                "label": "Competitive Landscape",
+                "description": "Competitive Landscape",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "roi_potential",
+                "label": "ROI Potential",
+                "description": "Roi Potential",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Analyze_Timeline",
+            "label": "Analyze Timeline",
+            "description": "Assesses implementation timeline and urgency factors",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "AnalyzeTimeline",
+            "inputType": [
+              {
+                "developerName": "timeline",
+                "label": "Timeline",
+                "description": "Desired implementation timeline",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "urgency_drivers",
+                "label": "Urgency Drivers",
+                "description": "Factors driving timeline urgency",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "competing_priorities",
+                "label": "Competing Priorities",
+                "description": "Other projects or initiatives",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "timeline_score",
+                "label": "Timeline Score",
+                "description": "Timeline Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "urgency_level",
+                "label": "Urgency Level",
+                "description": "Urgency Level",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "ideal_start_date",
+                "label": "Ideal Start Date",
+                "description": "Ideal Start Date",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "timeline_realistic",
+                "label": "Timeline Realistic",
+                "description": "Timeline Realistic",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a lead qualification specialist for a B2B marketing team. Your role is to assess potential customers using BANT criteria (Budget, Authority, Need, Timeline) and qualify leads for the sales team.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nGreat! Now I'd like to understand your specific situation better through a few targeted questions.\n\nThis helps me determine if and how our solution might be a good fit for {{state.company_name}}.\n\n**BANT Qualification Progress:**\n- Budget: {{state.budget_score}}/25 points\n- Authority: {{state.authority_score}}/25 points\n- Need: {{state.need_score}}/25 points\n- Timeline: {{state.timeline_score}}/25 points\n**Total Score: {{state.total_bant_score}}/100**\n\n**Current Question ({{state.current_question_index + 1}}/4):**\n\nBased on where we are in the qualification, let me ask about the most relevant aspect next."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.current_question_index < 4"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "qualification_complete": "False"
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.budget_range != \"\" and state.current_question_index == 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Score_Budget_Response",
+            "boundInputs": {
+              "budget_range": "state.budget_range",
+              "company_size": "\"medium\"",
+              "urgency_indicators": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "budget_score": "result.budget_score"
+              },
+              {
+                "current_question_index": "1"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.decision_authority != \"\" and state.current_question_index == 1"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Assess_Decision_Authority",
+            "boundInputs": {
+              "job_title": "state.job_title",
+              "decision_process": "state.decision_authority",
+              "stakeholders_involved": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "authority_score": "result.authority_score"
+              },
+              {
+                "current_question_index": "2"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.business_need != \"\" and state.current_question_index == 2"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Evaluate_Business_Need",
+            "boundInputs": {
+              "business_need": "state.business_need",
+              "current_solution": "\"\"",
+              "pain_level": "\"medium\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "need_score": "result.need_score"
+              },
+              {
+                "current_question_index": "3"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.timeline != \"\" and state.current_question_index == 3"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Analyze_Timeline",
+            "boundInputs": {
+              "timeline": "state.timeline",
+              "urgency_drivers": "\"\"",
+              "competing_priorities": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "timeline_score": "result.timeline_score"
+              },
+              {
+                "current_question_index": "4"
+              },
+              {
+                "qualification_complete": "True"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.qualification_complete"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "total_bant_score": "state.budget_score + state.authority_score + state.need_score + state.timeline_score"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"qualification_results\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "qualification_results",
+            "enabled": "state.AgentScriptInternal_next_topic==\"qualification_results\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "qualification_results",
+            "enabled": "state.AgentScriptInternal_next_topic==\"qualification_results\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Presents qualification results and determines next steps",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Generate_Lead_Score",
+            "boundInputs": {
+              "bant_score": "state.total_bant_score",
+              "company_fit": "75",
+              "engagement_level": "\"high\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "lead_status": "result.qualification_level"
+              }
+            ],
+            "name": "calculate_final_score"
+          },
+          {
+            "type": "action",
+            "target": "Assign_Sales_Rep",
+            "boundInputs": {
+              "lead_score": "state.total_bant_score",
+              "company_size": "\"medium\"",
+              "industry": "\"technology\"",
+              "deal_value_estimate": "50000"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "assigned_rep": "result.assigned_rep"
+              }
+            ],
+            "name": "assign_rep"
+          },
+          {
+            "type": "action",
+            "target": "Schedule_Demo",
+            "boundInputs": {
+              "lead_id": "\"LEAD-001\"",
+              "preferred_demo_time": "\"\"",
+              "demo_type": "\"standard\"",
+              "attendees": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "book_demo"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "next_step": "state.next_step"
+              }
+            ],
+            "name": "capture_next_step_preferences",
+            "description": "Capture next step preferences",
+            "boundInputs": {},
+            "llmInputs": [],
+            "inputParameters": []
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"lead_intake\""
+              }
+            ],
+            "name": "qualify_another",
+            "description": "Qualify another lead"
+          }
+        ],
+        "developerName": "qualification_results",
+        "label": "Qualification Results",
+        "actionDefinitions": [
+          {
+            "developerName": "Generate_Lead_Score",
+            "label": "Generate Lead Score",
+            "description": "Calculates final lead score and qualification level",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "GenerateLeadScore",
+            "inputType": [
+              {
+                "developerName": "bant_score",
+                "label": "BANT Score",
+                "description": "Total BANT qualification score",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "company_fit",
+                "label": "Company Fit Score",
+                "description": "Company profile fit score",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "engagement_level",
+                "label": "Engagement Level",
+                "description": "Level of prospect engagement",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "final_lead_score",
+                "label": "Final Lead Score",
+                "description": "Final Lead Score",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "qualification_level",
+                "label": "Qualification Level",
+                "description": "Qualification Level",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "recommended_next_step",
+                "label": "Recommended Next Step",
+                "description": "Recommended Next Step",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "sales_readiness",
+                "label": "Sales Ready",
+                "description": "Sales Readiness",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Assign_Sales_Rep",
+            "label": "Assign Sales Rep",
+            "description": "Assigns appropriate sales representative based on lead profile",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "AssignSalesRep",
+            "inputType": [
+              {
+                "developerName": "lead_score",
+                "label": "Lead Score",
+                "description": "Qualified lead score",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "company_size",
+                "label": "Company Size",
+                "description": "Target company size",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "industry",
+                "label": "Industry",
+                "description": "Target industry",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "deal_value_estimate",
+                "label": "Deal Value Estimate",
+                "description": "Estimated deal value",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "assigned_rep",
+                "label": "Assigned Rep",
+                "description": "Assigned Rep",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "rep_specialization",
+                "label": "Rep Specialization",
+                "description": "Rep Specialization",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "handoff_scheduled",
+                "label": "Handoff Scheduled",
+                "description": "Handoff Scheduled",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "follow_up_date",
+                "label": "Follow-up Date",
+                "description": "Follow Up Date",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          },
+          {
+            "developerName": "Schedule_Demo",
+            "label": "Schedule Demo",
+            "description": "Schedules product demonstration for qualified leads",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "ScheduleDemo",
+            "inputType": [
+              {
+                "developerName": "lead_id",
+                "label": "Lead ID",
+                "description": "Lead identifier",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "preferred_demo_time",
+                "label": "Preferred Demo Time",
+                "description": "Prospect's preferred time",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              },
+              {
+                "developerName": "demo_type",
+                "label": "Demo Type",
+                "description": "Type of demonstration needed",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "attendees",
+                "label": "Demo Attendees",
+                "description": "People who will attend demo",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "demo_scheduled",
+                "label": "Demo Scheduled",
+                "description": "Demo Scheduled",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "demo_date_time",
+                "label": "Demo Date/Time",
+                "description": "Demo Date Time",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "calendar_invite_sent",
+                "label": "Calendar Invite Sent",
+                "description": "Calendar Invite Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "prep_materials_sent",
+                "label": "Prep Materials Sent",
+                "description": "Prep Materials Sent",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a lead qualification specialist for a B2B marketing team. Your role is to assess potential customers using BANT criteria (Budget, Authority, Need, Timeline) and qualify leads for the sales team.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nExcellent! I've completed the qualification assessment for {{state.company_name}}.\n\n**🎯 BANT Qualification Results:**\n\n**Budget Qualification:** {{state.budget_score}}/25 points\n**Authority Assessment:** {{state.authority_score}}/25 points\n**Need Analysis:** {{state.need_score}}/25 points\n**Timeline Evaluation:** {{state.timeline_score}}/25 points\n\n**📊 Total BANT Score: {{state.total_bant_score}}/100**\n**🏷️ Lead Priority: {{state.lead_priority}}**\n**📋 Lead Status: {{state.lead_status}}**\n\n**🎯 Recommended Next Step: {{state.next_step}}**\n\nBased on your qualification score, here's what I recommend as the best next step to move forward."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.total_bant_score >= 80"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "lead_priority": "\"high\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "next_step": "\"immediate_demo\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.total_bant_score >= 60"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "lead_priority": "\"medium\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "next_step": "\"sales_call\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.total_bant_score < 60"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "lead_priority": "\"low\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "next_step": "\"nurture_campaign\""
+              }
+            ]
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.total_bant_score > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Generate_Lead_Score",
+            "boundInputs": {
+              "bant_score": "state.total_bant_score",
+              "company_fit": "75",
+              "engagement_level": "\"high\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "Assign_Sales_Rep",
+            "boundInputs": {
+              "lead_score": "state.total_bant_score",
+              "company_size": "\"medium\"",
+              "industry": "\"technology\"",
+              "deal_value_estimate": "50000"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "assigned_rep": "result.assigned_rep"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.total_bant_score >= 70"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Schedule_Demo",
+            "boundInputs": {
+              "lead_id": "\"LEAD-001\"",
+              "preferred_demo_time": "\"\"",
+              "demo_type": "\"standard\"",
+              "attendees": "\"\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "lead_intake",
+            "enabled": "state.AgentScriptInternal_next_topic==\"lead_intake\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm here to help understand how our solutions might fit your business needs. I'd like to ask a few questions to better understand your requirements and see how we can help.\", \"messageType\": \"Welcome\"}, {\"message\": \"I'm experiencing some technical difficulties. Let me try to reconnect with our systems.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

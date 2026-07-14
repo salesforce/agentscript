@@ -1,0 +1,30 @@
+config:
+    developer_name: "No_Description_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with actions whose descriptions are derived from their names"
+
+start_agent main:
+    description: "Agent with actions whose descriptions are derived from their names"
+
+    actions:
+        Get_Server_Time:
+            target: "flow://Get_Server_Time"
+            outputs:
+                current_time: string
+                    label: "Current Time"
+
+        Refresh_Cache:
+            label: "Refresh Cache"
+            target: "apex://CacheController.refresh"
+            outputs:
+                status: string
+                    label: "Refresh Status"
+
+    reasoning:
+        instructions: ->
+            | Help the user by reporting the current server time and refreshing
+              the cache when they ask.
+
+        actions:
+            Time_Action: @actions.Get_Server_Time
+            Cache_Action: @actions.Refresh_Cache

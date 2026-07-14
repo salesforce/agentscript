@@ -13,6 +13,7 @@ import {
   RunStatement,
   IfStatement,
   TransitionStatement,
+  CollectClause,
   Template,
   UnknownStatement,
 } from '@agentscript/language';
@@ -24,13 +25,21 @@ import {
   EMPTY_TOPIC_VALUE,
   NEXT_TOPIC_EMPTY_CONDITION,
   AGENT_INSTRUCTIONS_VARIABLE,
-  RUNTIME_CONDITION_VARIABLE,
   TRANSITION_TARGET_NAMESPACES,
+  chainConditionVariableName,
 } from '../constants.js';
 import { compileExpression } from '../expressions/compile-expression.js';
 import { compileTemplateValue } from '../expressions/compile-template.js';
 import { resolveAtReference } from '../ast-helpers.js';
-import { warnIfConnectedAgentTransition } from './compile-utils.js';
+import {
+  captureActionName,
+  collectMessageText,
+  resolveCollectTarget,
+  joinRightAssociated,
+  collectStepsFromStatements,
+  buildPriorGuardByTarget,
+} from './compile-collect.js';
+import { isElseIfChainHead, walkElseIfChain } from './else-if-chain.js';
 
 /**
  * Compile a list of deterministic directives (before_reasoning, after_reasoning)
@@ -47,9 +56,19 @@ export function compileDeterministicDirectives(
     agentInstructionsVariable,
     toolNames,
     actionDefinitionNames,
+    endTurnFirst = false,
+    topicName,
   } = options;
 
   const conditionStack = new ConditionStack();
+  // Branch-aware "prior complete" guard per collect target. Built once from the
+  // whole directive list so each collect's gather prompt gates on every PRIOR
+  // STEP being satisfied — where sibling if-wrapped collects form one branch
+  // group (a branch step is complete once ANY sibling is filled). This keeps the
+  // gather-prose guards in agreement with the capture/resume side.
+  const collectPriorGuards = buildPriorGuardByTarget(
+    collectStepsFromStatements(directives, ctx)
+  );
   const result: (Action | HandOffAction)[] = [];
 
   // Reset next_topic at the start if requested
@@ -61,14 +80,19 @@ export function compileDeterministicDirectives(
     result.push(resetAction);
   }
 
+  const dctx: DirectiveContext = {
+    conditionStack,
+    gateOnNextTopicEmpty,
+    agentInstructionsVariable,
+    toolNames,
+    actionDefinitionNames,
+    endTurnFirst,
+    topicName,
+    collectPriorGuards,
+  };
+
   for (const directive of directives) {
-    const actions = compileDirective(directive, ctx, {
-      conditionStack,
-      gateOnNextTopicEmpty,
-      agentInstructionsVariable,
-      toolNames,
-      actionDefinitionNames,
-    });
+    const actions = compileDirective(directive, ctx, dctx);
     result.push(...actions);
   }
 
@@ -81,6 +105,14 @@ interface DirectiveOptions {
   agentInstructionsVariable?: string;
   toolNames?: Set<string>;
   actionDefinitionNames?: Set<string>;
+  /**
+   * When true, transition directives emit handoffs with `end_turn_first` set so
+   * the runtime ends the current turn and resumes at the target on the next user
+   * message. Defaults to false, leaving handoffs unchanged.
+   */
+  endTurnFirst?: boolean;
+  /** Owning subagent name — used to name a collect's capture action. */
+  topicName?: string;
 }
 
 interface DirectiveContext {
@@ -89,6 +121,16 @@ interface DirectiveContext {
   agentInstructionsVariable?: string;
   toolNames?: Set<string>;
   actionDefinitionNames?: Set<string>;
+  endTurnFirst: boolean;
+  topicName?: string;
+  /**
+   * Branch-aware "prior complete" predicates per collect target (one term per
+   * prior gather STEP). Each collect gates its gather prompt on every prior step
+   * being satisfied; sibling if-wrapped collects share the same prior list (the
+   * steps before their branch group) so a branch never gates on a
+   * mutually-exclusive sibling.
+   */
+  collectPriorGuards?: Map<string, string[]>;
 }
 
 function compileDirective(
@@ -104,6 +146,9 @@ function compileDirective(
   }
   if (stmt instanceof TransitionStatement) {
     return compileTransitionDirective(stmt, ctx, dctx);
+  }
+  if (stmt instanceof CollectClause) {
+    return compileCollectDirective(stmt, ctx, dctx);
   }
   if (stmt instanceof IfStatement) {
     return compileIfDirective(stmt, ctx, dctx);
@@ -220,7 +265,6 @@ function compileTransitionDirective(
 
   for (const clause of stmt.clauses) {
     if (clause instanceof ToClause) {
-      if (warnIfConnectedAgentTransition(clause.target, ctx)) continue;
       const targetName = resolveAtReference(
         clause.target,
         TRANSITION_TARGET_NAMESPACES,
@@ -245,11 +289,76 @@ function compileTransitionDirective(
         enabled: `state.${NEXT_TOPIC_VARIABLE}=="${targetName}"`,
         state_updates: [{ [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE }],
       };
+      if (dctx.endTurnFirst) {
+        handoff.end_turn_first = true;
+      }
       result.push(handoff);
     }
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Collect statement (gather one field at a time)
+// ---------------------------------------------------------------------------
+
+function compileCollectDirective(
+  stmt: CollectClause,
+  ctx: CompilerContext,
+  dctx: DirectiveContext
+): (Action | HandOffAction)[] {
+  const varName = resolveCollectTarget(stmt, ctx);
+  if (!varName) return [];
+
+  const message = collectMessageText(stmt);
+  const captureName = captureActionName(dctx.topicName ?? '');
+
+  // Gate: ask for this field only once every PRIOR STEP is satisfied (chained
+  // gather, branch-aware) and this field is still unset — idempotent re-entry.
+  // The wrapping `if` predicate (if any) is AND-ed in separately via the
+  // condition stack in buildEnabledCondition below.
+  const priorGuards = dctx.collectPriorGuards?.get(varName) ?? [];
+  const guardParts = [...priorGuards];
+  guardParts.push(`state.${varName} is None`);
+  // Right-associate for 3+ operands (`A and (B and C)`) per the runtime
+  // evaluator's parenthesization requirement; 1-2 operands stay flat.
+  const collectCondition = joinRightAssociated(guardParts, 'and');
+
+  // Combine with any surrounding gate (e.g. next_topic-empty) the directive
+  // context already requires.
+  const baseEnabled = buildEnabledCondition(dctx);
+  const enabled = baseEnabled
+    ? `(${baseEnabled}) and (${collectCondition})`
+    : collectCondition;
+
+  // Gather prose: ask the user using the verbatim message, then capture.
+  // The capture tool is referenced by its BARE name, not the `{!@actions.X}`
+  // AgentScript reference syntax. This prose is injected into a dynamic
+  // `template::{{state.<agent_instructions>}}` state-update, which the runtime
+  // only renders for `{{state.X}}` placeholders — it does NOT run the
+  // action-reference resolver that the static `instructions` path uses. A
+  // literal `{!@actions.X}` therefore reaches the LLM verbatim and confuses it
+  // about which tool to call, causing it to skip the capture and re-ask the
+  // same field (the "double-ask" loop). The bare name matches what the LLM
+  // sees for the tool and resolves the double-ask.
+  const prose =
+    `Ask the user for ${varName}. ` +
+    `Use exactly this message: "${message}" ` +
+    `When they answer, call ${captureName} with ${varName}.`;
+
+  const varNameOut =
+    dctx.agentInstructionsVariable ?? AGENT_INSTRUCTIONS_VARIABLE;
+  const action = createStateUpdateAction(
+    [
+      {
+        [varNameOut]: `template::{{state.${varNameOut}}}\n${prose}`,
+      },
+    ],
+    enabled
+  );
+
+  return [action];
 }
 
 // ---------------------------------------------------------------------------
@@ -261,25 +370,51 @@ function compileIfDirective(
   ctx: CompilerContext,
   dctx: DirectiveContext
 ): (Action | HandOffAction)[] {
+  // Plain `if/else` (no chain links): use the shared
+  // AgentScriptInternal_condition variable. Sequential plain ifs reuse the
+  // same variable since each one writes before its body runs.
+  if (!isElseIfChainHead(stmt)) {
+    return compilePlainIfDirective(stmt, ctx, dctx);
+  }
+
+  // Chain (`if / else if [/ else if ...] [/ else]`): each link gets its own
+  // suffixed variable (condition_1, condition_2, ...) so prior links'
+  // negations stay stable when later links overwrite their own slots.
+  return compileChainIfDirective(stmt, ctx, dctx);
+}
+
+/**
+ * Compile a non-chain `if [/ else]`. Writes the compiled condition into
+ * `AgentScriptInternal_condition_1` and gates the body / else off it.
+ *
+ * Sequential plain ifs reuse slot 1: each one writes before its body
+ * executes and no later read crosses the boundary.
+ */
+function compilePlainIfDirective(
+  stmt: IfStatement,
+  ctx: CompilerContext,
+  dctx: DirectiveContext
+): (Action | HandOffAction)[] {
   const result: (Action | HandOffAction)[] = [];
+
   const condition = compileExpression(stmt.condition, ctx, {
     expressionContext: "'if' condition",
   });
 
-  // Store condition in runtime variable — always enabled (at least 'True')
+  const slotName = chainConditionVariableName(1);
+  ctx.maxChainConditionSlot = Math.max(ctx.maxChainConditionSlot ?? 0, 1);
+
   const condEnabled =
     buildEnabledCondition(dctx) ??
     (dctx.agentInstructionsVariable ? 'True' : null);
-  const condAction = createStateUpdateAction(
-    [{ [RUNTIME_CONDITION_VARIABLE]: condition }],
-    condEnabled
+  result.push(
+    createStateUpdateAction([{ [slotName]: condition }], condEnabled)
   );
-  result.push(condAction);
 
-  // Warn about nested if+else — the runtime uses a single condition variable,
-  // so nested conditions with else branches produce contradictory guards.
+  // Warn about nested if+else — slot 1 is shared across plain ifs, so a real
+  // nested if/else would overwrite the outer if's value before the outer's
+  // else body reads it.
   if (dctx.conditionStack.depth > 0 && stmt.orelse.length > 0) {
-    // Point to the condition expression, not the entire if block
     const range = stmt.condition.__cst?.range ?? stmt.__cst?.range;
     ctx.warning(
       'Nested if/else is not fully supported: the runtime uses a single condition variable, ' +
@@ -288,20 +423,86 @@ function compileIfDirective(
     );
   }
 
-  // Then branch
-  dctx.conditionStack.push(condition, 'positive');
+  const condRef = `state.${slotName}`;
+  dctx.conditionStack.push(condRef, 'positive');
   for (const child of stmt.body) {
     result.push(...compileDirective(child, ctx, dctx));
   }
   dctx.conditionStack.pop();
 
-  // Else branch
   if (stmt.orelse.length > 0) {
-    dctx.conditionStack.push(condition, 'negative');
+    dctx.conditionStack.push(condRef, 'negative');
     for (const child of stmt.orelse) {
       result.push(...compileDirective(child, ctx, dctx));
     }
     dctx.conditionStack.pop();
+  }
+
+  return result;
+}
+
+/**
+ * Compile an `if [/ else if ...] [/ else]` chain. Each branch's condition is
+ * stored into its own slot variable (`AgentScriptInternal_condition_1` for
+ * the head, `_2`, `_3`, ... for chain links). This avoids the
+ * single-variable overwrite problem: when later branches gate on prior
+ * branches' negations, those reads still resolve to the original truth value.
+ *
+ * Slot indices reset to 1 at the start of each chain — multiple chains in
+ * the same node reuse the same slots, which is safe because chains execute
+ * sequentially. The compiler tracks the max index used across the agent so
+ * the agent_version assembly can declare exactly the slots needed.
+ */
+function compileChainIfDirective(
+  head: IfStatement,
+  ctx: CompilerContext,
+  dctx: DirectiveContext
+): (Action | HandOffAction)[] {
+  const result: (Action | HandOffAction)[] = [];
+  const { branches, elseBody } = walkElseIfChain(head, ctx, "'if' condition");
+
+  // For each branch: emit the condition-write action, then compile the body
+  // with prior branches' slots negated and this branch's slot positive.
+  for (let i = 0; i < branches.length; i++) {
+    const b = branches[i];
+
+    // Action: write this branch's condition into its slot. Gated on the
+    // outer enabled condition (e.g. next_topic empty), since these slot
+    // writes need to respect any surrounding gates.
+    const writeEnabled =
+      buildEnabledCondition(dctx) ??
+      (dctx.agentInstructionsVariable ? 'True' : null);
+    result.push(
+      createStateUpdateAction([{ [b.slotName]: b.condition }], writeEnabled)
+    );
+
+    // Push prior branches' slot refs (negated) plus this branch's (positive).
+    for (let j = 0; j < i; j++) {
+      dctx.conditionStack.push(`state.${branches[j].slotName}`, 'negative');
+    }
+    dctx.conditionStack.push(`state.${b.slotName}`, 'positive');
+
+    for (const child of b.body) {
+      result.push(...compileDirective(child, ctx, dctx));
+    }
+
+    // Pop everything we just pushed (one positive + i negatives).
+    for (let j = 0; j <= i; j++) {
+      dctx.conditionStack.pop();
+    }
+  }
+
+  // Trailing `else:` — gate is every chain slot negated.
+  if (elseBody) {
+    for (const b of branches) {
+      dctx.conditionStack.push(`state.${b.slotName}`, 'negative');
+    }
+    for (const child of elseBody) {
+      result.push(...compileDirective(child, ctx, dctx));
+    }
+    for (let i = 0; i < branches.length; i++) {
+      dctx.conditionStack.pop();
+    }
   }
 
   return result;
@@ -341,16 +542,21 @@ function compileTemplateDirective(
 
 type ConditionType = 'positive' | 'negative';
 
+/**
+ * A single branch's gate component. The `expression` is the compiled source
+ * boolean (e.g. `state.x == "a"`); `type` decides whether it's used directly
+ * (positive branch) or negated (else / else-if-chain prior branches).
+ */
 interface ConditionEntry {
-  condition: string;
   type: ConditionType;
+  expression: string;
 }
 
 class ConditionStack {
   private stack: ConditionEntry[] = [];
 
-  push(condition: string, type: ConditionType): void {
-    this.stack.push({ condition, type });
+  push(expression: string, type: ConditionType): void {
+    this.stack.push({ type, expression });
   }
 
   pop(): void {
@@ -368,12 +574,9 @@ class ConditionStack {
   get currentCondition(): string | undefined {
     if (this.stack.length === 0) return undefined;
 
-    const parts = this.stack.map(entry => {
-      if (entry.type === 'positive') {
-        return `state.${RUNTIME_CONDITION_VARIABLE}`;
-      }
-      return `not (state.${RUNTIME_CONDITION_VARIABLE})`;
-    });
+    const parts = this.stack.map(entry =>
+      entry.type === 'positive' ? entry.expression : `not (${entry.expression})`
+    );
 
     if (parts.length === 1) return parts[0];
     return parts.map(p => `(${p})`).join(' and ');

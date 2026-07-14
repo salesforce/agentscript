@@ -165,7 +165,12 @@ function compileMemberExpression(
     switch (namespace) {
       case 'variables': {
         if (opts.isSystemMessage) {
-          return `$Context.${property}`;
+          // Linked variables resolve through $Context (sourced from session
+          // context at runtime); mutable variables resolve through the
+          // regular state/context namespace, matching template behavior.
+          const ns = ctx.getVariableNamespace(property);
+          if (ns === 'context') return `$Context.${property}`;
+          return resolveVariableRef(property, ctx, expr.__cst?.range);
         }
         return resolveVariableRef(property, ctx, expr.__cst?.range);
       }
@@ -176,7 +181,7 @@ function compileMemberExpression(
       case 'inputs': {
         const connName = ctx.connectionName;
         if (connName) {
-          return `connection.${connName}.inputs.${property}`;
+          return `connection.${connName}.${property}`;
         }
         ctx.warning(
           `Connection input '${property}' not in a connection context, defaulting to empty namespace`,
@@ -220,8 +225,13 @@ function compileMemberExpression(
       }
 
       case 'system_variables': {
-        if (property === 'user_input') {
-          return 'state.__user_input__';
+        switch (property) {
+          case 'user_input':
+            return 'state.__user_input__';
+          case 'current_modality':
+            return 'state.__current_modality__';
+          case 'current_connection':
+            return 'state.__current_connection__';
         }
         ctx.error(`Unknown system variable: ${property}`, expr.__cst?.range);
         return `state.${property}`;
@@ -234,7 +244,7 @@ function compileMemberExpression(
           if (typeof value === 'boolean') {
             return value ? 'True' : 'False';
           }
-          return value;
+          return `"${escapeStringValue(value)}"`;
         }
         ctx.error(`Unknown @knowledge field: '${property}'`, expr.__cst?.range);
         return '';
@@ -287,8 +297,13 @@ function compileSubscriptExpression(
     expr.object.name === 'system_variables'
   ) {
     const index = compileExprNode(expr.index, ctx, opts);
-    if (index === '"user_input"') {
-      return 'state["__user_input__"]';
+    switch (index) {
+      case '"user_input"':
+        return 'state["__user_input__"]';
+      case '"current_modality"':
+        return 'state["__current_modality__"]';
+      case '"current_connection"':
+        return 'state["__current_connection__"]';
     }
     ctx.error(`Unknown system variable: ${index}`, expr.__cst?.range);
     return `state[${index}]`;
@@ -420,7 +435,7 @@ function compileTemplatePart(
   }
   if (part instanceof TemplateInterpolation) {
     const compiled = compileExprNode(part.expression, ctx, opts);
-    if (opts.isSystemMessage) {
+    if (opts.isSystemMessage && compiled.startsWith('$Context.')) {
       return `{!${compiled}}`;
     }
     return `{{${compiled}}}`;

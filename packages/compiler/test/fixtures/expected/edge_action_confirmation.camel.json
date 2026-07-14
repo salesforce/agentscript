@@ -1,0 +1,281 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "Confirmation_Actions_Agent",
+    "label": "Confirmation Actions Agent",
+    "description": "Agent with actions using confirmation and progress indicator annotations",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "user@test.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I can help you manage your orders.",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "An error occurred while processing your request.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "order_id",
+        "label": "Order Id",
+        "description": "Order identifier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Agent with actions using confirmation and progress indicator annotations",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Cancel_Order",
+            "boundInputs": {
+              "order_id": "state.order_id"
+            },
+            "llmInputs": [
+              "reason"
+            ],
+            "stateUpdates": [],
+            "name": "Cancel_Action"
+          },
+          {
+            "type": "action",
+            "target": "Delete_Account",
+            "boundInputs": {},
+            "llmInputs": [
+              "confirmation_code"
+            ],
+            "stateUpdates": [],
+            "name": "Delete_Action"
+          },
+          {
+            "type": "action",
+            "target": "Check_Status",
+            "boundInputs": {
+              "order_id": "state.order_id"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "Status_Action"
+          },
+          {
+            "type": "action",
+            "target": "Quick_Lookup",
+            "boundInputs": {},
+            "llmInputs": [
+              "query"
+            ],
+            "stateUpdates": [],
+            "name": "Lookup_Action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "Cancel_Order",
+            "label": "Cancel Order",
+            "description": "Cancel an existing order",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Cancel_Order_Flow",
+            "inputType": [
+              {
+                "developerName": "order_id",
+                "label": "Order ID",
+                "description": "Order ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "reason",
+                "label": "Cancellation Reason",
+                "description": "Cancellation Reason",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "cancelled",
+                "label": "Cancellation Confirmed",
+                "description": "Cancelled",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "refund_amount",
+                "label": "Refund Amount",
+                "description": "Refund Amount",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Delete_Account",
+            "label": "Delete Account",
+            "description": "Permanently delete user account",
+            "requireUserConfirmation": true,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "AccountController.deleteAccount",
+            "inputType": [
+              {
+                "developerName": "confirmation_code",
+                "label": "Confirmation Code",
+                "description": "Confirmation Code",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "deleted",
+                "label": "Account Deleted",
+                "description": "Deleted",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Check_Status",
+            "label": "Check Status",
+            "description": "Check order status without confirmation",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Check_Order_Status",
+            "inputType": [
+              {
+                "developerName": "order_id",
+                "label": "Order ID",
+                "description": "Order ID",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Order Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "Quick_Lookup",
+            "label": "Quick Lookup",
+            "description": "Quick lookup with no indicators",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Quick_Lookup_Flow",
+            "inputType": [
+              {
+                "developerName": "query",
+                "label": "Query",
+                "description": "Query",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result",
+                "label": "Result",
+                "description": "Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a helpful order management agent.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp the user manage orders. Destructive actions like\ncancellation and account deletion require user confirmation.\nStatus checks and lookups do not require confirmation."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I can help you manage your orders.\", \"messageType\": \"Welcome\"}, {\"message\": \"An error occurred while processing your request.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

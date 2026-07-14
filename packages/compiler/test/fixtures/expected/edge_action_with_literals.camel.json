@@ -1,0 +1,349 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "EdgeActionWithLiterals",
+    "label": "Edge Action With Literals",
+    "description": "Tests with clauses using literal string, number, and boolean values",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "admin@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "result",
+        "label": "Result",
+        "description": "Result of the operation",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "count",
+        "label": "Count",
+        "description": "Count result",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "is_active",
+        "label": "Is Active",
+        "description": "Active status",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Demonstrate literal with clauses",
+        "tools": [
+          {
+            "type": "action",
+            "target": "greet_user",
+            "boundInputs": {
+              "name": "\"John\"",
+              "greeting_type": "\"formal\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "result": "result.message"
+              }
+            ],
+            "name": "greet_john"
+          },
+          {
+            "type": "action",
+            "target": "process_count",
+            "boundInputs": {
+              "count": "5",
+              "multiplier": "10"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "count": "result.total"
+              }
+            ],
+            "name": "process_five"
+          },
+          {
+            "type": "action",
+            "target": "set_status",
+            "boundInputs": {
+              "active": "True",
+              "reason": "\"User requested activation\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "is_active": "result.confirmed"
+              }
+            ],
+            "name": "activate"
+          },
+          {
+            "type": "action",
+            "target": "set_status",
+            "boundInputs": {
+              "active": "False",
+              "reason": "\"Scheduled deactivation\""
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "is_active": "result.confirmed"
+              }
+            ],
+            "name": "deactivate"
+          },
+          {
+            "type": "action",
+            "target": "mixed_literals",
+            "boundInputs": {
+              "tag": "\"priority_high\"",
+              "threshold": "100",
+              "enabled": "True"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "result": "result.result"
+              }
+            ],
+            "name": "mixed_action"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [
+          {
+            "developerName": "greet_user",
+            "label": "Greet User",
+            "description": "Greet a user by name",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Greet_User",
+            "inputType": [
+              {
+                "developerName": "name",
+                "label": "Name",
+                "description": "Name",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "greeting_type",
+                "label": "Greeting Type",
+                "description": "Greeting Type",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "message",
+                "label": "Message",
+                "description": "Message",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "process_count",
+            "label": "Process Count",
+            "description": "Process a count value",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Process_Count",
+            "inputType": [
+              {
+                "developerName": "count",
+                "label": "Count",
+                "description": "Count",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "multiplier",
+                "label": "Multiplier",
+                "description": "Multiplier",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "total",
+                "label": "Total",
+                "description": "Total",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "set_status",
+            "label": "Set Status",
+            "description": "Set active status",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Set_Status",
+            "inputType": [
+              {
+                "developerName": "active",
+                "label": "Active",
+                "description": "Active",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "reason",
+                "label": "Reason",
+                "description": "Reason",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "confirmed",
+                "label": "Confirmed",
+                "description": "Confirmed",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          },
+          {
+            "developerName": "mixed_literals",
+            "label": "Mixed Literals",
+            "description": "Action with mixed literal types",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "Mixed_Literals",
+            "inputType": [
+              {
+                "developerName": "tag",
+                "label": "Tag",
+                "description": "Tag",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "threshold",
+                "label": "Threshold",
+                "description": "Threshold",
+                "dataType": "Double",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "enabled",
+                "label": "Enabled",
+                "description": "Enabled",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "result",
+                "label": "Result",
+                "description": "Result",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a service agent that processes requests with specific values.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp users by running actions with specific literal values.\nUse the appropriate action based on the request."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

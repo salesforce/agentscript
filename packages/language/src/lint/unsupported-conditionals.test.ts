@@ -67,41 +67,34 @@ proc one:
     expect(diags).toHaveLength(0);
   });
 
-  it('flags a single elif', () => {
-    const elifDiags = getDiagnostics(
-      `
+  it('does not flag a single else if', () => {
+    const diags = getDiagnostics(`
 proc one:
   label: "one"
   body: ->
     if @variables.x == "a":
       | a
-    elif @variables.x == "b":
+    else if @variables.x == "b":
       | b
-`,
-      'unsupported-elif'
-    );
-    expect(elifDiags).toHaveLength(1);
-    expect(elifDiags[0].message).toContain("'elif'");
+`);
+    expect(diags).toHaveLength(0);
   });
 
-  it('flags every link in a multi-elif chain', () => {
-    const elifDiags = getDiagnostics(
-      `
+  it('does not flag a multi else-if chain', () => {
+    const diags = getDiagnostics(`
 proc one:
   label: "one"
   body: ->
     if @variables.x == "a":
       | a
-    elif @variables.x == "b":
+    else if @variables.x == "b":
       | b
-    elif @variables.x == "c":
+    else if @variables.x == "c":
       | c
     else:
       | d
-`,
-      'unsupported-elif'
-    );
-    expect(elifDiags).toHaveLength(2);
+`);
+    expect(diags).toHaveLength(0);
   });
 
   it('flags a nested if inside an if body', () => {
@@ -174,13 +167,10 @@ proc one:
   label: "one"
   body: ->
     if @variables.x == "a":
-      | a
-    elif @variables.x == "b":
-      | b
+      if @variables.y == "b":
+        | inner
 `);
-    const myDiags = diags.filter(
-      d => d.code === 'unsupported-elif' || d.code === 'unsupported-nested-if'
-    );
+    const myDiags = diags.filter(d => d.code === 'unsupported-nested-if');
     expect(myDiags.length).toBeGreaterThan(0);
     for (const d of myDiags) {
       expect(d.severity).toBe(1); // DiagnosticSeverity.Error === 1

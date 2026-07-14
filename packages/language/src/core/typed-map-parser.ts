@@ -43,6 +43,7 @@ import {
 } from './error-recovery.js';
 import { findSuggestion } from '../lint/lint-utils.js';
 import { NamedMap } from './named-map.js';
+import type { BlockCore } from './named-map.js';
 import {
   TypedDeclarationBase,
   VariableDeclarationNode,
@@ -225,6 +226,13 @@ export class TypedMapParser<T extends TypedDeclarationBase> {
       return this.processErrorElement(element);
     }
 
+    if (element.name && this.options.allowTypelessEntries) {
+      const blockNode = element.getBlockNode();
+      if (blockNode) {
+        return this.processTypelessElement(element, blockNode);
+      }
+    }
+
     if (element.name) {
       this.processMissingTypeElement(element);
     }
@@ -353,6 +361,65 @@ export class TypedMapParser<T extends TypedDeclarationBase> {
         { expected: typeNames }
       )
     );
+  }
+
+  /**
+   * Handle an element that has no colinear type but does have a block body.
+   * The type is declared via a `type:` property in the block instead of inline.
+   *
+   * @example
+   * ```
+   * patients:
+   *     description: "the patients"
+   *     type: list
+   *         value: object
+   * ```
+   */
+  private processTypelessElement(
+    element: TypedMapElement,
+    blockNode: SyntaxNode
+  ): Parsed<ParameterDeclarationNode> {
+    this.validateReservedName(element);
+
+    // Create declaration with an empty Identifier sentinel signaling "type in block"
+    const sentinelType = withCst(new Identifier(''), element.node);
+    const decl = new ParameterDeclarationNode({ type: sentinelType });
+    const declaration = withCst(decl, element.node);
+
+    const comments = element.getAttachedComments();
+    if (comments.length > 0) {
+      declaration.__comments = comments;
+    }
+
+    if (isSingularFieldType(this.propertiesBlock)) {
+      const propResult = this.propertiesBlock.parse(blockNode, this.dialect);
+      const props = propResult.value as Record<string, unknown> | undefined;
+      if (props && typeof props === 'object') {
+        declaration.properties = props as BlockCore;
+        declaration.__children.push(
+          new FieldChild('properties', props, this.propertiesBlock)
+        );
+
+        // Resolve actual type from the TypeDescriptor so downstream consumers
+        // (compiler, lint) can read decl.type without checking typeInBlock.
+        const typeDescriptor = props.type as
+          | { typeName?: Identifier }
+          | undefined;
+        if (typeDescriptor?.typeName && typeDescriptor.typeName.name) {
+          declaration.type = typeDescriptor.typeName;
+        }
+      }
+      this.dc.merge(propResult);
+    }
+
+    // Mark as long-form for the emitter (distinguishes from short-form)
+    declaration.typeInBlock = true;
+
+    this.validateDuplicateName(element);
+
+    // Typeless entries are only enabled for parameter-style typed maps.
+    this.declarations.set(element.name, declaration as unknown as Parsed<T>);
+    return declaration;
   }
 
   /**

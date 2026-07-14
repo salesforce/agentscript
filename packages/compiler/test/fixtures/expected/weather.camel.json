@@ -1,0 +1,1518 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "WeatherPro_Assistant",
+    "label": "Weather Pro Assistant",
+    "description": "Weather Pro Assistant",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "support@weatherpro.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! I'm your WeatherPro Assistant. I can provide current weather conditions, forecasts, and severe weather alerts for any location. How can I help you today?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "I apologize, but I'm experiencing technical difficulties retrieving weather data. Please try again in a moment.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "user_city",
+        "label": "User City",
+        "description": "User's requested city for weather information",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "user_country",
+        "label": "User Country",
+        "description": "User's requested country for weather information",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "location_coordinates",
+        "label": "Location Coordinates",
+        "description": "Latitude and longitude coordinates for the location",
+        "dataType": "object",
+        "isList": false,
+        "visibility": "Internal",
+        "default": {}
+      },
+      {
+        "developerName": "general_forecast",
+        "label": "General Forecast",
+        "description": "General forecast information with sample data",
+        "dataType": "object",
+        "isList": false,
+        "visibility": "Internal",
+        "default": {
+          "var1": "",
+          "var2": false
+        }
+      },
+      {
+        "developerName": "alert_regions",
+        "label": "Alert Regions",
+        "description": "List of regions to monitor for weather alerts",
+        "dataType": "string",
+        "isList": true,
+        "visibility": "Internal",
+        "default": [
+          "North",
+          "South",
+          "East",
+          "West"
+        ]
+      },
+      {
+        "developerName": "temperature",
+        "label": "Temperature",
+        "description": "Current temperature in Celsius",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "temperature_fahrenheit",
+        "label": "Temperature Fahrenheit",
+        "description": "Current temperature in Fahrenheit",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 32
+      },
+      {
+        "developerName": "conditions",
+        "label": "Conditions",
+        "description": "Current weather conditions description",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "humidity",
+        "label": "Humidity",
+        "description": "Current humidity percentage",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "wind_speed",
+        "label": "Wind Speed",
+        "description": "Current wind speed in km/h",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "wind_direction",
+        "label": "Wind Direction",
+        "description": "Wind direction (N, NE, E, SE, S, SW, W, NW)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "pressure",
+        "label": "Pressure",
+        "description": "Atmospheric pressure in hPa",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "visibility_km",
+        "label": "Visibility Km",
+        "description": "Visibility in kilometers",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "uv_index",
+        "label": "Uv Index",
+        "description": "UV index value",
+        "dataType": "number",
+        "isList": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developerName": "forecast_data",
+        "label": "Forecast Data",
+        "description": "Multi-day weather forecast data",
+        "dataType": "object",
+        "isList": true,
+        "visibility": "Internal",
+        "default": []
+      },
+      {
+        "developerName": "hourly_forecast",
+        "label": "Hourly Forecast",
+        "description": "24-hour hourly forecast data",
+        "dataType": "object",
+        "isList": true,
+        "visibility": "Internal",
+        "default": []
+      },
+      {
+        "developerName": "severe_weather_alert",
+        "label": "Severe Weather Alert",
+        "description": "Whether there are active severe weather alerts",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "alert_type",
+        "label": "Alert Type",
+        "description": "Type of weather alert (storm, flood, heat, cold, etc.)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "alert_severity",
+        "label": "Alert Severity",
+        "description": "Alert severity level (minor, moderate, severe, extreme)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "alert_description",
+        "label": "Alert Description",
+        "description": "Detailed description of the weather alert",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "alert_expires",
+        "label": "Alert Expires",
+        "description": "When the weather alert expires",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "preferred_units",
+        "label": "Preferred Units",
+        "description": "User's preferred temperature units (metric/imperial)",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'metric'"
+      },
+      {
+        "developerName": "notification_preferences",
+        "label": "Notification Preferences",
+        "description": "User's weather notification preferences",
+        "dataType": "object",
+        "isList": false,
+        "visibility": "Internal",
+        "default": {}
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "weather_service_router",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Welcome users and route them to the appropriate weather service based on their needs",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"current_weather_service\""
+              }
+            ],
+            "name": "current_weather",
+            "description": "Route to current weather service when users ask for current conditions, temperature, or immediate weather status."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"forecast_service\""
+              }
+            ],
+            "name": "weather_forecast",
+            "description": "Route to forecast service when users ask for future weather predictions, multi-day forecasts, or planning information."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"severe_weather_alerts\""
+              }
+            ],
+            "name": "emergency_alerts",
+            "description": "Route to severe weather alerts when users mention storms, warnings, emergencies, or safety concerns."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"weather_preferences\""
+              }
+            ],
+            "name": "user_settings",
+            "description": "Route to preferences when users want to set temperature units, location defaults, or notification settings."
+          }
+        ],
+        "developerName": "weather_service_router",
+        "label": "Weather Service Router",
+        "actionDefinitions": [],
+        "instructions": "You are a professional weather service assistant. Analyze user requests and route them to the appropriate weather service. Always prioritize safety by directing users with severe weather concerns to emergency alerts first.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nAnalyze user input to determine weather service intent and route appropriately:\n- For current weather requests, call current_weather\n- For forecast or future weather requests, call weather_forecast\n- For alerts, emergencies, or safety concerns, call emergency_alerts\n- For settings, preferences, or unit changes, call user_settings\n\nWelcome users professionally and gather location information if not provided."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "current_weather_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"current_weather_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "forecast_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"forecast_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "severe_weather_alerts",
+            "enabled": "state.AgentScriptInternal_next_topic==\"severe_weather_alerts\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "weather_preferences",
+            "enabled": "state.AgentScriptInternal_next_topic==\"weather_preferences\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides comprehensive current weather conditions for any location worldwide",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Current_Weather_Data",
+            "boundInputs": {
+              "city": "state.user_city",
+              "country": "state.user_country"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "temperature": "result.temperature_celsius"
+              },
+              {
+                "temperature_fahrenheit": "result.temperature_fahrenheit"
+              },
+              {
+                "conditions": "result.conditions"
+              },
+              {
+                "humidity": "result.humidity"
+              },
+              {
+                "wind_speed": "result.wind_speed"
+              },
+              {
+                "wind_direction": "result.wind_direction"
+              },
+              {
+                "pressure": "result.pressure"
+              },
+              {
+                "visibility_km": "result.visibility_km"
+              },
+              {
+                "uv_index": "result.uv_index"
+              }
+            ],
+            "name": "Get_Current_Weather_Data"
+          },
+          {
+            "type": "action",
+            "target": "Geocode_Location",
+            "boundInputs": {},
+            "llmInputs": [
+              "location_query"
+            ],
+            "stateUpdates": [
+              {
+                "location_coordinates": "result.coordinates"
+              }
+            ],
+            "name": "Geocode_Location"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "user_city": "result.user_city"
+              },
+              {
+                "user_country": "result.user_country"
+              }
+            ],
+            "name": "set_location",
+            "description": "Set the user's preferred location for weather information.",
+            "boundInputs": {},
+            "llmInputs": [
+              "user_city",
+              "user_country"
+            ],
+            "inputParameters": [
+              {
+                "developerName": "user_city",
+                "label": "user_city",
+                "dataType": "String"
+              },
+              {
+                "developerName": "user_country",
+                "label": "user_country",
+                "dataType": "String"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"forecast_service\""
+              }
+            ],
+            "name": "get_forecast",
+            "description": "Get detailed weather forecast for the current location."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"severe_weather_alerts\""
+              }
+            ],
+            "name": "check_alerts",
+            "description": "Check for severe weather alerts in the area."
+          }
+        ],
+        "developerName": "current_weather_service",
+        "label": "Current Weather Service",
+        "actionDefinitions": [
+          {
+            "developerName": "Get_Current_Weather_Data",
+            "label": "Get Current Weather Data",
+            "description": "Retrieves comprehensive current weather data for a specified location",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "300WX000001WeatherCurrentAPI",
+            "inputType": [
+              {
+                "developerName": "city",
+                "label": "City",
+                "description": "City name for weather lookup",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": true
+              },
+              {
+                "developerName": "country",
+                "label": "Country",
+                "description": "Country name or code for weather lookup",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": true
+              },
+              {
+                "developerName": "coordinates",
+                "label": "Coordinates",
+                "description": "Latitude and longitude coordinates (optional, for precise location)",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": false,
+                "isUserInput": false,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "temperature_celsius",
+                "label": "Temperature Celsius",
+                "description": "Current temperature in Celsius",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "temperature_fahrenheit",
+                "label": "Temperature Fahrenheit",
+                "description": "Current temperature in Fahrenheit",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "conditions",
+                "label": "Conditions",
+                "description": "Current weather conditions description",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "humidity",
+                "label": "Humidity",
+                "description": "Current humidity percentage",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "wind_speed",
+                "label": "Wind Speed",
+                "description": "Wind speed in km/h",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "wind_direction",
+                "label": "Wind Direction",
+                "description": "Wind direction",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "pressure",
+                "label": "Pressure",
+                "description": "Atmospheric pressure in hPa",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "visibility_km",
+                "label": "Visibility Km",
+                "description": "Visibility in kilometers",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "uv_index",
+                "label": "Uv Index",
+                "description": "UV index value",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "weather_alerts",
+                "label": "Weather Alerts",
+                "description": "Any active weather alerts or warnings",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": true,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ],
+            "progressIndicatorMessage": "Fetching current weather data..."
+          },
+          {
+            "developerName": "Geocode_Location",
+            "label": "Geocode Location",
+            "description": "Converts city/country names to precise coordinates for weather lookup",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "01pWX000001GeoLocationAPI",
+            "inputType": [
+              {
+                "developerName": "location_query",
+                "label": "Location Query",
+                "description": "Location search query (city, country)",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": true
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "coordinates",
+                "label": "Coordinates",
+                "description": "Latitude and longitude coordinates",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "location_name",
+                "label": "Location Name",
+                "description": "Standardized location name",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "timezone",
+                "label": "Timezone",
+                "description": "Local timezone for the location",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a professional weather data specialist providing accurate current weather conditions. Always include safety information when severe weather is present.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nProvide current weather conditions for the user's location.\n\nIf {{state.user_city}} and {{state.user_country}} are available, call Get_Current_Weather_Data to fetch comprehensive data.\nIf location needs geocoding or clarification, call Geocode_Location first.\nWhen user provides new location details, call set_location to store the information.\n\nIf user asks for forecasts, call get_forecast to transition to forecast service.\nIf severe weather is detected, the after_reasoning logic will handle transition to alerts.\n\nPresent comprehensive weather data including temperature, conditions, humidity, wind, pressure, visibility, and UV index."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.user_city != \"\" and state.user_country != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Get_Current_Weather_Data",
+            "boundInputs": {
+              "city": "state.user_city",
+              "country": "state.user_country"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "temperature": "result.temperature_celsius"
+              },
+              {
+                "temperature_fahrenheit": "result.temperature_fahrenheit"
+              },
+              {
+                "conditions": "result.conditions"
+              },
+              {
+                "humidity": "result.humidity"
+              },
+              {
+                "wind_speed": "result.wind_speed"
+              },
+              {
+                "wind_direction": "result.wind_direction"
+              },
+              {
+                "pressure": "result.pressure"
+              },
+              {
+                "visibility_km": "result.visibility_km"
+              },
+              {
+                "uv_index": "result.uv_index"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.severe_weather_alert"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"severe_weather_alerts\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "severe_weather_alerts",
+            "enabled": "state.AgentScriptInternal_next_topic==\"severe_weather_alerts\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "forecast_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"forecast_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "severe_weather_alerts",
+            "enabled": "state.AgentScriptInternal_next_topic==\"severe_weather_alerts\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides critical severe weather alerts, warnings, and safety guidance",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Weather_Alerts_Data",
+            "boundInputs": {
+              "city": "state.user_city",
+              "country": "state.user_country"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "severe_weather_alert": "result.alert_count > 0"
+              },
+              {
+                "alert_severity": "result.highest_severity"
+              },
+              {
+                "alert_type": "result.active_alerts[0].type"
+              }
+            ],
+            "name": "Get_Weather_Alerts_Data"
+          },
+          {
+            "type": "action",
+            "target": "Get_Safety_Guidelines",
+            "boundInputs": {
+              "hazard_type": "state.alert_type",
+              "severity_level": "state.alert_severity"
+            },
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "Get_Safety_Guidelines"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "notification_preferences": "result.notification_preferences"
+              }
+            ],
+            "name": "update_alert_preferences",
+            "description": "Update user's weather alert notification preferences.",
+            "boundInputs": {},
+            "llmInputs": [
+              "notification_preferences"
+            ],
+            "inputParameters": [
+              {
+                "developerName": "notification_preferences",
+                "label": "notification_preferences",
+                "dataType": "LightningTypes"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"current_weather_service\""
+              }
+            ],
+            "name": "check_current_conditions",
+            "description": "Check current weather conditions after reviewing alerts."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"forecast_service\""
+              }
+            ],
+            "name": "extended_forecast",
+            "description": "Get extended forecast to track severe weather progression."
+          }
+        ],
+        "developerName": "severe_weather_alerts",
+        "label": "Severe Weather Alerts",
+        "actionDefinitions": [
+          {
+            "developerName": "Get_Weather_Alerts_Data",
+            "label": "Get Weather Alerts Data",
+            "description": "Retrieves active weather alerts, warnings, and watches for a specified location",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "300WX000002WeatherAlertsAPI",
+            "inputType": [
+              {
+                "developerName": "city",
+                "label": "City",
+                "description": "City name for alert lookup",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "country",
+                "label": "Country",
+                "description": "Country name for alert lookup",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "alert_severity_filter",
+                "label": "Alert Severity Filter",
+                "description": "Filter by severity level (minor, moderate, severe, extreme)",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "active_alerts",
+                "label": "Active Alerts",
+                "description": "List of all active weather alerts",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": true,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "highest_severity",
+                "label": "Highest Severity",
+                "description": "Highest severity level among active alerts",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "alert_count",
+                "label": "Alert Count",
+                "description": "Total number of active alerts",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "emergency_contacts",
+                "label": "Emergency Contacts",
+                "description": "Local emergency contact information",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ],
+            "progressIndicatorMessage": "Checking for weather alerts..."
+          },
+          {
+            "developerName": "Get_Safety_Guidelines",
+            "label": "Get Safety Guidelines",
+            "description": "Retrieves safety guidelines and recommendations for specific weather hazards",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "01pWX000003SafetyGuidelinesAPI",
+            "inputType": [
+              {
+                "developerName": "hazard_type",
+                "label": "Hazard Type",
+                "description": "Type of weather hazard (storm, flood, tornado, hurricane, blizzard, etc.)",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "severity_level",
+                "label": "Severity Level",
+                "description": "Severity level of the hazard",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "safety_guidelines",
+                "label": "Safety Guidelines",
+                "description": "Detailed safety guidelines and recommendations",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "evacuation_info",
+                "label": "Evacuation Info",
+                "description": "Evacuation procedures if applicable",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              },
+              {
+                "developerName": "emergency_supplies",
+                "label": "Emergency Supplies",
+                "description": "Recommended emergency supplies",
+                "dataType": "String",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an emergency weather alert specialist. Prioritize user safety by providing clear, actionable severe weather information and safety guidance. Always emphasize the urgency and importance of following official emergency guidance.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nMonitor and respond to weather alerts with safety as the top priority.\n\nIf {{state.user_city}} and {{state.user_country}} are available, call Get_Weather_Alerts_Data to retrieve active alerts.\nThe before_reasoning logic will populate alert variables if alerts are found.\n\nWhen {{state.severe_weather_alert}} is true, call Get_Safety_Guidelines for specific hazard guidance.\nIf user wants to manage notifications, update_alert_preferences can update preferences.\n\nAlways prioritize safety messaging when {{state.severe_weather_alert}} is true.\nIf user needs current conditions, check_current_conditions can transition to current weather service.\nFor extended weather tracking, extended_forecast can transition to forecast service.\n\nEmphasize following official emergency guidance for any severe weather events."
+              }
+            ]
+          }
+        ],
+        "beforeReasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.user_city != \"\" and state.user_country != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "Get_Weather_Alerts_Data",
+            "boundInputs": {
+              "city": "state.user_city",
+              "country": "state.user_country"
+            },
+            "llmInputs": [],
+            "stateUpdates": [
+              {
+                "severe_weather_alert": "result.alert_count > 0"
+              },
+              {
+                "alert_severity": "result.highest_severity"
+              },
+              {
+                "alert_type": "result.active_alerts[0].type"
+              }
+            ],
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)"
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "current_weather_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"current_weather_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "forecast_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"forecast_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Provides detailed weather forecasts including hourly and multi-day predictions",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Weather_Forecast",
+            "boundInputs": {
+              "city": "state.user_city",
+              "country": "state.user_country"
+            },
+            "llmInputs": [
+              "forecast_days",
+              "include_hourly"
+            ],
+            "stateUpdates": [
+              {
+                "forecast_data": "result.daily_forecast"
+              },
+              {
+                "hourly_forecast": "result.hourly_forecast"
+              }
+            ],
+            "name": "Get_Weather_Forecast"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"current_weather_service\""
+              }
+            ],
+            "name": "current_conditions",
+            "description": "Check current weather conditions alongside the forecast."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"severe_weather_alerts\""
+              }
+            ],
+            "name": "alert_monitoring",
+            "description": "Monitor for any severe weather in the forecast period."
+          }
+        ],
+        "developerName": "forecast_service",
+        "label": "Forecast Service",
+        "actionDefinitions": [
+          {
+            "developerName": "Get_Weather_Forecast",
+            "label": "Get Weather Forecast",
+            "description": "Retrieves detailed weather forecast data for specified location and timeframe",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "300WX000003WeatherForecastAPI",
+            "inputType": [
+              {
+                "developerName": "city",
+                "label": "City",
+                "description": "City name for forecast",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "country",
+                "label": "Country",
+                "description": "Country name for forecast",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              },
+              {
+                "developerName": "forecast_days",
+                "label": "Forecast Days",
+                "description": "Number of days to forecast (1-14)",
+                "dataType": "Double",
+                "isList": false,
+                "required": false,
+                "isUserInput": true
+              },
+              {
+                "developerName": "include_hourly",
+                "label": "Include Hourly",
+                "description": "Include hourly breakdown for first 24-48 hours",
+                "dataType": "Boolean",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "daily_forecast",
+                "label": "Daily Forecast",
+                "description": "Multi-day weather forecast",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": true,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "hourly_forecast",
+                "label": "Hourly Forecast",
+                "description": "Hourly weather forecast",
+                "dataType": "LightningTypes",
+                "isList": true,
+                "isUsedByPlanner": true,
+                "isDisplayable": true,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "forecast_confidence",
+                "label": "Forecast Confidence",
+                "description": "Confidence level of the forecast",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "weather_trends",
+                "label": "Weather Trends",
+                "description": "Notable weather trends and patterns",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true
+              }
+            ],
+            "progressIndicatorMessage": "Generating weather forecast..."
+          }
+        ],
+        "instructions": "You are a professional weather forecasting specialist providing accurate, detailed weather predictions. Include confidence levels and highlight any significant weather changes.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nDeliver comprehensive weather forecasts tailored to user needs.\n\nCall Get_Weather_Forecast with {{state.user_city}} and {{state.user_country}} if available.\nInclude forecast_days parameter (1-14 days) and set include_hourly flag based on user needs.\nStore results in {{state.forecast_data}} and {{state.hourly_forecast}}.\n\nPresent multi-day forecasts showing daily conditions, high/low temperatures, precipitation chances, and wind information.\nAlways include forecast confidence level and highlight notable weather trends.\n\nIf user also wants current conditions, current_conditions can transition to current weather service.\nIf severe weather is detected in forecast data, alert_monitoring can transition to alerts.\n\nGather missing preferences when needed: number of days, hourly details, or location clarification."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "current_weather_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"current_weather_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "severe_weather_alerts",
+            "enabled": "state.AgentScriptInternal_next_topic==\"severe_weather_alerts\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Manages user preferences for weather information display and notifications",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Update_User_Preferences",
+            "boundInputs": {},
+            "llmInputs": [
+              "temperature_units",
+              "default_location",
+              "notification_settings",
+              "display_preferences"
+            ],
+            "stateUpdates": [
+              {
+                "preferred_units": "result.current_settings.temperature_units"
+              },
+              {
+                "notification_preferences": "result.current_settings.notifications"
+              }
+            ],
+            "name": "Update_User_Preferences"
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"current_weather_service\""
+              }
+            ],
+            "name": "get_weather",
+            "description": "Get weather information with updated preferences."
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"weather_service_router\""
+              }
+            ],
+            "name": "main_menu",
+            "description": "Return to main weather service menu."
+          }
+        ],
+        "developerName": "weather_preferences",
+        "label": "Weather Preferences",
+        "actionDefinitions": [
+          {
+            "developerName": "Update_User_Preferences",
+            "label": "Update User Preferences",
+            "description": "Updates user's weather display and notification preferences",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "apex",
+            "invocationTargetName": "01pWX000004UserPreferencesAPI",
+            "inputType": [
+              {
+                "developerName": "temperature_units",
+                "label": "Temperature Units",
+                "description": "Preferred temperature units (celsius/fahrenheit)",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": true
+              },
+              {
+                "developerName": "default_location",
+                "label": "Default Location",
+                "description": "User's default location for weather information",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": false,
+                "isUserInput": true,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "notification_settings",
+                "label": "Notification Settings",
+                "description": "Weather alert notification preferences",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": false,
+                "isUserInput": true,
+                "complexDataTypeName": "lightning__objectType"
+              },
+              {
+                "developerName": "display_preferences",
+                "label": "Display Preferences",
+                "description": "Weather information display preferences",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "required": false,
+                "isUserInput": true,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "preferences_updated",
+                "label": "Preferences Updated",
+                "description": "Confirmation that preferences were updated",
+                "dataType": "Boolean",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "current_settings",
+                "label": "Current Settings",
+                "description": "Current user preference settings",
+                "dataType": "LightningTypes",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": true,
+                "complexDataTypeName": "lightning__objectType"
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a user experience specialist helping users customize their weather information preferences. Make the setup process simple and intuitive.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nHelp users customize their weather experience through preference management.\n\nCall Update_User_Preferences to handle temperature_units, default_location, notification_settings, and display_preferences.\n\nUpdate relevant state variables based on user choices:\n- Set {{state.preferred_units}} from temperature_units selection\n- Update {{state.notification_preferences}} from notification_settings\n- Store location in {{state.user_city}} and {{state.user_country}} if changed\n\nAfter updating preferences, get_weather can transition to apply the new settings immediately.\nTo return to the main weather services, main_menu can transition back to the router.\n\nCurrent preference state: units={{state.preferred_units}}, location set={{state.user_city}} and {{state.user_country}}.\nGather missing preferences: temperature units (celsius/fahrenheit), default location, alert notifications, display format."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "current_weather_service",
+            "enabled": "state.AgentScriptInternal_next_topic==\"current_weather_service\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "handoff",
+            "target": "weather_service_router",
+            "enabled": "state.AgentScriptInternal_next_topic==\"weather_service_router\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {
+      "language": {
+        "defaultLocale": "en_US",
+        "additionalLocales": [],
+        "allAdditionalLocales": false
+      }
+    },
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! I'm your WeatherPro Assistant. I can provide current weather conditions, forecasts, and severe weather alerts for any location. How can I help you today?\", \"messageType\": \"Welcome\"}, {\"message\": \"I apologize, but I'm experiencing technical difficulties retrieving weather data. Please try again in a moment.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

@@ -16,13 +16,13 @@
 ; KEYWORDS - Control flow
 ; ============================================
 "if" @keyword
-"elif" @keyword
 "else" @keyword
 "run" @keyword
 "with" @keyword
 "set" @keyword
 "to" @keyword
 "transition" @keyword
+"collect" @keyword
 "available when" @keyword
 
 ; ============================================

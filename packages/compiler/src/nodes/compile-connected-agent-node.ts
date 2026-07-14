@@ -14,6 +14,7 @@ import {
   extractStringValue,
   extractSourcedString,
   extractSourcedDescription,
+  extractBooleanValue,
   iterateNamedMap,
 } from '../ast-helpers.js';
 import { normalizeDeveloperName, parseUri } from '../utils.js';
@@ -34,6 +35,7 @@ export function compileConnectedAgentNode(
   const description = extractSourcedDescription(block.description) ?? '';
   const loadingText = extractSourcedString(block.loading_text) ?? undefined;
 
+  const delegateEscalation = extractBooleanValue(block.delegate_escalation);
   const boundInputs = compileBoundInputs(block.inputs, ctx);
 
   const afterResponseStmts = extractStatements(block.after_response);
@@ -67,6 +69,9 @@ export function compileConnectedAgentNode(
 
   if (loadingText !== undefined) {
     node.loading_text = loadingText;
+  }
+  if (delegateEscalation !== undefined) {
+    node.delegate_escalation = delegateEscalation;
   }
   if (boundInputs !== undefined) {
     node.bound_inputs = boundInputs;

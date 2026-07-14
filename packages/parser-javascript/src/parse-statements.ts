@@ -18,7 +18,7 @@
 
 import { isTokenKind, TokenKind } from './token.js';
 import { CSTNode } from './cst-node.js';
-import { makeErrorNode, tokenToAutoLeaf } from './errors.js';
+import { makeErrorNode } from './errors.js';
 import {
   makeEmptyError,
   addMissingTarget,
@@ -33,6 +33,8 @@ import {
   parseOrphanBlock,
 } from './recovery.js';
 import { parseExpression, wrapExpression, parseString } from './expressions.js';
+import { parseMapping } from './parse-mapping.js';
+import { parseSequence } from './parse-sequence.js';
 import type { ParserContext } from './parser.js';
 
 // ---------------------------------------------------------------------------
@@ -47,6 +49,7 @@ export function isStatementStart(ctx: ParserContext): boolean {
     case 'run':
     case 'set':
     case 'transition':
+    case 'collect':
       return true;
     case 'with':
       // "with" is a statement only if not followed by colon (which would make it a key)
@@ -119,6 +122,8 @@ export function parseStatement(
         return parseSetStatement(ctx);
       case 'transition':
         return parseTransitionStatement(ctx);
+      case 'collect':
+        return parseCollectStatement(ctx, parseTemplate);
       case 'with':
         return parseWithStatement(ctx);
       case 'available': {
@@ -131,9 +136,8 @@ export function parseStatement(
         break;
       }
       case 'else':
-      case 'elif':
       case 'for':
-        // Orphan else/elif (without if) or unsupported for → wrap in ERROR
+        // Orphan else (without preceding if) or unsupported for → wrap in ERROR
         return parseOrphanBlock(ctx, c => parseProcedure(c, parseTemplate));
     }
   }
@@ -165,12 +169,12 @@ export function parseStatement(
 // ---------------------------------------------------------------------------
 
 /**
- * Shared colon → procedure body sequence for if/elif/else.
+ * Shared colon → procedure body sequence for if / else if / else.
  * Consumes colon (with recovery), inline comment, extra inline tokens,
  * then INDENT → procedure → DEDENT, and trailing NEWLINE.
  *
  * @param errorOnMissingBody - if true, insert ERROR when colon has no
- *   indented body (used by `if`; elif/else silently accept missing body).
+ *   indented body (used by `if`; else if / else silently accept missing body).
  */
 function parseColonAndProcedureBody(
   ctx: ParserContext,
@@ -284,16 +288,18 @@ export function parseIfStatement(
     parseTemplate
   );
 
-  // elif clauses (including misspelled 'elseif')
+  // `else if` chain links — match `else` followed by `if` on the same row
   while (
     ctx.peekKind() === TokenKind.ID &&
-    (ctx.peek().text === 'elif' || ctx.peek().text === 'elseif')
+    ctx.peek().text === 'else' &&
+    ctx.peekAt(1).kind === TokenKind.ID &&
+    ctx.peekAt(1).text === 'if'
   ) {
-    const elif = parseElifClause(ctx, parseTemplate);
-    if (elif) node.appendChild(elif, 'alternative');
+    const elseIf = parseElseIfClause(ctx, parseTemplate);
+    if (elseIf) node.appendChild(elseIf, 'alternative');
   }
 
-  // else clause
+  // Plain `else` clause
   if (ctx.peekKind() === TokenKind.ID && ctx.peek().text === 'else') {
     const elseClause = parseElseClause(ctx, parseTemplate);
     if (elseClause) node.appendChild(elseClause, 'alternative');
@@ -303,30 +309,17 @@ export function parseIfStatement(
   return node;
 }
 
-function parseElifClause(
+function parseElseIfClause(
   ctx: ParserContext,
   parseTemplate?: (ctx: ParserContext) => CSTNode
 ): CSTNode {
   const startTok = ctx.peek();
-  const node = ctx.startNode('elif_clause');
+  const node = ctx.startNode('else_if_clause');
 
-  const kw = ctx.consume(); // elif or elseif
-  if (kw.text === 'elseif') {
-    // Wrap misspelled keyword in ERROR
-    const kwEnd = kw.startOffset + kw.text.length;
-    const leaf = tokenToAutoLeaf(kw, ctx.source, kw.startOffset);
-    const errNode = makeErrorNode(
-      ctx.source,
-      [leaf],
-      kw.startOffset,
-      kwEnd,
-      kw.start,
-      kw.end
-    );
-    node.appendChild(errNode);
-  } else {
-    ctx.addAnonymousChild(node, kw);
-  }
+  // `else` keyword
+  ctx.addAnonymousChild(node, ctx.consume());
+  // `if` keyword
+  ctx.addAnonymousChild(node, ctx.consume());
 
   const condition = parseExpression(ctx, 0);
   if (condition) node.appendChild(wrapExpression(ctx, condition), 'condition');
@@ -421,6 +414,64 @@ export function parseRunStatement(
     }
     consumeCommentsAndSkipNewlines(ctx, node);
     if (ctx.peekKind() === TokenKind.DEDENT) ctx.consume();
+  }
+
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
+/**
+ * Parse `collect @variables.X: <INDENT> message: "..." <DEDENT>`.
+ *
+ * Produces a `collect_statement` node with a `target` field (the variable
+ * expression) and a `body` field holding a `mapping` (with the `message:`
+ * element). Mirrors the tree-sitter grammar's collect_statement rule.
+ */
+export function parseCollectStatement(
+  ctx: ParserContext,
+  _parseTemplate?: (ctx: ParserContext) => CSTNode
+): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('collect_statement');
+
+  ctx.addAnonymousChild(node, ctx.consume()); // collect
+
+  // Target expression (e.g. @variables.patient_city)
+  if (!ctx.isAtSyncPoint()) {
+    const target = parseExpression(ctx, 0);
+    if (target) {
+      node.appendChild(wrapExpression(ctx, target), 'target');
+    } else {
+      addMissingTarget(ctx, node);
+    }
+  } else {
+    addMissingTarget(ctx, node);
+  }
+
+  // Colon
+  if (ctx.peekKind() === TokenKind.COLON) {
+    ctx.addAnonymousChild(node, ctx.consume());
+  } else {
+    node.appendChild(makeEmptyError(ctx));
+  }
+
+  // Inline comment after colon
+  if (ctx.peekKind() === TokenKind.COMMENT) {
+    node.appendChild(ctx.consumeNamed('comment'));
+  }
+
+  // Indented body mapping (holds `message:`)
+  if (ctx.peekKind() === TokenKind.INDENT) {
+    ctx.consume();
+    consumeCommentsAndSkipNewlines(ctx, node);
+    const body = parseMapping(ctx, parseSequence);
+    if (body) node.appendChild(body, 'body');
+    consumeCommentsAndSkipNewlines(ctx, node);
+    if (ctx.peekKind() === TokenKind.DEDENT) ctx.consume();
+  } else {
+    node.appendChild(makeEmptyError(ctx));
   }
 
   if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();

@@ -34,8 +34,16 @@ import {
   resolveAtReference,
 } from '../ast-helpers.js';
 import type { Sourceable } from '../sourced.js';
-import { TRANSITION_TARGET_NAMESPACES } from '../constants.js';
-import { warnIfConnectedAgentTransition } from './compile-utils.js';
+import {
+  TRANSITION_TARGET_NAMESPACES,
+  chainConditionVariableName,
+} from '../constants.js';
+import {
+  isElseIfChainHead,
+  walkElseIfChain,
+  buildChainBranchGate,
+  buildChainElseGate,
+} from './else-if-chain.js';
 
 /**
  * Compile a single reasoning action (tool) from a topic's reasoning block.
@@ -181,7 +189,7 @@ export function compileTool(
     type: isConnectedAgent ? 'supervision' : 'action',
     target,
     // TODO: Add connected agent tools to have bound_inputs/llm_inputs in the supervision definition
-    // once the runtime specification supports it.
+    // once the Agent Graph is updated. This is in the backlog for post-TDX as of 2026-03-31.
     // bound_inputs: Object.keys(boundInputs).length > 0 ? boundInputs : {},
     // llm_inputs: llmInputs,
     // Only include bound_inputs and llm_inputs for non-connected-agent tools
@@ -297,54 +305,104 @@ function setDefaultLlmInputs(
 }
 
 /**
- * Compile a post-action conditional (if statement) into post-tool-call actions.
+ * Compile a post-action conditional (if [/ else if ...] [/ else]) into
+ * post-tool-call actions.
  *
- * Pattern:
- * 1. Action to evaluate condition and store in AgentScriptInternal_condition
- * 2. Action to conditionally execute body, gated by AgentScriptInternal_condition
- * 3. If body contains transition, set AgentScriptInternal_next_topic and create handoff
+ * Plain `if`/`else` writes the compiled condition into the shared
+ * `AgentScriptInternal_condition` runtime variable and gates body / else
+ * off it (matches today's behavior).
+ *
+ * `else if` chains use per-link suffixed slots
+ * (`AgentScriptInternal_condition_1`, `_2`, ...) so prior links' negations
+ * stay stable when later links overwrite their own slots. Slot indices
+ * start at 1 for each call; the agent_version assembler declares slots
+ * based on `ctx.maxChainConditionSlot`.
  */
 function compilePostActionConditional(
+  stmt: IfStatement,
+  ctx: CompilerContext
+): { actions: Action[]; handOffs: HandOffAction[] } {
+  // Plain `if`/`else` — no chain links. Use the shared runtime variable.
+  if (!isElseIfChainHead(stmt)) {
+    return compilePlainPostActionConditional(stmt, ctx);
+  }
+
+  return compileChainPostActionConditional(stmt, ctx);
+}
+
+/** Compile a non-chain post-action conditional via slot 1. */
+function compilePlainPostActionConditional(
   stmt: IfStatement,
   ctx: CompilerContext
 ): { actions: Action[]; handOffs: HandOffAction[] } {
   const actions: Action[] = [];
   const handOffs: HandOffAction[] = [];
 
-  // Compile the condition expression
   const compiledCondition = compileExpression(stmt.condition, ctx, {
     expressionContext: "'if' statement condition",
   });
 
-  // Action 1: Evaluate and store the condition
-  const condAction: Action = {
+  const slotName = chainConditionVariableName(1);
+  ctx.maxChainConditionSlot = Math.max(ctx.maxChainConditionSlot ?? 0, 1);
+
+  actions.push({
     type: 'action',
     target: '__state_update_action__',
     enabled: 'True',
-    state_updates: [
-      {
-        AgentScriptInternal_condition: compiledCondition,
-      },
-    ],
-  };
-  actions.push(condAction);
+    state_updates: [{ [slotName]: compiledCondition }],
+  });
 
-  // Process the body to find transitions and other statements
-  const bodyResult = compileConditionalBody(
-    stmt.body,
-    'state.AgentScriptInternal_condition',
-    ctx
-  );
+  const condRef = `state.${slotName}`;
+  const bodyResult = compileConditionalBody(stmt.body, condRef, ctx);
   actions.push(...bodyResult.actions);
   handOffs.push(...bodyResult.handOffs);
 
-  // Handle else/elif branches
   if (stmt.orelse.length > 0) {
     const elseResult = compileConditionalBody(
       stmt.orelse,
-      `not state.AgentScriptInternal_condition`,
+      `not ${condRef}`,
       ctx
     );
+    actions.push(...elseResult.actions);
+    handOffs.push(...elseResult.handOffs);
+  }
+
+  return { actions, handOffs };
+}
+
+/** Compile an `else if` chain post-action conditional via per-link slots. */
+function compileChainPostActionConditional(
+  head: IfStatement,
+  ctx: CompilerContext
+): { actions: Action[]; handOffs: HandOffAction[] } {
+  const actions: Action[] = [];
+  const handOffs: HandOffAction[] = [];
+  const { branches, elseBody } = walkElseIfChain(
+    head,
+    ctx,
+    "'if' statement condition"
+  );
+
+  // Each branch: write its slot, then compile body with gate referencing
+  // prior slots (negated) AND this slot (positive).
+  for (let i = 0; i < branches.length; i++) {
+    const b = branches[i];
+    actions.push({
+      type: 'action',
+      target: '__state_update_action__',
+      enabled: 'True',
+      state_updates: [{ [b.slotName]: b.condition }],
+    });
+    const gate = buildChainBranchGate(branches, i);
+    const branchResult = compileConditionalBody(b.body, gate, ctx);
+    actions.push(...branchResult.actions);
+    handOffs.push(...branchResult.handOffs);
+  }
+
+  // Trailing `else:` body — every slot negated.
+  if (elseBody) {
+    const gate = buildChainElseGate(branches);
+    const elseResult = compileConditionalBody(elseBody, gate, ctx);
     actions.push(...elseResult.actions);
     handOffs.push(...elseResult.handOffs);
   }
@@ -435,7 +493,6 @@ function compileTransitionInConditional(
   // TransitionStatement contains clauses which should include ToClause
   for (const clause of stmt.clauses) {
     if (clause instanceof ToClause) {
-      if (warnIfConnectedAgentTransition(clause.target, ctx)) continue;
       const targetTopicName = resolveAtReference(
         clause.target,
         TRANSITION_TARGET_NAMESPACES,

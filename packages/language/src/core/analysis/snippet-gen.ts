@@ -13,7 +13,7 @@
  * leaf primitives return undefined.
  */
 import type { FieldType, KeywordInfo, Schema } from '../types.js';
-import { keywordNames } from '../types.js';
+import { keywordNames, resolveFieldType } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -353,10 +353,6 @@ function primitiveSnippetValue(ft: FieldType, counter: Counter): string {
 // ---------------------------------------------------------------------------
 // FieldType detection helpers
 // ---------------------------------------------------------------------------
-
-function resolveFieldType(ft: FieldType | FieldType[]): FieldType {
-  return Array.isArray(ft) ? ft[0] : ft;
-}
 
 function isPrimitive(ft: FieldType): boolean {
   return ft.__fieldKind === 'Primitive';

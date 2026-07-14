@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
 import type { AstNodeLike, AstRoot } from '../core/types.js';
 import { isNamedMap, isAstNodeLike } from '../core/types.js';
 import {
@@ -13,12 +20,30 @@ import {
 import type { ScopeContext } from '../core/analysis/scope.js';
 import { extractVariableRef, LINT_SOURCE } from './lint-utils.js';
 
+/**
+ * Options for the unused-variable pass.
+ *
+ * `overrideMessageForVariable` lets dialects customize the diagnostic message
+ * per variable — e.g. agentforce uses this to relabel required platform
+ * variables that are read by the runtime even when the script never references
+ * them. Receives the declaration node so callers can inspect properties like
+ * `source` to disambiguate beyond the variable name.
+ */
+export interface UnusedVariablePassOptions {
+  overrideMessageForVariable?: (
+    name: string,
+    decl: AstNodeLike
+  ) => string | undefined;
+}
+
 class UnusedVariablePass implements LintPass {
   readonly id = storeKey('unused-variable');
   readonly description =
     'Flags variables that are declared but never referenced';
 
   private usedVariables = new Set<string>();
+
+  constructor(private readonly options: UnusedVariablePassOptions = {}) {}
 
   init(): void {
     this.usedVariables = new Set();
@@ -42,10 +67,15 @@ class UnusedVariablePass implements LintPass {
       if (!node?.__cst) continue;
 
       const fullRange = node.__cst.range;
+      const customMessage = this.options.overrideMessageForVariable?.(
+        name,
+        node
+      );
 
       attachDiagnostic(node, {
         range: fullRange,
-        message: `Variable '${name}' is declared but never used`,
+        message:
+          customMessage ?? `Variable '${name}' is declared but never used`,
         severity: DiagnosticSeverity.Information,
         code: 'unused-variable',
         source: LINT_SOURCE,
@@ -56,6 +86,8 @@ class UnusedVariablePass implements LintPass {
   }
 }
 
-export function unusedVariablePass(): LintPass {
-  return new UnusedVariablePass();
+export function unusedVariablePass(
+  options?: UnusedVariablePassOptions
+): LintPass {
+  return new UnusedVariablePass(options);
 }

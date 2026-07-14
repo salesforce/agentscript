@@ -236,9 +236,9 @@ test('IfStatement emits with indentation', () => {
   expect(stmt.__emit({ indent: 1 })).toBe('    if cond:\n        |indented');
 });
 
-// IfStatement with elif (Python-style: elif is IfStatement in orelse)
+// IfStatement with `else if` (Python-style: each chain link is an IfStatement in orelse)
 
-test('IfStatement emits elif (single IfStatement in orelse)', () => {
+test('IfStatement emits else if (single IfStatement in orelse)', () => {
   const stmt = new IfStatement(
     new BooleanLiteral(true),
     [tpl('if body')],
@@ -249,23 +249,23 @@ test('IfStatement emits elif (single IfStatement in orelse)', () => {
           '==',
           new StringLiteral('b')
         ),
-        [tpl('elif body')]
+        [tpl('else if body')]
       ),
     ]
   );
   expect(stmt.__emit(ctx)).toBe(
-    'if True:\n    |if body\nelif x == "b":\n    |elif body'
+    'if True:\n    |if body\nelse if x == "b":\n    |else if body'
   );
 });
 
-test('IfStatement emits elif with else', () => {
+test('IfStatement emits else if with else', () => {
   const stmt = new IfStatement(
     new Identifier('cond'),
     [tpl('if')],
-    [new IfStatement(new Identifier('cond2'), [tpl('elif')], [tpl('else')])]
+    [new IfStatement(new Identifier('cond2'), [tpl('else if')], [tpl('else')])]
   );
   expect(stmt.__emit(ctx)).toBe(
-    'if cond:\n    |if\nelif cond2:\n    |elif\nelse:\n    |else'
+    'if cond:\n    |if\nelse if cond2:\n    |else if\nelse:\n    |else'
   );
 });
 
@@ -295,8 +295,8 @@ test('IfStatement emits else with indentation', () => {
 
 // Complex nested structures
 
-test('IfStatement with elif and else chain (Python-style)', () => {
-  // if x == "a": case a / elif x == "b": case b / else: default
+test('IfStatement with else if and else chain (Python-style)', () => {
+  // if x == "a": case a / else if x == "b": case b / else: default
   const stmt = new IfStatement(
     new ComparisonExpression(new Identifier('x'), '==', new StringLiteral('a')),
     [tpl('case a')],
@@ -313,12 +313,12 @@ test('IfStatement with elif and else chain (Python-style)', () => {
     ]
   );
   expect(stmt.__emit(ctx)).toBe(
-    'if x == "a":\n    |case a\nelif x == "b":\n    |case b\nelse:\n    |default'
+    'if x == "a":\n    |case a\nelse if x == "b":\n    |case b\nelse:\n    |default'
   );
 });
 
-test('IfStatement with multiple elifs (Python-style)', () => {
-  // if x == "a": case a / elif x == "b": case b / elif x == "c": case c / else: default
+test('IfStatement with multiple else if links (Python-style)', () => {
+  // if x == "a": case a / else if x == "b": case b / else if x == "c": case c / else: default
   const stmt = new IfStatement(
     new ComparisonExpression(new Identifier('x'), '==', new StringLiteral('a')),
     [tpl('case a')],
@@ -345,7 +345,7 @@ test('IfStatement with multiple elifs (Python-style)', () => {
     ]
   );
   expect(stmt.__emit(ctx)).toBe(
-    'if x == "a":\n    |case a\nelif x == "b":\n    |case b\nelif x == "c":\n    |case c\nelse:\n    |default'
+    'if x == "a":\n    |case a\nelse if x == "b":\n    |case b\nelse if x == "c":\n    |case c\nelse:\n    |default'
   );
 });
 
