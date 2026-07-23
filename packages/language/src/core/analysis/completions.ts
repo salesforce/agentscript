@@ -307,10 +307,12 @@ export function getCompletionCandidates(
   const rootCandidates = getRootCandidates(ast, namespace, ctx);
   if (rootCandidates.length > 0) return rootCandidates;
 
-  // Fallback: check global scopes
+  // Fallback: check global scopes. `globalMembers` is a map of member name ->
+  // nested sub-members (or null for a leaf); the top-level completion offers
+  // the member names themselves.
   const globalMembers = ctx.globalScopes.get(namespace);
   if (globalMembers) {
-    return [...globalMembers].map(member => ({
+    return [...globalMembers.keys()].map(member => ({
       name: member,
       kind: SymbolKind.Property,
     }));
@@ -1267,6 +1269,22 @@ export function getNodeMemberAccessCompletions(
   if (parts.length < 3) return [];
 
   const [namespace, nodeName, ...rest] = parts;
+
+  // Global-scope member access, e.g. `@system_variables.last_reply.<partial>`.
+  // The second part (`nodeName`) is a nested member of the global scope, and
+  // the trailing partial is a sub-member being typed. Only two-level nesting
+  // is supported (a nested member's sub-members are always leaves).
+  const globalMembers = ctx.globalScopes.get(namespace);
+  if (globalMembers) {
+    // Only offer sub-members directly under the nested member — no deeper.
+    if (rest.length !== 1) return [];
+    const subMembers = globalMembers.get(nodeName);
+    if (!subMembers) return [];
+    return [...subMembers].map(name => ({
+      name,
+      kind: SymbolKind.Property,
+    }));
+  }
   // The last part is the partial being typed; the segments before it are the
   // already-committed member chain.
   const members = rest.slice(0, -1);

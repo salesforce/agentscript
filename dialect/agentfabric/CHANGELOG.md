@@ -5,7 +5,6 @@
 ### Breaking Changes
 
 - Redesigned the `echo` node around A2A v1 task-update events. The single `kind: "a2a:response"` variant is replaced by two event variants:
-
   - `a2a:status_update_event` — sets the task `state` (required; one of the A2A v1 `TASK_STATE_*` values) with an optional `message`.
   - `a2a:artifact_update_event` — emits an `artifact` (required) with optional `append` and `lastChunk` flags.
 

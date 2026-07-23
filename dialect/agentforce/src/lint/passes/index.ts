@@ -58,6 +58,10 @@ export { complexDataTypeWarningRule } from './complex-data-type.js';
 export { customSubagentValidationRule } from './custom-subagent-validation.js';
 export { adaptiveLanguageValidationRule } from './adaptive-language-validation.js';
 export { disabledAdditionalParametersRule } from './disabled-additional-parameters.js';
+export {
+  voiceLanguageValidationRule,
+  voiceVersionMixingRule,
+} from './voice-language-validation.js';
 
 import { actionTargetSchemeRule } from './action-target.js';
 import { skillTargetSchemeRule } from './skill-target.js';
@@ -78,6 +82,10 @@ import { complexDataTypeWarningRule } from './complex-data-type.js';
 import { customSubagentValidationRule } from './custom-subagent-validation.js';
 import { adaptiveLanguageValidationRule } from './adaptive-language-validation.js';
 import { disabledAdditionalParametersRule } from './disabled-additional-parameters.js';
+import {
+  voiceLanguageValidationRule,
+  voiceVersionMixingRule,
+} from './voice-language-validation.js';
 
 /** All Agentforce lint rules — extends AgentScript rules with security checks. */
 export function defaultRules(): LintPass[] {
@@ -110,5 +118,7 @@ export function defaultRules(): LintPass[] {
     customSubagentValidationRule(),
     adaptiveLanguageValidationRule(),
     disabledAdditionalParametersRule(),
+    voiceLanguageValidationRule(),
+    voiceVersionMixingRule(),
   ];
 }

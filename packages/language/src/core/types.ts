@@ -880,11 +880,23 @@ export function buildKindToSchemaKey(
  * Schema metadata for core modules (scope, completions, lint).
  * Keeps core/ decoupled from any specific schema definition.
  */
+/**
+ * The members of a single global scope. Either a flat set of leaf member
+ * names (`@ns.member`), or a map of member name -> nested sub-members for
+ * two-level access (`@ns.member.submember`); a `null` value marks a leaf
+ * member with no sub-members. Use the set form for scopes that are entirely
+ * flat (e.g. `@utils`) and the map form when any member is a nested object
+ * (e.g. `@system_variables.last_reply`).
+ */
+export type GlobalScopeMembers =
+  | ReadonlySet<string>
+  | ReadonlyMap<string, ReadonlySet<string> | null>;
+
 export interface SchemaInfo {
   readonly schema: Record<string, FieldType>;
   readonly aliases: Record<string, string>;
   /** Global scopes: namespaces with known members, always resolvable (e.g., @utils, @system_variables). */
-  readonly globalScopes?: Readonly<Record<string, ReadonlySet<string>>>;
+  readonly globalScopes?: Readonly<Record<string, GlobalScopeMembers>>;
   /**
    * Namespaced function definitions: namespace name → set of allowed function names.
    * These are callable as bare `ns.func()` in expressions.

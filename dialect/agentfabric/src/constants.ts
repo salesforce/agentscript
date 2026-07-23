@@ -99,3 +99,7 @@ export const OUTPUT_JSON_SCHEMA_TYPES = [
   'array',
   'object',
 ] as const;
+
+// Anchor-free identifier fragment for connection-target URIs; embed inside `^…$`.
+export const AGENTFABRIC_IDENTIFIER_PATTERN =
+  '[a-zA-Z][a-zA-Z0-9_.-]*[a-zA-Z0-9]';

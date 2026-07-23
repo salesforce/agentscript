@@ -1,6 +1,7 @@
 # Type Embedding System
 
 This documentation site uses a hybrid approach that combines:
+
 - **Auto-generated API reference** from TypeDoc
 - **Manual guides and tutorials** with embedded type definitions from source code
 
@@ -68,7 +69,7 @@ Edit `extract-types.ts` and add files to the `filesToExtract` array:
 const filesToExtract = [
   'packages/language/src/types.ts',
   'packages/language/src/linter/types.ts',
-  'packages/your-new-file.ts',  // Add here
+  'packages/your-new-file.ts', // Add here
 ];
 ```
 
@@ -105,6 +106,7 @@ See `docs/type-embedding-example.mdx` for a complete example.
 ### Type Not Found
 
 If you get "Type definition not found", check:
+
 1. Is the type exported?
 2. Is the file in the `filesToExtract` array?
 3. Run `npm run extract-types` manually to see what's extracted
@@ -118,6 +120,7 @@ If you get "Type definition not found", check:
 ## Future Enhancements
 
 Potential improvements:
+
 - Extract function signatures
 - Extract JSDoc comments with the types
 - Support for extracting specific methods from classes

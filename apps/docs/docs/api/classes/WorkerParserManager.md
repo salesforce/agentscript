@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Class: WorkerParserManager
 
@@ -28,9 +28,9 @@ Clear the crash cooldown (e.g., to force retry)
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:317](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L317)
+[monaco/src/worker-parser.ts:317](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L317)
 
-***
+---
 
 ### getErrors()
 
@@ -48,9 +48,9 @@ Get parse errors
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:484](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L484)
+[monaco/src/worker-parser.ts:484](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L484)
 
-***
+---
 
 ### highlight()
 
@@ -68,9 +68,9 @@ Get syntax highlighting captures
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:415](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L415)
+[monaco/src/worker-parser.ts:415](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L415)
 
-***
+---
 
 ### initialize()
 
@@ -84,9 +84,9 @@ Initialize the worker
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:90](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L90)
+[monaco/src/worker-parser.ts:90](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L90)
 
-***
+---
 
 ### isReady()
 
@@ -100,9 +100,9 @@ Check if the worker is initialized
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:79](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L79)
+[monaco/src/worker-parser.ts:79](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L79)
 
-***
+---
 
 ### parse()
 
@@ -121,9 +121,9 @@ Uses versioning to skip stale requests - no blocking queue
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:339](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L339)
+[monaco/src/worker-parser.ts:339](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L339)
 
-***
+---
 
 ### restart()
 
@@ -137,9 +137,9 @@ Restart the worker after a crash
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:233](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L233)
+[monaco/src/worker-parser.ts:233](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L233)
 
-***
+---
 
 ### terminate()
 
@@ -153,4 +153,4 @@ Terminate the worker
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:553](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L553)
+[monaco/src/worker-parser.ts:553](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L553)

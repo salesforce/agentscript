@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Fetch Data"
+sidebar_label: 'Fetch Data'
 ---
 
 # Agent Script Pattern: Fetch Data Before Reasoning

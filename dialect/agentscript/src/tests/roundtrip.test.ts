@@ -3046,6 +3046,21 @@ describe('diagnostics', () => {
     expect(diagnostics.some(d => d.code === 'unknown-field')).toBe(true);
   });
 
+  test('unknown field in reasoning action', () => {
+    const source = `subagent Greeting:
+    reasoning:
+        instructions: ->
+            | Ask for the order number
+        actions:
+            lookup: @actions.Lookup_Order
+                description: "Looks up an order"
+                unknown_field: "this should error"`;
+    const { diagnostics } = parseWithDiagnostics(source, AgentScriptSchema);
+    const unknownDiags = diagnostics.filter(d => d.code === 'unknown-field');
+    expect(unknownDiags.length).toBeGreaterThan(0);
+    expect(unknownDiags[0].message).toContain('unknown_field');
+  });
+
   test('completely invalid syntax', () => {
     const { diagnostics } = parseWithDiagnostics(`!@#$%^&`, AgentScriptSchema);
     expect(diagnostics.length).toBeGreaterThan(0);

@@ -343,7 +343,7 @@ config:
 
 actions:
   notify:
-    target: "mcp://x"
+    target: "mcp://xx"
     kind: "mcp:tool"
     tool_name: "notify"
 

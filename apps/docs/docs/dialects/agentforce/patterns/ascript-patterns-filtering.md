@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Filtering"
+sidebar_label: 'Filtering'
 ---
 
 # Agent Script Pattern: Enforce Business Rules with Filters

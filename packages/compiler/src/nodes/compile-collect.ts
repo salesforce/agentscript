@@ -6,11 +6,7 @@
  */
 
 import type { Statement } from '@agentscript/language';
-import {
-  CollectClause,
-  StringLiteral,
-  IfStatement,
-} from '@agentscript/language';
+import { CollectClause, IfStatement } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type { Tool, HandOffAction, StateUpdate } from '../types.js';
 import {
@@ -19,14 +15,14 @@ import {
   EMPTY_TOPIC_VALUE,
   NEXT_TOPIC_EMPTY_CONDITION,
 } from '../constants.js';
-import { resolveAtReference } from '../ast-helpers.js';
+import { resolveAtReference, extractStringValue } from '../ast-helpers.js';
 import { stateVarToParameterDataType } from '../variables/variable-utils.js';
 import type { Sourceable } from '../sourced.js';
 
 /**
  * `collect` lowering helpers.
  *
- * A `collect @variables.X: message: M` statement inside reasoning.instructions
+ * A `collect @variables.X` + `message: M` statement inside reasoning.instructions
  * gathers field X from the user, one field at a time, resuming the subagent
  * across turns until every collected field is filled.
  *
@@ -71,12 +67,16 @@ export function resolveCollectTarget(
   return resolveAtReference(stmt.target, 'variables', ctx, 'collect target');
 }
 
-/** The verbatim prompt text from a collect statement's `message:` field. */
+/**
+ * The verbatim prompt text from a collect statement's `message:` field.
+ *
+ * Handles both a quoted string literal (`message: "…"`) and a `|` pipe
+ * template (`message: |` with indented multi-line content). Template values
+ * are already dedented and cleaned at parse time, so `extractStringValue`
+ * returns their content directly.
+ */
 export function collectMessageText(stmt: CollectClause): string {
-  if (stmt.message instanceof StringLiteral) {
-    return stmt.message.value;
-  }
-  return '';
+  return extractStringValue(stmt.message) ?? '';
 }
 
 /**

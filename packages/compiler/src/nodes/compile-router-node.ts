@@ -17,10 +17,7 @@ import type { ParsedTopicLike, ParsedSystem } from '../parsed-types.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- compiler handles both topic and subagent reasoning shapes generically
 type ParsedReasoningLike = Record<string, any> | null | undefined;
-import {
-  AGENT_INSTRUCTIONS_VARIABLE,
-  STATE_UPDATE_ACTION,
-} from '../constants.js';
+import { AGENT_INSTRUCTIONS_VARIABLE } from '../constants.js';
 import {
   extractStringValue,
   extractSourcedString,
@@ -33,7 +30,12 @@ import {
 import type { Sourceable } from '../sourced.js';
 import { normalizeDeveloperName, dedent } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
-import { compileDeterministicDirectives } from './compile-directives.js';
+import {
+  compileDeterministicDirectives,
+  createInstructionResetAction,
+  createStateUpdateAction,
+  instructionAppendValue,
+} from './compile-directives.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
 
 /**
@@ -190,43 +192,30 @@ function compileRouterBeforeReasoningIteration(
   proceduralStatements: Statement[] | undefined,
   _ctx: CompilerContext
 ): Action[] {
-  // Procedural instructions: use deterministic directives
+  // Procedural instructions: use deterministic directives. Adjacent same-gate
+  // instruction appends are fused inside compileDeterministicDirectives (keyed
+  // off agentInstructionsVariable).
   if (isProcedural && proceduralStatements) {
-    const resetAction: Action = {
-      type: 'action',
-      target: STATE_UPDATE_ACTION,
-      enabled: 'True',
-      state_updates: [{ [AGENT_INSTRUCTIONS_VARIABLE]: "''" }],
-    };
-
     const actions = compileDeterministicDirectives(proceduralStatements, _ctx, {
       addNextTopicResetAction: false,
       gateOnNextTopicEmpty: false,
       agentInstructionsVariable: AGENT_INSTRUCTIONS_VARIABLE,
     });
 
-    return [resetAction, ...(actions as Action[])];
+    return [createInstructionResetAction(), ...(actions as Action[])];
   }
 
   // Simple template: reset + append
   if (!instructionTemplate) return [];
 
-  const resetAction: Action = {
-    type: 'action',
-    target: STATE_UPDATE_ACTION,
-    enabled: 'True',
-    state_updates: [{ [AGENT_INSTRUCTIONS_VARIABLE]: "''" }],
-  };
+  const appendAction = createStateUpdateAction([
+    {
+      [AGENT_INSTRUCTIONS_VARIABLE]: instructionAppendValue(
+        AGENT_INSTRUCTIONS_VARIABLE,
+        instructionTemplate
+      ),
+    },
+  ]);
 
-  const appendAction: Action = {
-    type: 'action',
-    target: STATE_UPDATE_ACTION,
-    state_updates: [
-      {
-        [AGENT_INSTRUCTIONS_VARIABLE]: `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}\n${instructionTemplate}`,
-      },
-    ],
-  };
-
-  return [resetAction, appendAction];
+  return [createInstructionResetAction(), appendAction];
 }

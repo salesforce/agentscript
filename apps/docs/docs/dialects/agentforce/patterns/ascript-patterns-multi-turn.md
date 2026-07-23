@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Multi-Topic Multi-Turn Workflows"
+sidebar_label: 'Multi-Topic Multi-Turn Workflows'
 ---
 
 # Agent Script Pattern: Enforce Required Workflows Through Subagents In Multi Turn Conversations

@@ -134,13 +134,13 @@ The `DialectConfig` interface (`@agentscript/language`):
 
 ```typescript
 interface DialectConfig {
-  readonly name: string;               // Unique identifier (e.g., 'mydialect')
-  readonly displayName: string;        // Human-readable name (e.g., 'My Dialect')
-  readonly description: string;        // Short description for UI display
-  readonly version: string;            // Semver from package.json
-  readonly schemaInfo: SchemaInfo;     // Root schema, aliases, global scopes
-  readonly createRules: () => LintPass[];  // Factory for fresh lint passes
-  readonly source?: string;            // Diagnostic source tag
+  readonly name: string; // Unique identifier (e.g., 'mydialect')
+  readonly displayName: string; // Human-readable name (e.g., 'My Dialect')
+  readonly description: string; // Short description for UI display
+  readonly version: string; // Semver from package.json
+  readonly schemaInfo: SchemaInfo; // Root schema, aliases, global scopes
+  readonly createRules: () => LintPass[]; // Factory for fresh lint passes
+  readonly source?: string; // Diagnostic source tag
 }
 ```
 
@@ -165,7 +165,7 @@ import { mydialect } from '@agentscript/mydialect-dialect';
 const dialects: DialectConfig[] = [
   agentforceDialect,
   agentscriptDialect,
-  mydialect,  // ← add here
+  mydialect, // ← add here
 ];
 ```
 

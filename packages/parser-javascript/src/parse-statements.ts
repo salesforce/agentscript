@@ -423,11 +423,12 @@ export function parseRunStatement(
 }
 
 /**
- * Parse `collect @variables.X: <INDENT> message: "..." <DEDENT>`.
+ * Parse `collect @variables.X <INDENT> message: "..." <DEDENT>`.
  *
  * Produces a `collect_statement` node with a `target` field (the variable
  * expression) and a `body` field holding a `mapping` (with the `message:`
- * element). Mirrors the tree-sitter grammar's collect_statement rule.
+ * element). Mirrors the tree-sitter grammar's collect_statement rule: `collect`
+ * is an operator (like `run`), so there is no colon after the target.
  */
 export function parseCollectStatement(
   ctx: ParserContext,
@@ -450,14 +451,8 @@ export function parseCollectStatement(
     addMissingTarget(ctx, node);
   }
 
-  // Colon
-  if (ctx.peekKind() === TokenKind.COLON) {
-    ctx.addAnonymousChild(node, ctx.consume());
-  } else {
-    node.appendChild(makeEmptyError(ctx));
-  }
-
-  // Inline comment after colon
+  // Inline comment after the target (before the indented body). `collect` is
+  // an operator like `run`, so there is no colon between the target and body.
   if (ctx.peekKind() === TokenKind.COMMENT) {
     node.appendChild(ctx.consumeNamed('comment'));
   }

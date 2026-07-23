@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Utils"
+sidebar_label: 'Utils'
 ---
 
 # Agent Script Reference: Utils

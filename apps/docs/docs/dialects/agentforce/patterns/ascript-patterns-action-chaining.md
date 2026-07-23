@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Action Chaining"
+sidebar_label: 'Action Chaining'
 ---
 
 # Agent Script Pattern: Action Chaining and Sequencing

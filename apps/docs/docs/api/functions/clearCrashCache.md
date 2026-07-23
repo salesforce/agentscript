@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Function: clearCrashCache()
 
@@ -15,4 +15,4 @@ Call this when the user edits content to allow re-parsing
 
 ## Defined in
 
-[monaco/src/parser-api.ts:177](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-api.ts#L177)
+[monaco/src/parser-api.ts:177](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-api.ts#L177)

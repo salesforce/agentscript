@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Multi-Topic Multi-Turn Sequencing (Hands-On)"
+sidebar_label: 'Multi-Topic Multi-Turn Sequencing (Hands-On)'
 ---
 
 # Agent Script Example: Use a Step Variable to Enforce Subagent Workflows

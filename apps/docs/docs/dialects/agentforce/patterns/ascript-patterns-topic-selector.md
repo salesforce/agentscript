@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Agent Router"
+sidebar_label: 'Agent Router'
 ---
 
 # Agent Script Pattern: Agent Router Strategies

@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Interface: HighlightResult
 
@@ -12,9 +12,9 @@
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:38](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L38)
+[monaco/src/worker-parser.ts:38](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L38)
 
-***
+---
 
 ### error?
 
@@ -22,9 +22,9 @@
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:39](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L39)
+[monaco/src/worker-parser.ts:39](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L39)
 
-***
+---
 
 ### success
 
@@ -32,4 +32,4 @@
 
 #### Defined in
 
-[monaco/src/worker-parser.ts:37](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/worker-parser.ts#L37)
+[monaco/src/worker-parser.ts:37](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/worker-parser.ts#L37)

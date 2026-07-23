@@ -57,17 +57,19 @@ If the code is incorrect, update it in the markdown file:
 // Before (incorrect)
 const rule: LinterRule = {
   name: 'my-rule',
-  validate(node) {  // ❌ Missing context parameter
+  validate(node) {
+    // ❌ Missing context parameter
     // ...
-  }
+  },
 };
 
 // After (correct)
 const rule: LinterRule = {
   name: 'my-rule',
-  validate(node, context) {  // ✅ Both parameters
+  validate(node, context) {
+    // ✅ Both parameters
     // ...
-  }
+  },
 };
 ```
 
@@ -109,7 +111,7 @@ import {
   LinterRule,
   DiagnosticSeverity,
   createDiagnostic,
-  getNodeRange
+  getNodeRange,
 } from '@agentscript/agentforce';
 
 export const noEmptyBlocks: LinterRule = {
@@ -125,15 +127,16 @@ export const noEmptyBlocks: LinterRule = {
           'Empty blocks are not allowed',
           getNodeRange(node),
           DiagnosticSeverity.Warning
-        )
+        ),
       ];
     }
     return undefined;
-  }
+  },
 };
 ```
 
 This code block will:
+
 - ✅ Pass syntax validation
 - ✅ Pass type checking
 - ✅ Use real SDK APIs
@@ -152,6 +155,7 @@ pnpm install
 ### "Syntax error in code block"
 
 Check the markdown file at the reported line number. Common issues:
+
 - Missing closing braces `}`
 - Unclosed strings or template literals
 - Invalid TypeScript syntax
@@ -159,6 +163,7 @@ Check the markdown file at the reported line number. Common issues:
 ### "Type error in code block"
 
 The code compiles but has type issues. Check:
+
 - Parameter types match the SDK interfaces
 - Return types are correct
 - Imported types are used correctly

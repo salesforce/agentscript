@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Interface: HighlightCapture
 
@@ -12,9 +12,9 @@
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:49](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L49)
+[monaco/src/parser-worker.ts:49](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L49)
 
-***
+---
 
 ### endRow
 
@@ -22,9 +22,9 @@
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:48](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L48)
+[monaco/src/parser-worker.ts:48](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L48)
 
-***
+---
 
 ### name
 
@@ -32,9 +32,9 @@
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:45](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L45)
+[monaco/src/parser-worker.ts:45](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L45)
 
-***
+---
 
 ### startCol
 
@@ -42,9 +42,9 @@
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:47](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L47)
+[monaco/src/parser-worker.ts:47](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L47)
 
-***
+---
 
 ### startRow
 
@@ -52,4 +52,4 @@
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:46](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L46)
+[monaco/src/parser-worker.ts:46](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L46)

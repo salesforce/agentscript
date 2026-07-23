@@ -300,7 +300,7 @@ start_agent TestTopic:
       n => n.developer_name === 'TestTopic'
     )!;
     expect(node.instructions).toBe(
-      'topic-level override\n{{state.__user_input__}}\n{{variables.EndUserId}}\n{{state.StateVariable}}'
+      'topic-level override\n{{system.input_text}}\n{{variables.EndUserId}}\n{{state.StateVariable}}'
     );
   });
 
@@ -445,5 +445,88 @@ start_agent simple:
     expect(node.focus_prompt).toBe(
       '{{state.AgentScriptInternal_agent_instructions}}'
     );
+  });
+});
+
+describe('strip_salesforce_instructions', () => {
+  it('emits strip_salesforce_instructions when set to True on subagent system block', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent simple:
+    description: "desc"
+    system:
+        strip_salesforce_instructions: True
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes[0];
+    expect(node.strip_salesforce_system_prompt).toBe(true);
+  });
+
+  it('emits strip_salesforce_instructions when set to False on subagent system block', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent simple:
+    description: "desc"
+    system:
+        strip_salesforce_instructions: False
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes[0];
+    expect(node.strip_salesforce_system_prompt).toBe(false);
+  });
+
+  it('applies the global system block value to every subagent', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+system:
+    strip_salesforce_instructions: True
+
+start_agent simple:
+    description: "desc"
+
+subagent Other:
+    description: "other"
+`;
+    const { output } = compile(parseSource(source));
+    for (const node of output.agent_version.nodes) {
+      expect(node.strip_salesforce_system_prompt).toBe(true);
+    }
+  });
+
+  it('lets a subagent system block override the global value', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+system:
+    strip_salesforce_instructions: True
+
+start_agent simple:
+    description: "desc"
+    system:
+        strip_salesforce_instructions: False
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes[0];
+    expect(node.strip_salesforce_system_prompt).toBe(false);
+  });
+
+  it('omits strip_salesforce_instructions when not specified', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent simple:
+    description: "desc"
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes[0];
+    expect(node.strip_salesforce_system_prompt).toBeUndefined();
   });
 });

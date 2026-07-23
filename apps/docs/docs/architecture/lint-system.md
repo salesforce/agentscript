@@ -46,7 +46,7 @@ All hooks are optional. A pass implements only what it needs: analyzer passes ty
 const symbolTableKey = storeKey<SymbolTable>('symbol-table');
 
 // In an analyzer's finalize():
-store.set(symbolTableKey, builtTable);    // Type-safe, can only set once
+store.set(symbolTableKey, builtTable); // Type-safe, can only set once
 
 // In a validation pass's run():
 const symbols = store.get(symbolTableKey); // Returns SymbolTable | undefined
@@ -102,33 +102,33 @@ The AgentScript dialect registers 15 lint passes via `defaultRules()`, listed he
 
 ### Base Passes (from `@agentscript/language`)
 
-| # | Pass | Purpose |
-|---|------|---------|
-| 1 | `symbolTableAnalyzer` | Builds the symbol table from AST scope declarations |
-| 2 | `duplicateKeyPass` | Detects duplicate keys within a block |
-| 3 | `requiredFieldPass` | Ensures required fields are present |
-| 4 | `singularCollectionPass` | Validates singular collections have exactly one entry |
-| 5 | `constraintValidationPass` | Validates field constraints (patterns, accepted types) |
-| 6 | `positionIndexPass` | Builds a position-to-node index for editor features |
-| 7 | `unreachableCodePass` | Detects unreachable code after transitions |
-| 8 | `emptyBlockPass` | Warns about empty blocks |
-| 9 | `expressionValidationPass` | Validates expression types and function calls |
+| #   | Pass                       | Purpose                                                |
+| --- | -------------------------- | ------------------------------------------------------ |
+| 1   | `symbolTableAnalyzer`      | Builds the symbol table from AST scope declarations    |
+| 2   | `duplicateKeyPass`         | Detects duplicate keys within a block                  |
+| 3   | `requiredFieldPass`        | Ensures required fields are present                    |
+| 4   | `singularCollectionPass`   | Validates singular collections have exactly one entry  |
+| 5   | `constraintValidationPass` | Validates field constraints (patterns, accepted types) |
+| 6   | `positionIndexPass`        | Builds a position-to-node index for editor features    |
+| 7   | `unreachableCodePass`      | Detects unreachable code after transitions             |
+| 8   | `emptyBlockPass`           | Warns about empty blocks                               |
+| 9   | `expressionValidationPass` | Validates expression types and function calls          |
 
 ### AgentScript Analyzers (from `@agentscript/agentscript-dialect`)
 
-| # | Pass | Purpose |
-|---|------|---------|
-| 10 | `typeMapAnalyzer` | Builds type information map for variables, actions, inputs, and outputs |
-| 11 | `reasoningActionsAnalyzer` | Collects reasoning action binding entries |
+| #   | Pass                       | Purpose                                                                 |
+| --- | -------------------------- | ----------------------------------------------------------------------- |
+| 10  | `typeMapAnalyzer`          | Builds type information map for variables, actions, inputs, and outputs |
+| 11  | `reasoningActionsAnalyzer` | Collects reasoning action binding entries                               |
 
 ### Validation Rules (from `@agentscript/agentscript-dialect`)
 
-| # | Pass | Purpose |
-|---|------|---------|
-| 12 | `undefinedReferencePass` | Detects references to undefined variables, tool definitions, or subagents |
-| 13 | `actionIoRule` | Validates action input/output parameter usage (with/set clauses) |
-| 14 | `actionTypeCheckRule` | Type-checks action parameter assignments |
-| 15 | `connectedAgentTargetPass` | Validates connected agent target URIs |
+| #   | Pass                       | Purpose                                                                   |
+| --- | -------------------------- | ------------------------------------------------------------------------- |
+| 12  | `undefinedReferencePass`   | Detects references to undefined variables, tool definitions, or subagents |
+| 13  | `actionIoRule`             | Validates action input/output parameter usage (with/set clauses)          |
+| 14  | `actionTypeCheckRule`      | Type-checks action parameter assignments                                  |
+| 15  | `connectedAgentTargetPass` | Validates connected agent target URIs                                     |
 
 Note: `undefinedReferencePass` is defined in `@agentscript/language` but is listed under validation rules because it runs in the `run()` phase, depending on the symbol table built by `symbolTableAnalyzer`.
 

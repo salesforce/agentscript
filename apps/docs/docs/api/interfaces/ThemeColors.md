@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Interface: ThemeColors
 
@@ -12,9 +12,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:33](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L33)
+[monaco/src/theme.ts:33](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L33)
 
-***
+---
 
 ### decorator
 
@@ -22,9 +22,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:36](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L36)
+[monaco/src/theme.ts:36](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L36)
 
-***
+---
 
 ### default
 
@@ -32,9 +32,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:37](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L37)
+[monaco/src/theme.ts:37](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L37)
 
-***
+---
 
 ### function
 
@@ -42,9 +42,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:27](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L27)
+[monaco/src/theme.ts:27](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L27)
 
-***
+---
 
 ### keyword
 
@@ -52,9 +52,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:22](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L22)
+[monaco/src/theme.ts:22](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L22)
 
-***
+---
 
 ### keyword.block
 
@@ -62,9 +62,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:24](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L24)
+[monaco/src/theme.ts:24](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L24)
 
-***
+---
 
 ### keyword.blockName
 
@@ -72,9 +72,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:25](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L25)
+[monaco/src/theme.ts:25](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L25)
 
-***
+---
 
 ### keyword.modification
 
@@ -82,9 +82,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:23](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L23)
+[monaco/src/theme.ts:23](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L23)
 
-***
+---
 
 ### namespace
 
@@ -92,9 +92,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:34](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L34)
+[monaco/src/theme.ts:34](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L34)
 
-***
+---
 
 ### number
 
@@ -102,9 +102,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:31](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L31)
+[monaco/src/theme.ts:31](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L31)
 
-***
+---
 
 ### operator
 
@@ -112,9 +112,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:32](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L32)
+[monaco/src/theme.ts:32](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L32)
 
-***
+---
 
 ### property
 
@@ -122,9 +122,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:35](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L35)
+[monaco/src/theme.ts:35](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L35)
 
-***
+---
 
 ### string
 
@@ -132,9 +132,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:30](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L30)
+[monaco/src/theme.ts:30](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L30)
 
-***
+---
 
 ### type
 
@@ -142,9 +142,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:26](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L26)
+[monaco/src/theme.ts:26](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L26)
 
-***
+---
 
 ### variable
 
@@ -152,9 +152,9 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:28](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L28)
+[monaco/src/theme.ts:28](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L28)
 
-***
+---
 
 ### variable.readonly.defaultLibrary
 
@@ -162,4 +162,4 @@
 
 #### Defined in
 
-[monaco/src/theme.ts:29](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L29)
+[monaco/src/theme.ts:29](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L29)

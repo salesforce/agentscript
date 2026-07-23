@@ -144,10 +144,10 @@ config:
   agent_name: "bad-llm-kind"
 
 llm:
-  x:
-    target: "llm://x"
+  xx:
+    target: "llm://xx"
     kind: "claude"
-    model: "x"
+    model: "xx"
 `;
     const result = parseAndLintSource(source);
     expect(result.diagnostics.some(d => d.code === 'unknown-variant')).toBe(

@@ -686,6 +686,36 @@ export function decomposeAtMemberExpression(
   return decomposeMemberExpression(expr);
 }
 
+export interface AtMemberChain {
+  namespace: string;
+  /** Member path after the namespace, e.g. `['last_reply','interrupted']`. */
+  path: string[];
+}
+
+/**
+ * Decompose an `@namespace.a.b.c` member expression into its namespace and the
+ * full chain of member names that follow it. Handles arbitrary nesting depth by
+ * walking the chain of {@link MemberExpression} nodes down to the root
+ * {@link AtIdentifier}. Returns null if the expression is not an at-rooted
+ * member chain.
+ *
+ * Unlike {@link decomposeAtMemberExpression} (which only reads the innermost
+ * `@ns.member` and ignores deeper access), this captures every level — used to
+ * validate nested global-scope members like `@system_variables.last_reply.interrupted`.
+ */
+export function decomposeAtMemberChain(expr: unknown): AtMemberChain | null {
+  if (!isMemberExpression(expr)) return null;
+  const path: string[] = [];
+  let current: unknown = expr;
+  while (isMemberExpression(current)) {
+    if (!current.property) return null;
+    path.unshift(current.property);
+    current = current.object;
+  }
+  if (!isAtIdentifier(current)) return null;
+  return { namespace: current.name, path };
+}
+
 /**
  * All expression classes -- single source of truth for kinds.
  * ExpressionKind and EXPRESSION_KINDS are derived automatically; user-facing

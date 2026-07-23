@@ -176,6 +176,7 @@ export const FIXTURES: string[] = [
   'edge_action_list_io.agent',
   'edge_action_many.agent',
   'edge_action_mixed_targets.agent',
+  'edge_action_mcp_targets.agent',
   'edge_action_no_description.agent',
   'edge_action_no_inputs.agent',
   'edge_action_no_outputs.agent',
@@ -203,6 +204,7 @@ export const FIXTURES: string[] = [
   'edge_conn_all_surfaces.agent',
   'edge_conn_custom.agent',
   'connection_inputs.agent',
+  'connection_additional_system_instructions.agent',
   'edge_conn_messaging.agent',
   'edge_conn_messaging_full.agent',
   'edge_conn_messaging_routing.agent',
@@ -282,6 +284,7 @@ export const FIXTURES: string[] = [
   'mixed_syntax_multi_topic.agent',
   // Context block fixtures
   'context_memory_agent.agent',
+  'context_full_agent.agent',
   // Recommended prompts fixtures
   'recommendations_agent.agent',
   // Constant value fixtures

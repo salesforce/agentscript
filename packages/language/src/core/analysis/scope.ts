@@ -11,6 +11,7 @@ import type {
   Schema,
   AstNodeLike,
   SchemaInfo,
+  GlobalScopeMembers,
 } from '../types.js';
 import type { NamedMap } from '../block.js';
 import {
@@ -66,8 +67,16 @@ export interface SchemaContext {
   // in the same type system as schema-defined blocks. Syntax (e.g. "this member takes a
   // `to` clause") is an additional restriction layered on top of the semantics, not the
   // other way around.
-  /** Global scopes: namespace -> set of known members. */
-  readonly globalScopes: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * Global scopes: namespace -> members. Each member maps to its nested
+   * sub-member set (for two-level access like `@system_variables.last_reply.interrupted`),
+   * or `null` when the member is a leaf. The dialect may declare a flat scope
+   * as a plain `Set`; it is normalized here to a map of members -> null.
+   */
+  readonly globalScopes: ReadonlyMap<
+    string,
+    ReadonlyMap<string, ReadonlySet<string> | null>
+  >;
   /** Scoped namespaces that support colinear cross-block @-reference resolution (e.g., 'outputs'). */
   readonly colinearResolvedScopes: ReadonlySet<string>;
   /** Namespaces whose blocks declare the 'invocationTarget' capability (can be called as a tool). */
@@ -113,8 +122,13 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
     ...Object.values(info.aliases),
   ]);
 
-  // Build global scopes map and register them in namespace metadata
-  const globalScopes = new Map<string, ReadonlySet<string>>();
+  // Build global scopes map and register them in namespace metadata.
+  // Normalize each scope to a member -> nested-sub-members map (null = leaf),
+  // so a dialect may declare a flat scope as a plain Set and a nested one as a Map.
+  const globalScopes = new Map<
+    string,
+    ReadonlyMap<string, ReadonlySet<string> | null>
+  >();
   if (info.globalScopes) {
     for (const [ns, scope] of Object.entries(info.globalScopes)) {
       if (reservedNamespaces.has(ns)) {
@@ -125,7 +139,7 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
             `This is a configuration error in the dialect's SchemaInfo.`
         );
       }
-      globalScopes.set(ns, scope);
+      globalScopes.set(ns, normalizeGlobalScope(scope));
       if (!namespaceMetadata.has(ns)) {
         namespaceMetadata.set(ns, { kind: SymbolKind.Namespace });
       }
@@ -162,6 +176,23 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
     nodeOutputMemberName: info.nodeMemberAccess?.outputMember,
     nodeOutputFieldPaths,
   };
+}
+
+/**
+ * Normalize a dialect-declared global scope into the internal
+ * member -> nested-sub-members map. A flat `Set` becomes a map of each member
+ * to `null` (leaf); a `Map` is returned as-is (its values already distinguish
+ * leaves from nested sub-member sets).
+ */
+function normalizeGlobalScope(
+  scope: GlobalScopeMembers
+): ReadonlyMap<string, ReadonlySet<string> | null> {
+  if (scope instanceof Map) return scope;
+  const normalized = new Map<string, ReadonlySet<string> | null>();
+  for (const member of scope as ReadonlySet<string>) {
+    normalized.set(member, null);
+  }
+  return normalized;
 }
 
 /**
@@ -309,10 +340,10 @@ export function getSchemaNamespaces(ctx: SchemaContext): ReadonlySet<string> {
   return ctx.schemaNamespaces;
 }
 
-/** Global scopes: namespace -> set of known member names. */
+/** Global scopes: namespace -> member -> nested sub-members (null = leaf). */
 export function getGlobalScopes(
   ctx: SchemaContext
-): ReadonlyMap<string, ReadonlySet<string>> {
+): ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string> | null>> {
   return ctx.globalScopes;
 }
 

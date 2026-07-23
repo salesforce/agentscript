@@ -26,8 +26,8 @@ interface Diagnostic {
 
 Severity values match the LSP specification and **must not** be changed:
 
-| Value | Name          | When to Use                                                |
-|-------|---------------|------------------------------------------------------------|
+| Value | Name          | When to Use                                                  |
+| ----- | ------------- | ------------------------------------------------------------ |
 | 1     | `Error`       | Invalid code that will fail at runtime or cannot be compiled |
 | 2     | `Warning`     | Likely mistakes or deprecated usage that still compiles      |
 | 3     | `Information` | Suggestions or system-level notices (e.g., skipped passes)   |
@@ -35,8 +35,8 @@ Severity values match the LSP specification and **must not** be changed:
 
 ## Diagnostic Tags
 
-| Value | Name          | When to Use                        |
-|-------|---------------|------------------------------------|
+| Value | Name          | When to Use                         |
+| ----- | ------------- | ----------------------------------- |
 | 1     | `Unnecessary` | Dead code or unreachable statements |
 | 2     | `Deprecated`  | Usage of deprecated fields or APIs  |
 
@@ -50,27 +50,27 @@ Codes should be descriptive and scoped to the check they represent. Prefer speci
 
 ### Common Codes
 
-| Code                     | Source              | Description                                  |
-|--------------------------|---------------------|----------------------------------------------|
-| `syntax-error`           | `parser`            | Tree-sitter parse error                      |
-| `missing-token`          | `parser`            | Expected token not found                     |
-| `type-mismatch`          | `agentscript-schema`| Value type doesn't match field schema        |
-| `missing-required-field` | `agentscript-lint`  | Required field absent from block             |
-| `duplicate-key`          | `agentscript-lint`  | Same key appears twice in a block            |
-| `undefined-reference`    | `agentscript-lint`  | Reference to unknown variable/tool definition/subagent   |
-| `deprecated-field`       | `agentscript`       | Field marked as deprecated in schema         |
-| `unreachable-code`       | `agentscript-lint`  | Code after an unconditional transition        |
+| Code                     | Source               | Description                                            |
+| ------------------------ | -------------------- | ------------------------------------------------------ |
+| `syntax-error`           | `parser`             | Tree-sitter parse error                                |
+| `missing-token`          | `parser`             | Expected token not found                               |
+| `type-mismatch`          | `agentscript-schema` | Value type doesn't match field schema                  |
+| `missing-required-field` | `agentscript-lint`   | Required field absent from block                       |
+| `duplicate-key`          | `agentscript-lint`   | Same key appears twice in a block                      |
+| `undefined-reference`    | `agentscript-lint`   | Reference to unknown variable/tool definition/subagent |
+| `deprecated-field`       | `agentscript`        | Field marked as deprecated in schema                   |
+| `unreachable-code`       | `agentscript-lint`   | Code after an unconditional transition                 |
 
 ## Source Field
 
 The `source` field identifies which pipeline stage produced the diagnostic. It determines how editors group and filter diagnostics.
 
-| Source               | Phase              | Description                                |
-|----------------------|--------------------|--------------------------------------------|
-| `parser`             | Tree-sitter parse  | Syntax errors from CST construction        |
-| `agentscript-schema` | Schema validation   | Type mismatches and structural errors       |
-| `agentscript-lint`   | Lint engine         | Semantic validation rules                  |
-| `agentscript`        | General             | Deprecation warnings and general notices    |
+| Source               | Phase             | Description                              |
+| -------------------- | ----------------- | ---------------------------------------- |
+| `parser`             | Tree-sitter parse | Syntax errors from CST construction      |
+| `agentscript-schema` | Schema validation | Type mismatches and structural errors    |
+| `agentscript-lint`   | Lint engine       | Semantic validation rules                |
+| `agentscript`        | General           | Deprecation warnings and general notices |
 
 ### Dialect-Specific Sources
 
@@ -87,15 +87,15 @@ The `data` field carries structured metadata for tooling (code actions, quick fi
 
 Common `data` fields:
 
-| Field          | Type       | Purpose                                      |
-|----------------|------------|----------------------------------------------|
-| `suggestion`   | `string`   | "Did you mean?" candidate for quick fixes     |
-| `expected`     | `string[]` | List of valid options                         |
-| `found`        | `string`   | The actual invalid value                      |
-| `expectedType` | `string`   | Expected type (for type mismatches)           |
-| `actualType`   | `string`   | Actual type found (for type mismatches)       |
-| `referenceName`| `string`   | Full reference like `@namespace.property`     |
-| `context`      | `string`   | Additional context for the diagnostic         |
+| Field           | Type       | Purpose                                   |
+| --------------- | ---------- | ----------------------------------------- |
+| `suggestion`    | `string`   | "Did you mean?" candidate for quick fixes |
+| `expected`      | `string[]` | List of valid options                     |
+| `found`         | `string`   | The actual invalid value                  |
+| `expectedType`  | `string`   | Expected type (for type mismatches)       |
+| `actualType`    | `string`   | Actual type found (for type mismatches)   |
+| `referenceName` | `string`   | Full reference like `@namespace.property` |
+| `context`       | `string`   | Additional context for the diagnostic     |
 
 ## Factory Functions
 

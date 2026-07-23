@@ -68,6 +68,9 @@ export const SystemBlock = Block(
     messages: MessagesBlock.describe(
       'Default messages for certain situations (e.g., welcome, error).'
     ),
+    strip_salesforce_instructions: BooleanValue.describe(
+      'When True, the default Salesforce system instructions are stripped. Set at the top-level `system` block to apply to every subagent, or at a subagent-level `system` block to override for that subagent.'
+    ),
   },
   { symbol: { kind: SymbolKind.Namespace } }
 )
@@ -205,7 +208,7 @@ export const baseSubagentFields = {
   description: StringValue.describe(
     'Block description. Influences transitions to this block.'
   ).required(),
-  system: SystemBlock.pick(['instructions']),
+  system: SystemBlock.pick(['instructions', 'strip_salesforce_instructions']),
   actions: ActionsBlock.describe('Action definitions available to this block.'),
   reasoning: ReasoningBlock.describe(
     'Reasoning block containing instructions and actions for the agent reasoning loop.'
@@ -452,10 +455,14 @@ export const AgentScriptSchemaInfo: SchemaInfo = {
   // in resolvedType validation instead of being silently skipped.
   globalScopes: {
     utils: new Set(['transition', 'setVariables', 'escalate', 'end_session']),
-    system_variables: new Set([
-      'user_input',
-      'current_modality',
-      'current_connection',
+    // `last_reply` is a nested object exposing voice-barge-in state; its
+    // sub-members are accessed as `@system_variables.last_reply.interrupted`
+    // and `.interrupted_heard_text`. The other members are flat leaves (null).
+    system_variables: new Map<string, ReadonlySet<string> | null>([
+      ['user_input', null],
+      ['current_modality', null],
+      ['current_connection', null],
+      ['last_reply', new Set(['interrupted', 'interrupted_heard_text'])],
     ]),
   },
 };

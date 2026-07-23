@@ -232,12 +232,12 @@ describe('compileExpression', () => {
   });
 
   describe('@system_variables references', () => {
-    it('should compile @system_variables.user_input as state.__user_input__', () => {
+    it('should compile @system_variables.user_input as system.input_text', () => {
       const expr = new MemberExpression(
         new AtIdentifier('system_variables'),
         'user_input'
       );
-      expect(compileExpression(expr, ctx)).toBe('state.__user_input__');
+      expect(compileExpression(expr, ctx)).toBe('system.input_text');
     });
 
     // Python: test_compile_expression_replaces_system_variables_user_input_in_expression
@@ -250,25 +250,57 @@ describe('compileExpression', () => {
         '==',
         new StringLiteral('test')
       );
-      expect(compileExpression(expr, ctx)).toBe(
-        'state.__user_input__ == "test"'
-      );
+      expect(compileExpression(expr, ctx)).toBe('system.input_text == "test"');
     });
 
-    it('should compile @system_variables.current_modality as state.__current_modality__', () => {
+    it('should compile @system_variables.current_modality as system.current_modality', () => {
       const expr = new MemberExpression(
         new AtIdentifier('system_variables'),
         'current_modality'
       );
-      expect(compileExpression(expr, ctx)).toBe('state.__current_modality__');
+      expect(compileExpression(expr, ctx)).toBe('system.current_modality');
     });
 
-    it('should compile @system_variables.current_connection as state.__current_connection__', () => {
+    it('should compile @system_variables.current_connection as system.current_connection', () => {
       const expr = new MemberExpression(
         new AtIdentifier('system_variables'),
         'current_connection'
       );
-      expect(compileExpression(expr, ctx)).toBe('state.__current_connection__');
+      expect(compileExpression(expr, ctx)).toBe('system.current_connection');
+    });
+
+    it('should compile @system_variables.last_reply as system.last_reply', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('system_variables'),
+        'last_reply'
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.last_reply');
+    });
+
+    it('should compile @system_variables.last_reply.interrupted as system.last_reply.interrupted', () => {
+      const expr = new MemberExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'last_reply'
+        ),
+        'interrupted'
+      );
+      expect(compileExpression(expr, ctx)).toBe(
+        'system.last_reply.interrupted'
+      );
+    });
+
+    it('should compile @system_variables.last_reply.interrupted_heard_text as system.last_reply.interrupted_heard_text', () => {
+      const expr = new MemberExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'last_reply'
+        ),
+        'interrupted_heard_text'
+      );
+      expect(compileExpression(expr, ctx)).toBe(
+        'system.last_reply.interrupted_heard_text'
+      );
     });
 
     it('should error for unknown system variable', () => {
@@ -369,31 +401,48 @@ describe('compileExpression', () => {
     });
 
     // Python: test_compile_expression_replaces_system_variables_user_input_with_brackets
-    it('should compile @system_variables["user_input"] as state["__user_input__"]', () => {
+    it('should compile @system_variables["user_input"] as system["input_text"]', () => {
       const expr = new SubscriptExpression(
         new AtIdentifier('system_variables'),
         new StringLiteral('user_input')
       );
-      expect(compileExpression(expr, ctx)).toBe('state["__user_input__"]');
+      expect(compileExpression(expr, ctx)).toBe('system["input_text"]');
     });
 
-    it('should compile @system_variables["current_modality"] as state["__current_modality__"]', () => {
+    it('should compile @system_variables["current_modality"] as system["current_modality"]', () => {
       const expr = new SubscriptExpression(
         new AtIdentifier('system_variables'),
         new StringLiteral('current_modality')
       );
-      expect(compileExpression(expr, ctx)).toBe(
-        'state["__current_modality__"]'
-      );
+      expect(compileExpression(expr, ctx)).toBe('system["current_modality"]');
     });
 
-    it('should compile @system_variables["current_connection"] as state["__current_connection__"]', () => {
+    it('should compile @system_variables["current_connection"] as system["current_connection"]', () => {
       const expr = new SubscriptExpression(
         new AtIdentifier('system_variables'),
         new StringLiteral('current_connection')
       );
+      expect(compileExpression(expr, ctx)).toBe('system["current_connection"]');
+    });
+
+    it('should compile @system_variables["last_reply"] as system["last_reply"]', () => {
+      const expr = new SubscriptExpression(
+        new AtIdentifier('system_variables'),
+        new StringLiteral('last_reply')
+      );
+      expect(compileExpression(expr, ctx)).toBe('system["last_reply"]');
+    });
+
+    it('should compile @system_variables["last_reply"].interrupted as system["last_reply"].interrupted', () => {
+      const expr = new MemberExpression(
+        new SubscriptExpression(
+          new AtIdentifier('system_variables'),
+          new StringLiteral('last_reply')
+        ),
+        'interrupted'
+      );
       expect(compileExpression(expr, ctx)).toBe(
-        'state["__current_connection__"]'
+        'system["last_reply"].interrupted'
       );
     });
   });

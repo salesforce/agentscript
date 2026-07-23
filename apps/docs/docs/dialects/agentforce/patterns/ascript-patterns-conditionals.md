@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Conditionals"
+sidebar_label: 'Conditionals'
 ---
 
 # Agent Script Pattern: Using Conditionals

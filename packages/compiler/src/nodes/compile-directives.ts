@@ -96,6 +96,14 @@ export function compileDeterministicDirectives(
     result.push(...actions);
   }
 
+  // On the instruction-injection path, fuse adjacent same-gate instruction
+  // appends (e.g. consecutive top-level `| ...` lines) into one state update.
+  // The presence of `agentInstructionsVariable` is exactly the signal that
+  // directives are appending to the agent-instructions template.
+  if (agentInstructionsVariable) {
+    return mergeAdjacentInstructionAppends(result, agentInstructionsVariable);
+  }
+
   return result;
 }
 
@@ -350,11 +358,7 @@ function compileCollectDirective(
   const varNameOut =
     dctx.agentInstructionsVariable ?? AGENT_INSTRUCTIONS_VARIABLE;
   const action = createStateUpdateAction(
-    [
-      {
-        [varNameOut]: `template::{{state.${varNameOut}}}\n${prose}`,
-      },
-    ],
+    [{ [varNameOut]: instructionAppendValue(varNameOut, prose) }],
     enabled
   );
 
@@ -526,11 +530,7 @@ function compileTemplateDirective(
   const enabled = buildEnabledCondition(dctx);
 
   const action = createStateUpdateAction(
-    [
-      {
-        [varName]: `template::{{state.${varName}}}\n${content}`,
-      },
-    ],
+    [{ [varName]: instructionAppendValue(varName, content) }],
     enabled
   );
   return [action];
@@ -587,7 +587,88 @@ class ConditionStack {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createStateUpdateAction(
+/**
+ * The value written by an instruction-append state update: the running template
+ * variable followed by the newline-prefixed appended `text`. Because each append
+ * concatenates onto the previous value, this is the one place the wire format is
+ * defined — both the directive constructors and the merge post-pass derive from
+ * it so they cannot drift.
+ */
+function instructionAppendPrefix(varName: string): string {
+  return `template::{{state.${varName}}}\n`;
+}
+
+export function instructionAppendValue(varName: string, text: string): string {
+  return `${instructionAppendPrefix(varName)}${text}`;
+}
+
+/**
+ * Merge adjacent instruction-append actions that share the same `enabled` gate
+ * into a single append, so N consecutive ungated (or identically-gated) `| ...`
+ * lines produce ONE state update instead of N.
+ *
+ * Only actions that append to `varName` (value shaped
+ * `template::{{state.<var>}}\n<text>`) with an equal gate are fused; anything
+ * else — the reset, condition sets, transitions, and oppositely-gated if/else
+ * bodies — is a merge boundary and passes through untouched. Because each append
+ * concatenates onto the running state value, fusing `\n<textA>` and `\n<textB>`
+ * under one prefix yields byte-identical final state.
+ */
+function mergeAdjacentInstructionAppends(
+  actions: (Action | HandOffAction)[],
+  varName: string
+): (Action | HandOffAction)[] {
+  const prefix = instructionAppendPrefix(varName);
+
+  // Returns the appended text (portion after the prefix) if `action` is a plain
+  // single-key append to `varName`, else null (making it a merge boundary).
+  const appendText = (action: Action | HandOffAction): string | null => {
+    if (action.target !== STATE_UPDATE_ACTION) return null;
+    const updates = (action as Action).state_updates;
+    if (!updates || updates.length !== 1) return null;
+    const update = updates[0];
+    const keys = Object.keys(update);
+    if (keys.length !== 1 || keys[0] !== varName) return null;
+    const value = update[varName];
+    if (typeof value !== 'string' || !value.startsWith(prefix)) return null;
+    return value.slice(prefix.length);
+  };
+
+  const merged: (Action | HandOffAction)[] = [];
+  let prevText: string | null = null;
+  for (const action of actions) {
+    const prev = merged[merged.length - 1];
+    const text = appendText(action);
+    // Same gate? (both ungated, or identical condition string)
+    if (
+      prev &&
+      text !== null &&
+      prevText !== null &&
+      ((prev as Action).enabled ?? undefined) === (action.enabled ?? undefined)
+    ) {
+      prevText = `${prevText}\n${text}`;
+      (prev as Action).state_updates = [
+        { [varName]: instructionAppendValue(varName, prevText) },
+      ];
+      continue;
+    }
+    merged.push(action);
+    prevText = text;
+  }
+  return merged;
+}
+
+/**
+ * The per-turn reset that clears the agent-instructions template variable back
+ * to `''` before appends re-accumulate it. Always enabled.
+ */
+export function createInstructionResetAction(
+  varName: string = AGENT_INSTRUCTIONS_VARIABLE
+): Action {
+  return createStateUpdateAction([{ [varName]: "''" }], 'True');
+}
+
+export function createStateUpdateAction(
   stateUpdates: StateUpdate[],
   enabled?: string | null
 ): Action {

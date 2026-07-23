@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Manage Agents"
+sidebar_label: 'Manage Agents'
 ---
 
 # Manage Agent Script Agents

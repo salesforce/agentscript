@@ -80,6 +80,7 @@ Files can declare their dialect using an annotation comment in the first few lin
 ```
 
 The `resolveDialect()` function handles automatic dialect selection:
+
 1. Parses the `# @dialect: NAME=VERSION` annotation from source
 2. Matches against registered dialect configurations
 3. Validates version constraints (MAJOR or MAJOR.MINOR format)

@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Reference"
+sidebar_label: 'Reference'
 ---
 
 # Agent Script Reference

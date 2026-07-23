@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Interface: ParseError
 
@@ -26,9 +26,9 @@ What was found instead
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:60](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L60)
+[monaco/src/parser-worker.ts:60](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L60)
 
-***
+---
 
 ### message
 
@@ -36,9 +36,9 @@ What was found instead
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:57](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L57)
+[monaco/src/parser-worker.ts:57](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L57)
 
-***
+---
 
 ### range
 
@@ -70,9 +70,9 @@ What was found instead
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:53](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L53)
+[monaco/src/parser-worker.ts:53](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L53)
 
-***
+---
 
 ### source
 
@@ -80,4 +80,4 @@ What was found instead
 
 #### Defined in
 
-[monaco/src/parser-worker.ts:58](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-worker.ts#L58)
+[monaco/src/parser-worker.ts:58](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-worker.ts#L58)

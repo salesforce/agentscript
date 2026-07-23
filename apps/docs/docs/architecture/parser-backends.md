@@ -11,7 +11,7 @@ AgentScript supports two parser backends behind a unified interface (`@agentscri
 The default backend is **parser-javascript** — no configuration needed. To use **tree-sitter**, pass the `tree-sitter` condition to your build tool or runtime:
 
 | Tool       | How to enable tree-sitter                         |
-|------------|---------------------------------------------------|
+| ---------- | ------------------------------------------------- |
 | esbuild    | `conditions: ['tree-sitter']`                     |
 | Node.js    | `node --conditions=tree-sitter`                   |
 | TypeScript | `"customConditions": ["tree-sitter"]` in tsconfig |
@@ -63,7 +63,9 @@ No files are rewritten, no environment variables are read at runtime. The resolu
 ## Bundling
 
 ### Node.js
+
 Both backends work. Tree-sitter requires native bindings:
+
 ```bash
 pnpm add tree-sitter @agentscript/parser-tree-sitter
 ```
@@ -77,13 +79,14 @@ pnpm add tree-sitter @agentscript/parser-tree-sitter
 ```typescript
 import { init, parse } from '@agentscript/agentforce';
 
-await init();  // loads tree-sitter WASM
+await init(); // loads tree-sitter WASM
 const doc = parse(source);
 ```
 
 When using esbuild/webpack with the default parser-javascript build, mark `tree-sitter` and `@agentscript/parser-tree-sitter` as external to prevent bundler errors:
+
 ```javascript
-external: ['tree-sitter', '@agentscript/parser-tree-sitter']
+external: ['tree-sitter', '@agentscript/parser-tree-sitter'];
 ```
 
 ## Building @agentscript/agentforce
@@ -107,6 +110,7 @@ The dual-parser architecture requires both backends to agree on valid input.
 
 Parse trees are **allowed to deviate** when the input is not valid AgentScript.
 Both parsers will report errors, but their error recovery strategies differ:
+
 - **parser-javascript**: recursive descent with NEWLINE/DEDENT synchronization
 - **tree-sitter**: GLR with automatic error recovery
 
@@ -115,11 +119,11 @@ via CST coverage metrics in `error-recovery.test.ts`.
 
 ### Test suites
 
-| Test | What it checks |
-|------|----------------|
-| `parity.test.ts` | Static corpus inputs: both parsers agree |
-| `fuzz-parity.test.ts` | Random mutations: both parsers agree on error-free parses |
-| `error-recovery.test.ts` | CST coverage comparison for known error scenarios |
+| Test                     | What it checks                                            |
+| ------------------------ | --------------------------------------------------------- |
+| `parity.test.ts`         | Static corpus inputs: both parsers agree                  |
+| `fuzz-parity.test.ts`    | Random mutations: both parsers agree on error-free parses |
+| `error-recovery.test.ts` | CST coverage comparison for known error scenarios         |
 
 ### Running parity tests
 

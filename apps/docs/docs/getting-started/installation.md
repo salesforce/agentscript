@@ -18,12 +18,14 @@ The repository ships with a DevContainer configuration that provides a fully con
 **Steps:**
 
 1. Clone the repository:
+
    ```bash
    git clone <repo-url>
    cd agentscript
    ```
 
 2. Open the folder in VS Code:
+
    ```bash
    code .
    ```
@@ -43,17 +45,20 @@ The repository ships with a DevContainer configuration that provides a fully con
 ### Steps
 
 1. Clone the repository:
+
    ```bash
    git clone <repo-url>
    cd agentscript
    ```
 
 2. Install dependencies:
+
    ```bash
    pnpm install
    ```
 
 3. Build all packages:
+
    ```bash
    pnpm build
    ```
@@ -75,13 +80,13 @@ nvm use 18.20.8
 
 ## Build Commands
 
-| Command         | Description                          |
-| --------------- | ------------------------------------ |
-| `pnpm build`    | Build all packages (uses Turborepo)  |
-| `pnpm test`     | Run all tests                        |
-| `pnpm format`   | Format code with Prettier            |
-| `pnpm lint`     | Run ESLint                           |
-| `pnpm docs:dev` | Start docs dev server (port 27000)   |
+| Command         | Description                         |
+| --------------- | ----------------------------------- |
+| `pnpm build`    | Build all packages (uses Turborepo) |
+| `pnpm test`     | Run all tests                       |
+| `pnpm format`   | Format code with Prettier           |
+| `pnpm lint`     | Run ESLint                          |
+| `pnpm docs:dev` | Start docs dev server (port 27000)  |
 
 ## Important Notes
 
@@ -93,6 +98,7 @@ nvm use 18.20.8
   ```
 
   This regenerates the grammar, builds native Node.js bindings, and compiles the WASM bundle.
+
 - **Dialect changes require a rebuild** of the affected dialect package:
 
   ```bash

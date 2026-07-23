@@ -314,7 +314,7 @@ start_agent test:
       t => t.target !== STATE_UPDATE_ACTION
     );
     expect(actionTools.length).toBe(1);
-    expect(actionTools[0].enabled).toBe('state.__user_input__ == "test"');
+    expect(actionTools[0].enabled).toBe('system.input_text == "test"');
   });
 });
 
@@ -790,6 +790,7 @@ start_agent test:
   it.each([
     'apex',
     'mcpTool',
+    'platformMcpTool',
     'slack',
     'namedQuery',
     'retriever',
@@ -1241,5 +1242,141 @@ start_agent test:
 `);
     expect(text).toContain('Call Very_Long_Action_Name to proceed');
     expect(text).not.toContain('action.');
+  });
+});
+
+describe('setVariables validation errors', () => {
+  it('should error when @utils.setVariables has transition to statement', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    user_name: mutable string
+
+start_agent test:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            capture_name: @utils.setVariables
+                with user_name=...
+                transition to done
+
+agent done:
+    description: "Done state"
+    response: ->
+        | Done
+`;
+    const { diagnostics } = compile(parseSource(source));
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        d.message.includes('cannot have transitions or follow-up actions')
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'transition to'");
+    expect(errors[0].message).toContain('will be ignored at runtime');
+  });
+
+  it('should error when @utils.setVariables has run statement', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    user_name: mutable string
+
+start_agent test:
+    description: "Test"
+    actions:
+        some_action:
+            description: "Some action"
+            target: "flow://SomeAction"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            capture_name: @utils.setVariables
+                with user_name=...
+                run @actions.some_action
+`;
+    const { diagnostics } = compile(parseSource(source));
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        d.message.includes('cannot have transitions or follow-up actions')
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'run'");
+    expect(errors[0].message).toContain('will be ignored at runtime');
+  });
+
+  it('should not error when @utils.setVariables has no transitions or run statements', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    user_name: mutable string
+    user_email: mutable string
+
+start_agent test:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            capture_info: @utils.setVariables
+                description: "Capture user info"
+                with user_name=...
+                with user_email=...
+`;
+    const { diagnostics } = compile(parseSource(source));
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        d.message.includes('cannot have transitions or follow-up actions')
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should not error when regular @actions.* has transition to statement', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    data: mutable string
+
+start_agent test:
+    description: "Test"
+    actions:
+        some_action:
+            description: "Some action"
+            target: "flow://SomeAction"
+            inputs:
+                param1: string
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            do_something: @actions.some_action
+                with param1=@variables.data
+                transition to done
+
+agent done:
+    description: "Done state"
+    response: ->
+        | Done
+`;
+    const { diagnostics } = compile(parseSource(source));
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        d.message.includes('cannot have transitions or follow-up actions')
+    );
+    expect(errors).toHaveLength(0);
   });
 });

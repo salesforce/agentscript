@@ -14,6 +14,9 @@ import {
   WithClause,
   Ellipsis,
   AvailableWhen,
+  TransitionStatement,
+  ToClause,
+  RunStatement,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type { Tool, StateUpdate } from '../types.js';
@@ -80,6 +83,25 @@ export function compileSetVariables(
       enabledCondition = compileExpression(stmt.condition, ctx, {
         expressionContext: "'available when' clause",
       });
+    }
+  }
+
+  // Validate that setVariables actions do not have transitions or follow-up actions
+  for (const stmt of body) {
+    const prohibitedType =
+      stmt instanceof TransitionStatement
+        ? 'transition to'
+        : stmt instanceof ToClause
+          ? 'to'
+          : stmt instanceof RunStatement
+            ? 'run'
+            : undefined;
+
+    if (prohibitedType) {
+      ctx.error(
+        `Actions using @utils.setVariables cannot have transitions or follow-up actions. The '${prohibitedType}' after this utils action will be ignored at runtime.`,
+        stmt.__cst?.range
+      );
     }
   }
 

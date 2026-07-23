@@ -56,10 +56,10 @@ subagent patient_intake:
     description: "Gather address line 1 and city."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1:
+            collect @variables.patient_address_line1
                 message: "Please provide the first line of your address."
 
-            collect @variables.patient_city:
+            collect @variables.patient_city
                 message: "Please provide your town or city."
 `;
 
@@ -98,10 +98,10 @@ subagent patient_intake:
     description: "Gather address line 1 and city."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1:
+            collect @variables.patient_address_line1
                 message: "Please provide the first line of your address."
 
-            collect @variables.patient_city:
+            collect @variables.patient_city
                 message: "Please provide your town or city."
 
             | Thank you, your intake is complete. We will be in touch shortly.
@@ -136,13 +136,13 @@ subagent patient_intake:
     description: "Gather address line 1, city, and email."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1:
+            collect @variables.patient_address_line1
                 message: "Please provide the first line of your address."
 
-            collect @variables.patient_city:
+            collect @variables.patient_city
                 message: "Please provide your town or city."
 
-            collect @variables.patient_email:
+            collect @variables.patient_email
                 message: "Please provide your email address."
 `;
 
@@ -183,15 +183,15 @@ subagent comms_intake:
     description: "Collect comms preference, then branch to email or phone."
     reasoning:
         instructions: ->
-            collect @variables.communication_preference:
+            collect @variables.communication_preference
                 message: "How would you like us to contact you — email or phone?"
 
             if @variables.communication_preference == "email":
-                collect @variables.contact_email:
+                collect @variables.contact_email
                     message: "What is your email address?"
 
             if @variables.communication_preference == "phone":
-                collect @variables.contact_phone:
+                collect @variables.contact_phone
                     message: "What is your phone number?"
 `;
 
@@ -259,6 +259,85 @@ describe('collect lowering', () => {
     const second = gatherActions[1];
     expect(second.enabled).toContain('state.patient_address_line1 is not None');
     expect(second.enabled).toContain('state.patient_city is None');
+  });
+
+  it('carries a `|` pipe multi-line message into the gather prose', () => {
+    // Regression: a `collect` whose `message:` is a `|` pipe template (rather
+    // than a quoted string), including a blank line, must reach the gather
+    // prose verbatim. Previously collectMessageText only handled StringLiteral
+    // and returned '' for a TemplateExpression, producing `Use exactly this
+    // message: ""`.
+    const script = `
+config:
+    agent_name: "CollectBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    patient_city: mutable string
+        description: "Town or city."
+
+subagent patient_intake:
+    description: "Gather city."
+    reasoning:
+        instructions: ->
+            collect @variables.patient_city
+                message: |
+                    Please provide your town or city.
+
+                    We need this to route your request.
+`;
+    const { output } = compile(parseSource(script));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'patient_intake'
+    ) as SubAgentNode;
+    const text = JSON.stringify(node.before_reasoning_iteration);
+    expect(text).toContain('Please provide your town or city.');
+    expect(text).toContain('We need this to route your request.');
+    expect(text).not.toContain('Use exactly this message: \\"\\"');
+  });
+
+  it('keeps a collect sandwiched between two `|` instructions on both sides', () => {
+    // Regression (dual-parser divergence): a `collect` at the same indent as a
+    // preceding `|` template — with the template's own multi-line continuation
+    // dedenting back to that indent first — was dropped entirely by
+    // parser-javascript. templateContinues() terminated the template on the
+    // statement keywords if/else/run/set/transition but NOT `collect`, so the
+    // `collect` line (and its message) was absorbed as template content and
+    // never reached the compiler. Tree-sitter parsed it correctly, hiding the
+    // gap. This mirrors the reported bug: a collect between two pipe
+    // instructions loses its gather prose.
+    const script = `
+config:
+    agent_name: "CollectBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    patient_city: mutable string
+        description: "Town or city."
+
+subagent patient_intake:
+    description: "Gather city."
+    reasoning:
+        instructions: ->
+            | Your job is to redirect the conversation to relevant
+              topics politely and succinctly.
+            collect @variables.patient_city
+                message: "Please provide your town or city."
+            | After collecting, thank the user and wrap up.
+`;
+    const { output } = compile(parseSource(script));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'patient_intake'
+    ) as SubAgentNode;
+    const text = JSON.stringify(node);
+    // Both pipe instructions survive...
+    expect(text).toContain('Your job is to redirect the conversation');
+    expect(text).toContain('After collecting, thank the user and wrap up.');
+    // ...AND the sandwiched collect's gather prose is present.
+    expect(text).toContain('Please provide your town or city.');
+    expect(text).toContain('call capture_patient_intake_fields with');
   });
 
   it('references the capture action by bare name in the gather prose', () => {
@@ -402,7 +481,7 @@ describe('collect lowering', () => {
     const src = `subagent intake:
    reasoning:
       instructions: ->
-         collect @variables.patient_city:
+         collect @variables.patient_city
             message: "Please provide your town or city."
 `;
     const { rootNode: root } = parse(src);
@@ -414,7 +493,8 @@ describe('collect lowering', () => {
       value as Record<string, unknown>,
       AgentforceSchema
     );
-    expect(emitted).toContain('collect @variables.patient_city:');
+    expect(emitted).toContain('collect @variables.patient_city');
+    expect(emitted).not.toContain('collect @variables.patient_city:');
     expect(emitted).toContain('message: "Please provide your town or city."');
   });
 
@@ -914,7 +994,7 @@ start_agent router:
     description: "Router"
     reasoning:
         instructions: ->
-            collect @variables.patient_city:
+            collect @variables.patient_city
                 message: "Please provide your town or city."
 `;
 
@@ -986,14 +1066,14 @@ subagent patient_intake:
     description: "Gather address line 1."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1:
+            collect @variables.patient_address_line1
                 message: "Please provide the first line of your address."
 
 subagent billing_intake:
     description: "Gather city."
     reasoning:
         instructions: ->
-            collect @variables.patient_city:
+            collect @variables.patient_city
                 message: "Please provide your town or city."
 `;
 

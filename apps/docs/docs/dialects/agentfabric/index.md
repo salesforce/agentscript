@@ -6,7 +6,7 @@ In [MuleSoft Agent Fabric](https://docs.mulesoft.com/general/learning-map-agent-
 The Agent Fabric dialect is currently in beta — documentation and implementation are subject to change.
 :::
 
-After you configure the registry and other elements of your agent network project, you build the rest of the workflow using Agent Script. Agent Script enables you to build predictable, context-aware agent workflows that don't rely solely on interpretation by an LLM. 
+After you configure the registry and other elements of your agent network project, you build the rest of the workflow using Agent Script. Agent Script enables you to build predictable, context-aware agent workflows that don't rely solely on interpretation by an LLM.
 
 ## Agent Script Structure
 
@@ -18,8 +18,8 @@ AgentScript files contain a header specifying the dialect and a version binding.
 
 The dialect header specifies that the script is strictly bound to a specific version or later of the AGENTFABRIC dialect. Deploying an agent to a runtime that doesn't support this version results in an error.
 
-* Using major.minor (for example, `AGENTFABRIC=1.1`) binds to version 1.1 or later  
-* Using major only (for example, `AGENTFABRIC=1`) references the latest version within that major version
+- Using major.minor (for example, `AGENTFABRIC=1.1`) binds to version 1.1 or later
+- Using major only (for example, `AGENTFABRIC=1`) references the latest version within that major version
 
 **Example**
 
@@ -40,11 +40,11 @@ system:
 
 The system section has these parameters.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `instructions` | Default system prompt used when an agentic node doesn't define its own `system.instructions`. | String | Yes |
+| Parameter      | Description                                                                                   | Type   | Required |
+| :------------- | :-------------------------------------------------------------------------------------------- | :----- | :------- |
+| `instructions` | Default system prompt used when an agentic node doesn't define its own `system.instructions`. | String | Yes      |
 
-### Agent Config Section 
+### Agent Config Section
 
 The config section is the standard Agent Script config section, with the addition of the optional `default_llm` field. This section defines metadata and default settings for the agent.
 
@@ -59,12 +59,12 @@ config:
 
 The config section has these parameters.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `agent_name` | The name identifier for the agent. | string | \- |
-| `label` | A human-readable display name for the agent. | string | \- |
-| `description` | A description of what the agent does. | string | \- |
-| `default_llm` | Specifies a default LLM to be used on all agentic nodes that don't specify otherwise. | @llm reference See [LLM](#llm-section) | No |
+| Parameter     | Description                                                                           | Type                                   | Required |
+| :------------ | :------------------------------------------------------------------------------------ | :------------------------------------- | :------- |
+| `agent_name`  | The name identifier for the agent.                                                    | string                                 | \-       |
+| `label`       | A human-readable display name for the agent.                                          | string                                 | \-       |
+| `description` | A description of what the agent does.                                                 | string                                 | \-       |
+| `default_llm` | Specifies a default LLM to be used on all agentic nodes that don't specify otherwise. | @llm reference See [LLM](#llm-section) | No       |
 
 ### LLM Section {#llm-section}
 
@@ -91,16 +91,16 @@ llm:
 
 The OpenAI configuration has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `target` | Governed LLM connection as a URI; must use the `llm://` scheme | URI (`llm://…`) | Yes |
-| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `OpenAI` | Yes |
-| `model` | The name of the model to use | String | Yes |
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models. gpt-5.1 defaults to NONE, previous ones default to MEDIUM | enum\['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH'\] | No |
-| `temperature` | Controls randomness in the output | number | No |
-| `top_p` | Nucleus sampling parameter | number | No |
-| `top_logprobs` | Number of most likely tokens to return at each position | integer | No |
-| `max_output_tokens` | Maximum number of tokens to generate | integer | No |
+| Parameter           | Description                                                                                                    | Type                                               | Required |
+| :------------------ | :------------------------------------------------------------------------------------------------------------- | :------------------------------------------------- | :------- |
+| `target`            | Governed LLM connection as a URI; must use the `llm://` scheme                                                 | URI (`llm://…`)                                    | Yes      |
+| `kind`              | Discriminator for the LLM provider; selects which provider-specific attributes apply                           | String, `OpenAI`                                   | Yes      |
+| `model`             | The name of the model to use                                                                                   | String                                             | Yes      |
+| `reasoning_effort`  | Constrains effort on reasoning for reasoning models. gpt-5.1 defaults to NONE, previous ones default to MEDIUM | enum\['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH'\] | No       |
+| `temperature`       | Controls randomness in the output                                                                              | number                                             | No       |
+| `top_p`             | Nucleus sampling parameter                                                                                     | number                                             | No       |
+| `top_logprobs`      | Number of most likely tokens to return at each position                                                        | integer                                            | No       |
+| `max_output_tokens` | Maximum number of tokens to generate                                                                           | integer                                            | No       |
 
 **Example**
 
@@ -117,17 +117,17 @@ llm:
 
 The Gemini configuration has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `target` | Governed LLM connection as a URI; must use the `llm://` scheme | URI (`llm://…`) | Yes |
-| `kind` | Discriminator for the LLM provider; selects which provider-specific attributes apply | String, `Gemini` | Yes |
-| `model` | The name of the model to use | String | Yes |
-| `thinking_level` | The level of thoughts tokens that the model should generate | Enum\['LOW', 'HIGH'\] | No |
-| `thinking_budget` | Indicates the thinking budget in tokens. 0 is DISABLED. \-1 is AUTOMATIC. The default values and allowed ranges are model dependent | Number | No |
-| `temperature` | Controls the degree of randomness in token selection. Lower temperatures are good for prompts that require a less open-ended or creative response, while higher temperatures can lead to more diverse or creative results | Number | No |
-| `top_p` | Tokens are selected from the most to least probable until the sum of their probabilities equals this value. Use a lower value for less random responses and a higher value for more random responses | Number | No |
-| `response_logprobs` | Whether to return the log probabilities of the tokens that were chosen by the model at each step | Boolean | No |
-| `max_output_tokens` | Maximum number of tokens that can be generated in the response | Integer | No |
+| Parameter           | Description                                                                                                                                                                                                               | Type                  | Required |
+| :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------- | :------- |
+| `target`            | Governed LLM connection as a URI; must use the `llm://` scheme                                                                                                                                                            | URI (`llm://…`)       | Yes      |
+| `kind`              | Discriminator for the LLM provider; selects which provider-specific attributes apply                                                                                                                                      | String, `Gemini`      | Yes      |
+| `model`             | The name of the model to use                                                                                                                                                                                              | String                | Yes      |
+| `thinking_level`    | The level of thoughts tokens that the model should generate                                                                                                                                                               | Enum\['LOW', 'HIGH'\] | No       |
+| `thinking_budget`   | Indicates the thinking budget in tokens. 0 is DISABLED. \-1 is AUTOMATIC. The default values and allowed ranges are model dependent                                                                                       | Number                | No       |
+| `temperature`       | Controls the degree of randomness in token selection. Lower temperatures are good for prompts that require a less open-ended or creative response, while higher temperatures can lead to more diverse or creative results | Number                | No       |
+| `top_p`             | Tokens are selected from the most to least probable until the sum of their probabilities equals this value. Use a lower value for less random responses and a higher value for more random responses                      | Number                | No       |
+| `response_logprobs` | Whether to return the log probabilities of the tokens that were chosen by the model at each step                                                                                                                          | Boolean               | No       |
+| `max_output_tokens` | Maximum number of tokens that can be generated in the response                                                                                                                                                            | Integer               | No       |
 
 **Example**
 
@@ -160,10 +160,10 @@ actions:
 
 A2A actions have these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `target` | Governed A2A connection as a URI; must use the `a2a://` scheme | URI (`a2a://…`) | Yes |
-| `kind` | Indicates that this executes the message/send A2A method. | "a2a:send\_message" | Yes |
+| Parameter | Description                                                    | Type               | Required |
+| :-------- | :------------------------------------------------------------- | :----------------- | :------- |
+| `target`  | Governed A2A connection as a URI; must use the `a2a://` scheme | URI (`a2a://…`)    | Yes      |
+| `kind`    | Indicates that this executes the message/send A2A method.      | "a2a:send_message" | Yes      |
 
 #### MCP Actions
 
@@ -184,28 +184,28 @@ actions:
 
 MCP actions have these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `target` | Governed MCP connection as a URI; must use the `mcp://` scheme | URI (`mcp://…`) | Yes |
-| `kind` | Constant indicating this will invoke an MCP tool | "mcp:tool" | Yes |
-| `tool_name` | The name of the tool to call | String | Yes |
-| `inputs` | Define bindable arguments. Input arguments provided are not exhaustive. The tool will auto-discover additional arguments and consider them in slot filling mode. | Object | No |
+| Parameter   | Description                                                                                                                                                      | Type            | Required |
+| :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------- | :------- |
+| `target`    | Governed MCP connection as a URI; must use the `mcp://` scheme                                                                                                   | URI (`mcp://…`) | Yes      |
+| `kind`      | Constant indicating this will invoke an MCP tool                                                                                                                 | "mcp:tool"      | Yes      |
+| `tool_name` | The name of the tool to call                                                                                                                                     | String          | Yes      |
+| `inputs`    | Define bindable arguments. Input arguments provided are not exhaustive. The tool will auto-discover additional arguments and consider them in slot filling mode. | Object          | No       |
 
-### A2A Trigger 
+### A2A Trigger
 
 Triggers reference one of the interfaces defined for a broker in the agent network. Each broker must have one–and only one–trigger per each interface declared in its agent network.
 
 The A2A trigger reacts to send/message methods and automatically manages the task history, context ID and task IDs. The trigger also responds to various A2A protocol methods.
 
-* [Get Task](https://a2a-protocol.org/latest/specification/#313-get-task)  
-* [List Tasks](https://a2a-protocol.org/latest/specification/#314-list-tasks)  
-* [Cancel Task](https://a2a-protocol.org/latest/specification/#315-cancel-task)  
-* [Subscribe to Task](https://a2a-protocol.org/latest/specification/#316-subscribe-to-task)  
-* [Create Push Notification Config](https://a2a-protocol.org/latest/specification/#317-create-push-notification-config)  
-* [Get Push Notification Config](https://a2a-protocol.org/latest/specification/#318-get-push-notification-config)  
-* [List Push Notification Config](https://a2a-protocol.org/latest/specification/#319-list-push-notification-configs)  
-* [Delete Push Notification Config](https://a2a-protocol.org/latest/specification/#3110-delete-push-notification-config)  
-* [Get Extended Agent Card](https://a2a-protocol.org/latest/specification/#3111-get-extended-agent-card)
+- [Get Task](https://a2a-protocol.org/latest/specification/#313-get-task)
+- [List Tasks](https://a2a-protocol.org/latest/specification/#314-list-tasks)
+- [Cancel Task](https://a2a-protocol.org/latest/specification/#315-cancel-task)
+- [Subscribe to Task](https://a2a-protocol.org/latest/specification/#316-subscribe-to-task)
+- [Create Push Notification Config](https://a2a-protocol.org/latest/specification/#317-create-push-notification-config)
+- [Get Push Notification Config](https://a2a-protocol.org/latest/specification/#318-get-push-notification-config)
+- [List Push Notification Config](https://a2a-protocol.org/latest/specification/#319-list-push-notification-configs)
+- [Delete Push Notification Config](https://a2a-protocol.org/latest/specification/#3110-delete-push-notification-config)
+- [Get Extended Agent Card](https://a2a-protocol.org/latest/specification/#3111-get-extended-agent-card)
 
 **Example**
 
@@ -218,15 +218,15 @@ trigger employeeOnboardingTrigger:
 
 The A2A trigger has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `kind` | Value that indicates this is an A2A trigger. | `"a2a"` | Yes |
-| `target` | Broker interface entry point. Must use the `brokers://` URI form: `brokers://<brokerName>/<interfaceName>` | URI (`brokers://…`) | Yes |
-| `on_message` | Procedure that executes when the A2A interface receives a new `message/send` request. Must define a transition to the workflow's initial node. | Procedure | Yes |
+| Parameter    | Description                                                                                                                                    | Type                | Required |
+| :----------- | :--------------------------------------------------------------------------------------------------------------------------------------------- | :------------------ | :------- |
+| `kind`       | Value that indicates this is an A2A trigger.                                                                                                   | `"a2a"`             | Yes      |
+| `target`     | Broker interface entry point. Must use the `brokers://` URI form: `brokers://<brokerName>/<interfaceName>`                                     | URI (`brokers://…`) | Yes      |
+| `on_message` | Procedure that executes when the A2A interface receives a new `message/send` request. Must define a transition to the workflow's initial node. | Procedure           | Yes      |
 
 ## Node Types
 
-Agent network and Agent Script support these node types. 
+Agent network and Agent Script support these node types.
 
 ### Subagent Node
 
@@ -238,7 +238,7 @@ This node defines a generic agent loop node, made of a prompt and a set of actio
 subagent profile-extractor:
   description: "Extracts structured user profile data from text"
   reasoning:
-    instructions: -> 
+    instructions: ->
       Extract the following information from the user's message: {!@request.payload.message.parts[0].text}
     outputs:
       properties:
@@ -285,21 +285,21 @@ subagent profile-extractor:
 
 The subagent node has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `id` | The node identifier, defined next to the node type. | String | Yes |
-| `label` | An optional short, human-readable display name for the node. | String | No |
-| `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section) | No |
-| `system.instructions` | Overrides the global `system.instructions` at the file root level | String | No |
-| `reasoning.instructions` | Session-specific query or instructions for this particular node, typically containing user provided or user related context | String | Yes |
-| `reasoning.actions` | The available actions | Array\[actions\] | No |
-| `reasoning.outputs` | Schema definition describing the expected structure of the agent's output | Outputs See [Node Outputs](#node-outputs) | No |
-| `reasoning.max_number_of_loops` | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25 | Integer | No |
-| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed during execution. Useful for keeping the node from running too long and consuming too many tokens. | Integer | No |
-| `reasoning.task_timeout_secs` | A timeout (in seconds) for the total node execution. | Integer | No |
-| `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
+| Parameter                          | Description                                                                                                                                         | Type                                           | Required |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------- | :------- |
+| `id`                               | The node identifier, defined next to the node type.                                                                                                 | String                                         | Yes      |
+| `label`                            | An optional short, human-readable display name for the node.                                                                                        | String                                         | No       |
+| `description`                      | A CommonMark string providing a description of the node.                                                                                            | String                                         | No       |
+| `on_exit`                          | A procedure that executes when the node execution finishes.                                                                                         | Procedure                                      | No       |
+| `llm`                              | Overrides the default LLM setting                                                                                                                   | @llm reference See [LLM Section](#llm-section) | No       |
+| `system.instructions`              | Overrides the global `system.instructions` at the file root level                                                                                   | String                                         | No       |
+| `reasoning.instructions`           | Session-specific query or instructions for this particular node, typically containing user provided or user related context                         | String                                         | Yes      |
+| `reasoning.actions`                | The available actions                                                                                                                               | Array\[actions\]                               | No       |
+| `reasoning.outputs`                | Schema definition describing the expected structure of the agent's output                                                                           | Outputs See [Node Outputs](#node-outputs)      | No       |
+| `reasoning.max_number_of_loops`    | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25           | Integer                                        | No       |
+| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed during execution. Useful for keeping the node from running too long and consuming too many tokens. | Integer                                        | No       |
+| `reasoning.task_timeout_secs`      | A timeout (in seconds) for the total node execution.                                                                                                | Integer                                        | No       |
+| `outputs`                          | A schema definition for the agentic output.                                                                                                         | Object See [Node Outputs](#node-outputs)       | No       |
 
 ### Orchestrator Node
 
@@ -313,7 +313,7 @@ orchestrator flight-booking-agent:
   system:
     instructions: |
       You are a flight booking agent.
-      
+
       The process for flight booking is:
         1. Ask the user for a destination and travel dates and present them with matching alternatives using available actions.
         2. Allow the user to change or refine the search
@@ -324,9 +324,9 @@ orchestrator flight-booking-agent:
     actions:
       search-flight: @actions.search-flight
         with companyId = @variables.companyId
-      
+
       get-flight-info: @actions.get-flight-info
-      
+
       concur: @actions.concur-agent
         with http_headers = {"Authorization": @request.headers["Authorization"]}
     max_number_of_loops: 10
@@ -340,28 +340,28 @@ orchestrator flight-booking-agent:
       airline:
         type: "string"
         description: "The airline name"
-  
+
   on_exit: ->
     transition to @executor.send_summary
 ```
 
 The orchestrator node has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `id` | The node identifier, defined next to the node type. | String | Yes |
-| `label` | An optional short, human-readable display name for the node. | String | No |
-| `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `llm` | Overrides the default LLM setting | @llm reference See [LLM Section](#llm-section) | No |
-| `system.instructions` | Overrides the global `system.instructions` at the file root level | String | No |
-| `reasoning.instructions` | Session-specific query or instructions for this particular node, typically containing user provided or user related context | String | Yes |
-| `reasoning.actions` | The available actions | Array\[actions\] | No |
-| `reasoning.outputs` | Schema definition describing the expected structure of the agent's output | Outputs See [Node Outputs](#node-outputs) | No |
-| `reasoning.max_number_of_loops` | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25 | Integer | No |
-| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed during execution. Useful for keeping the node from running too long and consuming too many tokens. | Integer | No |
-| `reasoning.task_timeout_secs` | A timeout (in seconds) for the total node execution. | Integer | No |
-| `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
+| Parameter                          | Description                                                                                                                                         | Type                                           | Required |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------- | :------- |
+| `id`                               | The node identifier, defined next to the node type.                                                                                                 | String                                         | Yes      |
+| `label`                            | An optional short, human-readable display name for the node.                                                                                        | String                                         | No       |
+| `description`                      | A CommonMark string providing a description of the node.                                                                                            | String                                         | No       |
+| `on_exit`                          | A procedure that executes when the node execution finishes.                                                                                         | Procedure                                      | No       |
+| `llm`                              | Overrides the default LLM setting                                                                                                                   | @llm reference See [LLM Section](#llm-section) | No       |
+| `system.instructions`              | Overrides the global `system.instructions` at the file root level                                                                                   | String                                         | No       |
+| `reasoning.instructions`           | Session-specific query or instructions for this particular node, typically containing user provided or user related context                         | String                                         | Yes      |
+| `reasoning.actions`                | The available actions                                                                                                                               | Array\[actions\]                               | No       |
+| `reasoning.outputs`                | Schema definition describing the expected structure of the agent's output                                                                           | Outputs See [Node Outputs](#node-outputs)      | No       |
+| `reasoning.max_number_of_loops`    | The maximum number of loops an execution can take. Useful for keeping it from running too long and consuming too many tokens. Default: 25           | Integer                                        | No       |
+| `reasoning.max_consecutive_errors` | The maximum number of consecutive errors allowed during execution. Useful for keeping the node from running too long and consuming too many tokens. | Integer                                        | No       |
+| `reasoning.task_timeout_secs`      | A timeout (in seconds) for the total node execution.                                                                                                | Integer                                        | No       |
+| `outputs`                          | A schema definition for the agentic output.                                                                                                         | Object See [Node Outputs](#node-outputs)       | No       |
 
 ### Generator Node
 
@@ -377,18 +377,18 @@ generator summarize-report:
     transition to ...
 ```
 
-The generator node has these properties. 
+The generator node has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `id` | The node identifier, defined next to the node type. | String | Yes |
-| `label` | An optional short, human-readable display name for the node. | String | No |
-| `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `llm` | A reference to the LLM connection. | @llm reference See [LLM Section](#llm-section) | No |
-| `system.instructions` | Overrides the global `system.instructions` at the file root level for this generator node. | String | No |
-| `prompt` | Session-specific query or instructions for this particular node, typically containing user provided or user related context. | String | Yes |
-| `outputs` | A schema definition for the agentic output. | Object See [Node Outputs](#node-outputs) | No |
+| Parameter             | Description                                                                                                                  | Type                                           | Required |
+| :-------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------- | :------- |
+| `id`                  | The node identifier, defined next to the node type.                                                                          | String                                         | Yes      |
+| `label`               | An optional short, human-readable display name for the node.                                                                 | String                                         | No       |
+| `description`         | A CommonMark string providing a description of the node.                                                                     | String                                         | No       |
+| `on_exit`             | A procedure that executes when the node execution finishes.                                                                  | Procedure                                      | No       |
+| `llm`                 | A reference to the LLM connection.                                                                                           | @llm reference See [LLM Section](#llm-section) | No       |
+| `system.instructions` | Overrides the global `system.instructions` at the file root level for this generator node.                                   | String                                         | No       |
+| `prompt`              | Session-specific query or instructions for this particular node, typically containing user provided or user related context. | String                                         | Yes      |
+| `outputs`             | A schema definition for the agentic output.                                                                                  | Object See [Node Outputs](#node-outputs)       | No       |
 
 ### Executor Node
 
@@ -406,19 +406,19 @@ executor sendHrSlackUpdate:
     transition to @router.countrySwitch
 ```
 
-The executor node has these properties. 
+The executor node has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `id` | The node identifier, defined next to the node type. | String | Yes |
-| `label` | An optional short, human-readable display name for the node. | String | No |
-| `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `do` | Agent Script statements to execute | procedure | Yes |
+| Parameter     | Description                                                  | Type      | Required |
+| :------------ | :----------------------------------------------------------- | :-------- | :------- |
+| `id`          | The node identifier, defined next to the node type.          | String    | Yes      |
+| `label`       | An optional short, human-readable display name for the node. | String    | No       |
+| `description` | A CommonMark string providing a description of the node.     | String    | No       |
+| `on_exit`     | A procedure that executes when the node execution finishes.  | Procedure | No       |
+| `do`          | Agent Script statements to execute                           | procedure | Yes      |
 
 ### Router Node
 
-The router node performs dynamic transitions based on deterministic conditions. This node does not support transition to in its on\_exit attribute. Use this node for branching based on structured output from a previous node.
+The router node performs dynamic transitions based on deterministic conditions. This node does not support transition to in its on_exit attribute. Use this node for branching based on structured output from a previous node.
 
 **Example**
 
@@ -437,14 +437,14 @@ router countryRouter:
 
 The router node has these properties.
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `id` | The node identifier, defined next to the node type. | String | Yes |
-| `label` | An optional short, human-readable display name for the node. | String | No |
-| `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `routes` | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: `target`, `when`, and optional `label`. | Array | Yes |
-| `otherwise` | Defines a default transition when no route condition matches. Contains: `target`. | Object | Yes with `routes` |
+| Parameter     | Description                                                                                                                                                               | Type      | Required          |
+| :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------- | :---------------- |
+| `id`          | The node identifier, defined next to the node type.                                                                                                                       | String    | Yes               |
+| `label`       | An optional short, human-readable display name for the node.                                                                                                              | String    | No                |
+| `description` | A CommonMark string providing a description of the node.                                                                                                                  | String    | No                |
+| `on_exit`     | A procedure that executes when the node execution finishes.                                                                                                               | Procedure | No                |
+| `routes`      | An array of condition and target pairs, plus an optional label field for UI. Must define at least one route. Each route contains: `target`, `when`, and optional `label`. | Array     | Yes               |
+| `otherwise`   | Defines a default transition when no route condition matches. Contains: `target`.                                                                                         | Object    | Yes with `routes` |
 
 ### Echo Node
 
@@ -478,73 +478,73 @@ echo setStatus:
   })
 ```
 
-| Parameter | Description | Type | Required |
-| :---- | :---- | :---- | :---- |
-| `id` | The node identifier, defined next to the node type. | String | Yes |
-| `label` | An optional short, human-readable display name for the node. | String | No |
-| `description` | A CommonMark string providing a description of the node. | String | No |
-| `on_exit` | A procedure that executes when the node execution finishes. | Procedure | No |
-| `kind` | Discriminator for the event type. Valid values: `a2a:status_update_event`, `a2a:artifact_update_event`. | String | Yes |
-| `state` | The task state. Used with `a2a:status_update_event` kind. | String | Yes (for `status_update_event`) |
-| `message` | A message object created via `a2a.message()`. Used with `a2a:status_update_event` kind. | Message object | Yes (for `status_update_event`) |
-| `artifact` | An artifact object created via `a2a.artifact()`. Used with `a2a:artifact_update_event` kind. | Artifact object | Yes (for `artifact_update_event`) |
-| `append` | Whether to append to an existing artifact. Used with `a2a:artifact_update_event` kind. | Boolean | No |
-| `lastChunk` | Whether this is the last chunk of the artifact. Used with `a2a:artifact_update_event` kind. | Boolean | No |
-| `metadata` | Optional metadata dictionary. | dict | No |
+| Parameter     | Description                                                                                             | Type            | Required                          |
+| :------------ | :------------------------------------------------------------------------------------------------------ | :-------------- | :-------------------------------- |
+| `id`          | The node identifier, defined next to the node type.                                                     | String          | Yes                               |
+| `label`       | An optional short, human-readable display name for the node.                                            | String          | No                                |
+| `description` | A CommonMark string providing a description of the node.                                                | String          | No                                |
+| `on_exit`     | A procedure that executes when the node execution finishes.                                             | Procedure       | No                                |
+| `kind`        | Discriminator for the event type. Valid values: `a2a:status_update_event`, `a2a:artifact_update_event`. | String          | Yes                               |
+| `state`       | The task state. Used with `a2a:status_update_event` kind.                                               | String          | Yes (for `status_update_event`)   |
+| `message`     | A message object created via `a2a.message()`. Used with `a2a:status_update_event` kind.                 | Message object  | Yes (for `status_update_event`)   |
+| `artifact`    | An artifact object created via `a2a.artifact()`. Used with `a2a:artifact_update_event` kind.            | Artifact object | Yes (for `artifact_update_event`) |
+| `append`      | Whether to append to an existing artifact. Used with `a2a:artifact_update_event` kind.                  | Boolean         | No                                |
+| `lastChunk`   | Whether this is the last chunk of the artifact. Used with `a2a:artifact_update_event` kind.             | Boolean         | No                                |
+| `metadata`    | Optional metadata dictionary.                                                                           | dict            | No                                |
 
 The following table summarizes echo node parameters organized by `kind`.
 
-| Kind | Required Parameters | Optional Parameters |
-| :---- | :---- | :---- |
-| `a2a:artifact_update_event` | `artifact` (object created via `a2a.artifact()`) | `append` (boolean), `lastChunk` (boolean) |
-| `a2a:status_update_event` | `state` (string), `message` (object created via `a2a.message()`) | `metadata` (dict) |
+| Kind                        | Required Parameters                                              | Optional Parameters                       |
+| :-------------------------- | :--------------------------------------------------------------- | :---------------------------------------- |
+| `a2a:artifact_update_event` | `artifact` (object created via `a2a.artifact()`)                 | `append` (boolean), `lastChunk` (boolean) |
+| `a2a:status_update_event`   | `state` (string), `message` (object created via `a2a.message()`) | `metadata` (dict)                         |
 
-#### Echo Node Behavior 
+#### Echo Node Behavior
 
 The following table describes echo node behavior based on the A2A operation used by the client.
 
-| Operation / Condition | Echo Behavior |
-| :---- | :---- |
-| `SendMessage` with `returnImmediately = false` | Each echo invocation updates the stored task. Each echo invocation emits a push notification payload for all created push notifications. A consolidated response is emitted when the graph ends or is suspended. |
-| `SendMessage` with `returnImmediately = true` | An immediate response is sent before graph execution is triggered. The response includes the task and context ID. A stored task entry with the response already exists before graph execution begins. All echo invocations update the stored task atomically (including consolidated and individual events). Each echo invocation emits a push notification payload for all created push notifications. |
-| `SendStreamingMessage` | All echo invocations update the stored task atomically (including consolidated and individual events). All individual events are sent through the event stream. Each echo invocation emits a push notification payload for all created push notifications. |
-| `SubscribeToTask` | This condition works on top of the scenarios above. Any task in a non-terminal state can be subscribed to. Whenever echo is executed, events are pushed to all subscribed clients. |
+| Operation / Condition                          | Echo Behavior                                                                                                                                                                                                                                                                                                                                                                                           |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SendMessage` with `returnImmediately = false` | Each echo invocation updates the stored task. Each echo invocation emits a push notification payload for all created push notifications. A consolidated response is emitted when the graph ends or is suspended.                                                                                                                                                                                        |
+| `SendMessage` with `returnImmediately = true`  | An immediate response is sent before graph execution is triggered. The response includes the task and context ID. A stored task entry with the response already exists before graph execution begins. All echo invocations update the stored task atomically (including consolidated and individual events). Each echo invocation emits a push notification payload for all created push notifications. |
+| `SendStreamingMessage`                         | All echo invocations update the stored task atomically (including consolidated and individual events). All individual events are sent through the event stream. Each echo invocation emits a push notification payload for all created push notifications.                                                                                                                                              |
+| `SubscribeToTask`                              | This condition works on top of the scenarios above. Any task in a non-terminal state can be subscribed to. Whenever echo is executed, events are pushed to all subscribed clients.                                                                                                                                                                                                                      |
 
 ### A2A Namespace Functions
 
 The `a2a` namespace provides a set of functions that support A2A Task object creation. Do not prefix these functions with `@` as it's reserved for references such as `@variables`, `@actions`, `@request`, and `@orchestrator.<nodeId>`.
 
-| Function | Description | Input Arguments | Output | Example |
-| :---- | :---- | :---- | :---- | :---- |
-| `a2a.message` | Builds an A2A Message object | `messageId: str` (required) `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `role: str` (optional, default: "agent") `metadata: dict` (optional) | `dict` (Message) | `a2a.message({messageId: uuid(), parts: [a2a.textPart("Hello")]})` |
-| `a2a.textPart` | Builds a TextPart object (kind: "text") | `text: str` (required) `metadata: dict` (optional) | `dict` (TextPart) | `` a2a.textPart("Employee ID: {!@orchestrator.employee.id}") `a2a.textPart("Status: Complete", metadata={priority: "high"})` `` |
-| `a2a.dataPart` | Builds a DataPart object (kind: "data") | `data: dict` (required) `metadata: dict` (optional) | `dict` (DataPart) | `` a2a.dataPart({employeeId: "E123", department: "Engineering"}) `a2a.dataPart(@orchestrator.result.output)` `` |
-| `a2a.filePart` | Builds a FilePart object (kind: "file") | `uri: str` (optional, required if bytes not provided) `bytes: str` (optional, base64-encoded) `name: str` (optional) `mime_type: str` (optional) `metadata: dict` (optional) | `dict` (FilePart) | `a2a.filePart(uri="https://example.com/report.pdf", name="report.pdf", mime_type="application/pdf") a2a.filePart(bytes="SGVsbG8gV29ybGQ=", name="data.txt")` |
-| `a2a.artifact` | Builds an A2A Artifact object | `artifactId: str` (optional, auto-generated) `name: str` (optional) `description: str` (optional) `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `metadata: dict` (optional) | `dict` (Artifact) | `a2a.artifact({artifactId: uuid(), name: "Results", parts: [a2a.dataPart(...)]})` |
+| Function       | Description                             | Input Arguments                                                                                                                                                                                       | Output            | Example                                                                                                                                                      |
+| :------------- | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `a2a.message`  | Builds an A2A Message object            | `messageId: str` (required) `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `role: str` (optional, default: "agent") `metadata: dict` (optional)                              | `dict` (Message)  | `a2a.message({messageId: uuid(), parts: [a2a.textPart("Hello")]})`                                                                                           |
+| `a2a.textPart` | Builds a TextPart object (kind: "text") | `text: str` (required) `metadata: dict` (optional)                                                                                                                                                    | `dict` (TextPart) | `` a2a.textPart("Employee ID: {!@orchestrator.employee.id}") `a2a.textPart("Status: Complete", metadata={priority: "high"})` ``                              |
+| `a2a.dataPart` | Builds a DataPart object (kind: "data") | `data: dict` (required) `metadata: dict` (optional)                                                                                                                                                   | `dict` (DataPart) | `` a2a.dataPart({employeeId: "E123", department: "Engineering"}) `a2a.dataPart(@orchestrator.result.output)` ``                                              |
+| `a2a.filePart` | Builds a FilePart object (kind: "file") | `uri: str` (optional, required if bytes not provided) `bytes: str` (optional, base64-encoded) `name: str` (optional) `mime_type: str` (optional) `metadata: dict` (optional)                          | `dict` (FilePart) | `a2a.filePart(uri="https://example.com/report.pdf", name="report.pdf", mime_type="application/pdf") a2a.filePart(bytes="SGVsbG8gV29ybGQ=", name="data.txt")` |
+| `a2a.artifact` | Builds an A2A Artifact object           | `artifactId: str` (optional, auto-generated) `name: str` (optional) `description: str` (optional) `parts: list` (required, from `a2a.textPart/a2a.dataPart/a2a.filePart`) `metadata: dict` (optional) | `dict` (Artifact) | `a2a.artifact({artifactId: uuid(), name: "Results", parts: [a2a.dataPart(...)]})`                                                                            |
 
 Usage notes:
 
-* Functions are designed to be composed: `a2a.message` and `a2a.artifact` accept `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
-* `a2a.filePart` requires either `uri` OR `bytes` (base64-encoded), but not both.
-* `a2a.artifact` auto-generates `artifactId` if it's not provided.
-* All `metadata` parameters are optional and accept arbitrary dictionaries.
-* For tasks, it's not necessary to define the `id`, `contextId` and `history` attributes, those are automatically populated by the trigger.
+- Functions are designed to be composed: `a2a.message` and `a2a.artifact` accept `parts` created by `a2a.textPart`/`a2a.dataPart`/`a2a.filePart`.
+- `a2a.filePart` requires either `uri` OR `bytes` (base64-encoded), but not both.
+- `a2a.artifact` auto-generates `artifactId` if it's not provided.
+- All `metadata` parameters are optional and accept arbitrary dictionaries.
+- For tasks, it's not necessary to define the `id`, `contextId` and `history` attributes, those are automatically populated by the trigger.
 
 ## Built-in Functions {#built-in-functions}
 
 Use these functions in expressions alongside references and interpolations. They include time and ID helpers (`now`, `uuid`), string utilities (`strip`, `startswith`, and `endswith`), JSON parsing (`parse_json`), and common numeric helpers (`abs`, `round`, and `sum`) for deterministic math-style logic without calling external tools.
 
-| Function | Description | Input arguments | Output | Example |
-| :---- | :---- | :---- | :---- | :---- |
-| `now` | Current UTC time in ISO 8601 format | None | String (ISO 8601\) | `now()` |
-| `uuid` | Random UUID v4 | None | String (UUID) | `uuid()` |
-| `strip` | Removes leading/trailing characters from a string | String, optional chars (default: whitespace) | String | `strip(" hello ") → "hello"` |
-| `startswith` | Whether a string starts with a prefix | String, prefix | Boolean | `startswith("hello world", "hello")` |
-| `endswith` | Whether a string ends with a suffix | String, suffix | Boolean | `endswith("report.pdf", ".pdf")` |
-| `abs` | Absolute value | Number | Number | `abs(-42)` |
-| `round` | Round to optional digit count | Number, optional `ndigits` | Number | `round(3.14159, 2)` |
-| `sum` | Sum of a numeric list | List | Number | `sum([10, 20, 30])` |
-| `parse_json` | Parse a JSON string | String (valid JSON) | Object or array | `parse_json('{"key": "value"}')` |
+| Function     | Description                                       | Input arguments                              | Output             | Example                              |
+| :----------- | :------------------------------------------------ | :------------------------------------------- | :----------------- | :----------------------------------- |
+| `now`        | Current UTC time in ISO 8601 format               | None                                         | String (ISO 8601\) | `now()`                              |
+| `uuid`       | Random UUID v4                                    | None                                         | String (UUID)      | `uuid()`                             |
+| `strip`      | Removes leading/trailing characters from a string | String, optional chars (default: whitespace) | String             | `strip(" hello ") → "hello"`         |
+| `startswith` | Whether a string starts with a prefix             | String, prefix                               | Boolean            | `startswith("hello world", "hello")` |
+| `endswith`   | Whether a string ends with a suffix               | String, suffix                               | Boolean            | `endswith("report.pdf", ".pdf")`     |
+| `abs`        | Absolute value                                    | Number                                       | Number             | `abs(-42)`                           |
+| `round`      | Round to optional digit count                     | Number, optional `ndigits`                   | Number             | `round(3.14159, 2)`                  |
+| `sum`        | Sum of a numeric list                             | List                                         | Number             | `sum([10, 20, 30])`                  |
+| `parse_json` | Parse a JSON string                               | String (valid JSON)                          | Object or array    | `parse_json('{"key": "value"}')`     |
 
 ## Node Outputs {#node-outputs}
 
@@ -554,26 +554,26 @@ Each property maps to a field in the agent's output. The following types are sup
 
 **Note:** Advanced JSON schema features are not supported, so do not copy patterns from generic JSON Schema tutorials unless they match what is documented here.
 
-| Type | Description |
-| :---- | :---- |
-| String | Text values with optional constraints like `pattern` (regex), `minLength`, `maxLength`, and `enum` (allowed values). |
-| Number / Integer | Numeric values with optional constraints like `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, and `enum`. |
-| Boolean | `True` or `False` (with optional default). |
-| Array | Lists of items, where `items` define the schema for each element (can be any supported type). Supports `minItems` and `maxItems`. |
-| Object | Nested structures with their own `properties` map. Supports a `required` array to specify mandatory fields. |
+| Type             | Description                                                                                                                       |
+| :--------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
+| String           | Text values with optional constraints like `pattern` (regex), `minLength`, `maxLength`, and `enum` (allowed values).              |
+| Number / Integer | Numeric values with optional constraints like `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, and `enum`.           |
+| Boolean          | `True` or `False` (with optional default).                                                                                        |
+| Array            | Lists of items, where `items` define the schema for each element (can be any supported type). Supports `minItems` and `maxItems`. |
+| Object           | Nested structures with their own `properties` map. Supports a `required` array to specify mandatory fields.                       |
 
 Each property definition can include:
 
-* `type`: The data type (required).  
-* `description`: A human-readable explanation of the property's purpose.  
-* `default`: A default value if the property is omitted.
+- `type`: The data type (required).
+- `description`: A human-readable explanation of the property's purpose.
+- `default`: A default value if the property is omitted.
 
 The `outputs` definition does not support the following:
 
-* `additionalProperties` or similar JSON Schema extensibility flags  
-* Combinators such as `anyOf`, `oneOf`, or `allOf`  
-* References or shared definitions (`$ref`, `$defs`)  
-* Composition beyond nested `object` / `array` structures as described above
+- `additionalProperties` or similar JSON Schema extensibility flags
+- Combinators such as `anyOf`, `oneOf`, or `allOf`
+- References or shared definitions (`$ref`, `$defs`)
+- Composition beyond nested `object` / `array` structures as described above
 
 ## Node Expressions and References
 
@@ -581,14 +581,14 @@ Nodes access data from other parts of the workflow using expressions.
 
 The following references are used.
 
-| Prefix | Reference | Example |
-| :---- | :---- | :---- |
-| `@llm.` | LLM definitions | `@llm.open-api-llm` |
-| `@actions.` | action definitions | `@actions.hr_agent` |
-| `@request.` | Trigger request data | `@request.payload`, `@request.interface` |
-| `@request.headers` | HTTP headers (case-insensitive) | `@request.headers["Authorization"]` |
-| `@variables.` | Workflow variables | `@variables.companyId` |
-| `@<nodeType>.<nodeId>.` | Node references | `@orchestrator.hrOnboard.output` |
+| Prefix                  | Reference                       | Example                                  |
+| :---------------------- | :------------------------------ | :--------------------------------------- |
+| `@llm.`                 | LLM definitions                 | `@llm.open-api-llm`                      |
+| `@actions.`             | action definitions              | `@actions.hr_agent`                      |
+| `@request.`             | Trigger request data            | `@request.payload`, `@request.interface` |
+| `@request.headers`      | HTTP headers (case-insensitive) | `@request.headers["Authorization"]`      |
+| `@variables.`           | Workflow variables              | `@variables.companyId`                   |
+| `@<nodeType>.<nodeId>.` | Node references                 | `@orchestrator.hrOnboard.output`         |
 
 ### Accessing Node Output and Input
 
@@ -602,10 +602,10 @@ Every node has `.output` (the value it produced) and `.input` (the output of whi
 @generate.generate_email.input                 # whatever the preceding node produced
 ```
 
-* Use `.output` when you know exactly which upstream node you’re referencing.  
-* Use `.input` when multiple nodes transition into the current one and you want to decouple it from the specific path taken.
+- Use `.output` when you know exactly which upstream node you’re referencing.
+- Use `.input` when multiple nodes transition into the current one and you want to decouple it from the specific path taken.
 
-In this example, `@generate.generate_email.input` returns whichever of node\_a/b/c actually transitioned into it.
+In this example, `@generate.generate_email.input` returns whichever of node_a/b/c actually transitioned into it.
 
 ```
 node_a ──┐
@@ -637,7 +637,7 @@ Use `{!expression}` to embed values inside strings.
 prompt: "The employee's country is {!@orchestrator.hrOnboard.output.country}"
 ```
 
-### Slot Filling 
+### Slot Filling
 
 Use slot filling (`...`) to tell an LLM to figure out a value.
 
@@ -659,11 +659,11 @@ When you reference a tool inside a node, you can fix, default, or slot-fill its 
 actions:
   # All arguments via slot filling (LLM decides everything)
   sendToDefault: @actions.send_slack
-  
+
   # Fix the channel, LLM fills the message
   sendToFixed: @actions.send_slack
     with channel = "agent-fabric"
-  
+
   # Fix everything — fully deterministic
   fullyDeterministic: @actions.send_slack
     with message = @variables.calculatedMessage

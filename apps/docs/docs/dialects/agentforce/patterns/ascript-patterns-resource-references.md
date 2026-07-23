@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Resource References"
+sidebar_label: 'Resource References'
 ---
 
 # Agent Script Pattern: Reference Resources Directly in Reasoning Instructions

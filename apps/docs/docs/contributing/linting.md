@@ -10,14 +10,14 @@ The repository uses ESLint 9 (flat config), Prettier 3, TypeScript strict mode, 
 
 ## Configuration Files
 
-| File | Purpose |
-|------|---------|
-| `eslint.config.js` | ESLint flat config |
-| `.prettierrc.json` | Prettier formatting rules |
-| `.prettierignore` | Files excluded from formatting |
-| `tsconfig.json` | Base TypeScript config (strict) |
-| `.lintstagedrc.json` | Pre-commit hooks config |
-| `.husky/pre-commit` | Pre-commit hook |
+| File                 | Purpose                         |
+| -------------------- | ------------------------------- |
+| `eslint.config.js`   | ESLint flat config              |
+| `.prettierrc.json`   | Prettier formatting rules       |
+| `.prettierignore`    | Files excluded from formatting  |
+| `tsconfig.json`      | Base TypeScript config (strict) |
+| `.lintstagedrc.json` | Pre-commit hooks config         |
+| `.husky/pre-commit`  | Pre-commit hook                 |
 
 Each package has its own `tsconfig.json` extending the root config.
 

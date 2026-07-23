@@ -104,9 +104,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Add unused-variable warning that flags declared variables never referenced in the document, with a quick-fix code action to remove the declaration.
 
 ### Changed
-  - @agentscript/agentforce@2.5.13
-  - @agentscript/lsp@2.2.11
-  - @agentscript/lsp-server@2.2.11
+
+- @agentscript/agentforce@2.5.13
+- @agentscript/lsp@2.2.11
+- @agentscript/lsp-server@2.2.11
 
 ## [2.1.0] - 2026-4-6
 

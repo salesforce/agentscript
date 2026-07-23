@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Reasoning Instructions"
+sidebar_label: 'Reasoning Instructions'
 ---
 
 # Agent Script Reference: Reasoning Instructions

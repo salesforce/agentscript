@@ -21,7 +21,7 @@ import {
   unusedVariablePass,
   expressionValidationPass,
   spreadContextPass,
-  nullLiteralValidationPass,
+  identifierValidationPass,
 } from '@agentscript/language';
 import { typeMapAnalyzer } from './type-map.js';
 import { reasoningActionsAnalyzer } from './reasoning-actions.js';
@@ -30,6 +30,7 @@ import { actionTypeCheckRule } from './action-type-check.js';
 import { availableWhenTypeCheckRule } from './available-when-type-check.js';
 import { variableDefaultTypeCheckRule } from './variable-default-type-check.js';
 import { setVariablesIoRule } from './set-variables-io.js';
+import { instructionTemplateSyntaxPass } from './instruction-template-syntax.js';
 
 export { typeMapAnalyzer, typeMapKey } from './type-map.js';
 export type {
@@ -58,6 +59,7 @@ export { actionTypeCheckRule } from './action-type-check.js';
 export { availableWhenTypeCheckRule } from './available-when-type-check.js';
 export { variableDefaultTypeCheckRule } from './variable-default-type-check.js';
 export { setVariablesIoRule } from './set-variables-io.js';
+export { instructionTemplateSyntaxPass } from './instruction-template-syntax.js';
 
 /** All AgentScript lint passes in engine execution order. */
 export function defaultRules(): LintPass[] {
@@ -76,7 +78,7 @@ export function defaultRules(): LintPass[] {
     unusedVariablePass(),
     expressionValidationPass(),
     spreadContextPass(),
-    nullLiteralValidationPass(),
+    identifierValidationPass(),
     // AgentScript analyzers
     typeMapAnalyzer(),
     reasoningActionsAnalyzer(),
@@ -87,5 +89,6 @@ export function defaultRules(): LintPass[] {
     actionTypeCheckRule(),
     availableWhenTypeCheckRule(),
     setVariablesIoRule(),
+    instructionTemplateSyntaxPass(),
   ];
 }

@@ -1,5 +1,5 @@
 ---
-sidebar_label: "After Reasoning"
+sidebar_label: 'After Reasoning'
 ---
 
 # Agent Script Reference: After Reasoning

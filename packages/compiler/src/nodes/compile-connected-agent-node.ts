@@ -5,7 +5,12 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import { NamedMap, ParameterDeclarationNode } from '@agentscript/language';
+import {
+  NamedMap,
+  ParameterDeclarationNode,
+  ListLiteral,
+  type Expression,
+} from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type { RelatedAgentNode } from '../types.js';
 import type { ParsedConnectedAgent } from '../parsed-types.js';
@@ -85,19 +90,41 @@ export function compileConnectedAgentNode(
   return node as RelatedAgentNode;
 }
 
+/** A bound input value is either a single expression or a list of them. */
+type BoundInputValue = string | string[];
+
 function compileBoundInputs(
   inputs: NamedMap<ParameterDeclarationNode> | undefined,
   ctx: CompilerContext
-): Record<string, string> | undefined {
+): Record<string, BoundInputValue> | undefined {
   if (!inputs || inputs.size === 0) return undefined;
 
-  const result: Record<string, string> = {};
+  const result: Record<string, BoundInputValue> = {};
 
   for (const [name, decl] of iterateNamedMap(inputs)) {
     if (decl.defaultValue) {
-      result[name] = compileExpression(decl.defaultValue, ctx);
+      result[name] = compileBoundInputValue(decl.defaultValue, ctx);
     }
   }
 
   return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Compile a single bound-input default value.
+ *
+ * A list literal compiles to an array of compiled element expressions
+ * (mirroring the agent-dsl schema where a bound input value may be a
+ * scalar/expression or a list of them). A single expression — including a
+ * reference to a list-typed variable, e.g. `@variables.account_ids` — compiles
+ * to a scalar string as before.
+ */
+function compileBoundInputValue(
+  value: Expression,
+  ctx: CompilerContext
+): BoundInputValue {
+  if (value instanceof ListLiteral) {
+    return value.elements.map(element => compileExpression(element, ctx));
+  }
+  return compileExpression(value, ctx);
 }

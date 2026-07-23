@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Conditional Expressions"
+sidebar_label: 'Conditional Expressions'
 ---
 
 # Agent Script Reference: Conditional Expressions

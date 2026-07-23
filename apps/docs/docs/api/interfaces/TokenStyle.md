@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Interface: TokenStyle
 
@@ -17,9 +17,9 @@ Monaco imports these directly.
 
 #### Defined in
 
-[monaco/src/theme.ts:17](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L17)
+[monaco/src/theme.ts:17](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L17)
 
-***
+---
 
 ### foreground?
 
@@ -27,9 +27,9 @@ Monaco imports these directly.
 
 #### Defined in
 
-[monaco/src/theme.ts:16](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L16)
+[monaco/src/theme.ts:16](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L16)
 
-***
+---
 
 ### italic?
 
@@ -37,4 +37,4 @@ Monaco imports these directly.
 
 #### Defined in
 
-[monaco/src/theme.ts:18](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/theme.ts#L18)
+[monaco/src/theme.ts:18](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/theme.ts#L18)

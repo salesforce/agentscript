@@ -201,6 +201,7 @@ function templateContinues(
       case 'run':
       case 'set':
       case 'transition':
+      case 'collect':
         return false;
       case 'with':
         // "with" not followed by colon is a statement

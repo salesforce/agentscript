@@ -50,10 +50,10 @@ Quick fixes for common issues:
 
 Controls which dialect schema and lint rules are used.
 
-| Value | Description |
-|---|---|
-| `"agentforce"` (default) | Use the Agentforce dialect |
-| `"agentscript"` | Use the AgentScript dialect |
+| Value                    | Description                 |
+| ------------------------ | --------------------------- |
+| `"agentforce"` (default) | Use the Agentforce dialect  |
+| `"agentscript"`          | Use the AgentScript dialect |
 
 This setting can also be overridden per-file using a dialect annotation comment:
 
@@ -83,8 +83,8 @@ Token types with custom colors: keywords, modifiers, types, functions, variables
 
 ## File Association
 
-| Property | Value |
-|---|---|
-| File extension | `.agent` |
-| Language ID | `agentscript` |
+| Property             | Value                                               |
+| -------------------- | --------------------------------------------------- |
+| File extension       | `.agent`                                            |
+| Language ID          | `agentscript`                                       |
 | First-line detection | Files starting with `# @dialect:` are auto-detected |

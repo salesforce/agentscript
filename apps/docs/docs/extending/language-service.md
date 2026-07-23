@@ -93,8 +93,16 @@ interface LanguageService {
   readonly store: PassStore | null;
   getSymbols(): DocumentSymbol[];
   getDefinition(line: number, char: number): DefinitionResult | null;
-  getReferences(line: number, char: number, includeDeclaration?: boolean): ReferenceOccurrence[];
-  getCompletions(line: number, char: number, namespace: string): CompletionCandidate[];
+  getReferences(
+    line: number,
+    char: number,
+    includeDeclaration?: boolean
+  ): ReferenceOccurrence[];
+  getCompletions(
+    line: number,
+    char: number,
+    namespace: string
+  ): CompletionCandidate[];
   getNamespaceCompletions(line: number, char: number): CompletionCandidate[];
   getFieldCompletions(line: number, char: number): CompletionCandidate[];
   getEnclosingScope(line: number, char: number): ScopeContext;

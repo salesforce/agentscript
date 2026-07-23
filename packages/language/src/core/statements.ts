@@ -653,7 +653,7 @@ export class TransitionStatement extends AstNodeBase implements Statement {
 }
 
 /**
- * `collect @variables.X: message: "..."` — sugar for gathering a single
+ * `collect @variables.X` + `message: "..."` — sugar for gathering a single
  * variable from the user, one field at a time, inside reasoning.instructions.
  *
  * The compiler lowers a `collect` into a guarded instruction (ask the user for
@@ -681,7 +681,7 @@ export class CollectClause extends AstNodeBase implements Statement {
       ? this.message.__emit({ ...ctx, indent: 0 })
       : '';
     return (
-      `${indent}collect ${targetText}:\n` +
+      `${indent}collect ${targetText}\n` +
       `${bodyIndent}message: ${messageText}`
     );
   }

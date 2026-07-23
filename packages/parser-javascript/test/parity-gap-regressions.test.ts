@@ -118,6 +118,13 @@ const fixedCases: RegressionCase[] = [
     fix: 'template-hash-guard',
     input: 'config:\n    msg: |\n      #  Result: {!@utils.frmat(@data.value)}',
   },
+  {
+    name: 'collect statement between two pipe templates ends the first template',
+    key: 'parser-javascript/collect_between_pipes',
+    fix: 'collect-terminates-template',
+    input:
+      'subagent intake:\n    reasoning:\n        instructions: ->\n            | Redirect the conversation politely\n              and succinctly.\n            collect @variables.city\n                message: "Which city?"\n            | Then thank the user.',
+  },
 ];
 
 // ── Test Suite ──────────────────────────────────────────────────────

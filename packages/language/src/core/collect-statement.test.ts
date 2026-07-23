@@ -21,6 +21,10 @@ describe('CollectClause', () => {
     expect(out).toContain('collect');
     expect(out).toContain('message:');
     expect(out).toContain('"Ask me"');
+    // `collect` is an operator, not a key: no colon after the target. The colon
+    // on the `message:` body line is a mapping key and is expected.
+    const [header] = out.split('\n');
+    expect(header).not.toContain(':');
   });
 
   it('reports its kind', () => {

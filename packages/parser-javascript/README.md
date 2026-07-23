@@ -24,13 +24,13 @@ const captures = parseAndHighlight(source);
 
 ## API
 
-| Export | Description |
-|---|---|
-| `parse(source)` | Parse source and return `{ rootNode: CSTNode }` |
-| `parseAndHighlight(source)` | Parse and return `HighlightCapture[]` |
-| `highlight(node)` | Walk an existing CST and produce highlight captures |
-| `CSTNode` | CST node class implementing `SyntaxNode` |
-| `TokenKind` | Enum of all token types |
+| Export                      | Description                                         |
+| --------------------------- | --------------------------------------------------- |
+| `parse(source)`             | Parse source and return `{ rootNode: CSTNode }`     |
+| `parseAndHighlight(source)` | Parse and return `HighlightCapture[]`               |
+| `highlight(node)`           | Walk an existing CST and produce highlight captures |
+| `CSTNode`                   | CST node class implementing `SyntaxNode`            |
+| `TokenKind`                 | Enum of all token types                             |
 
 ## Scripts
 
@@ -41,6 +41,8 @@ pnpm test:watch   # Run tests in watch mode
 pnpm bench        # Run vitest benchmarks
 pnpm perf         # Run detailed performance analysis with timing output
 pnpm perf:report  # Generate PERFORMANCE.md report
+pnpm parity       # Print refreshed parity metrics (dry run)
+pnpm parity:report # Regenerate the metrics in PARITY.md
 ```
 
 ## Testing
@@ -64,6 +66,9 @@ Parse trees are allowed to deviate when the input is **not valid AgentScript** â
 will have errors, but their error recovery strategies differ (recursive descent vs GLR), so
 the resulting CSTs may differ. These deviations are tracked via snapshots.
 
+See [PARITY.md](PARITY.md) for the catalog of known behavioral differences and their metrics.
+Run `pnpm parity:report` to refresh those metrics after parser changes.
+
 ## Performance Benchmarks
 
 The package includes a comprehensive benchmark suite that stress-tests the parser across multiple dimensions.
@@ -85,23 +90,23 @@ pnpm bench
 
 ### Benchmark Dimensions
 
-| Dimension | What it tests |
-|---|---|
-| File size scaling | Linear scaling: 100 to 100K lines of flat mappings |
-| Deep nesting | Indent stack and recursion depth: 50 to 1,000 levels |
-| Wide mappings | Sibling key accumulation: 1K to 50K keys |
-| Chained expressions | Pratt parser with long `a + b + c...` chains |
-| Nested parentheses | Recursive descent depth with `(((...)))` |
-| Mixed precedence | Precedence climbing with interleaved `+ * - /` |
-| Large strings | Lexer string scanning: 1KB to 1MB strings |
-| Escape-heavy strings | Character-by-character escape processing |
-| Template interpolations | `{! expr }` handling at scale |
-| Error recovery | Alternating errors, garbage input, unclosed delimiters |
-| Large sequences | `- item` syntax at 1K to 50K items |
-| Procedure-heavy | `if`/`run`/`set` statement parsing |
-| Highlighting overhead | `parse()` vs `parseAndHighlight()` comparison |
-| Realistic workloads | Mixed agent files from 50 to 50K lines |
-| Lexer isolation | Lex-only runs to separate lexer vs parser cost |
+| Dimension               | What it tests                                          |
+| ----------------------- | ------------------------------------------------------ |
+| File size scaling       | Linear scaling: 100 to 100K lines of flat mappings     |
+| Deep nesting            | Indent stack and recursion depth: 50 to 1,000 levels   |
+| Wide mappings           | Sibling key accumulation: 1K to 50K keys               |
+| Chained expressions     | Pratt parser with long `a + b + c...` chains           |
+| Nested parentheses      | Recursive descent depth with `(((...)))`               |
+| Mixed precedence        | Precedence climbing with interleaved `+ * - /`         |
+| Large strings           | Lexer string scanning: 1KB to 1MB strings              |
+| Escape-heavy strings    | Character-by-character escape processing               |
+| Template interpolations | `{! expr }` handling at scale                          |
+| Error recovery          | Alternating errors, garbage input, unclosed delimiters |
+| Large sequences         | `- item` syntax at 1K to 50K items                     |
+| Procedure-heavy         | `if`/`run`/`set` statement parsing                     |
+| Highlighting overhead   | `parse()` vs `parseAndHighlight()` comparison          |
+| Realistic workloads     | Mixed agent files from 50 to 50K lines                 |
+| Lexer isolation         | Lex-only runs to separate lexer vs parser cost         |
 
 ### Adding Generators
 

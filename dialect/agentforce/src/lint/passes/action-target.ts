@@ -67,6 +67,7 @@ export const VALID_SCHEMES = [
   'generatePromptResponse',
   'integrationProcedureAction',
   'mcpTool',
+  'platformMcpTool',
   'namedQuery',
   'placeholder',
   'prompt',

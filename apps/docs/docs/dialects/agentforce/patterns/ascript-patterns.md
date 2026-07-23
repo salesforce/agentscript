@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Patterns"
+sidebar_label: 'Patterns'
 ---
 
 # Agent Script Common Patterns
