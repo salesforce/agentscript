@@ -28,13 +28,13 @@ pnpm test
 
 ## Common Development Tasks
 
-| Task | Command |
-|------|---------|
-| Building everything | `pnpm build` |
-| Running tests | `pnpm test` |
-| Formatting | `pnpm format` |
-| Linting | `pnpm lint` |
-| Docs dev server | `pnpm docs:dev` (port 27000) |
+| Task                | Command                      |
+| ------------------- | ---------------------------- |
+| Building everything | `pnpm build`                 |
+| Running tests       | `pnpm test`                  |
+| Formatting          | `pnpm format`                |
+| Linting             | `pnpm lint`                  |
+| Docs dev server     | `pnpm docs:dev` (port 27000) |
 
 :::warning
 Do not start the docs dev server automatically in scripts. Run `pnpm docs:dev` manually when needed.

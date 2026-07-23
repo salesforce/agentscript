@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Interface: SchemaFieldInfo
 
@@ -18,7 +18,7 @@ when passing a dialect schema to resolveSchemaField.
 
 language/dist/core/analysis/schema-hover.d.ts:17
 
-***
+---
 
 ### \_\_isTypedMap?
 
@@ -28,7 +28,7 @@ language/dist/core/analysis/schema-hover.d.ts:17
 
 language/dist/core/analysis/schema-hover.d.ts:20
 
-***
+---
 
 ### \_\_metadata?
 
@@ -38,7 +38,7 @@ language/dist/core/analysis/schema-hover.d.ts:20
 
 language/dist/core/analysis/schema-hover.d.ts:19
 
-***
+---
 
 ### \_\_modifiers?
 
@@ -48,7 +48,7 @@ language/dist/core/analysis/schema-hover.d.ts:19
 
 language/dist/core/analysis/schema-hover.d.ts:22
 
-***
+---
 
 ### \_\_primitiveTypes?
 
@@ -58,7 +58,7 @@ language/dist/core/analysis/schema-hover.d.ts:22
 
 language/dist/core/analysis/schema-hover.d.ts:23
 
-***
+---
 
 ### isNamed?
 
@@ -68,7 +68,7 @@ language/dist/core/analysis/schema-hover.d.ts:23
 
 language/dist/core/analysis/schema-hover.d.ts:16
 
-***
+---
 
 ### propertiesSchema?
 
@@ -78,7 +78,7 @@ language/dist/core/analysis/schema-hover.d.ts:16
 
 language/dist/core/analysis/schema-hover.d.ts:21
 
-***
+---
 
 ### schema?
 

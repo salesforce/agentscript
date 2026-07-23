@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Variables"
+sidebar_label: 'Variables'
 ---
 
 # Agent Script Reference: Variables

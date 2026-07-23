@@ -32,10 +32,10 @@ See the [Agent Script documentation](https://developer.salesforce.com/docs/ai/ag
 
 ## Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `agentscript.dialect` | `agentforce` | Default dialect when no `# @dialect:` annotation is present. Options: `agentforce`, `agentscript` |
-| `agentscript.trace.server` | `off` | Traces communication between VS Code and the language server. Options: `off`, `messages`, `verbose` |
+| Setting                    | Default      | Description                                                                                         |
+| -------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `agentscript.dialect`      | `agentforce` | Default dialect when no `# @dialect:` annotation is present. Options: `agentforce`, `agentscript`   |
+| `agentscript.trace.server` | `off`        | Traces communication between VS Code and the language server. Options: `off`, `messages`, `verbose` |
 
 ### Selecting a Dialect
 
@@ -48,7 +48,6 @@ You can set the default dialect in VS Code settings, or override per-file with a
 ### File Organization
 
 Agent Script files are typically organized in Salesforce DX projects as part of an `AiAuthoringBundle` metadata component in a package directory. Each `.agent` file represents a complete agent definition.
-
 
 ## Additional Resources
 

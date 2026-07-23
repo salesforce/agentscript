@@ -13,6 +13,7 @@ import {
   getCompletionCandidates,
   getDocumentSymbols,
   getFieldCompletions,
+  getNodeMemberAccessCompletions,
   SymbolKind,
 } from '@agentscript/language';
 
@@ -565,7 +566,34 @@ describe('getCompletionCandidates', () => {
     expect(names).toContain('user_input');
     expect(names).toContain('current_modality');
     expect(names).toContain('current_connection');
-    expect(candidates).toHaveLength(3);
+    expect(names).toContain('last_reply');
+    expect(candidates).toHaveLength(4);
+  });
+
+  test('system_variables.last_reply nested scope returns sub-members', () => {
+    const ast = parse('');
+    const candidates = getNodeMemberAccessCompletions(
+      ast,
+      ['system_variables', 'last_reply', ''],
+      testSchemaCtx
+    );
+    const names = candidates.map(c => c.name);
+    expect(names).toContain('interrupted');
+    expect(names).toContain('interrupted_heard_text');
+    expect(candidates).toHaveLength(2);
+    for (const c of candidates) {
+      expect(c.kind).toBe(SymbolKind.Property);
+    }
+  });
+
+  test('system_variables flat member has no nested sub-members', () => {
+    const ast = parse('');
+    const candidates = getNodeMemberAccessCompletions(
+      ast,
+      ['system_variables', 'user_input', ''],
+      testSchemaCtx
+    );
+    expect(candidates).toHaveLength(0);
   });
 
   test('global scope completions have Property kind', () => {

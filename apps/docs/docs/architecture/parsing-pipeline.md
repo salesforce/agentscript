@@ -49,6 +49,7 @@ Each schema field type knows how to parse its corresponding CST nodes:
 - `CollectionBlock` -- collection of named blocks
 
 **Output**: A `ParseResult` containing:
+
 - `value` -- the typed AST root (`AstRoot`)
 - `diagnostics` -- parse-level diagnostics (syntax errors, unknown fields)
 

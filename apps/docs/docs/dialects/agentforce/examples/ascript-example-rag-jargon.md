@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Update Agents With New Terms (Hands-On)"
+sidebar_label: 'Update Agents With New Terms (Hands-On)'
 ---
 
 # Ground Your Agent With Updated Terminology
@@ -282,7 +282,6 @@ Create a flow that looks up your knowledge article by article ID.
 To test your flow and make sure your agent has all of the required permissions to run it, debug the flow as your agent user.
 
 1.  Give yourself permission to debug your flow as another user.
-
     - From Setup, in the Quick Find box, enter `Process Automation`, and then select **Process Automation Settings**.
     - Select **Let admins debug flows as other users** then click **Save**.
 

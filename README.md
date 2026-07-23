@@ -30,7 +30,7 @@ Agent Script does not prescribe how much control you take. The language gives yo
 
 At one end, you can write highly deterministic agents: use `before_reasoning` to gate transitions, `if`/`else` to focus the LLM's instructions, and `set` to drive state explicitly. At the other end, you can write a single `reasoning.instructions` block and let the LLM reason freely. Most agents sit somewhere in between.
 
-The key design principle is that execution is decoupled from specification. Agent Script describes *what* the agent is — its state, its available actions, its instructions — not *how* the runtime executes it. This means the same script can run on increasingly capable runtimes without changing a line of code. You're specifying the agent, not implementing it.
+The key design principle is that execution is decoupled from specification. Agent Script describes _what_ the agent is — its state, its available actions, its instructions — not _how_ the runtime executes it. This means the same script can run on increasingly capable runtimes without changing a line of code. You're specifying the agent, not implementing it.
 
 In this sense Agent Script follows the same pattern as other industry-standard declarative approaches: hooks, lifecycle events, data + procedures. More procedures means more determinism. Fewer procedures means more autonomy. The language doesn't take sides.
 
@@ -88,9 +88,9 @@ topic billing:
     description: "Handle billing inquiries"
 `);
 
-console.log(doc.hasErrors);   // false
+console.log(doc.hasErrors); // false
 console.log(doc.diagnostics); // []
-console.log(doc.emit());      // formatted source
+console.log(doc.emit()); // formatted source
 ```
 
 ## Syntax/Structure Overview
@@ -191,53 +191,53 @@ Each block has a **schema** defined by its dialect. A **dialect** is a collectio
 
 ### Foundation Layer
 
-| Package | Description |
-| --- | --- |
-| [`@agentscript/types`](packages/types/) | Shared types (`SyntaxNode`, `Diagnostic`, `Range`, etc.) used across all packages. Zero dependencies. |
+| Package                                                           | Description                                                                                                                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@agentscript/types`](packages/types/)                           | Shared types (`SyntaxNode`, `Diagnostic`, `Range`, etc.) used across all packages. Zero dependencies.                                                         |
 | [`@agentscript/parser-tree-sitter`](packages/parser-tree-sitter/) | Tree-sitter grammar and C parser. Generates Node.js native bindings and WASM for browser use. Zero internal dependencies. Must rebuild after grammar changes. |
-| [`@agentscript/parser-javascript`](packages/parser-javascript/) | Hand-written TypeScript parser. Error-tolerant recursive descent with Pratt expression parsing and CST output. Pure JS — no native dependencies. |
-| [`@agentscript/parser`](packages/parser/) | Parser abstraction layer. Resolves to `parser-javascript` by default; swap to `parser-tree-sitter` via conditional exports. |
+| [`@agentscript/parser-javascript`](packages/parser-javascript/)   | Hand-written TypeScript parser. Error-tolerant recursive descent with Pratt expression parsing and CST output. Pure JS — no native dependencies.              |
+| [`@agentscript/parser`](packages/parser/)                         | Parser abstraction layer. Resolves to `parser-javascript` by default; swap to `parser-tree-sitter` via conditional exports.                                   |
 
 ### Core Layer
 
-| Package | Description |
-| --- | --- |
+| Package                                       | Description                                                                                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@agentscript/language`](packages/language/) | Language infrastructure and analysis engine. Provides AST types, scope/symbol resolution, linting framework (18+ passes), and the Language Service API. |
 
 ### Dialect Layer
 
-| Package | Description |
-| --- | --- |
-| [`@agentscript/agentscript-dialect`](dialect/agentscript/) | Base dialect — core language schema and lint rules. |
-| [`@agentscript/agentforce-dialect`](dialect/agentforce/) | Extends AgentScript with Salesforce Agentforce-specific blocks, fields, and compilation. |
-| [`@agentscript/agentfabric-dialect`](dialect/agentfabric/) | AgentFabric dialect — alternative schema, lint rules, and compiler. |
+| Package                                                    | Description                                                                              |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`@agentscript/agentscript-dialect`](dialect/agentscript/) | Base dialect — core language schema and lint rules.                                      |
+| [`@agentscript/agentforce-dialect`](dialect/agentforce/)   | Extends AgentScript with Salesforce Agentforce-specific blocks, fields, and compilation. |
+| [`@agentscript/agentfabric-dialect`](dialect/agentfabric/) | AgentFabric dialect — alternative schema, lint rules, and compiler.                      |
 
 ### Compiler
 
-| Package | Description |
-| --- | --- |
+| Package                                       | Description                                                                                        |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [`@agentscript/compiler`](packages/compiler/) | Transforms parsed AgentScript AST into a Salesforce runtime specification with source-map support. |
 
 ### SDK
 
-| Package | Description |
-| --- | --- |
+| Package                                           | Description                                                                                                                                                                                                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [`@agentscript/agentforce`](packages/agentforce/) | Batteries-included SDK. Combines parser, language, compiler, and dialects into a single import. Provides `parse()`, `Document` (with mutation/undo/redo), `parseComponent()`, `emitComponent()`, and `compileSource()`. Works in Node.js and browsers. |
 
 ### LSP Layer
 
-| Package | Description |
-| --- | --- |
-| [`@agentscript/lsp`](packages/lsp/) | Dialect-agnostic LSP core. All providers (diagnostics, hover, completions, definition, references, rename, symbols, code actions, semantic tokens) live here. Parser and dialects are injected via config. |
-| [`@agentscript/lsp-server`](packages/lsp-server/) | Node.js LSP server. Thin stdio/IPC wrapper over `@agentscript/lsp`. Ships the `agentscript-lsp` CLI. |
-| [`@agentscript/lsp-browser`](packages/lsp-browser/) | Browser LSP server. Runs in a Web Worker with the TypeScript parser. Single-bundle output. |
+| Package                                             | Description                                                                                                                                                                                                |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@agentscript/lsp`](packages/lsp/)                 | Dialect-agnostic LSP core. All providers (diagnostics, hover, completions, definition, references, rename, symbols, code actions, semantic tokens) live here. Parser and dialects are injected via config. |
+| [`@agentscript/lsp-server`](packages/lsp-server/)   | Node.js LSP server. Thin stdio/IPC wrapper over `@agentscript/lsp`. Ships the `agentscript-lsp` CLI.                                                                                                       |
+| [`@agentscript/lsp-browser`](packages/lsp-browser/) | Browser LSP server. Runs in a Web Worker with the TypeScript parser. Single-bundle output.                                                                                                                 |
 
 ### Editor Integrations
 
-| Package | Description |
-| --- | --- |
+| Package                                   | Description                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | [`@agentscript/vscode`](packages/vscode/) | VS Code extension — syntax highlighting, diagnostics, completions, go-to-definition, rename, and more for `.agent` files. |
-| [`@agentscript/monaco`](packages/monaco/) | Monaco Editor integration — language registration, syntax highlighting, hover, and schema resolution. |
+| [`@agentscript/monaco`](packages/monaco/) | Monaco Editor integration — language registration, syntax highlighting, hover, and schema resolution.                     |
 
 ### UI Playground
 
@@ -281,6 +281,7 @@ What we're not open sourcing (yet) is the runtime. Agent Script compiles to a Sa
 As a result, we're not accepting changes to the language spec for now. The spec needs to stay in sync with the runtime, and until we have a path to open sourcing the runtime, unilateral spec changes would create a split we can't support.
 
 What's genuinely open:
+
 - the parser, linter, LSP, and all developer tooling
 - bug fixes across any of the above
 - editor integrations (VS Code, Monaco)

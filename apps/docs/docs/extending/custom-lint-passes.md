@@ -87,8 +87,18 @@ All hooks are optional. A pass implements only what it needs:
 Here is a skeleton for a pass that collects data during AST walking and validates it afterward:
 
 ```typescript
-import { storeKey, attachDiagnostic, DiagnosticSeverity } from '@agentscript/language';
-import type { LintPass, PassStore, AstRoot, AstNodeLike, ScopeContext } from '@agentscript/language';
+import {
+  storeKey,
+  attachDiagnostic,
+  DiagnosticSeverity,
+} from '@agentscript/language';
+import type {
+  LintPass,
+  PassStore,
+  AstRoot,
+  AstNodeLike,
+  ScopeContext,
+} from '@agentscript/language';
 
 interface CollectedData {
   expressionCount: number;
@@ -138,7 +148,7 @@ Add your custom pass to the pre-loaded engine created by `createLintEngine`:
 import { createLintEngine } from '@agentscript/agentscript-dialect';
 
 const engine = createLintEngine(); // pre-loaded with 15 default rules
-engine.addPass(myRule);            // add custom rule
+engine.addPass(myRule); // add custom rule
 ```
 
 Or build an engine from scratch with full control over which passes are included:
@@ -201,7 +211,7 @@ const rule = defineRule({
   id: 'my-rule',
   description: 'Check each action',
   deps: {
-    symbols: symbolTableKey,        // resolved once as full value
+    symbols: symbolTableKey, // resolved once as full value
     action: each(reasoningActionsKey), // iterated per element
   },
   run({ symbols, action }) {
@@ -217,22 +227,25 @@ These exported store keys can be used as dependencies in custom lint passes:
 
 **From `@agentscript/language`:**
 
-| Key | Type | Description |
-| --- | --- | --- |
-| `symbolTableKey` | Symbol table data | Scoped symbol declarations built from the AST |
-| `constraintValidationKey` | Constraint results | Results from field constraint validation |
-| `positionIndexKey` | `PositionIndex` | Position-to-node index for cursor-based lookups |
+| Key                       | Type               | Description                                     |
+| ------------------------- | ------------------ | ----------------------------------------------- |
+| `symbolTableKey`          | Symbol table data  | Scoped symbol declarations built from the AST   |
+| `constraintValidationKey` | Constraint results | Results from field constraint validation        |
+| `positionIndexKey`        | `PositionIndex`    | Position-to-node index for cursor-based lookups |
 
 **From `@agentscript/agentscript-dialect`:**
 
-| Key | Type | Description |
-| --- | --- | --- |
-| `typeMapKey` | `TypeMap` | Type information for variables, actions, inputs, and outputs |
-| `reasoningActionsKey` | `ReasoningActionEntry[]` | Collected reasoning action binding entries |
+| Key                   | Type                     | Description                                                  |
+| --------------------- | ------------------------ | ------------------------------------------------------------ |
+| `typeMapKey`          | `TypeMap`                | Type information for variables, actions, inputs, and outputs |
+| `reasoningActionsKey` | `ReasoningActionEntry[]` | Collected reasoning action binding entries                   |
 
 Import example:
 
 ```typescript
 import { symbolTableKey, positionIndexKey } from '@agentscript/language';
-import { typeMapKey, reasoningActionsKey } from '@agentscript/agentscript-dialect';
+import {
+  typeMapKey,
+  reasoningActionsKey,
+} from '@agentscript/agentscript-dialect';
 ```

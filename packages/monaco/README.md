@@ -35,7 +35,7 @@ monaco.editor.defineTheme('agentscript-light', lightTheme);
 const editor = monaco.editor.create(document.getElementById('container'), {
   value: '# @dialect:agentforce\n\nfn main() {\n  print("Hello World")\n}',
   language: 'agentscript',
-  theme: 'agentscript-light'
+  theme: 'agentscript-light',
 });
 ```
 
@@ -56,15 +56,15 @@ import { createLspExtension } from '@agentscript/monaco';
 const extension = createLspExtension({
   // URL to the LSP server worker bundle
   serverUrl: '/path/to/lsp-browser-server.js',
-  
+
   // Extension version (optional)
   version: '2.2.41',
-  
+
   // Document patterns to match (optional, defaults shown)
   documentPatterns: ['**/*.agent', '**/*.afscript'],
-  
+
   // Dialect configuration function (optional, defaults to 'agentforce')
-  dialectConfig: () => 'agentforce'
+  dialectConfig: () => 'agentforce',
 });
 
 // In your editor initialization with VSCode API wrapper:
@@ -91,6 +91,7 @@ The LSP extension supports the following VSCode settings:
 ### Requirements
 
 The LSP extension requires:
+
 1. A Monaco editor with VSCode API compatibility layer that provides:
    - `vscodeApi.VSCodeLanguageClientBrowser.BrowserMessageReader`
    - `vscodeApi.VSCodeLanguageClientBrowser.BrowserMessageWriter`
@@ -106,7 +107,7 @@ const extension = createLspExtension({
   serverUrl: `/projRes/extensions/agentscript-extension/${AGENTSCRIPT_LSP_VERSION}/server/server.browser.js`,
   version: AGENTSCRIPT_LSP_VERSION,
   documentPatterns: ['**/*.agent', '**/*.afscript'],
-  dialectConfig: () => 'agentforce'
+  dialectConfig: () => 'agentforce',
 });
 
 // Later in editor initialization:

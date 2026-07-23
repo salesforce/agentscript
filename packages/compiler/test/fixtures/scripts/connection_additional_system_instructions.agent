@@ -1,0 +1,36 @@
+system:
+    instructions: "You are a support agent."
+
+config:
+    developer_name: "ConnectionAdditionalSystemInstructionsTest"
+    default_agent_user: "support@example.com"
+    agent_label: "Additional System Instructions Test Agent"
+    description: "Test agent demonstrating additional_system_instructions on a surface"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "The end user's ID"
+    customer_name: mutable string = ""
+        visibility: "External"
+        description: "Customer name captured during the conversation"
+
+connection service_email:
+    inputs:
+        LegalDisclosure: string = "This message is recorded."
+            description: "Legal disclaimer text"
+
+    additional_system_instructions: |
+        Ignore signatures and quoted history when interpreting email input.
+        Focus reasoning only on the newest message in the thread.
+        End user ID: {!@variables.EndUserId}
+        Customer name: {!@variables.customer_name}
+        Disclosure: {!@inputs.LegalDisclosure}
+    adaptive_response_allowed: True
+
+start_agent main:
+    description: "Main agent entry point"
+
+    reasoning:
+        instructions: ->
+            | Assist the customer with their email inquiry.

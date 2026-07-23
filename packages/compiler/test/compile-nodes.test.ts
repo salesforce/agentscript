@@ -21,6 +21,7 @@ import { parseSource } from './test-utils.js';
 import {
   STATE_UPDATE_ACTION,
   AGENT_INSTRUCTIONS_VARIABLE,
+  NEXT_TOPIC_VARIABLE,
 } from '../src/constants.js';
 import type { SubAgentNode, RouterNode, Action } from '../src/types.js';
 
@@ -229,7 +230,7 @@ start_agent TopicNode:
     expect(instructionAppend).toBeDefined();
   });
 
-  it('should leave node.instructions empty when no system block present', () => {
+  it('should emit node.instructions as an empty string when no system block present', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -245,8 +246,11 @@ start_agent TopicNode:
       n => n.developer_name === 'TopicNode'
     )!;
 
-    // No system block means instructions should be omitted (match Python)
-    expect(node.instructions).toBeUndefined();
+    // No system block means node.instructions defaults to "" (a valid string),
+    // never omitted/None. Omitting the key makes it round-trip through the
+    // downstream schema as an explicit `null`, which then fails re-validation
+    // against the non-nullable `str` type.
+    expect(node.instructions).toBe('');
     // Topic instructions still flow via focus_prompt
     expect(node.focus_prompt).toBe(`{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`);
   });
@@ -650,5 +654,280 @@ start_agent TemplateInstructionsTopic:
     expect(update[AGENT_INSTRUCTIONS_VARIABLE]).toContain(
       'Direct template instructions without Procedure wrapper.'
     );
+  });
+
+  it('should flatten N consecutive instruction lines into a single append', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent MultiLineTopic:
+    description: "Multi-line template test"
+    reasoning:
+        instructions: ->
+            | first line
+            | second line
+            | third line
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'MultiLineTopic'
+    )!;
+
+    // Reset + a single append action, regardless of the number of | lines.
+    expect(node.before_reasoning_iteration).toBeDefined();
+    expect(node.before_reasoning_iteration!.length).toBe(2);
+
+    const resetAction = node.before_reasoning_iteration![0] as Action;
+    expect(resetAction.state_updates).toEqual([
+      { [AGENT_INSTRUCTIONS_VARIABLE]: "''" },
+    ]);
+
+    // The lines are newline-joined into one state update.
+    const appendAction = node.before_reasoning_iteration![1] as Action;
+    const update = appendAction.state_updates![0] as Record<string, string>;
+    expect(update[AGENT_INSTRUCTIONS_VARIABLE]).toBe(
+      `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}\nfirst line\nsecond line\nthird line`
+    );
+  });
+
+  it('merges adjacent same-gate instruction lines in a procedural block but keeps gate boundaries', () => {
+    // An `if` makes the whole block procedural (one action per statement), but
+    // consecutive ungated `| ...` lines still fuse into one append, while the
+    // if/else bodies stay separate because their gates differ.
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    is_vip: mutable boolean
+        description: "VIP flag."
+
+start_agent ProceduralTopic:
+    description: "Interleaved template + if"
+    reasoning:
+        instructions: ->
+            | intro line one
+            | intro line two
+
+            if @variables.is_vip
+                | vip branch
+            else
+                | standard branch
+
+            | outro line one
+            | outro line two
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'ProceduralTopic'
+    )!;
+    const bri = node.before_reasoning_iteration!;
+
+    const PREFIX = `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
+    const appends = bri
+      .map(a => (a as Action).state_updates?.[0] as Record<string, string>)
+      .map(su => su?.[AGENT_INSTRUCTIONS_VARIABLE])
+      .filter(
+        (v): v is string => typeof v === 'string' && v.startsWith(PREFIX)
+      );
+
+    // The two intro lines fuse; the two outro lines fuse; the vip/else bodies
+    // stay separate (opposite gates) → 4 instruction appends, not 6.
+    expect(appends.length).toBe(4);
+    expect(appends).toContain(`${PREFIX}\nintro line one\nintro line two`);
+    expect(appends).toContain(`${PREFIX}\noutro line one\noutro line two`);
+    expect(appends).toContain(`${PREFIX}\nvip branch`);
+    expect(appends).toContain(`${PREFIX}\nstandard branch`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Instruction append merging across procedural directives (if / transition /
+// set and combinations). Each non-template directive is a merge boundary; only
+// adjacent same-gate instruction appends fuse.
+// ---------------------------------------------------------------------------
+
+describe('instruction append merging across procedural directives', () => {
+  const PREFIX = `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
+
+  /** All instruction-append values on the node's before_reasoning_iteration. */
+  function instructionAppends(node: SubAgentNode): string[] {
+    return (node.before_reasoning_iteration ?? [])
+      .map(a => (a as Action).state_updates?.[0] as Record<string, string>)
+      .map(su => su?.[AGENT_INSTRUCTIONS_VARIABLE])
+      .filter(
+        (v): v is string => typeof v === 'string' && v.startsWith(PREFIX)
+      );
+  }
+
+  function compileMain(source: string): SubAgentNode {
+    const { output, diagnostics } = compile(parseSource(source));
+    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
+    return output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )! as SubAgentNode;
+  }
+
+  const HEAD = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    flag: mutable boolean
+        description: "A flag."
+`;
+
+  it('set: a set statement is a merge boundary between instruction runs', () => {
+    const node = compileMain(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            | before one
+            | before two
+            set @variables.flag = True
+            | after one
+            | after two
+`);
+    const appends = instructionAppends(node);
+    // Two fused runs, split by the set — not four separate lines.
+    expect(appends).toEqual([
+      `${PREFIX}\nbefore one\nbefore two`,
+      `${PREFIX}\nafter one\nafter two`,
+    ]);
+
+    // The set itself is still its own action targeting the variable.
+    const setAction = (node.before_reasoning_iteration ?? []).find(
+      a =>
+        (a as Action).state_updates?.[0] &&
+        'flag' in ((a as Action).state_updates![0] as Record<string, unknown>)
+    ) as Action | undefined;
+    expect(setAction).toBeDefined();
+    expect(setAction!.state_updates![0]).toEqual({ flag: 'True' });
+  });
+
+  it('transition to: a transition is a merge boundary between instruction runs', () => {
+    const node = compileMain(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            | before one
+            | before two
+            transition to @topic.dest
+            | after one
+            | after two
+
+topic dest:
+    description: "d"
+    reasoning:
+        instructions: ->
+            | dest
+`);
+    const appends = instructionAppends(node);
+    expect(appends).toEqual([
+      `${PREFIX}\nbefore one\nbefore two`,
+      `${PREFIX}\nafter one\nafter two`,
+    ]);
+
+    // The transition still emits its next_topic set + handoff, untouched.
+    const bri = node.before_reasoning_iteration ?? [];
+    const nextTopicSet = bri.find(
+      a => (a as Action).state_updates?.[0]?.[NEXT_TOPIC_VARIABLE] === '"dest"'
+    );
+    expect(nextTopicSet).toBeDefined();
+    const handoff = bri.find(a => (a as Action).target === 'dest');
+    expect(handoff).toBeDefined();
+  });
+
+  it('if only: consecutive lines inside an if body fuse, gated on the condition', () => {
+    const node = compileMain(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            | outer one
+            | outer two
+            if @variables.flag
+                | inner one
+                | inner two
+            | trailer one
+            | trailer two
+`);
+    const bri = node.before_reasoning_iteration ?? [];
+
+    // Ungated outer/trailer runs each fuse; the if-body fuses under its gate.
+    const appends = instructionAppends(node);
+    expect(appends).toEqual([
+      `${PREFIX}\nouter one\nouter two`,
+      `${PREFIX}\ninner one\ninner two`,
+      `${PREFIX}\ntrailer one\ntrailer two`,
+    ]);
+
+    // The fused if-body append is gated on the synthesized condition variable.
+    const gatedInner = bri.find(
+      a =>
+        (a as Action).state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] ===
+        `${PREFIX}\ninner one\ninner two`
+    ) as Action;
+    expect(gatedInner.enabled).toMatch(
+      /^state\.AgentScriptInternal_condition_/
+    );
+  });
+
+  it('combo: set + if/else + transition all act as boundaries while runs fuse', () => {
+    const node = compileMain(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            | pre one
+            | pre two
+            set @variables.flag = True
+            | mid one
+            | mid two
+            if @variables.flag
+                | if body one
+                | if body two
+            else
+                | else body one
+                | else body two
+            transition to @topic.dest
+            | post one
+            | post two
+
+topic dest:
+    description: "d"
+    reasoning:
+        instructions: ->
+            | dest
+`);
+    const appends = instructionAppends(node);
+
+    // Each run fuses; if and else bodies stay separate (opposite gates).
+    expect(appends).toEqual([
+      `${PREFIX}\npre one\npre two`,
+      `${PREFIX}\nmid one\nmid two`,
+      `${PREFIX}\nif body one\nif body two`,
+      `${PREFIX}\nelse body one\nelse body two`,
+      `${PREFIX}\npost one\npost two`,
+    ]);
+
+    // Confirm the if/else bodies carry complementary gates.
+    const bri = node.before_reasoning_iteration ?? [];
+    const gateOf = (text: string) =>
+      (
+        bri.find(
+          a =>
+            (a as Action).state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] ===
+            text
+        ) as Action
+      ).enabled;
+    const ifGate = gateOf(`${PREFIX}\nif body one\nif body two`)!;
+    const elseGate = gateOf(`${PREFIX}\nelse body one\nelse body two`)!;
+    expect(elseGate).toBe(`not (${ifGate})`);
   });
 });

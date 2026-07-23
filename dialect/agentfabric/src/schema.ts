@@ -36,6 +36,7 @@ import type {
 } from '@agentscript/language';
 
 import {
+  AGENTFABRIC_IDENTIFIER_PATTERN,
   ConnectionKind,
   Namespace,
   OUTPUT_JSON_SCHEMA_TYPES,
@@ -104,7 +105,7 @@ const llmBaseFields: Schema = {
   target: StringValue.describe(
     'Connection URI (llm://connection_name) referencing an LLM connection.'
   )
-    .pattern(/^llm:\/\/([a-zA-Z0-9\-._]+)$/)
+    .pattern(new RegExp(`^llm://(${AGENTFABRIC_IDENTIFIER_PATTERN})$`))
     .connectionRef([ConnectionKind.LLM])
     .example('llm://connection_name')
     .required(),
@@ -187,7 +188,9 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
       target: StringValue.describe(
         'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name.'
       )
-        .pattern(/^(?:a2a|mcp):\/\/([a-zA-Z0-9\-._]+)$/)
+        .pattern(
+          new RegExp(`^(?:a2a|mcp)://(${AGENTFABRIC_IDENTIFIER_PATTERN})$`)
+        )
         .connectionRef([ConnectionKind.Agent, ConnectionKind.MCP])
         .example('a2a://connection_name')
         .required(),
@@ -226,7 +229,11 @@ export const TriggerBlock = NamedBlock('TriggerBlock', {
   target: StringValue.describe(
     'Broker reference URI (brokers://broker_name/interface).'
   )
-    .pattern(/^brokers?:\/\/(?:[a-zA-Z0-9\-._]+)\/(?:[a-zA-Z0-9\-._]+)$/)
+    .pattern(
+      new RegExp(
+        `^brokers?://(?:${AGENTFABRIC_IDENTIFIER_PATTERN})/(?:${AGENTFABRIC_IDENTIFIER_PATTERN})$`
+      )
+    )
     .connectionRef([ConnectionKind.Broker])
     .example('brokers://broker_name/interface')
     .required(),

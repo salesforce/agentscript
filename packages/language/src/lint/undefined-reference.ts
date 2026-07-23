@@ -25,7 +25,10 @@ import {
   attachDiagnostic,
   type Diagnostic,
 } from '../core/diagnostics.js';
-import { decomposeAtMemberExpression } from '../core/expressions.js';
+import {
+  decomposeAtMemberExpression,
+  decomposeAtMemberChain,
+} from '../core/expressions.js';
 import { symbolTableKey } from '../core/analysis/symbol-table.js';
 import { constraintValidationKey } from './constraint-validation.js';
 import { findSuggestion } from './lint-utils.js';
@@ -36,6 +39,19 @@ interface PendingCheck {
   property: string;
   ctx: ScopeContext;
   ancestors: unknown[];
+}
+
+/**
+ * A two-level member access rooted at a namespace (e.g.
+ * `@system_variables.last_reply.interrupted`). Resolved against global-scope
+ * nested members; non-global namespaces are ignored (nested member semantics
+ * for schema namespaces are validated elsewhere).
+ */
+interface NestedCheck {
+  expr: AstNodeLike;
+  namespace: string;
+  parent: string;
+  member: string;
 }
 
 type ResolutionResult =
@@ -475,7 +491,7 @@ function resolveCheck(
     if (globalMembers.has(property) || globalMembers.has('*')) {
       return { kind: 'resolved' };
     }
-    return { kind: 'global-miss', members: [...globalMembers] };
+    return { kind: 'global-miss', members: [...globalMembers.keys()] };
   }
 
   const isSchemaKey = getSchemaNamespaces(schemaCtx).has(namespace);
@@ -589,10 +605,12 @@ class UndefinedReferencePass implements LintPass {
   readonly requires = [symbolTableKey, constraintValidationKey];
 
   private pendingChecks: PendingCheck[] = [];
+  private nestedChecks: NestedCheck[] = [];
   private ancestorStack: unknown[] = [];
 
   init(): void {
     this.pendingChecks = [];
+    this.nestedChecks = [];
     this.ancestorStack = [];
   }
 
@@ -606,15 +624,29 @@ class UndefinedReferencePass implements LintPass {
 
   visitExpression(expr: AstNodeLike, ctx: ScopeContext): void {
     const decomposed = decomposeAtMemberExpression(expr);
-    if (!decomposed) return;
+    if (decomposed) {
+      this.pendingChecks.push({
+        expr,
+        namespace: decomposed.namespace,
+        property: decomposed.property,
+        ctx,
+        ancestors: [...this.ancestorStack],
+      });
+      return;
+    }
 
-    this.pendingChecks.push({
-      expr,
-      namespace: decomposed.namespace,
-      property: decomposed.property,
-      ctx,
-      ancestors: [...this.ancestorStack],
-    });
+    // A deeper member access (`@ns.parent.member…`) does not decompose above
+    // (its object is a MemberExpression, not an AtIdentifier). Capture the
+    // two-level tail so nested global-scope members can be validated in run().
+    const chain = decomposeAtMemberChain(expr);
+    if (chain && chain.path.length === 2) {
+      this.nestedChecks.push({
+        expr,
+        namespace: chain.namespace,
+        parent: chain.path[0],
+        member: chain.path[1],
+      });
+    }
   }
 
   run(store: PassStore, root: AstRoot): void {
@@ -647,7 +679,51 @@ class UndefinedReferencePass implements LintPass {
         attachDiagnostic(check.expr, diagnostic);
       }
     }
+
+    for (const check of this.nestedChecks) {
+      const diagnostic = resolveNestedGlobalCheck(check, schemaCtx);
+      if (diagnostic) {
+        attachDiagnostic(check.expr, diagnostic);
+      }
+    }
   }
+}
+
+/**
+ * Validate a two-level global-scope member access
+ * (`@namespace.parent.member`). Returns a diagnostic when the namespace is a
+ * global scope whose `parent` is a nested object and `member` is not one of its
+ * sub-members; returns undefined when the access resolves or the namespace/parent
+ * is not a nested global scope (deeper semantics are validated elsewhere).
+ */
+function resolveNestedGlobalCheck(
+  check: NestedCheck,
+  schemaCtx: SchemaContext
+): Diagnostic | undefined {
+  const cst: CstMeta | undefined = check.expr.__cst;
+  if (!cst) return undefined;
+
+  const globalMembers = schemaCtx.globalScopes.get(check.namespace);
+  if (!globalMembers) return undefined;
+
+  const subMembers = globalMembers.get(check.parent);
+  // `parent` is not a nested member (a leaf or absent): the parent-level access
+  // is validated by the standard pending check, so don't double-report here.
+  if (!subMembers) return undefined;
+
+  if (subMembers.has(check.member) || subMembers.has('*')) return undefined;
+
+  const namespaceLabel = `${check.namespace}.${check.parent}`;
+  const referenceName = `@${namespaceLabel}.${check.member}`;
+  const members = [...subMembers];
+  const suggestion = findSuggestion(check.member, members);
+  return undefinedReferenceDiagnostic(
+    cst.range,
+    `'${check.member}' is not defined in ${namespaceLabel}`,
+    referenceName,
+    suggestion,
+    members
+  );
 }
 
 export function undefinedReferencePass(): LintPass {

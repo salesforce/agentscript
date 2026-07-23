@@ -242,6 +242,94 @@ connection telephony:
     expect(surface?.outbound_route_configs).toEqual([]);
   });
 
+  it('should compile additional_system_instructions as a plain string', () => {
+    const source = agentSource(`
+connection messaging:
+    additional_system_instructions: "Prefer concise replies."
+    adaptive_response_allowed: True
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    expect(surface).toBeDefined();
+    expect(surface?.additional_system_instructions).toBe(
+      'Prefer concise replies.'
+    );
+  });
+
+  it('should compile additional_system_instructions from a multi-line block', () => {
+    const source = agentSource(`
+connection messaging:
+    additional_system_instructions: |
+        Ignore signatures and quoted history.
+        Focus on the newest message in the thread.
+    adaptive_response_allowed: True
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    expect(surface).toBeDefined();
+    expect(surface?.additional_system_instructions).toContain(
+      'Ignore signatures'
+    );
+    expect(surface?.additional_system_instructions).toContain(
+      'newest message in the thread'
+    );
+  });
+
+  it('should compile template interpolations in additional_system_instructions across variable namespaces', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    EndUserId: linked string
+        source: @MessagingSession.MessagingEndUserId
+        description: "End user id"
+    customer_name: mutable string = ""
+        visibility: "External"
+        description: "Customer name"
+
+connection service_email:
+    inputs:
+        LegalDisclosure: string = "Recorded."
+            description: "Legal disclaimer"
+
+    additional_system_instructions: |
+        End user: {!@variables.EndUserId}
+        Customer: {!@variables.customer_name}
+        Disclosure: {!@inputs.LegalDisclosure}
+    adaptive_response_allowed: True
+
+start_agent main:
+    description: "desc"
+`;
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'service_email');
+    expect(surface).toBeDefined();
+    const instructions = surface?.additional_system_instructions;
+    expect(instructions).toContain('End user: {{variables.EndUserId}}');
+    expect(instructions).toContain('Customer: {{state.customer_name}}');
+    expect(instructions).toContain(
+      'Disclosure: {{connection.service_email.LegalDisclosure}}'
+    );
+  });
+
+  it('should omit additional_system_instructions when the field is absent', () => {
+    const source = agentSource(`
+connection messaging:
+    adaptive_response_allowed: True
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    expect(surface).toBeDefined();
+    expect(surface?.additional_system_instructions).toBeUndefined();
+  });
+
   it('should compile a connection with only escalation_message (no route config)', () => {
     const source = agentSource(`
 connection telephony:

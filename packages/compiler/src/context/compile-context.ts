@@ -14,6 +14,8 @@ import { extractBooleanValue } from '../ast-helpers.js';
  *
  * The context block contains:
  * - memory: memory configuration with enabled flag (boolean)
+ * - user_profile: user profile configuration with enabled flag (boolean)
+ * - past_conversations: conversation history configuration with enabled flag (boolean)
  *
  * @param contextBlock - The parsed context block from AST
  * @param ctx - Compiler context for error reporting
@@ -23,6 +25,8 @@ export function compileContext(
   contextBlock:
     | {
         memory?: { enabled?: { value?: boolean } };
+        user_profile?: { enabled?: { value?: boolean } };
+        past_conversations?: { enabled?: { value?: boolean } };
       }
     | null
     | undefined,
@@ -44,6 +48,34 @@ export function compileContext(
       );
     } else {
       result.memory = { enabled };
+    }
+  }
+
+  // Extract user_profile configuration if present
+  if (contextBlock.user_profile) {
+    const enabled = extractBooleanValue(contextBlock.user_profile.enabled);
+
+    if (enabled === null || enabled === undefined) {
+      ctx.error(
+        'Context user_profile block requires an "enabled" field with a boolean value'
+      );
+    } else {
+      result.user_profile = { enabled };
+    }
+  }
+
+  // Extract past_conversations configuration if present
+  if (contextBlock.past_conversations) {
+    const enabled = extractBooleanValue(
+      contextBlock.past_conversations.enabled
+    );
+
+    if (enabled === null || enabled === undefined) {
+      ctx.error(
+        'Context past_conversations block requires an "enabled" field with a boolean value'
+      );
+    } else {
+      result.past_conversations = { enabled };
     }
   }
 

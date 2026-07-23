@@ -11,9 +11,14 @@
  *
  * Every input on a connected agent block must have a default value (be bound).
  * The default value must be either:
- *   - a bare `@variables.X` reference to a linked or mutable variable, or
- *   - a literal value (string, number, boolean, or None).
- * Computed expressions (e.g. `@variables.X + 1`) are not allowed.
+ *   - a bare `@variables.X` reference to a linked or mutable variable (this may
+ *     itself be a list-typed variable, e.g. `list[string] = @variables.ids`), or
+ *   - a literal value (string, number, boolean, or None), or
+ *   - a list literal whose elements are all literal values (e.g.
+ *     `list[string] = ["123", "456"]`).
+ * Computed expressions (e.g. `@variables.X + 1`) are not allowed. A list literal
+ * of variable references (e.g. `[@variables.a, @variables.b]`) is not allowed —
+ * bind a single list-typed variable instead.
  *
  * The core check (`isSimpleVariableReference`) is intentionally reusable for
  * future tool-call `with` clause validation.
@@ -29,7 +34,7 @@ import {
   lintDiagnostic,
   defineRule,
 } from '@agentscript/language';
-import { DiagnosticSeverity } from '@agentscript/types';
+import { DiagnosticSeverity, type Range } from '@agentscript/types';
 import { typeMapKey } from '@agentscript/agentscript-dialect';
 
 /**
@@ -62,6 +67,22 @@ export function isLiteralValue(expr: unknown): boolean {
   return typeof expr.__kind === 'string' && LITERAL_KINDS.has(expr.__kind);
 }
 
+/**
+ * If `expr` is a list literal, return its element nodes; otherwise undefined.
+ * Peeked structurally (via `__kind`) so the check does not depend on class
+ * identity across package boundaries.
+ */
+function getListElements(expr: unknown): unknown[] | undefined {
+  if (!isAstNodeLike(expr) || expr.__kind !== 'ListLiteral') return undefined;
+  const elements = (expr as { elements?: unknown }).elements;
+  return Array.isArray(elements) ? elements : undefined;
+}
+
+/** The range of an AST node's CST, if available. */
+function nodeRange(node: unknown): Range | undefined {
+  return isAstNodeLike(node) ? node.__cst?.range : undefined;
+}
+
 export function boundInputsRule(): LintPass {
   return defineRule({
     id: 'connected-agent/bound-inputs',
@@ -89,6 +110,28 @@ export function boundInputsRule(): LintPass {
                 'bound-input-required'
               )
             );
+            continue;
+          }
+
+          // A list literal is allowed only when every element is a literal
+          // value (e.g. ["123", "456"]). A list of variable references
+          // (e.g. [@variables.a, @variables.b]) is not supported — bind a
+          // single list-typed variable instead (list[string] = @variables.X).
+          const elements = getListElements(inputInfo.defaultValueNode);
+          if (elements) {
+            for (const element of elements) {
+              if (!isLiteralValue(element)) {
+                attachDiagnostic(
+                  inputInfo.decl,
+                  lintDiagnostic(
+                    nodeRange(element) ?? inputInfo.defaultValueCst.range,
+                    `A list bound input may only contain literal values (e.g. "123", 42). To bind variables, reference a single list-typed variable instead (e.g. @variables.X).`,
+                    DiagnosticSeverity.Error,
+                    'bound-input-not-variable'
+                  )
+                );
+              }
+            }
             continue;
           }
 

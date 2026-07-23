@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Agent Script Blocks"
+sidebar_label: 'Agent Script Blocks'
 ---
 
 # Agent Script Blocks

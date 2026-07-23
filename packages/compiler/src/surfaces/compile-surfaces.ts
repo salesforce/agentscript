@@ -119,6 +119,12 @@ function compileSurface(
       )
     : undefined;
 
+  const additionalSystemInstructionsNode =
+    def.additional_system_instructions as Record<string, unknown> | undefined;
+  const additionalSystemInstructions = additionalSystemInstructionsNode
+    ? dedent(compileTemplateValue(additionalSystemInstructionsNode, ctx))
+    : undefined;
+
   // Compile outbound route configs (includes escalation_message)
   const outboundRouteConfigs = compileOutboundRouteConfigs(def, ctx);
 
@@ -143,6 +149,9 @@ function compileSurface(
   }
   if (instructions !== undefined) {
     surface.instructions = instructions;
+  }
+  if (additionalSystemInstructions !== undefined) {
+    surface.additional_system_instructions = additionalSystemInstructions;
   }
   // Always include outbound_route_configs (empty array when none configured)
   surface.outbound_route_configs = outboundRouteConfigs;

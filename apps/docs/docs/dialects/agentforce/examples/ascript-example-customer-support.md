@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Customer Support"
+sidebar_label: 'Customer Support'
 ---
 
 # Customer Support Example

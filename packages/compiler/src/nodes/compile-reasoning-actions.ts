@@ -8,13 +8,13 @@
 import type { Statement } from '@agentscript/language';
 import {
   decomposeAtMemberExpression,
+  FieldChild,
   ToClause,
   TransitionStatement,
   AvailableWhen,
   WithClause,
   Ellipsis,
 } from '@agentscript/language';
-import type { Range } from '@agentscript/types';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
   Tool,
@@ -24,12 +24,6 @@ import type {
   HandOffAction,
 } from '../types.js';
 import type { ParsedTool } from '../parsed-types.js';
-
-/** Template part with text and optional CST range */
-export interface TemplatePart {
-  text: string;
-  range?: Range;
-}
 import {
   iterateNamedMap,
   extractSourcedString,
@@ -71,7 +65,6 @@ export interface CompileReasoningActionsResult {
   postToolCalls: PostToolCall[];
   handOffActions: HandOffAction[];
   instructionTemplate: string | undefined;
-  instructionTemplateParts: TemplatePart[] | undefined;
   isProcedural: boolean;
   proceduralStatements: Statement[] | undefined;
 }
@@ -97,12 +90,8 @@ export function compileReasoningActions(
   const handOffActions: HandOffAction[] = [];
 
   // Extract instruction template (shared logic)
-  const {
-    instructionTemplate,
-    instructionTemplateParts,
-    isProcedural,
-    proceduralStatements,
-  } = extractInstructionTemplate(reasoning, nodeType, ctx);
+  const { instructionTemplate, isProcedural, proceduralStatements } =
+    extractInstructionTemplate(reasoning, ctx);
 
   // Compile reasoning actions
   const reasoningTools = reasoning?.actions;
@@ -112,7 +101,6 @@ export function compileReasoningActions(
       postToolCalls,
       handOffActions,
       instructionTemplate,
-      instructionTemplateParts,
       isProcedural,
       proceduralStatements,
     };
@@ -122,6 +110,8 @@ export function compileReasoningActions(
     const def = actionDef as ParsedTool;
     const body = def.statements ?? [];
     const actionType = resolveActionType(actionName, def);
+
+    validateNoUnknownFields(actionName, def, ctx);
 
     // Filter based on node type
     if (!isActionTypeAllowed(actionType, nodeType)) {
@@ -164,7 +154,6 @@ export function compileReasoningActions(
     postToolCalls,
     handOffActions,
     instructionTemplate,
-    instructionTemplateParts,
     isProcedural,
     proceduralStatements,
   };
@@ -176,24 +165,20 @@ export function compileReasoningActions(
 
 interface InstructionTemplateResult {
   instructionTemplate: string | undefined;
-  instructionTemplateParts: TemplatePart[] | undefined;
   isProcedural: boolean;
   proceduralStatements: Statement[] | undefined;
 }
 
 function extractInstructionTemplate(
   reasoning: ParsedReasoningLike | undefined,
-  nodeType: 'router' | 'subagent',
   ctx: CompilerContext
 ): InstructionTemplateResult {
-  let instructionTemplateParts: TemplatePart[] | undefined;
   let isProcedural = false;
   let proceduralStatements: Statement[] | undefined;
 
   if (!reasoning) {
     return {
       instructionTemplate: undefined,
-      instructionTemplateParts,
       isProcedural,
       proceduralStatements,
     };
@@ -203,13 +188,14 @@ function extractInstructionTemplate(
   if (!instructions) {
     return {
       instructionTemplate: undefined,
-      instructionTemplateParts,
       isProcedural,
       proceduralStatements,
     };
   }
 
-  // Check for procedural statements (run, if, transition, set)
+  // Check for procedural statements (run, if, transition, set). Purely
+  // template instructions (consecutive `| ...` lines) are joined into a single
+  // template string below and emitted as one state update.
   if (instructions.statements) {
     const stmts = instructions.statements;
     const hasNonTemplate = stmts.some(
@@ -219,19 +205,6 @@ function extractInstructionTemplate(
       isProcedural = true;
       proceduralStatements = stmts;
     }
-
-    // Extract individual template parts (one per | block) for multi-block BRI
-    // Only for subagent nodes
-    if (nodeType === 'subagent' && !hasNonTemplate && stmts.length > 1) {
-      instructionTemplateParts = stmts
-        .map((stmt: Statement) => ({
-          text: compileTemplateValue(stmt, ctx, {
-            allowActionReferences: true,
-          }),
-          range: stmt.__cst?.range,
-        }))
-        .filter((p: { text: string; range?: Range }) => p.text);
-    }
   }
 
   const instructionTemplate = compileTemplateValue(instructions, ctx, {
@@ -240,7 +213,6 @@ function extractInstructionTemplate(
 
   return {
     instructionTemplate,
-    instructionTemplateParts,
     isProcedural,
     proceduralStatements,
   };
@@ -542,6 +514,33 @@ function compileAction(
         postToolCalls: result.postToolCall ? [result.postToolCall] : [],
         handOffActions: result.handOffActions,
       };
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Unknown Field Validation
+// ---------------------------------------------------------------------------
+
+const KNOWN_REASONING_ACTION_FIELDS = new Set(['description', 'label']);
+
+function validateNoUnknownFields(
+  actionName: string,
+  def: ParsedTool,
+  ctx: CompilerContext
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal __children array
+  const children: unknown[] = (def as any).__children ?? [];
+  for (const child of children) {
+    if (
+      child instanceof FieldChild &&
+      !KNOWN_REASONING_ACTION_FIELDS.has(child.key)
+    ) {
+      ctx.error(
+        `Unknown field "${child.key}" in reasoning action "${actionName}". ` +
+          `Allowed fields are: ${[...KNOWN_REASONING_ACTION_FIELDS].join(', ')}`,
+        child.__keyRange ?? def.__cst?.range
+      );
     }
   }
 }

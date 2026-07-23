@@ -42,6 +42,7 @@ pnpm dev:simple
 ```
 
 The `dev` command uses `nodemon` to watch for changes in:
+
 - `generate-sidebar.ts` - Sidebar generation logic
 - `sidebars.ts` - Sidebar configuration
 - Package metadata in `dialects/` and `packages/`
@@ -104,15 +105,17 @@ apps/docs/
 
 1. Create a new `.md` or `.mdx` file in `docs/`
 2. Add frontmatter:
+
    ```markdown
    ---
    sidebar_position: 1
    ---
-   
+
    # Your Title
-   
+
    Your content here...
    ```
+
 3. The page will automatically appear in the sidebar
 
 ### API Documentation
@@ -127,6 +130,7 @@ pnpm docs:typedoc
 ```
 
 Configuration is in:
+
 - `/typedoc.json` - Root TypeDoc configuration
 - `docusaurus.config.ts` - Docusaurus TypeDoc plugin settings
 
@@ -151,6 +155,7 @@ const sidebars: SidebarsConfig = {
 ```
 
 The sidebar automatically includes:
+
 - All dialects from `dialects/` directory
 - All packages from `packages/` directory
 - Custom icons and display names from `PACKAGE_CONFIG` in `generate-sidebar.ts`
@@ -160,7 +165,10 @@ To customize package display:
 1. Edit `generate-sidebar.ts`
 2. Update the `PACKAGE_CONFIG` object:
    ```typescript
-   const PACKAGE_CONFIG: Record<string, { emoji: string; displayName: string }> = {
+   const PACKAGE_CONFIG: Record<
+     string,
+     { emoji: string; displayName: string }
+   > = {
      '@agentscript/dialect': {
        emoji: '🏛️',
        displayName: 'AgentScript Dialect',
@@ -197,6 +205,7 @@ The docs site uses `docusaurus-plugin-typedoc` to generate API documentation fro
 TypeDoc is configured in two places:
 
 **Root `/typedoc.json`:**
+
 ```json
 {
   "entryPointStrategy": "packages",
@@ -207,6 +216,7 @@ TypeDoc is configured in two places:
 ```
 
 **`docusaurus.config.ts`:**
+
 ```typescript
 plugins: [
   [

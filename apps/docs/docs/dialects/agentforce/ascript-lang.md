@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Language Characteristics"
+sidebar_label: 'Language Characteristics'
 ---
 
 # Agent Script Language Characteristics

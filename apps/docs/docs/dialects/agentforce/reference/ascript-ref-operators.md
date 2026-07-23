@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Supported Operators"
+sidebar_label: 'Supported Operators'
 ---
 
 # Agent Script Reference: Supported Operators

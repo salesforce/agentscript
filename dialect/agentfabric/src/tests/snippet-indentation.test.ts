@@ -131,7 +131,7 @@ describe('snippet indentation — action-level fields (W-22181425 repro)', () =>
     const source = build(
       'actions:',
       '  escalate_ticket:',
-      '    target: "mcp://x"',
+      '    target: "mcp://xx"',
       '    kind: "mcp:tool"',
       '    tool_name: "escalate"',
       '    '
@@ -176,7 +176,7 @@ describe('snippet indentation — action-level fields (W-22181425 repro)', () =>
     const source = build(
       'actions:',
       '    escalate_ticket:',
-      '        target: "mcp://x"',
+      '        target: "mcp://xx"',
       '        kind: "mcp:tool"',
       '        tool_name: "escalate"',
       '        '
@@ -557,7 +557,7 @@ describe('snippet indentation — internal step consistency', () => {
     const source = build(
       'actions:',
       '  escalate_ticket:',
-      '    target: "mcp://x"',
+      '    target: "mcp://xx"',
       '    kind: "mcp:tool"',
       '    tool_name: "escalate"',
       '    '

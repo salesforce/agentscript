@@ -15,6 +15,7 @@ export {
 } from './passes/index.js';
 export {
   ALLOWED_AGENT_TYPES,
+  NON_PUBLIC_AGENT_TYPES,
   isAllowedAgentType,
   type AllowedAgentType,
 } from './agent-types.js';

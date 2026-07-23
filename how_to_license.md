@@ -1,11 +1,11 @@
-How To License Info
--------------------
+## How To License Info
 
-Most projects we open source should use the [Apache License v2](https://opensource.org/license/apache-2-0/) license.  Samples, demos, and blog / doc code examples should instead use [CC-0](https://creativecommons.org/publicdomain/zero/1.0/).  If you strongly feel your project should perhaps use a different license clause, please engage with legal team.
+Most projects we open source should use the [Apache License v2](https://opensource.org/license/apache-2-0/) license. Samples, demos, and blog / doc code examples should instead use [CC-0](https://creativecommons.org/publicdomain/zero/1.0/). If you strongly feel your project should perhaps use a different license clause, please engage with legal team.
 
 For this guide, we will assume the use of the ALv2.
 
 For the ALv2 license, create a `LICENSE.txt` file (or use the one in this template repo) in the root of your repo containing:
+
 ```
 Apache License Version 2.0
 
@@ -218,6 +218,7 @@ All rights reserved.
 ```
 
 The shorter version of license text should be added as a comment to all Salesforce-authored source code and configuration files that support comments. This include file formats like HTML, CSS, JavaScript, XML, etc. which aren't directly code, but are still critical to your project code. Like:
+
 ```
 /*
  * Copyright (c) 2025, Salesforce, Inc.
@@ -235,11 +236,12 @@ The shorter version of license text should be added as a comment to all Salesfor
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- ```
+```
 
 Note that there are many tools that exist to do this sort of thing in an automated fashion, without having to manually edit every single file in your project. It is highly recommended that you research some of these tools for your particular language / build system.
 
 For sample, demo, and example code, we recommend the [Unlicense](https://opensource.org/license/unlicense/) license. Create a `LICENSE.txt` file containing:
+
 ```
 This is free and unencumbered software released into the public domain.
 

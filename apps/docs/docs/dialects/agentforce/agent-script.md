@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Introduction"
+sidebar_label: 'Introduction'
 ---
 
 # Get Started with Agent Script for Agentforce
@@ -17,6 +17,7 @@ We brought over this Salesforce documentation from the [Agentforce Developer Gui
 Agent Script is a domain-specific language designed for authoring conversational AI agents. It combines the flexibility of natural language instructions for handling conversational tasks with the reliability of programmatic expressions for handling business rules.
 
 In Agent Script, you use expressions to:
+
 - Define if/else conditions, transitions, and other control flow logic
 - Set, modify, and compare variables to maintain state
 - Select subagents and actions based on conditions
@@ -31,7 +32,6 @@ There are multiple ways to author Agent Script:
 - **Visual Tools**: Use [Agentforce Builder](/agentforce-builder/overview) for a visual authoring experience with Canvas and Script views
 - **Code Editor**: Use the [Agentforce DX VS Code Extension](https://developer.salesforce.com/docs/ai/agentforce/guide/agent-dx.html) for local development with full language support
 - **Text Editor**: Edit `.agent` files directly with any text editor - they're plain text files using YAML-like syntax
-
 
 ## What Can You Do with Agent Script?
 

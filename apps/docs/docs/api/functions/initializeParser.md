@@ -1,6 +1,6 @@
 [**AgentScript API**](../index.md) • **Docs**
 
-***
+---
 
 # Function: initializeParser()
 
@@ -20,4 +20,4 @@ If initialization fails
 
 ## Defined in
 
-[monaco/src/parser-api.ts:70](https://github.com/salesforce/agentscript/blob/621b2c63cf0e97f60ebf2b569f1b2cb6a2a2bacd/packages/monaco/src/parser-api.ts#L70)
+[monaco/src/parser-api.ts:70](https://github.com/salesforce/agentscript/blob/1ed0538b7e50cde14c4ea7e79c8bd88eb8288c5e/packages/monaco/src/parser-api.ts#L70)

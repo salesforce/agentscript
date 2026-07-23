@@ -33,6 +33,8 @@ export {
   contextVariable as contextVariableSchema,
   contextConfiguration as contextConfigurationSchema,
   memoryConfiguration as memoryConfigurationSchema,
+  userProfileConfiguration as userProfileConfigurationSchema,
+  pastConversationsConfiguration as pastConversationsConfigurationSchema,
   stateVariable as stateVariableSchema,
   subAgentNode as subAgentNodeSchema,
   routerNode as routerNodeSchema,
@@ -68,6 +70,12 @@ export type ContextVariable = z.input<typeof schema.contextVariable>;
 // -- Context Configuration --
 export type ContextConfiguration = z.input<typeof schema.contextConfiguration>;
 export type MemoryConfiguration = z.input<typeof schema.memoryConfiguration>;
+export type UserProfileConfiguration = z.input<
+  typeof schema.userProfileConfiguration
+>;
+export type PastConversationsConfiguration = z.input<
+  typeof schema.pastConversationsConfiguration
+>;
 
 // -- Recommended Prompts Configuration --
 //

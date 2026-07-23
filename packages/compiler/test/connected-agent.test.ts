@@ -231,6 +231,52 @@ connected_subagent Order_Agent:
       channel: '"web"',
     });
   });
+
+  it('should compile a list-typed input bound to a list variable into a scalar reference', () => {
+    const source = `
+${baseConfig}
+variables:
+    account_ids: linked list[string]
+
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    inputs:
+        account_ids: list[string] = @variables.account_ids
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node).toBeDefined();
+    // A list-typed input is bound to a single list-typed variable reference,
+    // which resolves to a scalar reference string (not a JSON array). Linked
+    // (context) variables resolve to `variables.*`.
+    expect(node.bound_inputs).toEqual({
+      account_ids: 'variables.account_ids',
+    });
+  });
+
+  it('should compile a list literal of literal values into an array bound input', () => {
+    const source = `
+${baseConfig}
+connected_subagent Order_Agent:
+    target: "agent://Order_Agent"
+    label: "Order Agent"
+    description: "Handles orders"
+    inputs:
+        account_ids: list[string] = ["123", "456"]
+`;
+    const { output } = compile(parseSource(source));
+    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+
+    expect(node).toBeDefined();
+    // A list literal of literals compiles element-by-element into a JSON array
+    // (string literals keep their quotes, matching scalar bound-input encoding).
+    expect(node.bound_inputs).toEqual({
+      account_ids: ['"123"', '"456"'],
+    });
+  });
 });
 
 describe('connected agent as tool invocation', () => {

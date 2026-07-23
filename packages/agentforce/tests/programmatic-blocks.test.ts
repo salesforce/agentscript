@@ -48,7 +48,12 @@ import {
   ExpressionValue,
   ExpressionSequence,
 } from '@agentscript/agentforce';
-import type { BlockCore, Parsed } from '@agentscript/agentforce';
+import type {
+  BlockCore,
+  NamedMap,
+  ParameterDeclarationNode,
+  Parsed,
+} from '@agentscript/agentforce';
 
 function assertDefined<T>(val: T | undefined | null): asserts val is T {
   expect(val).toBeDefined();
@@ -295,6 +300,32 @@ describe('programmatic block construction and emit', () => {
       expect(emitted).toContain('Get_Weather:');
       expect(emitted).toContain('description: "Get weather"');
       expect(emitted).toContain('target: "flow://Weather"');
+    });
+
+    test('emits an input type when typeInBlock is a serialized false literal', () => {
+      const action = parseComponent(
+        [
+          'Get_Session:',
+          '    inputs:',
+          '        sessionID: string',
+          '            description: "The session ID"',
+          '            is_required: True',
+          '    target: "flow://GetSession"',
+        ].join('\n'),
+        'action'
+      );
+      assertDefined(action);
+
+      const input = (action.inputs as NamedMap<ParameterDeclarationNode>).get(
+        'sessionID'
+      );
+      assertDefined(input);
+      input.typeInBlock = {
+        value: false,
+        __kind: 'BooleanLiteral',
+      } as unknown as boolean;
+
+      expect(emitComponent(action)).toContain('sessionID: string');
     });
   });
 

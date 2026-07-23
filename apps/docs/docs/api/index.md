@@ -1,6 +1,6 @@
 **AgentScript API** • **Docs**
 
-***
+---
 
 # AgentScript API
 
@@ -11,14 +11,17 @@
 ## Interfaces
 
 - [ErrorResult](interfaces/ErrorResult.md)
+- [ExtensionManifest](interfaces/ExtensionManifest.md)
 - [HighlightCapture](interfaces/HighlightCapture.md)
 - [HighlightResult](interfaces/HighlightResult.md)
+- [LspExtensionConfig](interfaces/LspExtensionConfig.md)
 - [ParseError](interfaces/ParseError.md)
 - [ParseResult](interfaces/ParseResult.md)
 - [SchemaFieldInfo](interfaces/SchemaFieldInfo.md)
 - [SerializedNode](interfaces/SerializedNode.md)
 - [ThemeColors](interfaces/ThemeColors.md)
 - [TokenStyle](interfaces/TokenStyle.md)
+- [VscodeWrapper](interfaces/VscodeWrapper.md)
 
 ## Type Aliases
 
@@ -33,6 +36,7 @@
 - [clearCrashCache](functions/clearCrashCache.md)
 - [createDiagnosticMarkers](functions/createDiagnosticMarkers.md)
 - [createHoverProvider](functions/createHoverProvider.md)
+- [createLspExtension](functions/createLspExtension.md)
 - [disableParser](functions/disableParser.md)
 - [enableParser](functions/enableParser.md)
 - [getHighlightCaptures](functions/getHighlightCaptures.md)

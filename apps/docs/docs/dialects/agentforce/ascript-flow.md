@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Flow of Control"
+sidebar_label: 'Flow of Control'
 ---
 
 # Agent Script Flow of Control

@@ -49,9 +49,9 @@ topic billing:
     description: "Handle billing inquiries"
 `);
 
-console.log(doc.hasErrors);   // false
+console.log(doc.hasErrors); // false
 console.log(doc.diagnostics); // []
-console.log(doc.emit());      // formatted source
+console.log(doc.emit()); // formatted source
 ```
 
 ### Browser (Default — parser-javascript)
@@ -72,7 +72,7 @@ When using tree-sitter in the browser, call `init()` to load WASM binaries befor
 ```typescript
 import { init, parse } from '@agentscript/agentforce';
 
-await init();  // loads tree-sitter WASM — required before first parse
+await init(); // loads tree-sitter WASM — required before first parse
 const doc = parse(source);
 console.log(doc.emit());
 ```
@@ -84,12 +84,12 @@ console.log(doc.emit());
 
 ## Package Exports
 
-| Export Path | Description |
-|-------------|-------------|
-| `@agentscript/agentforce` | Default entry point (parser-javascript) |
-| `@agentscript/agentforce/browser` | Browser ESM bundle with web-tree-sitter support |
-| `@agentscript/agentforce/browser.iife.js` | Self-contained IIFE bundle (includes web-tree-sitter) |
-| `@agentscript/agentforce/wasm` | WASM constants (`TREE_SITTER_ENGINE_BASE64`, `TREE_SITTER_AGENTSCRIPT_BASE64`) |
+| Export Path                               | Description                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `@agentscript/agentforce`                 | Default entry point (parser-javascript)                                        |
+| `@agentscript/agentforce/browser`         | Browser ESM bundle with web-tree-sitter support                                |
+| `@agentscript/agentforce/browser.iife.js` | Self-contained IIFE bundle (includes web-tree-sitter)                          |
+| `@agentscript/agentforce/wasm`            | WASM constants (`TREE_SITTER_ENGINE_BASE64`, `TREE_SITTER_AGENTSCRIPT_BASE64`) |
 
 ## API Reference
 
@@ -101,9 +101,9 @@ Parse a complete AgentScript source string into a `Document`.
 const doc = parse(source);
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `source` | `string` | AgentScript source text |
+| Parameter | Type     | Description             |
+| --------- | -------- | ----------------------- |
+| `source`  | `string` | AgentScript source text |
 
 Never throws — if parsing fails, returns a `Document` with an empty AST and a diagnostic describing the error.
 
@@ -120,7 +120,7 @@ Parse an isolated block, statement, or expression. The result is suitable for pl
 const topic = parseComponent(
   'topic billing:\n    description: "Handle billing"',
   'topic',
-  parser,
+  parser
 );
 
 // Parse statements
@@ -132,29 +132,29 @@ const expr = parseComponent('"hello " + name', 'expression', parser);
 
 **Block kinds** — any key from the Agentforce schema:
 
-| Kind | Returns |
-|------|---------|
-| `'config'` | `ParsedConfig` |
-| `'system'` | System block |
-| `'topic'` | `ParsedTopic` |
-| `'variables'` | Variables block |
-| `'actions'` | Actions block |
-| `'knowledge'` | `ParsedKnowledge` |
-| `'connection'` | `ParsedConnection` |
-| `'related_agent'` | `ParsedRelatedAgent` |
-| `'language'` | Language block |
-| `'model_config'` | Model config block |
+| Kind                 | Returns                |
+| -------------------- | ---------------------- |
+| `'config'`           | `ParsedConfig`         |
+| `'system'`           | System block           |
+| `'topic'`            | `ParsedTopic`          |
+| `'variables'`        | Variables block        |
+| `'actions'`          | Actions block          |
+| `'knowledge'`        | `ParsedKnowledge`      |
+| `'connection'`       | `ParsedConnection`     |
+| `'related_agent'`    | `ParsedRelatedAgent`   |
+| `'language'`         | Language block         |
+| `'model_config'`     | Model config block     |
 | `'before_reasoning'` | Before reasoning block |
-| `'reasoning'` | Reasoning block |
-| `'after_reasoning'` | After reasoning block |
-| `'security'` | Security block |
-| `'modality'` | Modality block |
+| `'reasoning'`        | Reasoning block        |
+| `'after_reasoning'`  | After reasoning block  |
+| `'security'`         | Security block         |
+| `'modality'`         | Modality block         |
 
 **Special kinds:**
 
-| Kind | Returns |
-|------|---------|
-| `'statement'` | `Statement[]` |
+| Kind           | Returns                   |
+| -------------- | ------------------------- |
+| `'statement'`  | `Statement[]`             |
 | `'expression'` | `Expression \| undefined` |
 
 ---
@@ -172,15 +172,15 @@ import { StringLiteral } from '@agentscript/agentforce';
 const topic = parseComponent(
   'topic billing:\n    description: "Handle billing"',
   'topic',
-  parser,
+  parser
 );
 
 // Assign fields directly — emitComponent auto-syncs
 topic.description = new StringLiteral('Updated billing');
-topic.source = new StringLiteral('billing_v2');       // new schema field
-topic.custom_field = new StringLiteral('custom');      // non-schema field — also works
+topic.source = new StringLiteral('billing_v2'); // new schema field
+topic.custom_field = new StringLiteral('custom'); // non-schema field — also works
 
-emitComponent(topic);      // all three fields are emitted correctly
+emitComponent(topic); // all three fields are emitted correctly
 emitComponent(topic, { tabSize: 2 }); // with custom indentation
 ```
 
@@ -188,18 +188,18 @@ Also works with statements and expressions:
 
 ```typescript
 const stmts = parseComponent('run MyAction()', 'statement', parser);
-emitComponent(stmts);           // 'run MyAction()'
+emitComponent(stmts); // 'run MyAction()'
 
 const expr = parseComponent('"hello"', 'expression', parser);
-emitComponent(expr);            // '"hello"'
+emitComponent(expr); // '"hello"'
 
-emitComponent(undefined);       // ''
+emitComponent(undefined); // ''
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `component` | `BlockCore \| Statement[] \| Statement \| Expression \| undefined` | Anything returned by `parseComponent()` |
-| `options.tabSize` | `number` | Indentation width (default: 4) |
+| Parameter         | Type                                                               | Description                             |
+| ----------------- | ------------------------------------------------------------------ | --------------------------------------- |
+| `component`       | `BlockCore \| Statement[] \| Statement \| Expression \| undefined` | Anything returned by `parseComponent()` |
+| `options.tabSize` | `number`                                                           | Indentation width (default: 4)          |
 
 ---
 
@@ -208,12 +208,16 @@ emitComponent(undefined);       // ''
 For operations that can't be expressed as simple property assignment — **removing fields** and **NamedMap add/remove** — use `mutateComponent()`:
 
 ```typescript
-import { parseComponent, emitComponent, mutateComponent } from '@agentscript/agentforce';
+import {
+  parseComponent,
+  emitComponent,
+  mutateComponent,
+} from '@agentscript/agentforce';
 
 const topic = parseComponent(
   'topic billing:\n    description: "Handle billing"\n    source: "v1"',
   'topic',
-  parser,
+  parser
 );
 
 mutateComponent(topic!, (block, helpers) => {
@@ -225,12 +229,12 @@ mutateComponent(topic!, (block, helpers) => {
 emitComponent(topic);
 ```
 
-| Method | Description |
-|--------|-------------|
-| `setField(key, value)` | Set a field value (new or existing). |
-| `removeField(key)` | Remove a field and its accessor. |
-| `addEntry(key, name, value)` | Add a named entry to a NamedMap field. |
-| `removeEntry(key, name)` | Remove a named entry from a NamedMap field. |
+| Method                       | Description                                 |
+| ---------------------------- | ------------------------------------------- |
+| `setField(key, value)`       | Set a field value (new or existing).        |
+| `removeField(key)`           | Remove a field and its accessor.            |
+| `addEntry(key, name, value)` | Add a named entry to a NamedMap field.      |
+| `removeEntry(key, name)`     | Remove a named entry from a NamedMap field. |
 
 Returns the same block instance for chaining.
 
@@ -242,18 +246,18 @@ The primary return type of `parse()`. Wraps the parsed AST with mutation helpers
 
 #### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `ast` | `ParsedAgentforce` | The parsed AST root |
-| `diagnostics` | `readonly Diagnostic[]` | All parse, schema, and lint diagnostics |
-| `hasErrors` | `boolean` | `true` if any diagnostic is Error severity |
-| `errors` | `Diagnostic[]` | Error-severity diagnostics only |
-| `warnings` | `Diagnostic[]` | Warning-severity diagnostics only |
-| `isDirty` | `boolean` | `true` if mutations have been applied since parse |
-| `canUndo` | `boolean` | `true` if undo history is available |
-| `canRedo` | `boolean` | `true` if redo stack is available |
-| `history` | `readonly HistoryEntry[]` | Array of mutation snapshots |
-| `historyIndex` | `number` | Current position in history |
+| Property       | Type                      | Description                                       |
+| -------------- | ------------------------- | ------------------------------------------------- |
+| `ast`          | `ParsedAgentforce`        | The parsed AST root                               |
+| `diagnostics`  | `readonly Diagnostic[]`   | All parse, schema, and lint diagnostics           |
+| `hasErrors`    | `boolean`                 | `true` if any diagnostic is Error severity        |
+| `errors`       | `Diagnostic[]`            | Error-severity diagnostics only                   |
+| `warnings`     | `Diagnostic[]`            | Warning-severity diagnostics only                 |
+| `isDirty`      | `boolean`                 | `true` if mutations have been applied since parse |
+| `canUndo`      | `boolean`                 | `true` if undo history is available               |
+| `canRedo`      | `boolean`                 | `true` if redo stack is available                 |
+| `history`      | `readonly HistoryEntry[]` | Array of mutation snapshots                       |
+| `historyIndex` | `number`                  | Current position in history                       |
 
 #### `emit(options?): string`
 
@@ -278,10 +282,10 @@ doc.mutate((ast, helpers) => {
 #### Convenience Mutations
 
 ```typescript
-doc.setField('config', configBlock);         // Add/replace a singular block
-doc.removeField('system');                   // Remove a singular block
-doc.addEntry('topic', 'billing', topic);     // Add a named entry
-doc.removeEntry('topic', 'billing');          // Remove a named entry
+doc.setField('config', configBlock); // Add/replace a singular block
+doc.removeField('system'); // Remove a singular block
+doc.addEntry('topic', 'billing', topic); // Add a named entry
+doc.removeEntry('topic', 'billing'); // Remove a named entry
 ```
 
 All return `this` for chaining.
@@ -313,7 +317,7 @@ Generate a tree-sitter parser from base64-encoded WASM binaries. This is the sim
 import { generateParser } from '@agentscript/agentforce';
 import {
   TREE_SITTER_ENGINE_BASE64,
-  TREE_SITTER_AGENTSCRIPT_BASE64
+  TREE_SITTER_AGENTSCRIPT_BASE64,
 } from '@agentscript/agentforce/wasm';
 
 const parser = await generateParser(
@@ -322,9 +326,9 @@ const parser = await generateParser(
 );
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `engineBase64` | `string` | Base64-encoded tree-sitter runtime WASM binary |
+| Parameter        | Type     | Description                                             |
+| ---------------- | -------- | ------------------------------------------------------- |
+| `engineBase64`   | `string` | Base64-encoded tree-sitter runtime WASM binary          |
 | `languageBase64` | `string` | Base64-encoded AgentScript language grammar WASM binary |
 
 Returns a `Promise<TreeSitterParser>` that resolves to a parser compatible with `parse()`.
@@ -369,21 +373,21 @@ import { DiagnosticSeverity, DiagnosticTag } from '@agentscript/agentforce';
 import type { Diagnostic, Range, Position } from '@agentscript/agentforce';
 
 for (const d of doc.diagnostics) {
-  console.log(d.severity);  // DiagnosticSeverity.Error | Warning | Information | Hint
-  console.log(d.message);   // Human-readable message
-  console.log(d.range);     // { start: { line, character }, end: { line, character } }
-  console.log(d.code);      // "syntax-error", "undefined-reference", etc.
-  console.log(d.source);    // "agentscript" | "agentscript-schema" | "agentscript-lint"
+  console.log(d.severity); // DiagnosticSeverity.Error | Warning | Information | Hint
+  console.log(d.message); // Human-readable message
+  console.log(d.range); // { start: { line, character }, end: { line, character } }
+  console.log(d.code); // "syntax-error", "undefined-reference", etc.
+  console.log(d.source); // "agentscript" | "agentscript-schema" | "agentscript-lint"
 }
 ```
 
 Three diagnostic sources:
 
-| Source | Description |
-|--------|-------------|
-| `"agentscript"` | Syntax errors from tree-sitter parsing |
+| Source                 | Description                                                         |
+| ---------------------- | ------------------------------------------------------------------- |
+| `"agentscript"`        | Syntax errors from tree-sitter parsing                              |
 | `"agentscript-schema"` | Schema validation (unknown blocks, type mismatches, missing fields) |
-| `"agentscript-lint"` | Linting (unused variables, undefined references, unreachable code) |
+| `"agentscript-lint"`   | Linting (unused variables, undefined references, unreachable code)  |
 
 ---
 
@@ -391,14 +395,14 @@ Three diagnostic sources:
 
 ### Architecture
 
-| | Old (`sf-client-parsing`) | New (`agentforce`) |
-|---|---|---|
-| **Parser** | ANTLR (bundled internally) | Tree-sitter (consumer-provided) |
-| **Module format** | UMD/ESM via Webpack | ESM only |
-| **Bundle** | Single webpack bundle with Node polyfills | esbuild bundle, no polyfills needed |
-| **Type safety** | Loose — component parse returns `any` | Fully typed with generics and overloads |
-| **AST mutation** | Not supported — parse-only | Full mutation API with undo/redo |
-| **Version** | 1.2.10 | 0.1.0 |
+|                   | Old (`sf-client-parsing`)                 | New (`agentforce`)                      |
+| ----------------- | ----------------------------------------- | --------------------------------------- |
+| **Parser**        | ANTLR (bundled internally)                | Tree-sitter (consumer-provided)         |
+| **Module format** | UMD/ESM via Webpack                       | ESM only                                |
+| **Bundle**        | Single webpack bundle with Node polyfills | esbuild bundle, no polyfills needed     |
+| **Type safety**   | Loose — component parse returns `any`     | Fully typed with generics and overloads |
+| **AST mutation**  | Not supported — parse-only                | Full mutation API with undo/redo        |
+| **Version**       | 1.2.10                                    | 0.1.0                                   |
 
 ### New Capabilities
 
@@ -416,21 +420,21 @@ These features did not exist in the old package:
 
 Block types added in the new schema that were not in the old parser:
 
-| Block | Description |
-|-------|-------------|
+| Block           | Description                                          |
+| --------------- | ---------------------------------------------------- |
 | `related_agent` | Reference to related agents with protocol and target |
-| `security` | Security and sharing policy settings |
-| `modality` | Modality configuration (e.g., voice) |
+| `security`      | Security and sharing policy settings                 |
+| `modality`      | Modality configuration (e.g., voice)                 |
 
 ### Removed Features
 
-| Old Feature | Replacement |
-|---|---|
-| `detectIndentationForClient()` | Not included. Use `emit({ tabSize })` for consistent formatting. |
-| `isScriptRecoverableForClient()` | Not included. Equivalent: `parse(source, parser).emit() === source` |
-| UMD/CommonJS default export | ESM only. Use named imports. |
-| `AgentScriptComponent` enum (70+ values) | Replaced by schema-derived component kinds (~16 block types + `statement` + `expression`) |
-| Granular sub-component parsing (e.g., `actionParameter`, `actionInputs`) | Parse the parent block and traverse the AST |
+| Old Feature                                                              | Replacement                                                                               |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `detectIndentationForClient()`                                           | Not included. Use `emit({ tabSize })` for consistent formatting.                          |
+| `isScriptRecoverableForClient()`                                         | Not included. Equivalent: `parse(source, parser).emit() === source`                       |
+| UMD/CommonJS default export                                              | ESM only. Use named imports.                                                              |
+| `AgentScriptComponent` enum (70+ values)                                 | Replaced by schema-derived component kinds (~16 block types + `statement` + `expression`) |
+| Granular sub-component parsing (e.g., `actionParameter`, `actionInputs`) | Parse the parent block and traverse the AST                                               |
 
 ### Complete `COMPONENT_TYPE` / `AgentScriptComponent` Migration Reference
 
@@ -442,145 +446,145 @@ Every old constant is listed below with its exact migration path.
 
 These map 1:1 to a new `parseComponent()` kind:
 
-| Old Constant | Old Value | New `parseComponent()` Kind |
-|---|---|---|
-| `AGENT_SCRIPT` | `'agentScript'` | Use `parse()` directly |
-| `SYSTEM_BLOCK` | `'systemBlock'` | `'system'` |
-| `CONFIG_BLOCK` | `'configBlock'` | `'config'` |
-| `VARIABLES_BLOCK` | `'variablesBlock'` | `'variables'` |
-| `ACTIONS_BLOCK` | `'actionsBlock'` | `'actions'` |
-| `FUNCTIONS_BLOCK` | `'functionsBlock'` | `'actions'` |
-| `KNOWLEDGE_BLOCK` | `'knowledgeBlock'` | `'knowledge'` |
-| `LANGUAGE_BLOCK` | `'languageBlock'` | `'language'` |
-| `BLOCK` | `'block'` | `'topic'` |
-| `BEFORE_REASONING_DIRECTIVES` | `'beforeReasoningDirectives'` | `'before_reasoning'` |
-| `AFTER_REASONING_DIRECTIVES` | `'afterReasoningDirectives'` | `'after_reasoning'` |
-| `PROCEDURE_BLOCK` | `'procedureBlock'` | No longer a top-level block — procedures are inline `ProcedureValue` fields (see below) |
-| `STATEMENT` | `'statement'` | `'statement'` |
-| `STATEMENT_LIST` | `'statementList'` | `'statement'` |
-| `EXPRESSION` | `'expression'` | `'expression'` |
+| Old Constant                  | Old Value                     | New `parseComponent()` Kind                                                             |
+| ----------------------------- | ----------------------------- | --------------------------------------------------------------------------------------- |
+| `AGENT_SCRIPT`                | `'agentScript'`               | Use `parse()` directly                                                                  |
+| `SYSTEM_BLOCK`                | `'systemBlock'`               | `'system'`                                                                              |
+| `CONFIG_BLOCK`                | `'configBlock'`               | `'config'`                                                                              |
+| `VARIABLES_BLOCK`             | `'variablesBlock'`            | `'variables'`                                                                           |
+| `ACTIONS_BLOCK`               | `'actionsBlock'`              | `'actions'`                                                                             |
+| `FUNCTIONS_BLOCK`             | `'functionsBlock'`            | `'actions'`                                                                             |
+| `KNOWLEDGE_BLOCK`             | `'knowledgeBlock'`            | `'knowledge'`                                                                           |
+| `LANGUAGE_BLOCK`              | `'languageBlock'`             | `'language'`                                                                            |
+| `BLOCK`                       | `'block'`                     | `'topic'`                                                                               |
+| `BEFORE_REASONING_DIRECTIVES` | `'beforeReasoningDirectives'` | `'before_reasoning'`                                                                    |
+| `AFTER_REASONING_DIRECTIVES`  | `'afterReasoningDirectives'`  | `'after_reasoning'`                                                                     |
+| `PROCEDURE_BLOCK`             | `'procedureBlock'`            | No longer a top-level block — procedures are inline `ProcedureValue` fields (see below) |
+| `STATEMENT`                   | `'statement'`                 | `'statement'`                                                                           |
+| `STATEMENT_LIST`              | `'statementList'`             | `'statement'`                                                                           |
+| `EXPRESSION`                  | `'expression'`                | `'expression'`                                                                          |
 
 #### Action Components → Parse `'actions'` Block
 
 These are no longer standalone parse targets. Parse the `'actions'` block and access the AST:
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `ACTION` | `'action'` | `parseComponent(src, 'actions', parser)` → iterate entries |
-| `ACTION_DEFINITION` | `'actionDefinition'` | Same as `ACTION` |
-| `ACTION_BODY` | `'actionBody'` | Access action entry's body/instructions |
-| `ACTION_CALL` | `'actionCall'` | Parse as `'statement'` — `run` statements are action calls |
-| `ACTION_DESCRIPTION` | `'actionDescription'` | Access action entry's `.description` |
-| `ACTION_INPUTS` | `'actionInputs'` | Access action entry's `.inputs` |
-| `ACTION_OUTPUTS` | `'actionOutputs'` | Access action entry's `.outputs` |
-| `ACTION_PARAMETER` | `'actionParameter'` | Iterate `.inputs` or `.outputs` entries |
-| `ACTION_TARGET` | `'actionTarget'` | Access action entry's `.target` |
-| `REASONING_ACTIONS_DECLARATION` | `'reasoningActionsDeclaration'` | Parse `'topic'` block, access `.reasoning.actions` |
+| Old Constant                    | Old Value                       | New Approach                                               |
+| ------------------------------- | ------------------------------- | ---------------------------------------------------------- |
+| `ACTION`                        | `'action'`                      | `parseComponent(src, 'actions', parser)` → iterate entries |
+| `ACTION_DEFINITION`             | `'actionDefinition'`            | Same as `ACTION`                                           |
+| `ACTION_BODY`                   | `'actionBody'`                  | Access action entry's body/instructions                    |
+| `ACTION_CALL`                   | `'actionCall'`                  | Parse as `'statement'` — `run` statements are action calls |
+| `ACTION_DESCRIPTION`            | `'actionDescription'`           | Access action entry's `.description`                       |
+| `ACTION_INPUTS`                 | `'actionInputs'`                | Access action entry's `.inputs`                            |
+| `ACTION_OUTPUTS`                | `'actionOutputs'`               | Access action entry's `.outputs`                           |
+| `ACTION_PARAMETER`              | `'actionParameter'`             | Iterate `.inputs` or `.outputs` entries                    |
+| `ACTION_TARGET`                 | `'actionTarget'`                | Access action entry's `.target`                            |
+| `REASONING_ACTIONS_DECLARATION` | `'reasoningActionsDeclaration'` | Parse `'topic'` block, access `.reasoning.actions`         |
 
 #### Variable Components → Parse `'variables'` Block
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `VARIABLE_DECLARATION` | `'variableDeclaration'` | `parseComponent(src, 'variables', parser)` → iterate entries |
-| `VARIABLE_DECLARATION_LIST` | `'variableDeclarationList'` | Same — result contains all declarations |
-| `VARIABLE_ASSIGNMENT` | `'variableAssignment'` | Parse as `'statement'` |
-| `VARIABLES_BODY` | `'variablesBody'` | Access variables block's `__children` |
+| Old Constant                | Old Value                   | New Approach                                                 |
+| --------------------------- | --------------------------- | ------------------------------------------------------------ |
+| `VARIABLE_DECLARATION`      | `'variableDeclaration'`     | `parseComponent(src, 'variables', parser)` → iterate entries |
+| `VARIABLE_DECLARATION_LIST` | `'variableDeclarationList'` | Same — result contains all declarations                      |
+| `VARIABLE_ASSIGNMENT`       | `'variableAssignment'`      | Parse as `'statement'`                                       |
+| `VARIABLES_BODY`            | `'variablesBody'`           | Access variables block's `__children`                        |
 
 #### Config Components → Parse `'config'` Block
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `CONFIG_BODY` | `'configBody'` | `parseComponent(src, 'config', parser)` → access properties |
-| `CONFIG_STATEMENT` | `'configStatement'` | Access config block's individual properties |
-| `CONFIG_KEY_VALUE` | `'configKeyValue'` | Same as `CONFIG_STATEMENT` |
-| `CONFIG_VALUE` | `'configValue'` | Access specific property value |
-| `PREDEFINED_CONFIG_KEY` | `'predefinedConfigKey'` | Config property names are schema-defined |
+| Old Constant            | Old Value               | New Approach                                                |
+| ----------------------- | ----------------------- | ----------------------------------------------------------- |
+| `CONFIG_BODY`           | `'configBody'`          | `parseComponent(src, 'config', parser)` → access properties |
+| `CONFIG_STATEMENT`      | `'configStatement'`     | Access config block's individual properties                 |
+| `CONFIG_KEY_VALUE`      | `'configKeyValue'`      | Same as `CONFIG_STATEMENT`                                  |
+| `CONFIG_VALUE`          | `'configValue'`         | Access specific property value                              |
+| `PREDEFINED_CONFIG_KEY` | `'predefinedConfigKey'` | Config property names are schema-defined                    |
 
 #### System Components → Parse `'system'` Block
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `SYSTEM_BODY` | `'systemBody'` | `parseComponent(src, 'system', parser)` → access properties |
-| `SYSTEM_STATEMENT` | `'systemStatement'` | Access system block's properties |
-| `SYSTEM_MESSAGE` | `'systemMessage'` | Access `.messages` on system block |
-| `SYSTEM_MESSAGES` | `'systemMessages'` | Same as `SYSTEM_MESSAGE` |
-| `TOPIC_SYSTEM_BLOCK` | `'topicSystemBlock'` | Parse `'topic'` block, access `.system` |
-| `TOPIC_SYSTEM_INSTRUCTIONS` | `'topicSystemInstructions'` | Parse `'topic'` block, access `.system.instructions` |
+| Old Constant                | Old Value                   | New Approach                                                |
+| --------------------------- | --------------------------- | ----------------------------------------------------------- |
+| `SYSTEM_BODY`               | `'systemBody'`              | `parseComponent(src, 'system', parser)` → access properties |
+| `SYSTEM_STATEMENT`          | `'systemStatement'`         | Access system block's properties                            |
+| `SYSTEM_MESSAGE`            | `'systemMessage'`           | Access `.messages` on system block                          |
+| `SYSTEM_MESSAGES`           | `'systemMessages'`          | Same as `SYSTEM_MESSAGE`                                    |
+| `TOPIC_SYSTEM_BLOCK`        | `'topicSystemBlock'`        | Parse `'topic'` block, access `.system`                     |
+| `TOPIC_SYSTEM_INSTRUCTIONS` | `'topicSystemInstructions'` | Parse `'topic'` block, access `.system.instructions`        |
 
 #### Block Sub-Components → Parse Parent Block
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `BLOCK_BODY` | `'blockBody'` | Parse `'topic'` block, access `__children` |
-| `BLOCK_DESCRIPTION` | `'blockDescription'` | Parse parent block, access `.description` |
-| `BLOCK_INSTRUCTIONS` | `'blockInstructions'` | Parse parent block, access `.instructions` |
-| `INSTRUCTIONS` | `'instructions'` | Parse parent block, access `.instructions` |
-| `REASONING_INSTRUCTIONS` | `'reasoningInstructions'` | Parse `'topic'` block, access `.reasoning.instructions` |
-| `REASONING_BLOCK` | `'reasoningBlock'` | Parse `'topic'` block, access `.reasoning` — or use `'reasoning'` kind for standalone |
+| Old Constant             | Old Value                 | New Approach                                                                          |
+| ------------------------ | ------------------------- | ------------------------------------------------------------------------------------- |
+| `BLOCK_BODY`             | `'blockBody'`             | Parse `'topic'` block, access `__children`                                            |
+| `BLOCK_DESCRIPTION`      | `'blockDescription'`      | Parse parent block, access `.description`                                             |
+| `BLOCK_INSTRUCTIONS`     | `'blockInstructions'`     | Parse parent block, access `.instructions`                                            |
+| `INSTRUCTIONS`           | `'instructions'`          | Parse parent block, access `.instructions`                                            |
+| `REASONING_INSTRUCTIONS` | `'reasoningInstructions'` | Parse `'topic'` block, access `.reasoning.instructions`                               |
+| `REASONING_BLOCK`        | `'reasoningBlock'`        | Parse `'topic'` block, access `.reasoning` — or use `'reasoning'` kind for standalone |
 
 #### Statement Components → Parse as `'statement'`
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `CONDITIONAL_STATEMENT` | `'conditionalStatement'` | `parseComponent(src, 'statement', parser)` — returns `Statement[]` with `if` nodes |
-| `TRANSITION_STATEMENT` | `'transitionStatement'` | Parse as `'statement'` — transitions are statements |
-| `DIRECTIVE` | `'directive'` | Parse as `'statement'` |
-| `DIRECTIVES` | `'directives'` | Parse as `'statement'` |
-| `UTILS_TRANSITION_DECLARATION` | `'utilsTransitionDeclaration'` | Parse as `'statement'` |
-| `UTILS_ESCALATION_DECLARATION` | `'utilsEscalationDeclaration'` | Parse as `'statement'` |
+| Old Constant                   | Old Value                      | New Approach                                                                       |
+| ------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------- |
+| `CONDITIONAL_STATEMENT`        | `'conditionalStatement'`       | `parseComponent(src, 'statement', parser)` — returns `Statement[]` with `if` nodes |
+| `TRANSITION_STATEMENT`         | `'transitionStatement'`        | Parse as `'statement'` — transitions are statements                                |
+| `DIRECTIVE`                    | `'directive'`                  | Parse as `'statement'`                                                             |
+| `DIRECTIVES`                   | `'directives'`                 | Parse as `'statement'`                                                             |
+| `UTILS_TRANSITION_DECLARATION` | `'utilsTransitionDeclaration'` | Parse as `'statement'`                                                             |
+| `UTILS_ESCALATION_DECLARATION` | `'utilsEscalationDeclaration'` | Parse as `'statement'`                                                             |
 
 #### Expression / Literal Components → Parse as `'expression'`
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `LITERAL` | `'literal'` | `parseComponent(src, 'expression', parser)` |
-| `ARRAY_LITERAL` | `'arrayLiteral'` | Parse as `'expression'` — returns `ListLiteral` |
-| `OBJECT_LITERAL` | `'objectLiteral'` | Parse as `'expression'` — returns `DictLiteral` |
-| `OBJECT_PROPERTY` | `'objectProperty'` | Parse as `'expression'`, access `DictLiteral` entries |
-| `BOOL_VALUE` | `'boolValue'` | Parse as `'expression'` — returns `BooleanLiteral` |
-| `PROMPT_TEXT` | `'promptText'` | Parse as `'expression'` — returns `TemplateExpression` or `StringLiteral` |
-| `TEMPLATE` | `'Template'` | Parse as `'expression'` — returns `TemplateExpression` |
+| Old Constant      | Old Value          | New Approach                                                              |
+| ----------------- | ------------------ | ------------------------------------------------------------------------- |
+| `LITERAL`         | `'literal'`        | `parseComponent(src, 'expression', parser)`                               |
+| `ARRAY_LITERAL`   | `'arrayLiteral'`   | Parse as `'expression'` — returns `ListLiteral`                           |
+| `OBJECT_LITERAL`  | `'objectLiteral'`  | Parse as `'expression'` — returns `DictLiteral`                           |
+| `OBJECT_PROPERTY` | `'objectProperty'` | Parse as `'expression'`, access `DictLiteral` entries                     |
+| `BOOL_VALUE`      | `'boolValue'`      | Parse as `'expression'` — returns `BooleanLiteral`                        |
+| `PROMPT_TEXT`     | `'promptText'`     | Parse as `'expression'` — returns `TemplateExpression` or `StringLiteral` |
+| `TEMPLATE`        | `'Template'`       | Parse as `'expression'` — returns `TemplateExpression`                    |
 
 #### Parameter / Type Components → Access via Parent
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `PARAMETER` | `'parameter'` | Access via parent block's inputs/outputs entries |
-| `PARAMETER_DEFINITION` | `'parameterDefinition'` | Same as `PARAMETER` |
-| `PARAMETER_DEFINITION_LIST` | `'parameterDefinitionList'` | Access `.inputs` or `.outputs` on parent block |
-| `PARAMETER_LIST` | `'parameterList'` | Same as `PARAMETER_DEFINITION_LIST` |
-| `RETURN_DEFINITION` | `'returnDefinition'` | Access `.outputs` on action block |
-| `RETURN_DEFINITION_LIST` | `'returnDefinitionList'` | Same as `RETURN_DEFINITION` |
-| `TYPE` | `'type'` | Type info is on variable/parameter declarations |
-| `DEFAULT_VALUE` | `'defaultValue'` | Access `.defaultValue` on variable declarations |
+| Old Constant                | Old Value                   | New Approach                                     |
+| --------------------------- | --------------------------- | ------------------------------------------------ |
+| `PARAMETER`                 | `'parameter'`               | Access via parent block's inputs/outputs entries |
+| `PARAMETER_DEFINITION`      | `'parameterDefinition'`     | Same as `PARAMETER`                              |
+| `PARAMETER_DEFINITION_LIST` | `'parameterDefinitionList'` | Access `.inputs` or `.outputs` on parent block   |
+| `PARAMETER_LIST`            | `'parameterList'`           | Same as `PARAMETER_DEFINITION_LIST`              |
+| `RETURN_DEFINITION`         | `'returnDefinition'`        | Access `.outputs` on action block                |
+| `RETURN_DEFINITION_LIST`    | `'returnDefinitionList'`    | Same as `RETURN_DEFINITION`                      |
+| `TYPE`                      | `'type'`                    | Type info is on variable/parameter declarations  |
+| `DEFAULT_VALUE`             | `'defaultValue'`            | Access `.defaultValue` on variable declarations  |
 
 #### Language Components → Parse `'language'` Block
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `LANGUAGE_BODY` | `'languageBody'` | `parseComponent(src, 'language', parser)` → access properties |
-| `LANGUAGE_STATEMENT` | `'languageStatement'` | Access language block's individual properties |
+| Old Constant         | Old Value             | New Approach                                                  |
+| -------------------- | --------------------- | ------------------------------------------------------------- |
+| `LANGUAGE_BODY`      | `'languageBody'`      | `parseComponent(src, 'language', parser)` → access properties |
+| `LANGUAGE_STATEMENT` | `'languageStatement'` | Access language block's individual properties                 |
 
 #### Other
 
-| Old Constant | Old Value | New Approach |
-|---|---|---|
-| `AGENT_TASK` | `'agentTask'` | Not in Agentforce schema |
-| `OVERRIDE` | `'override'` | Not in Agentforce schema |
-| `KNOWLEDGE_ACTION` | `'knowledgeAction'` | Parse `'knowledge'` block, access entries |
-| `CONNECTION` | `'connection'` | `parseComponent(src, 'connection', parser)` |
+| Old Constant         | Old Value            | New Approach                                                                       |
+| -------------------- | -------------------- | ---------------------------------------------------------------------------------- |
+| `AGENT_TASK`         | `'agentTask'`        | Not in Agentforce schema                                                           |
+| `OVERRIDE`           | `'override'`         | Not in Agentforce schema                                                           |
+| `KNOWLEDGE_ACTION`   | `'knowledgeAction'`  | Parse `'knowledge'` block, access entries                                          |
+| `CONNECTION`         | `'connection'`       | `parseComponent(src, 'connection', parser)`                                        |
 | `MODEL_CONFIG_BLOCK` | `'modelConfigBlock'` | `parseComponent(src, 'model_config', parser)` — or access `.model_config` on topic |
 
 #### Procedures (`PROCEDURE_BLOCK`)
 
 Procedures are **not removed** — the `->` arrow syntax is used extensively. What changed is that procedures are no longer a standalone top-level block. They are now inline `ProcedureValue` fields that appear inside other blocks:
 
-| Location | Syntax | Description |
-|---|---|---|
-| `topic.reasoning.instructions` | `instructions: ->` | Reasoning loop procedure (with arrow) |
-| `topic.before_reasoning` | `before_reasoning:` | Pre-reasoning procedure (arrow omitted) |
-| `topic.after_reasoning` | `after_reasoning:` | Post-reasoning procedure (arrow omitted) |
-| `connection.response_actions.body` | `body: ->` | Connection response procedure (with arrow) |
+| Location                           | Syntax              | Description                                |
+| ---------------------------------- | ------------------- | ------------------------------------------ |
+| `topic.reasoning.instructions`     | `instructions: ->`  | Reasoning loop procedure (with arrow)      |
+| `topic.before_reasoning`           | `before_reasoning:` | Pre-reasoning procedure (arrow omitted)    |
+| `topic.after_reasoning`            | `after_reasoning:`  | Post-reasoning procedure (arrow omitted)   |
+| `connection.response_actions.body` | `body: ->`          | Connection response procedure (with arrow) |
 
 Procedures contain the same statement types as before (`if`, `run`, templates, transitions, etc.).
 
@@ -606,7 +610,10 @@ The migration follows one principle: **parse the nearest top-level block, then t
 
 ```typescript
 // Old: parse any sub-component directly
-const result = parseAgentScriptComponentForClient(src, COMPONENT_TYPE.ACTION_INPUTS);
+const result = parseAgentScriptComponentForClient(
+  src,
+  COMPONENT_TYPE.ACTION_INPUTS
+);
 
 // New: parse the parent block, access the property
 const actions = parseComponent(actionsSource, 'actions', parser);
@@ -681,7 +688,7 @@ Code generation is now `doc.emit()`:
 If you need to generate from a modified AST:
 
 ```typescript
-doc.mutate((ast) => {
+doc.mutate(ast => {
   // modify ast...
 });
 const source = doc.emit();

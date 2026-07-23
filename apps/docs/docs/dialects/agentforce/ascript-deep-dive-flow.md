@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Deep Dive: Flow Control"
+sidebar_label: 'Deep Dive: Flow Control'
 ---
 
 # AgentScript & Flow Control - A Deep Dive into Reasoning Block Behavior
@@ -29,18 +29,18 @@ AgentScript provides powerful control mechanisms that distinguish between **LLM-
 
 ## AgentScript Primitives Quick Reference
 
-| Primitive | What it is | Deterministic? | Example |
-|---|---|---|---|
-| `instructions: ->` | Arrow syntax enabling inline expressions, conditionals, and `run` directives | The block itself is resolved deterministically; lines prefixed with `\|` become LLM prompt text. | `instructions: ->` |
-| `\| (pipe prefix)` | Marks a line as LLM-facing text; the reasoning planner decides whether/how to act on it | No. LLM Discretion | `\| Check if the customer provided...` |
-| `set @variables.X = ...` | Assigns a value to a mutable variable during the deterministic resolution pass | Yes | `set @variables.counterVerify = @...` |
-| `run @actions.X` | Executes a subagent-level action (one with a `target:`) immediately during resolution, before the LLM sees anything | Yes | `run @actions.get_churn_score` |
-| `transition to @subagent.X` | Unconditional deterministic subagent switch (exits the current subagent immediately). Transitions are **one-way**. There's no return of control to the calling subagent. `transition to` executes immediately when encountered. The execution of the current directive block is halted, and control is passed to the new subagent. | Yes | `transition to @subagent.agent_router` |
-| `@utils.transition to @subagent.X` | A utility action that performs a deterministic subagent change. When placed in `reasoning.actions:`, the LLM *chooses* to invoke it; when placed in a `transition to` directive, it fires unconditionally. | Depends on placement | `go_to_verify: @utils.transition to @subagent.ServiceCustomerVerification` |
-| `available when` | A guard clause evaluated deterministically; if the condition is `false`, the action is hidden from the LLM entirely | Yes (gate is deterministic) | `available when @variables.isVerified==True` |
-| `{!@variables.X}` | Template injection; inserts the current variable value into LLM-facing text | Yes (resolved before LLM) | `\| Score: {!@variables.churn_score}` |
-| `if / else` | Conditional branching resolved during the deterministic pass; the LLM never sees the branching logic, only the winning path's output | Yes | `if @variables.isVerified:` |
-| `with param = ...` | Passes an input to an action; `...` (ellipsis) means "let the LLM extract this from conversation" | Binding is deterministic; `...` is LLM resolved | `with customerToVerify = ...` |
+| Primitive                          | What it is                                                                                                                                                                                                                                                                                                                         | Deterministic?                                                                                   | Example                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `instructions: ->`                 | Arrow syntax enabling inline expressions, conditionals, and `run` directives                                                                                                                                                                                                                                                       | The block itself is resolved deterministically; lines prefixed with `\|` become LLM prompt text. | `instructions: ->`                                                         |
+| `\| (pipe prefix)`                 | Marks a line as LLM-facing text; the reasoning planner decides whether/how to act on it                                                                                                                                                                                                                                            | No. LLM Discretion                                                                               | `\| Check if the customer provided...`                                     |
+| `set @variables.X = ...`           | Assigns a value to a mutable variable during the deterministic resolution pass                                                                                                                                                                                                                                                     | Yes                                                                                              | `set @variables.counterVerify = @...`                                      |
+| `run @actions.X`                   | Executes a subagent-level action (one with a `target:`) immediately during resolution, before the LLM sees anything                                                                                                                                                                                                                | Yes                                                                                              | `run @actions.get_churn_score`                                             |
+| `transition to @subagent.X`        | Unconditional deterministic subagent switch (exits the current subagent immediately). Transitions are **one-way**. There's no return of control to the calling subagent. `transition to` executes immediately when encountered. The execution of the current directive block is halted, and control is passed to the new subagent. | Yes                                                                                              | `transition to @subagent.agent_router`                                     |
+| `@utils.transition to @subagent.X` | A utility action that performs a deterministic subagent change. When placed in `reasoning.actions:`, the LLM _chooses_ to invoke it; when placed in a `transition to` directive, it fires unconditionally.                                                                                                                         | Depends on placement                                                                             | `go_to_verify: @utils.transition to @subagent.ServiceCustomerVerification` |
+| `available when`                   | A guard clause evaluated deterministically; if the condition is `false`, the action is hidden from the LLM entirely                                                                                                                                                                                                                | Yes (gate is deterministic)                                                                      | `available when @variables.isVerified==True`                               |
+| `{!@variables.X}`                  | Template injection; inserts the current variable value into LLM-facing text                                                                                                                                                                                                                                                        | Yes (resolved before LLM)                                                                        | `\| Score: {!@variables.churn_score}`                                      |
+| `if / else`                        | Conditional branching resolved during the deterministic pass; the LLM never sees the branching logic, only the winning path's output                                                                                                                                                                                               | Yes                                                                                              | `if @variables.isVerified:`                                                |
+| `with param = ...`                 | Passes an input to an action; `...` (ellipsis) means "let the LLM extract this from conversation"                                                                                                                                                                                                                                  | Binding is deterministic; `...` is LLM resolved                                                  | `with customerToVerify = ...`                                              |
 
 ---
 
@@ -104,11 +104,11 @@ To maintain conciseness, the subagent selector and a single subagent are include
 
 ### Utterances
 
-| Turn# | Assistant | User |
-|---|---|---|
-| 1 | Hi, I'm an AI service assistant. How can I help you? | provide the tracking status of my last order |
-| 2 | To provide the tracking status of your last order, I need to verify your identity. Please provide your username or email address associated with your account. | nikhilgupta@salesforce.com.devpro |
-| 3 | To provide the tracking status of your last order, I need to verify your identity. Please provide your username or email address associated with your account. | `<<generated verification code>>` |
+| Turn# | Assistant                                                                                                                                                      | User                                         |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1     | Hi, I'm an AI service assistant. How can I help you?                                                                                                           | provide the tracking status of my last order |
+| 2     | To provide the tracking status of your last order, I need to verify your identity. Please provide your username or email address associated with your account. | nikhilgupta@salesforce.com.devpro            |
+| 3     | To provide the tracking status of your last order, I need to verify your identity. Please provide your username or email address associated with your account. | `<<generated verification code>>`            |
 
 ---
 
@@ -396,7 +396,7 @@ Select the best tool to call based on conversation history and user's intent
 
 **Deterministic resolution (before LLM)**
 
-- `set @variables.counterVerify = 0 + 1`   counterVerify = 1
+- `set @variables.counterVerify = 0 + 1` counterVerify = 1
 - No `if` conditions to evaluate, no `run` directives.
 - `{!@actions.SendEmailVerificationCode}` and `{!@actions.VerifyCustomer}` and `{!@actions.counterIncr}` - template references resolves to their action names
 
@@ -422,16 +422,16 @@ Always Run the action counterIncr to update update subCounter
 
 **Tools visible to LLM**
 
-| Tool | Input Binding | Visibility? |
-|---|---|---|
-| SendEmailVerificationCode | `customerToVerify = ...` (LLM extracts from conversation) | no guard; always visible |
-| VerifyCustomer | `authenticationKey = @variables.authenticationKey` (empty), `customerCode = ...` (LLM extracts), `customerId` (empty), `customerType` (empty) | no guard; always visible |
-| counterIncr | `@utils.setVariables` with `counterVerify` and `subCounter` | no guard; always visible |
+| Tool                      | Input Binding                                                                                                                                 | Visibility?              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| SendEmailVerificationCode | `customerToVerify = ...` (LLM extracts from conversation)                                                                                     | no guard; always visible |
+| VerifyCustomer            | `authenticationKey = @variables.authenticationKey` (empty), `customerCode = ...` (LLM extracts), `customerId` (empty), `customerType` (empty) | no guard; always visible |
+| counterIncr               | `@utils.setVariables` with `counterVerify` and `subCounter`                                                                                   | no guard; always visible |
 
 **LLM Decision**
 
-> User hasn't provided a username or email yet. LLM does *not* invoke `SendEmailVerificationCode` or `VerifyCustomer`.
-> LLM *does* invoke `counterIncr` (responding to the "Always Run" instruction). LLM responds asking the user for their username or email.
+> User hasn't provided a username or email yet. LLM does _not_ invoke `SendEmailVerificationCode` or `VerifyCustomer`.
+> LLM _does_ invoke `counterIncr` (responding to the "Always Run" instruction). LLM responds asking the user for their username or email.
 >
 > State after this parse: `counterVerify = 2`, `subCounter = 1`
 
@@ -465,14 +465,14 @@ Same three: `SendEmailVerificationCode`, `VerifyCustomer`, `counterIncr`.
 **LLM Decision**
 
 > User has now provided an email address. LLM invokes `SendEmailVerificationCode` with `customerToVerify =`
-> `"nikhilgupta@salesforce.com.devpro"` (extracted from conversation via `...` ellipsis binding). LLM does *not* invoke
+> `"nikhilgupta@salesforce.com.devpro"` (extracted from conversation via `...` ellipsis binding). LLM does _not_ invoke
 > `counterIncr` this time; despite "Always Run", the planner prioritizes the verification flow.
 
 **Action outputs captured (deterministic `set` directives)**
 
-- `@variables.authenticationKey = @outputs.authenticationKey`   populated
-- `@variables.customerId = @outputs.customerId`   populated
-- `@variables.customerType = @outputs.customerType`   populated
+- `@variables.authenticationKey = @outputs.authenticationKey` populated
+- `@variables.customerId = @outputs.customerId` populated
+- `@variables.customerType = @outputs.customerType` populated
 
 ---
 
@@ -492,11 +492,11 @@ The action `SendEmailVerificationCode` just completed. Its output `verificationM
 
 **Tools visible to LLM**
 
-| Tool | Input Binding | Visibility? |
-|---|---|---|
-| SendEmailVerificationCode | `customerToVerify = ...` | Still visible; could resend; but won't. Recall state persistence in ReAct loop. |
-| VerifyCustomer | `authenticationKey = now populated with value`; `customerCode = ...`; `customerId = now populated`; `customerType = now populated` | Input are pre-filled from prior action outputs; only `customerCode` awaits LLM extraction. |
-| counterIncr | same as before: `@utils.setVariables` with `counterVerify` and `subCounter` | Still visible |
+| Tool                      | Input Binding                                                                                                                      | Visibility?                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| SendEmailVerificationCode | `customerToVerify = ...`                                                                                                           | Still visible; could resend; but won't. Recall state persistence in ReAct loop.            |
+| VerifyCustomer            | `authenticationKey = now populated with value`; `customerCode = ...`; `customerId = now populated`; `customerType = now populated` | Input are pre-filled from prior action outputs; only `customerCode` awaits LLM extraction. |
+| counterIncr               | same as before: `@utils.setVariables` with `counterVerify` and `subCounter`                                                        | Still visible                                                                              |
 
 **LLM Decision**
 
@@ -531,11 +531,11 @@ User: "<<generated verification code>>"
 
 **Tools visible to LLM**
 
-| Tool | Input Binding | Visibility? |
-|---|---|---|
-| SendEmailVerificationCode | `customerToVerify = ...` | Visible but not relevant |
-| VerifyCustomer | `authenticationKey = now populated with value`; `customerCode = ...` (LLM will extract the code from the user message); `customerId = now populated`; `customerType = now populated` | All inputs are ready :) |
-| counterIncr | same as before: `@utils.setVariables` with `counterVerify` and `subCounter` | Visible |
+| Tool                      | Input Binding                                                                                                                                                                        | Visibility?              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
+| SendEmailVerificationCode | `customerToVerify = ...`                                                                                                                                                             | Visible but not relevant |
+| VerifyCustomer            | `authenticationKey = now populated with value`; `customerCode = ...` (LLM will extract the code from the user message); `customerId = now populated`; `customerType = now populated` | All inputs are ready :)  |
+| counterIncr               | same as before: `@utils.setVariables` with `counterVerify` and `subCounter`                                                                                                          | Visible                  |
 
 **LLM Decision**
 
@@ -570,8 +570,8 @@ if @variables.isVerified:    # <-- True
 **Deterministic resolution (before LLM)**
 
 - `available when` guard re-evaluate with updated state:
-  - `@variables.isVerified == False`   now False
-  - `@variables.isVerified == True`   now True
+  - `@variables.isVerified == False` now False
+  - `@variables.isVerified == True` now True
 
 **Compiled prompt reaching the LLM**
 
@@ -581,20 +581,20 @@ Select the best tool to call based on conversation history and user's intent.
 
 **Tools visible to LLM**
 
-| Tool | Visibility? why visible |
-|---|---|
-| `go_to_CaseManagement` | Guard `isVerified==True` now True |
-| `go_to_OrderInquiries` | Guard `isVerified==True` now True |
-| `go_to_GeneralFAQ` | No guard |
-| `go_to_escalation` | No guard |
-| `go_to_off_topic` | No guard |
-| `go_to_ambiguous_question` | No guard |
-| `go_to_Product_Info_and_Features` | No guard |
+| Tool                              | Visibility? why visible           |
+| --------------------------------- | --------------------------------- |
+| `go_to_CaseManagement`            | Guard `isVerified==True` now True |
+| `go_to_OrderInquiries`            | Guard `isVerified==True` now True |
+| `go_to_GeneralFAQ`                | No guard                          |
+| `go_to_escalation`                | No guard                          |
+| `go_to_off_topic`                 | No guard                          |
+| `go_to_ambiguous_question`        | No guard                          |
+| `go_to_Product_Info_and_Features` | No guard                          |
 
 **Tools hidden from LLM**
 
-| Tool | Visibility? why hidden |
-|---|---|
+| Tool                                | Visibility? why hidden              |
+| ----------------------------------- | ----------------------------------- |
 | `go_to_ServiceCustomerVerification` | Guard `isVerified==False` now False |
 
 **LLM decision**
@@ -627,21 +627,21 @@ Here are the States with positional alignment of **InstructionX** [ `| Always Ru
 
 ### InstructionX at top
 
-| Turn | User Message | Parse(s) | counterIncr calls | counterVerify | subCounter |
-|---|---|---|---|---|---|
-| 1 | provide the tracking status of my last order | 1 | 1 | 2 | 1 |
-| 2 | user provides user name: nikhilgupta@salesforce.com.devpro | 2 | 0 | 4 | 1 |
-| 3 | user enters `<<generated verification code>>` | 2 | 0 | 6 | 1 |
-| **Total / Final State** | | **5** | **1** | **6** | **1** |
+| Turn                    | User Message                                               | Parse(s) | counterIncr calls | counterVerify | subCounter |
+| ----------------------- | ---------------------------------------------------------- | -------- | ----------------- | ------------- | ---------- |
+| 1                       | provide the tracking status of my last order               | 1        | 1                 | 2             | 1          |
+| 2                       | user provides user name: nikhilgupta@salesforce.com.devpro | 2        | 0                 | 4             | 1          |
+| 3                       | user enters `<<generated verification code>>`              | 2        | 0                 | 6             | 1          |
+| **Total / Final State** |                                                            | **5**    | **1**             | **6**         | **1**      |
 
 ### InstructionX at Bottom
 
-| Turn | User Message | Parse(s) | counterIncr calls | counterVerify | subCounter |
-|---|---|---|---|---|---|
-| 1 | provide the tracking status of my last order | 1 | 1 | 2 | 1 |
-| 2 | user provides user name: nikhilgupta@salesforce.com.devpro | 1 | 1 | 4 | 2 |
-| 3 | user enters `<<generated verification code>>` | 2 | 0 | 6 | 2 |
-| **Total / Final State** | | **4** | **2** | **6** | **2** |
+| Turn                    | User Message                                               | Parse(s) | counterIncr calls | counterVerify | subCounter |
+| ----------------------- | ---------------------------------------------------------- | -------- | ----------------- | ------------- | ---------- |
+| 1                       | provide the tracking status of my last order               | 1        | 1                 | 2             | 1          |
+| 2                       | user provides user name: nikhilgupta@salesforce.com.devpro | 1        | 1                 | 4             | 2          |
+| 3                       | user enters `<<generated verification code>>`              | 2        | 0                 | 6             | 2          |
+| **Total / Final State** |                                                            | **4**    | **2**             | **6**         | **2**      |
 
 ### Explanation for Parse Runs variability
 
@@ -660,6 +660,7 @@ As shown in Turn 2's walkthrough, the LLM has two parses but chose not to call `
 3. Parse count can differ between runs, which changes how often the deterministic line runs
 4. "Always run" is not enforced; planner model can skip when it prioritizes verification steps.
 5. While the action is wrapped in reasoning step prefixed by pipe, `|`, Language Model (used by reasoning planner) will decide, if it wants to execute that action or NOT (ergo, Non-Determinism)
+
 ---
 
 See [Full Agentscript](/img/agent-script/deep-dive/agentscript.agent)

@@ -1942,6 +1942,62 @@ subagent main:
     expect(errors).toHaveLength(0);
   });
 
+  it('validates @system_variables.last_reply.interrupted', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Use {!@system_variables.last_reply.interrupted}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.last_reply')
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('validates @system_variables.last_reply.interrupted_heard_text', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Use {!@system_variables.last_reply.interrupted_heard_text}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.last_reply')
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports undefined nested @system_variables.last_reply member', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Use {!@system_variables.last_reply.bogus}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@system_variables.last_reply.bogus'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain(
+      "'bogus' is not defined in system_variables.last_reply"
+    );
+  });
+
   it('reports undefined system_variables member', () => {
     const diagnostics = runLint(`
 subagent main:

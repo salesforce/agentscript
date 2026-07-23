@@ -191,12 +191,13 @@ export default grammar({
 
     // `collect` gathers a single variable from the user one field at a time.
     // It is sugar inside reasoning.instructions: an indented body holds the
-    // `message:` (and future) fields. Modeled on if_statement/run_statement.
+    // `message:` (and future) fields. Modeled on run_statement: a verb followed
+    // by a target and an indented body, with no colon (`collect` is an operator,
+    // not a key). The body is required and is a `mapping`, not a `procedure`.
     collect_statement: $ =>
       seq(
         'collect',
         field('target', $.expression),
-        ':',
         $._indent,
         field('body', $.mapping),
         $._dedent,

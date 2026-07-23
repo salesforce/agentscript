@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Required Topic Workflow"
+sidebar_label: 'Required Topic Workflow'
 ---
 
 # Agent Script Pattern: Enforce Required Workflows for a Subagent

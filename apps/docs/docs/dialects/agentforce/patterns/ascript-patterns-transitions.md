@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Transitions"
+sidebar_label: 'Transitions'
 ---
 
 # Agent Script Pattern: Subagent Transitions

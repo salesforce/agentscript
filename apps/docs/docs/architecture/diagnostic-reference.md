@@ -21,7 +21,7 @@ All diagnostics follow a consistent naming convention:
 These diagnostics are part of the core AgentScript language.
 
 | Source | Code | Severity | Description | Defined In |
-|--------|------|----------|-------------|------------|
+| ------ | ---- | -------- | ----------- | ---------- |
 
 ## See Also
 

@@ -27,11 +27,8 @@ export const ALLOWED_AGENT_TYPES = [
   // Canonical agent type API values.
   'EinsteinSDR',
   'SalesEinsteinCoach',
-  'Setup',
   'BankingServiceAgent',
-  // ServicePlanner is intentionally excluded: its templates (Agentforce
-  // Service Assistant and ITSM Service Assistant) remain on the legacy builder
-  // until October, so the type is not yet accepted for Agent Script authoring.
+  'ServicePlanner',
   'AppDevAgent',
   'AgentforceEmployeeAgent',
   'CustomAgent',
@@ -42,6 +39,15 @@ export const ALLOWED_AGENT_TYPES = [
 ] as const;
 
 export type AllowedAgentType = (typeof ALLOWED_AGENT_TYPES)[number];
+
+/**
+ * Agent types the backend recognizes but strips from the public agent JSON
+ * schema (`NON_PUBLIC_AGENT_TYPES` in agent-dsl). These must never appear in
+ * `ALLOWED_AGENT_TYPES`: the editor would accept them, but the compiler's
+ * public Zod enum omits them, so compilation would fail with a
+ * `schema-validation` error. Keep in sync with agent-dsl's non-public set.
+ */
+export const NON_PUBLIC_AGENT_TYPES: readonly string[] = ['Setup'] as const;
 
 /** Lowercased lookup set of allowed agent types for case-insensitive matching. */
 const ALLOWED_AGENT_TYPE_KEYS: ReadonlySet<string> = new Set(

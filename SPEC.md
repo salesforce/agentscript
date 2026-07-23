@@ -55,6 +55,7 @@ Here `subagent` is the block type and `order_handler` is the instance name. Whet
 A block's value may be one of the following forms:
 
 - **Scalar** — a string, number, or boolean on the same line as the key (see [Section 2: Type System](#2-type-system)):
+
   ```
   label: "My Agent"
   count: 42
@@ -62,12 +63,14 @@ A block's value may be one of the following forms:
   ```
 
 - **Sub-block** — a nested block, introduced by indentation on the following line:
+
   ```
   block_a:
       field: "value"
   ```
 
 - **Sequence** — a YAML-style list of scalar values or list-maps:
+
   ```
   items:
       - "first"
@@ -114,12 +117,12 @@ The indented properties are defined by the schema for the parent value type. Whi
 
 Agent Script has four scalar types:
 
-| Type | Description | Example |
-|---|---|---|
-| `string` | Quoted string value | `"hello"` |
-| `number` | Integer or floating-point | `42`, `3.14` |
-| `boolean` | Boolean value (`True` or `False`) | `True` |
-| `object` | Untyped structured value | `None` (default) |
+| Type      | Description                       | Example          |
+| --------- | --------------------------------- | ---------------- |
+| `string`  | Quoted string value               | `"hello"`        |
+| `number`  | Integer or floating-point         | `42`, `3.14`     |
+| `boolean` | Boolean value (`True` or `False`) | `True`           |
+| `object`  | Untyped structured value          | `None` (default) |
 
 Boolean literals are capitalized: `True` and `False`.
 
@@ -178,38 +181,38 @@ Expressions follow Python-like syntax. The following operators are supported, li
 
 **Logical operators**
 
-| Operator | Description |
-|---|---|
-| `or` | Logical OR |
-| `and` | Logical AND |
-| `not` | Logical NOT (unary) |
+| Operator | Description         |
+| -------- | ------------------- |
+| `or`     | Logical OR          |
+| `and`    | Logical AND         |
+| `not`    | Logical NOT (unary) |
 
 **Comparison operators**
 
-| Operator | Description |
-|---|---|
-| `==` | Equality |
-| `!=` | Inequality |
-| `<`, `<=`, `>`, `>=` | Numeric comparison |
-| `is` | Identity / None check |
-| `is not` | Negated identity / None check |
+| Operator             | Description                   |
+| -------------------- | ----------------------------- |
+| `==`                 | Equality                      |
+| `!=`                 | Inequality                    |
+| `<`, `<=`, `>`, `>=` | Numeric comparison            |
+| `is`                 | Identity / None check         |
+| `is not`             | Negated identity / None check |
 
 **Arithmetic operators**
 
-| Operator | Description |
-|---|---|
-| `+`, `-` | Addition, subtraction |
-| `*`, `/` | Multiplication, division |
-| `+` (unary), `-` (unary) | Unary plus/minus |
+| Operator                 | Description              |
+| ------------------------ | ------------------------ |
+| `+`, `-`                 | Addition, subtraction    |
+| `*`, `/`                 | Multiplication, division |
+| `+` (unary), `-` (unary) | Unary plus/minus         |
 
 **Other**
 
-| Syntax | Description |
-|---|---|
-| `(expr)` | Parenthesized expression |
-| `expr.field` | Member access |
-| `expr[index]` | Subscript / index access |
-| `fn(args)` | Function call |
+| Syntax                  | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `(expr)`                | Parenthesized expression                             |
+| `expr.field`            | Member access                                        |
+| `expr[index]`           | Subscript / index access                             |
+| `fn(args)`              | Function call                                        |
 | `a if condition else b` | Ternary expression (Python-style, lowest precedence) |
 
 Examples:
@@ -294,12 +297,12 @@ Every block in Agent Script has a schema. Schemas are defined in TypeScript usin
 
 The core factory functions are:
 
-| Factory | Description |
-|---|---|
-| `Block(name, fields)` | A block with a fixed set of typed fields |
+| Factory                     | Description                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `Block(name, fields)`       | A block with a fixed set of typed fields                                      |
 | `TypedMap(name, valueType)` | A variadic map where keys are user-defined and all values share the same type |
-| `NamedBlock(name, fields)` | A block that accepts an instance name (`block_type instance_name:`) |
-| `CollectionBlock(block)` | A collection of named blocks of a given type |
+| `NamedBlock(name, fields)`  | A block that accepts an instance name (`block_type instance_name:`)           |
+| `CollectionBlock(block)`    | A collection of named blocks of a given type                                  |
 
 **Fixed-field blocks**
 
@@ -315,6 +318,7 @@ export const ConfigBlock = Block('ConfigBlock', {
 ```
 
 In Agent Script source:
+
 ```
 config:
     agent_name: "My Agent"
@@ -327,11 +331,15 @@ A `TypedMap` accepts any user-defined keys, all of the same value type. For exam
 
 ```typescript
 // packages/language/src/blocks.ts
-export const VariablesBlock = TypedMap('VariablesBlock', VariablePropertiesBlock);
-export const InputsBlock    = TypedMap('InputsBlock',    InputPropertiesBlock);
+export const VariablesBlock = TypedMap(
+  'VariablesBlock',
+  VariablePropertiesBlock
+);
+export const InputsBlock = TypedMap('InputsBlock', InputPropertiesBlock);
 ```
 
 In Agent Script source — any key name is valid:
+
 ```
 variables:
     order_id:   mutable string = ""
@@ -504,6 +512,7 @@ run @actions.VerifyCustomer
 2. **Callback body** — `set`, `run`, `transition`, and `if`/`else`. These are syntactic sugar for an implicit `then: ->` block that runs after the action returns.
 
 Valid callback statements (phase 2):
+
 - `set` — assign a variable from `@outputs` or any expression
 - `run` — invoke another action (one level of nesting only)
 - `transition` — transition to another subagent
@@ -623,14 +632,14 @@ actions:
 
 The base schema fields for an action are:
 
-| Field | Type | Description |
-|---|---|---|
-| `description` | string | What the action does |
-| `label` | string | Display label (optional) |
-| `inputs` | variadic | Input parameter declarations |
-| `outputs` | variadic | Output parameter declarations |
-| `target` | string | URI identifying the external implementation |
-| `source` | string | Global namespace function name or legacy identifier |
+| Field         | Type     | Description                                         |
+| ------------- | -------- | --------------------------------------------------- |
+| `description` | string   | What the action does                                |
+| `label`       | string   | Display label (optional)                            |
+| `inputs`      | variadic | Input parameter declarations                        |
+| `outputs`     | variadic | Output parameter declarations                       |
+| `target`      | string   | URI identifying the external implementation         |
+| `source`      | string   | Global namespace function name or legacy identifier |
 
 Additional fields (e.g. `require_user_confirmation`, `include_in_progress_indicator`) are dialect-specific extensions.
 
@@ -669,7 +678,6 @@ The base compiler provides the URI schema — dialects may register additional s
 
 Action blocks may be extended by dialects to add fields, tighten validation, or override defaults. This is done via `ActionBlock.extend(...)` in the dialect schema definition. Extended action blocks inherit all base fields and may add or override any of them.
 
-
 ---
 
 ## Part II: AgentScript Dialect
@@ -688,7 +696,7 @@ System-level instructions and default messages for the agent. Appears at the top
 
 #### `instructions`
 
-*Type: string / template*
+_Type: string / template_
 
 Global system instructions inherited by all subagents. Supports `{!...}` interpolation. Each subagent inherits these instructions unless it provides its own `system.instructions` override.
 
@@ -701,7 +709,7 @@ system:
 
 #### `messages`
 
-*Type: block — see [`messages`](#2-messages)*
+_Type: block — see [`messages`](#2-messages)_
 
 Pre-defined message templates for standard runtime situations.
 
@@ -765,19 +773,19 @@ A named agent block defining logic for a specific conversation area. Multiple su
 
 #### `label`
 
-*Type: string — string literals only, no templates*
+_Type: string — string literals only, no templates_
 
 Display label shown in the UI. Not provided to the LLM.
 
 #### `description`
 
-*Type: string — required*
+_Type: string — required_
 
 Describes this subagent's purpose. Used by the runtime to determine when to transition to this subagent.
 
 #### `system`
 
-*Type: block (instructions only)*
+_Type: block (instructions only)_
 
 An optional per-subagent override of the system instructions. Only the `instructions` field is available here (not `messages`).
 
@@ -788,13 +796,13 @@ system:
 
 #### `actions`
 
-*Type: collection of named action blocks*
+_Type: collection of named action blocks_
 
 Action definitions available within this subagent. See [Part I §7](#7-action-definitions).
 
 #### `before_reasoning`
 
-*Type: procedure — templates disallowed*
+_Type: procedure — templates disallowed_
 
 Runs once per turn, before the LLM reasoning loop starts. May contain `set`, `run`, `transition`, and `if`/`else` logic. Template strings (`|`) are not permitted.
 
@@ -808,13 +816,13 @@ before_reasoning:
 
 #### `reasoning`
 
-*Type: block — see [`reasoning`](#9-reasoning)*
+_Type: block — see [`reasoning`](#9-reasoning)_
 
 The reasoning loop block containing LLM instructions and action bindings.
 
 #### `after_reasoning`
 
-*Type: procedure — templates disallowed*
+_Type: procedure — templates disallowed_
 
 Runs once per turn, after the LLM reasoning loop completes. Same constraints as `before_reasoning`.
 
@@ -876,7 +884,7 @@ The reasoning loop block. Drives the LLM's behavior for a given turn.
 
 #### `instructions`
 
-*Type: procedure with string return*
+_Type: procedure with string return_
 
 Instructions provided to the LLM. Re-evaluated on every iteration of the reasoning loop, allowing the prompt to reflect the latest variable state. Supports template strings (`|`), `{!...}` interpolation, and conditional logic to build context-sensitive prompts.
 
@@ -891,7 +899,7 @@ reasoning:
 
 #### `actions`
 
-*Type: collection of reasoning action bindings*
+_Type: collection of reasoning action bindings_
 
 Action bindings made available to the LLM during reasoning. Each binding references a declared action and optionally provides `description`, `available when`, `with` clauses, and callbacks.
 
@@ -936,19 +944,19 @@ A reference to an externally-deployed agent identified by URI. The URI follows t
 
 #### `target`
 
-*Type: string — required, string literals only*
+_Type: string — required, string literals only_
 
 URI identifying the connected agent. The scheme determines how the runtime resolves and invokes it (e.g. `"agentforce://Billing_Agent"`).
 
 #### `label`
 
-*Type: string*
+_Type: string_
 
 Human-readable label for the connected agent.
 
 #### `description`
 
-*Type: string*
+_Type: string_
 
 Description of the connected agent's capabilities.
 

@@ -160,8 +160,17 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
 
         // Type-in-block entry: emit just the key with no colinear type.
         // The type is expressed via the `type:` field in the properties block.
+        // Canvas AST round-trips may hydrate this boolean as a BooleanLiteral.
+        const rawTypeInBlock: unknown =
+          decl instanceof ParameterDeclarationNode ? decl.typeInBlock : false;
         const typeInBlock =
-          decl instanceof ParameterDeclarationNode && decl.typeInBlock;
+          rawTypeInBlock === true ||
+          (typeof rawTypeInBlock === 'object' &&
+            rawTypeInBlock !== null &&
+            '__kind' in rawTypeInBlock &&
+            rawTypeInBlock.__kind === 'BooleanLiteral' &&
+            'value' in rawTypeInBlock &&
+            rawTypeInBlock.value === true);
         let line = `${indent}${emittedKey}:`;
 
         if (!typeInBlock) {

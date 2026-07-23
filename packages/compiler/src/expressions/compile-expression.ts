@@ -227,11 +227,16 @@ function compileMemberExpression(
       case 'system_variables': {
         switch (property) {
           case 'user_input':
-            return 'state.__user_input__';
+            return 'system.input_text';
           case 'current_modality':
-            return 'state.__current_modality__';
+            return 'system.current_modality';
           case 'current_connection':
-            return 'state.__current_connection__';
+            return 'system.current_connection';
+          case 'last_reply':
+            // Nested object; sub-members (`.interrupted`,
+            // `.interrupted_heard_text`) fall through to the generic member
+            // builder, yielding `system.last_reply.<member>`.
+            return 'system.last_reply';
         }
         ctx.error(`Unknown system variable: ${property}`, expr.__cst?.range);
         return `state.${property}`;
@@ -299,11 +304,15 @@ function compileSubscriptExpression(
     const index = compileExprNode(expr.index, ctx, opts);
     switch (index) {
       case '"user_input"':
-        return 'state["__user_input__"]';
+        return 'system["input_text"]';
       case '"current_modality"':
-        return 'state["__current_modality__"]';
+        return 'system["current_modality"]';
       case '"current_connection"':
-        return 'state["__current_connection__"]';
+        return 'system["current_connection"]';
+      case '"last_reply"':
+        // Nested object; sub-member subscripts fall through to the generic
+        // subscript builder, yielding `system["last_reply"][...]`.
+        return 'system["last_reply"]';
     }
     ctx.error(`Unknown system variable: ${index}`, expr.__cst?.range);
     return `state[${index}]`;

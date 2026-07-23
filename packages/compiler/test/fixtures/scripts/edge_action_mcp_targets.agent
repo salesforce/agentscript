@@ -1,0 +1,48 @@
+system:
+    instructions: "You are a helpful assistant with access to MCP tools."
+    messages:
+        welcome: "Hello! I can use MCP tools to help you."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Mcp_Targets_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with mcpTool and platformMcpTool invocation targets"
+
+start_agent main:
+    description: "Agent with mcpTool and platformMcpTool invocation targets"
+
+    actions:
+        Mcp_Tool_Action:
+            description: "Action using mcpTool target"
+            target: "mcpTool://MyMcpServer/myTool"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                mcp_result: string
+                    label: "Mcp Result"
+
+        Platform_Mcp_Tool_Action:
+            description: "Action using platformMcpTool target"
+            target: "platformMcpTool://MyPlatformMcpServer/myTool"
+            inputs:
+                input_val: string
+                    label: "Input Value"
+                    is_required: True
+            outputs:
+                platform_mcp_result: string
+                    label: "Platform Mcp Result"
+
+    reasoning:
+        instructions: ->
+            | You have access to both mcpTool and platformMcpTool actions.
+              Use the appropriate action based on the user's request.
+
+        actions:
+            Use_Mcp: @actions.Mcp_Tool_Action
+                with input_val=...
+
+            Use_Platform_Mcp: @actions.Platform_Mcp_Tool_Action
+                with input_val=...

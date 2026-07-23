@@ -357,7 +357,7 @@ export { unsupportedConditionalsPass } from './lint/unsupported-conditionals.js'
 export { transitionTargetPass } from './lint/transition-target.js';
 export { emptyBlockPass } from './lint/empty-block.js';
 export { spreadContextPass } from './lint/spread-context.js';
-export { nullLiteralValidationPass } from './lint/null-literal-validation.js';
+export { identifierValidationPass } from './lint/identifier-validation.js';
 export { unusedVariablePass } from './lint/unused-variable.js';
 export type { UnusedVariablePassOptions } from './lint/unused-variable.js';
 export {

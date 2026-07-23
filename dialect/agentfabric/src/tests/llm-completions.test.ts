@@ -83,11 +83,11 @@ describe('LLM entry variant completions', () => {
     const source = build(
       'llm:',
       '    myOpenAI:',
-      '        target: "llm://a"',
+      '        target: "llm://aa"',
       '        kind: "OpenAI"',
       '        model: "m"',
       '    myGemini:',
-      '        target: "llm://b"',
+      '        target: "llm://bb"',
       '        kind: "Gemini"',
       '        model: "m"',
       INDENT8

@@ -1,5 +1,5 @@
 ---
-sidebar_label: "Tools (Reasoning Actions)"
+sidebar_label: 'Tools (Reasoning Actions)'
 ---
 
 # Agent Script Reference: Tools (Reasoning Actions)

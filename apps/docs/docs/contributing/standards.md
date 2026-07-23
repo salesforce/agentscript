@@ -14,16 +14,16 @@ sidebar_position: 3
 
 ## Naming Conventions
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Files | `kebab-case.ts` | `graph-layout.ts` |
-| Classes | `PascalCase` | `BlockFactory` |
-| Functions/methods | `camelCase` | `parseBlock()` |
-| Constants | `UPPER_SNAKE_CASE` | `MAX_RETRIES` |
-| Interfaces | `PascalCase` (no `I` prefix) | `NodeConfig` |
-| Type parameters | Single uppercase letter | `T`, `K`, `V` |
-| Lint pass IDs | `'category/rule-name'` pattern | `'types/no-any'` |
-| Package names | `@agentscript/package-name` | `@agentscript/compiler` |
+| Element           | Convention                     | Example                 |
+| ----------------- | ------------------------------ | ----------------------- |
+| Files             | `kebab-case.ts`                | `graph-layout.ts`       |
+| Classes           | `PascalCase`                   | `BlockFactory`          |
+| Functions/methods | `camelCase`                    | `parseBlock()`          |
+| Constants         | `UPPER_SNAKE_CASE`             | `MAX_RETRIES`           |
+| Interfaces        | `PascalCase` (no `I` prefix)   | `NodeConfig`            |
+| Type parameters   | Single uppercase letter        | `T`, `K`, `V`           |
+| Lint pass IDs     | `'category/rule-name'` pattern | `'types/no-any'`        |
+| Package names     | `@agentscript/package-name`    | `@agentscript/compiler` |
 
 ## Testing
 

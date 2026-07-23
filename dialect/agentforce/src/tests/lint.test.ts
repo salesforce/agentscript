@@ -11,7 +11,10 @@ import { DiagnosticSeverity } from '@agentscript/types';
 import type { Diagnostic } from '@agentscript/types';
 import { parseDocument, testSchemaCtx } from './test-utils.js';
 import { defaultRules } from '../lint/passes/index.js';
-import { ALLOWED_AGENT_TYPES } from '../lint/agent-types.js';
+import {
+  ALLOWED_AGENT_TYPES,
+  NON_PUBLIC_AGENT_TYPES,
+} from '../lint/agent-types.js';
 
 function createLintEngine() {
   return new LintEngine({ passes: defaultRules() });
@@ -301,6 +304,23 @@ topic main:
     use_mcp_tool:
       description: "Use MCP Tool"
       target: "mcpTool://server/tool"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(d => d.code === 'invalid-action-target');
+    expect(errors).toHaveLength(0);
+  });
+
+  it('allows platformMcpTool:// target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    use_platform_mcp_tool:
+      description: "Use Platform MCP Tool"
+      target: "platformMcpTool://server/tool"
   reasoning:
     instructions: ->
       |Do it
@@ -902,6 +922,33 @@ config:
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain('SomeBrandNewAgentType');
   });
+
+  // Non-public agent types (stripped from agent-dsl's public JSON schema) must
+  // never leak into ALLOWED_AGENT_TYPES: the editor would accept them while the
+  // compiler's public Zod enum rejects them, causing a schema-validation
+  // failure at compile time. Guards against a split-brain allowlist.
+  it('excludes NON_PUBLIC_AGENT_TYPES from ALLOWED_AGENT_TYPES', () => {
+    const leaked = NON_PUBLIC_AGENT_TYPES.filter(t =>
+      (ALLOWED_AGENT_TYPES as readonly string[]).includes(t)
+    );
+    expect(leaked).toEqual([]);
+  });
+
+  it.each(NON_PUBLIC_AGENT_TYPES)(
+    'rejects non-public agent_type %s with agent-type-not-allowed',
+    agentType => {
+      const diagnostics = runSecurityLint(`
+config:
+  developer_name: "MyAgent"
+  agent_type: "${agentType}"
+`);
+
+      const errors = diagnostics.filter(
+        d => d.code === 'agent-type-not-allowed'
+      );
+      expect(errors).toHaveLength(1);
+    }
+  );
 });
 
 // ============================================================================
@@ -2017,6 +2064,73 @@ connected_subagent order_lookup:
     );
     expect(boundErrors).toHaveLength(0);
   });
+
+  it('allows a list-typed input bound to a single list-typed variable', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  account_ids: linked list[string]
+    source: @MessagingEndUser.ContactId
+    description: "Account IDs"
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    account_ids: list[string] = @variables.account_ids
+`);
+
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-required' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
+  it('allows a list literal of literal values as a bound input', () => {
+    const diagnostics = runSecurityLint(`
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    account_ids: list[string] = ["123", "456"]
+`);
+
+    const boundErrors = diagnostics.filter(
+      d =>
+        d.code === 'bound-input-not-variable' ||
+        d.code === 'bound-input-required' ||
+        d.code === 'bound-input-not-linked-or-mutable'
+    );
+    expect(boundErrors).toHaveLength(0);
+  });
+
+  it('reports error for a list literal of variable references (unsupported)', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  primary_id: linked string
+    source: @MessagingEndUser.ContactId
+    description: "Primary ID"
+  secondary_id: mutable string
+
+connected_subagent order_lookup:
+  label: "Order Lookup"
+  description: "Looks up orders"
+  inputs:
+    account_ids: list[string] = [@variables.primary_id, @variables.secondary_id]
+`);
+
+    // A list literal may only contain literal values. Binding variables inside
+    // a list is not supported — a single list-typed variable reference should
+    // be used instead. One diagnostic is reported per non-literal element.
+    const errors = diagnostics.filter(
+      d => d.code === 'bound-input-not-variable'
+    );
+    expect(errors).toHaveLength(2);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('list bound input may only contain');
+  });
 });
 
 // ============================================================================
@@ -2961,5 +3075,487 @@ subagent main:
 
     const unused = diagnostics.filter(d => d.code === 'unused-variable');
     expect(unused).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Bare-identifier validation (identifierValidationPass), exercised end-to-end
+// through the real dialect rules on if / when / available when conditions.
+// ============================================================================
+
+describe('bare identifier validation in conditions', () => {
+  const IDENTIFIER_CODES = [
+    'identifier-confusable-none',
+    'identifier-confusable-boolean',
+    'null-not-allowed',
+    'unknown-identifier',
+  ];
+
+  const identifierDiags = (source: string): Diagnostic[] =>
+    runSecurityLint(source).filter(d =>
+      IDENTIFIER_CODES.includes(d.code ?? '')
+    );
+
+  const inIf = (condition: string): string => `
+variables:
+  x: mutable string
+subagent main:
+  description: "Main"
+  before_reasoning:
+    if ${condition}:
+      set @variables.x = "1"
+  reasoning:
+    instructions: ->
+      |Do something
+`;
+
+  it('flags lowercase none in an if condition', () => {
+    const diags = identifierDiags(inIf('@variables.x is none'));
+    expect(diags).toHaveLength(1);
+    expect(diags[0].code).toBe('identifier-confusable-none');
+    expect(diags[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('flags an arbitrary bareword in an if condition', () => {
+    const diags = identifierDiags(inIf('@variables.x == abcd'));
+    expect(diags).toHaveLength(1);
+    expect(diags[0].code).toBe('unknown-identifier');
+  });
+
+  it('flags lowercase true in an if condition', () => {
+    const diags = identifierDiags(inIf('@variables.x == true'));
+    expect(diags).toHaveLength(1);
+    expect(diags[0].code).toBe('identifier-confusable-boolean');
+  });
+
+  it('does not flag None / valid comparisons', () => {
+    expect(identifierDiags(inIf('@variables.x is None'))).toHaveLength(0);
+    expect(identifierDiags(inIf('@variables.x == "abcd"'))).toHaveLength(0);
+  });
+
+  it('does not double-report with function-callee validation', () => {
+    const source = `
+variables:
+  items: mutable string
+subagent main:
+  description: "Main"
+  before_reasoning:
+    if len(@variables.items) == 0:
+      set @variables.items = "x"
+  reasoning:
+    instructions: ->
+      |Do something
+`;
+    expect(identifierDiags(source)).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Voice language validation tests
+// ============================================================================
+
+describe('voice language validation', () => {
+  it('allows voice language keys that match declared locales', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales: "fr_CA, de, it"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    en_US:
+      is_default: True
+    fr_CA:
+      outbound:
+        persona_id: "test123"
+    de:
+      inbound:
+        filler_words_detection: True
+    it:
+      inbound:
+        keywords:
+          - "urgent"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('reports error for voice language key not in declared locales', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales: "fr_CA"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    en_US:
+      is_default: True
+    de:
+      inbound:
+        filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(1);
+    expect(voiceLangErrors[0].message).toContain("'de'");
+    expect(voiceLangErrors[0].message).toContain(
+      'not declared in the language block'
+    );
+    expect(voiceLangErrors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports error for multiple invalid voice language keys', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    en_US:
+      is_default: True
+    fr_CA:
+      outbound:
+        persona_id: "test123"
+    de:
+      inbound:
+        filler_words_detection: True
+    it:
+      inbound:
+        keywords:
+          - "urgent"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(3);
+    const errorMessages = voiceLangErrors.map(d => d.message);
+    expect(errorMessages.some(m => m.includes("'fr_CA'"))).toBe(true);
+    expect(errorMessages.some(m => m.includes("'de'"))).toBe(true);
+    expect(errorMessages.some(m => m.includes("'it'"))).toBe(true);
+  });
+
+  it('warns when voice languages are defined but no language block exists', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    en_US:
+      is_default: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const missingLangBlock = diagnostics.filter(
+      d => d.code === 'voice-language-missing-language-block'
+    );
+    expect(missingLangBlock).toHaveLength(1);
+    expect(missingLangBlock[0].message).toContain("no 'language' block exists");
+    expect(missingLangBlock[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  it('skips validation when all_additional_locales is True', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  all_additional_locales: True
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    fr_CA:
+      is_default: True
+    de:
+      inbound:
+        filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('skips validation when adaptive language is enabled', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  adaptive: True
+  default_locale: "en_US"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    fr_CA:
+      is_default: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('handles comma-separated additional_locales with whitespace', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales: " fr_CA , de,  it  "
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  languages:
+    fr_CA:
+      is_default: True
+    de:
+      inbound:
+        filler_words_detection: True
+    it:
+      inbound:
+        keywords:
+          - "urgent"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('does not validate when voice modality has no languages', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    const missingLangBlock = diagnostics.filter(
+      d => d.code === 'voice-language-missing-language-block'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+    expect(missingLangBlock).toHaveLength(0);
+  });
+
+  it('does not validate when there is no voice modality', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+
+config:
+  agent_name: "TestAgent"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+});
+
+describe('voice version mixing validation', () => {
+  it('allows V2-only properties', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  inbound:
+    filler_words_detection: True
+  outbound:
+    persona_id: "abc123"
+  session_language_switching: "Multilingual"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(0);
+  });
+
+  it('allows V1-only properties', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  voice_id: "abc123"
+  outbound_speed: 1.0
+  inbound_filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(0);
+  });
+
+  it('reports error when V1 and V2 properties are mixed', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  inbound:
+    filler_words_detection: True
+  voice_id: "abc123"
+  outbound_speed: 1.0
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(2); // one per V1 field
+    expect(mixingErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(mixingErrors[0].message).toContain('V1');
+    expect(mixingErrors[0].message).toContain('V2');
+  });
+
+  it('reports error for each V1 property when mixed with V2', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  outbound:
+    persona_id: "abc123"
+  voice_id: "v123"
+  outbound_speed: 1.5
+  inbound_filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(3); // three V1 fields
+    const messages = mixingErrors.map(d => d.message);
+    expect(messages.some(m => m.includes("'voice_id'"))).toBe(true);
+    expect(messages.some(m => m.includes("'outbound_speed'"))).toBe(true);
+    expect(
+      messages.some(m => m.includes("'inbound_filler_words_detection'"))
+    ).toBe(true);
+  });
+
+  it('does not error when voice block is absent', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(0);
+  });
+
+  it('does not error when voice block is empty', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(0);
+  });
+
+  it('error message lists the V2 properties present', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  inbound:
+    keywords:
+      - "urgent"
+  languages:
+    en_US:
+      is_default: True
+  voice_id: "v123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(1);
+    expect(mixingErrors[0].message).toContain('inbound');
+    expect(mixingErrors[0].message).toContain('languages');
+    expect(mixingErrors[0].message).toContain("'voice_id'");
   });
 });

@@ -492,7 +492,7 @@ function resolveCheck(
     if (globalMembers.has(property) || globalMembers.has('*')) {
       return { kind: 'resolved' };
     }
-    return { kind: 'global-miss', members: [...globalMembers] };
+    return { kind: 'global-miss', members: [...globalMembers.keys()] };
   }
 
   const isSchemaKey = getSchemaNamespaces(schemaCtx).has(namespace);

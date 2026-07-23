@@ -1,5 +1,5 @@
 ---
-sidebar_label: "System Overrides"
+sidebar_label: 'System Overrides'
 ---
 
 # Agent Script Pattern: Avoid Conflicting Instructions with Instruction Overrides

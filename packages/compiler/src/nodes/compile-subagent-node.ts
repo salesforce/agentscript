@@ -49,6 +49,7 @@ import {
   extractStringValue,
   extractSourcedString,
   extractSourcedDescription,
+  extractBooleanValue,
   iterateNamedMap,
   resolveAtReference,
 } from '../ast-helpers.js';
@@ -61,7 +62,12 @@ import {
 import { normalizeDeveloperName, dedent } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
 import { compileSkills } from './compile-skills.js';
-import { compileDeterministicDirectives } from './compile-directives.js';
+import {
+  compileDeterministicDirectives,
+  createInstructionResetAction,
+  createStateUpdateAction,
+  instructionAppendValue,
+} from './compile-directives.js';
 import { resolveActionType } from './resolve-action-type.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
 import {
@@ -116,7 +122,6 @@ export function compileSubAgentNode(
     postToolCalls,
     afterAllToolCalls,
     instructionTemplate,
-    instructionTemplateParts,
     isProcedural,
     proceduralStatements,
   } = compileReasoningTools(
@@ -176,16 +181,11 @@ export function compileSubAgentNode(
         ctx
       );
     } else {
-      // Template-only: use focus_prompt + BRI
+      // Template-only: use focus_prompt + BRI. Consecutive instruction lines
+      // (`| ...` blocks) are flattened into a single append action.
       focusPrompt = `{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
-      // Use per-block parts when available (multiple | blocks → separate BRI actions)
-      const parts = instructionTemplateParts ?? [
-        {
-          text: instructionTemplate,
-          range: topicBlock.reasoning?.instructions?.__cst?.range,
-        },
-      ];
-      beforeReasoningIteration = compileSimpleInstructionIteration(parts, ctx);
+      beforeReasoningIteration =
+        compileSimpleInstructionIteration(instructionTemplate);
     }
   } else {
     focusPrompt = compileFocusPrompt(undefined, topicBlock.reasoning);
@@ -227,10 +227,15 @@ export function compileSubAgentNode(
     action_definitions: actionDefinitions,
   };
 
-  // Only emit instructions when non-empty (match Python: omit when no system block)
-  if (systemInstructions) {
-    node.instructions = systemInstructions;
-  }
+  // Always emit `instructions` as a string ("" when there is no system block;
+  // `compileSystemInstructions` already returns "" in that case). The
+  // downstream schema types this field as a non-nullable string, and omitting
+  // the key causes it to round-trip as an explicit `null` (dumped from a None
+  // default), which then fails re-validation against `str`. Emitting "" keeps
+  // the value a valid string. This mirrors the router node, which already
+  // always emits `instructions`. Assigned here (rather than in the literal
+  // above) to preserve key insertion order for existing serialized fixtures.
+  node.instructions = systemInstructions;
 
   // Only emit focus_prompt when non-empty
   if (focusPrompt) {
@@ -262,6 +267,17 @@ export function compileSubAgentNode(
   if (source !== undefined) {
     node.source = source;
   }
+  // Resolve the DSL `strip_salesforce_instructions` field with the
+  // subagent-level `system` block overriding the global `system` block, and
+  // emit it as the AgentJSON `strip_salesforce_system_prompt` field. Authors
+  // set it at the top-level `system:` block to apply to every subagent, and
+  // may override it on an individual subagent's `system:` block.
+  const stripSalesforceInstructions =
+    extractBooleanValue(topicBlock.system?.strip_salesforce_instructions) ??
+    extractBooleanValue(systemBlock?.strip_salesforce_instructions);
+  if (stripSalesforceInstructions !== undefined) {
+    node.strip_salesforce_system_prompt = stripSalesforceInstructions;
+  }
 
   ctx.setScriptPath(node, topicName);
 
@@ -277,8 +293,6 @@ interface ReasoningToolsResult {
   postToolCalls: PostToolCall[];
   afterAllToolCalls: (Action | HandOffAction)[];
   instructionTemplate: string | undefined;
-  /** Individual compiled template parts (one per | block) with CST info */
-  instructionTemplateParts: Array<{ text: string; range?: Range }> | undefined;
   /** True if instructions contain procedural statements (if/run/transition) */
   isProcedural: boolean;
   /** The raw ProcedureValueNode statements for procedural instructions */
@@ -295,16 +309,12 @@ function compileReasoningTools(
   const postToolCalls: PostToolCall[] = [];
   const allHandOffs: HandOffAction[] = [];
   let instructionTemplate: string | undefined;
-  let instructionTemplateParts:
-    | Array<{ text: string; range?: Range }>
-    | undefined;
   if (!reasoning) {
     return {
       tools,
       postToolCalls,
       afterAllToolCalls: allHandOffs,
       instructionTemplate,
-      instructionTemplateParts,
       isProcedural: false,
       proceduralStatements: undefined,
     };
@@ -384,7 +394,6 @@ function compileReasoningTools(
     postToolCalls: result.postToolCalls,
     afterAllToolCalls: result.handOffActions,
     instructionTemplate: result.instructionTemplate,
-    instructionTemplateParts: result.instructionTemplateParts,
     isProcedural: result.isProcedural,
     proceduralStatements: result.proceduralStatements,
   };
@@ -585,15 +594,12 @@ function compileBeforeReasoningIteration(
   if (statements.length === 0) return [];
 
   // Reset agent instructions
-  const resetAction: Action = {
-    type: 'action',
-    target: STATE_UPDATE_ACTION,
-    enabled: 'True',
-    state_updates: [{ [AGENT_INSTRUCTIONS_VARIABLE]: "''" }],
-  };
-  const result: Action[] = [resetAction];
+  const result: Action[] = [createInstructionResetAction()];
 
-  // Compile each statement into before_reasoning_iteration actions
+  // Compile each statement into before_reasoning_iteration actions. Adjacent
+  // same-gate instruction appends (e.g. consecutive top-level `| ...` lines) are
+  // fused inside compileDeterministicDirectives (keyed off
+  // agentInstructionsVariable) into a single state update.
   const actions = compileDeterministicDirectives(statements, ctx, {
     addNextTopicResetAction: false,
     gateOnNextTopicEmpty: false,
@@ -678,37 +684,26 @@ function compileBeforeReasoningIteration(
 
 /**
  * Create before_reasoning_iteration actions for simple template instructions.
- * Resets agent instructions then appends one action per template part.
- * When multiple | blocks exist, each gets a separate append action.
+ * Resets agent instructions then appends the whole template in a single action.
+ * Consecutive `| ...` instruction lines are already joined with `\n` into one
+ * template string, so N lines flatten to one append rather than N appends.
  */
 function compileSimpleInstructionIteration(
-  templateParts: Array<{ text: string; range?: Range }>,
-  _ctx: CompilerContext
+  instructionTemplate: string
 ): Action[] {
-  // Reset action
-  const resetAction: Action = {
-    type: 'action',
-    target: STATE_UPDATE_ACTION,
-    enabled: 'True',
-    state_updates: [{ [AGENT_INSTRUCTIONS_VARIABLE]: "''" }],
-  };
+  const resetAction = createInstructionResetAction();
+  if (!instructionTemplate) return [resetAction];
 
-  const result: Action[] = [resetAction];
+  const appendAction = createStateUpdateAction([
+    {
+      [AGENT_INSTRUCTIONS_VARIABLE]: instructionAppendValue(
+        AGENT_INSTRUCTIONS_VARIABLE,
+        instructionTemplate
+      ),
+    },
+  ]);
 
-  for (const part of templateParts) {
-    const appendAction: Action = {
-      type: 'action',
-      target: STATE_UPDATE_ACTION,
-      state_updates: [
-        {
-          [AGENT_INSTRUCTIONS_VARIABLE]: `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}\n${part.text}`,
-        },
-      ],
-    };
-    result.push(appendAction);
-  }
-
-  return result;
+  return [resetAction, appendAction];
 }
 
 // ---------------------------------------------------------------------------
