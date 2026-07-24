@@ -8,12 +8,17 @@
 /**
  * Publish script for CI: rewrites @agentscript/* → @sf-agentscript/* in all
  * package.json files, in compiled dist/ output, and in shipped src/ at publish
- * time, then runs changeset publish.
+ * time, then publishes to npm.
  *
  * This allows the codebase to use @agentscript/* internally while publishing
  * under the @sf-agentscript npm scope. Without rewriting dist/ and src/,
  * consumers see ERR_MODULE_NOT_FOUND for @agentscript/* at runtime because
  * tsc emits the literal source specifiers into dist/*.js.
+ *
+ * Versions are NOT computed here — they come from each package.json (resolved
+ * upstream by semantic-release and synced into this repo). `pnpm -r publish`
+ * skips private packages and any version already on the registry, so this is
+ * idempotent: re-running after a sync only publishes newly-bumped packages.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -107,22 +112,27 @@ for (const pkg of packages) {
   }
 }
 
-// Step 4: Rewrite changeset config so it recognizes the new package names
-const changesetConfigPath = join(ROOT, '.changeset', 'config.json');
-rewriteFile(changesetConfigPath);
-
 console.log(
   `\nRewrote ${pkgJsonCount} package.json files and ${fileCount} dist/src files to ${PUBLISH_SCOPE}* scope\n`
 );
 
-// Step 5: Re-install so pnpm resolves workspace: references with new names
+// Step 4: Re-install so pnpm resolves workspace: references with new names
 execFileSync('pnpm', ['install', '--no-frozen-lockfile'], {
   cwd: ROOT,
   stdio: 'inherit',
 });
 
-// Step 6: Publish via changeset
-execFileSync('pnpm', ['changeset', 'publish'], {
-  cwd: ROOT,
-  stdio: 'inherit',
-});
+// Step 5: Publish every public workspace package at the version in its
+// package.json. `pnpm -r publish` iterates the workspace, skips packages
+// marked `"private": true`, resolves `workspace:*` deps to exact versions in
+// the tarball, and no-ops any version already on the registry — so this is
+// safe to re-run on every sync. --no-git-checks because CI publishes from a
+// detached/ephemeral checkout with the scope-rewrite left uncommitted.
+execFileSync(
+  'pnpm',
+  ['-r', 'publish', '--no-git-checks', '--access', 'public'],
+  {
+    cwd: ROOT,
+    stdio: 'inherit',
+  }
+);
