@@ -19,9 +19,8 @@ jobs:
     name: Publish to npm
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
+      contents: read
+      id-token: write # npm provenance
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -60,15 +59,12 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Create Release Pull Request or Publish
-        id: changesets
-        uses: changesets/action@c8bada60c408975afd1a20b3db81d6eee6789308 # v1
-        with:
-          publish: node scripts/publish.mjs
-          version: pnpm changeset version
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
+      # Versions are resolved upstream (semantic-release) and synced into each
+      # package.json. This step only builds and publishes what's already there;
+      # `pnpm -r publish` skips private packages and versions already on the
+      # registry, so it's idempotent across syncs.
+      - name: Publish to npm
+        run: node scripts/publish.mjs
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
