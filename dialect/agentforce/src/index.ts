@@ -9,6 +9,7 @@ import type {
   DialectConfig,
   InferFieldType,
   InferFields,
+  Parsed,
 } from '@agentscript/language';
 import { AgentforceSchema, AgentforceSchemaInfo } from './schema.js';
 import { defaultRules } from './lint/passes/index.js';
@@ -27,6 +28,8 @@ export {
   ResponseFormatInputPropertiesBlock,
   AccessBlock,
   AFActionsBlock,
+  AFSystemBlock,
+  AFSubagentBlock,
   ModelConfigBlock,
   ContextBlock,
   RecommendedPromptsBlock,
@@ -113,3 +116,19 @@ export const agentforceDialect: DialectConfig = {
   createRules: defaultRules,
   source: 'agentforce-lint',
 };
+
+export {
+  AGENTFORCE_PLUGIN_DIALECT_NAME,
+  AgentforcePluginSchema,
+  AgentforcePluginSchemaAliases,
+  AgentforcePluginSchemaInfo,
+  agentforcePluginSchemaContext,
+  agentforcePluginDialect,
+} from './bundle-schema.js';
+
+import type { AgentforcePluginSchema } from './bundle-schema.js';
+
+export type ParsedAgentforcePluginDocumentFields =
+  InferFields<AgentforcePluginSchema>;
+export type ParsedAgentforcePluginDocument =
+  Parsed<ParsedAgentforcePluginDocumentFields>;

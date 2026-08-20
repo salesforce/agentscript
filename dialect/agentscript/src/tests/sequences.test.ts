@@ -351,6 +351,18 @@ describe('ExpressionSequence parsing', () => {
     expect(seq.items[1].__kind).toBe('StringLiteral');
   });
 
+  test('validates items when an element type is provided', () => {
+    const source = ['items:', '  - "valid"', '  - 42'].join('\n');
+    const { value, diagnostics } = parseWithDiagnostics(source, {
+      items: ExpressionSequence(StringValue.accepts(['StringLiteral'])),
+    });
+
+    expect(value.items?.items).toHaveLength(2);
+    const mismatch = diagnostics.find(d => d.code === 'type-mismatch');
+    expect(mismatch).toBeDefined();
+    expect(mismatch?.message).toContain('Expected a string');
+  });
+
   test('mapping elements produce invalid-sequence-element diagnostic', () => {
     const source = ['items:', '  - key: "value"'].join('\n');
     const { diagnostics } = parseWithDiagnostics(source, {

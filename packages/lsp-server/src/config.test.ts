@@ -67,4 +67,27 @@ describe('lsp-server config', () => {
     );
     expect(dialectError).toBeUndefined();
   });
+
+  test('processDocument with agentforce-plugin dialect annotation', () => {
+    const config = createServerConfig();
+    const source = [
+      '# @dialect: agentforce-plugin',
+      'system:',
+      '    instructions: "Plugin instructions"',
+      'workflows:',
+      '    run:',
+      '        prompt: "Run the plugin workflow."',
+    ].join('\n');
+    const state = processDocument('test://prospecting.plugin', source, config);
+
+    expect(state.service.dialectConfig.name).toBe('agentforce-plugin');
+    expect(
+      state.diagnostics.find(
+        diagnostic => diagnostic.code === 'unknown-dialect'
+      )
+    ).toBeUndefined();
+    expect(
+      state.diagnostics.find(diagnostic => diagnostic.code === 'unknown-block')
+    ).toBeUndefined();
+  });
 });

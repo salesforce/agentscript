@@ -28,7 +28,7 @@ export interface DialectAnnotation {
 
 // Version: major only (e.g., 2) or major.minor (e.g., 2.2).
 // When minor is specified it acts as a minimum minor version for that major.
-const DIALECT_PATTERN = /^#\s*@dialect:\s*(\w+)(?:=(\d+(?:\.\d+)?))?/im;
+const DIALECT_PATTERN = /^#\s*@dialect:\s*([\w-]+)(?:=(\d+(?:\.\d+)?))?/im;
 
 /**
  * Parse a `# @dialect: NAME=VERSION` annotation from the first ~10 lines of source.

@@ -18,7 +18,7 @@
 
 import { isTokenKind, TokenKind } from './token.js';
 import { CSTNode } from './cst-node.js';
-import { makeErrorNode } from './errors.js';
+import { makeErrorNode, tokenToAutoLeaf } from './errors.js';
 import {
   makeEmptyError,
   addMissingTarget,
@@ -49,14 +49,26 @@ export function isStatementStart(ctx: ParserContext): boolean {
     case 'run':
     case 'set':
     case 'transition':
-    case 'collect':
+    case 'escalate':
       return true;
     case 'with':
       // "with" is a statement only if not followed by colon (which would make it a key)
       return ctx.peekAt(1).kind !== TokenKind.COLON;
+    case 'when':
+      // "when" is a statement only if not followed by colon (which would make it a key)
+      return ctx.peekAt(1).kind !== TokenKind.COLON;
+    case 'render':
+    case 'show_and_return':
+      return ctx.peekAt(1).kind === TokenKind.COLON;
     case 'available':
       return (
         ctx.peekAt(1).kind === TokenKind.ID && ctx.peekAt(1).text === 'when'
+      );
+    case 'ask':
+      // "ask for" is a two-word statement keyword (mirrors "available when").
+      // A bare "ask" not followed by "for" is not a statement start.
+      return (
+        ctx.peekAt(1).kind === TokenKind.ID && ctx.peekAt(1).text === 'for'
       );
     default:
       return false;
@@ -122,10 +134,34 @@ export function parseStatement(
         return parseSetStatement(ctx);
       case 'transition':
         return parseTransitionStatement(ctx);
-      case 'collect':
-        return parseCollectStatement(ctx, parseTemplate);
+      case 'escalate':
+        return parseEscalateStatement(ctx);
+      case 'ask':
+        // "ask for" — two-word statement keyword (mirrors "available when").
+        if (
+          ctx.peekAt(1).kind === TokenKind.ID &&
+          ctx.peekAt(1).text === 'for'
+        ) {
+          return parseCollectStatement(ctx, parseTemplate);
+        }
+        break;
       case 'with':
         return parseWithStatement(ctx);
+      case 'when':
+        if (ctx.peekAt(1).kind !== TokenKind.COLON) {
+          return parseWhenStatement(ctx, parseTemplate);
+        }
+        break;
+      case 'render':
+        if (ctx.peekAt(1).kind === TokenKind.COLON) {
+          return parseRenderStatement(ctx, parseTemplate);
+        }
+        break;
+      case 'show_and_return':
+        if (ctx.peekAt(1).kind === TokenKind.COLON) {
+          return parseShowAndReturnStatement(ctx);
+        }
+        break;
       case 'available': {
         if (
           ctx.peekAt(1).kind === TokenKind.ID &&
@@ -423,12 +459,13 @@ export function parseRunStatement(
 }
 
 /**
- * Parse `collect @variables.X <INDENT> message: "..." <DEDENT>`.
+ * Parse `ask for @variables.X <INDENT> instructions: "..." <DEDENT>`.
  *
  * Produces a `collect_statement` node with a `target` field (the variable
- * expression) and a `body` field holding a `mapping` (with the `message:`
- * element). Mirrors the tree-sitter grammar's collect_statement rule: `collect`
- * is an operator (like `run`), so there is no colon after the target.
+ * expression) and a `body` field holding a `mapping` (with the `instructions:`
+ * element). Mirrors the tree-sitter grammar's collect_statement rule: `ask for`
+ * is a two-word operator (like `available when`), so there is no colon after the
+ * target. (The CST node retains its internal `collect_statement` name.)
  */
 export function parseCollectStatement(
   ctx: ParserContext,
@@ -437,10 +474,36 @@ export function parseCollectStatement(
   const startTok = ctx.peek();
   const node = ctx.startNode('collect_statement');
 
-  ctx.addAnonymousChild(node, ctx.consume()); // collect
+  ctx.addAnonymousChild(node, ctx.consume()); // ask
+  ctx.addAnonymousChild(node, ctx.consume()); // for
 
   // Target expression (e.g. @variables.patient_city)
-  if (!ctx.isAtSyncPoint()) {
+  // Builder temporarily inserts `@...` while the user is choosing a
+  // reference. Recover like tree-sitter: diagnose the `@`, use `...` as the
+  // placeholder target, and keep the indented collect body attached. If the
+  // ellipsis is left unconsumed, its INDENT/DEDENT pair can terminate the
+  // surrounding mapping early and make later blocks appear invalid.
+  if (
+    ctx.peekKind() === TokenKind.AT &&
+    ctx.peekAt(1).kind === TokenKind.ELLIPSIS
+  ) {
+    const atToken = ctx.consume();
+    const atLeaf = tokenToAutoLeaf(atToken, ctx.source, atToken.startOffset);
+    node.appendChild(
+      makeErrorNode(
+        ctx.source,
+        [atLeaf],
+        atToken.startOffset,
+        atToken.startOffset + atToken.text.length,
+        atToken.start,
+        atToken.end
+      )
+    );
+    const target = parseExpression(ctx, 0);
+    if (target) {
+      node.appendChild(wrapExpression(ctx, target), 'target');
+    }
+  } else if (!ctx.isAtSyncPoint()) {
     const target = parseExpression(ctx, 0);
     if (target) {
       node.appendChild(wrapExpression(ctx, target), 'target');
@@ -451,8 +514,9 @@ export function parseCollectStatement(
     addMissingTarget(ctx, node);
   }
 
-  // Inline comment after the target (before the indented body). `collect` is
-  // an operator like `run`, so there is no colon between the target and body.
+  // Inline comment after the target (before the indented body). `ask for` is
+  // an operator like `available when`, so there is no colon between the target
+  // and body.
   if (ctx.peekKind() === TokenKind.COMMENT) {
     node.appendChild(ctx.consumeNamed('comment'));
   }
@@ -576,6 +640,15 @@ export function parseTransitionStatement(ctx: ParserContext): CSTNode {
   return node;
 }
 
+export function parseEscalateStatement(ctx: ParserContext): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('escalate_statement');
+  ctx.addAnonymousChild(node, ctx.consume()); // escalate
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
 export function parseWithStatement(ctx: ParserContext): CSTNode {
   const startTok = ctx.peek();
 
@@ -662,6 +735,87 @@ function parseWithParams(ctx: ParserContext, node: CSTNode): void {
       break;
     }
   }
+}
+
+export function parseWhenStatement(
+  ctx: ParserContext,
+  parseTemplate?: (ctx: ParserContext) => CSTNode
+): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('when_statement');
+
+  ctx.addAnonymousChild(node, ctx.consume()); // when
+
+  const subject = parseExpression(ctx, 0);
+  if (subject) {
+    node.appendChild(wrapExpression(ctx, subject), 'subject');
+  }
+
+  // Optional indented body (procedure)
+  if (ctx.peekKind() === TokenKind.INDENT) {
+    ctx.consume();
+    consumeCommentsAndSkipNewlines(ctx, node);
+    const proc = parseProcedure(ctx, parseTemplate);
+    if (proc) node.appendChild(proc, 'body');
+    consumeCommentsAndSkipNewlines(ctx, node);
+    if (ctx.peekKind() === TokenKind.DEDENT) ctx.consume();
+  }
+
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
+export function parseRenderStatement(
+  ctx: ParserContext,
+  parseTemplate?: (ctx: ParserContext) => CSTNode
+): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('render_statement');
+
+  ctx.addAnonymousChild(node, ctx.consume()); // render
+
+  if (ctx.peekKind() === TokenKind.COLON) {
+    ctx.addAnonymousChild(node, ctx.consume());
+  }
+
+  const value = parseExpression(ctx, 0);
+  if (value) node.appendChild(wrapExpression(ctx, value), 'value');
+
+  // Optional indented body (procedure) — holds nested `show_and_return:` clause.
+  if (ctx.peekKind() === TokenKind.INDENT) {
+    ctx.consume();
+    consumeCommentsAndSkipNewlines(ctx, node);
+    const proc = parseProcedure(ctx, parseTemplate);
+    if (proc) node.appendChild(proc, 'body');
+    consumeCommentsAndSkipNewlines(ctx, node);
+    if (ctx.peekKind() === TokenKind.DEDENT) ctx.consume();
+  }
+
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
+export function parseShowAndReturnStatement(ctx: ParserContext): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('show_and_return_statement');
+
+  ctx.addAnonymousChild(node, ctx.consume()); // show_and_return
+
+  if (ctx.peekKind() === TokenKind.COLON) {
+    ctx.addAnonymousChild(node, ctx.consume());
+  }
+
+  const value = parseExpression(ctx, 0);
+  if (value) node.appendChild(wrapExpression(ctx, value), 'value');
+
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+
+  ctx.finishNode(node, startTok);
+  return node;
 }
 
 export function parseAvailableWhenStatement(ctx: ParserContext): CSTNode {

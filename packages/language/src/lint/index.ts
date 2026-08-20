@@ -55,6 +55,13 @@ export {
 } from './expression-validation.js';
 export type { ExpressionValidationOptions } from './expression-validation.js';
 
+export { BUILTIN_CATALOG, catalogFromNames } from './function-catalog.js';
+export type {
+  FunctionCatalog,
+  FunctionDefinition,
+  CatalogFinding,
+} from './function-catalog.js';
+
 export {
   positionIndexKey,
   queryExpressionAtPosition,

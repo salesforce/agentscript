@@ -108,6 +108,11 @@ export type {
   BlockCore,
   BlockClass,
   BlockCapability,
+  CorePrimitiveType,
+  GlobalScopeMember,
+  GlobalScopeMemberDecl,
+  GlobalScopeMemberSpec,
+  GlobalScopeMembers,
   BlockFactory,
   BlockInstance,
   NamedBlockInstance,
@@ -130,6 +135,7 @@ export type {
   ComparisonOperator,
   TemplatePart,
   TemplatePartKind,
+  AtMemberChain,
 } from './core/expressions.js';
 
 export {
@@ -146,6 +152,7 @@ export {
   AtIdentifier,
   MemberExpression,
   SubscriptExpression,
+  SliceExpression,
   BinaryExpression,
   UnaryExpression,
   ComparisonExpression,
@@ -159,6 +166,7 @@ export {
   isTemplatePartKind,
   parseTemplateParts,
   decomposeAtMemberExpression,
+  decomposeAtMemberChain,
   decomposeMemberExpression,
 } from './core/expressions.js';
 export type { PrimitiveLiteralValue } from './core/expressions.js';
@@ -174,8 +182,12 @@ export {
   RunStatement,
   IfStatement,
   TransitionStatement,
+  EscalateStatement,
   CollectClause,
   UnknownStatement,
+  RenderStatement,
+  ShowAndReturnStatement,
+  WhenStatement,
 } from './core/statements.js';
 
 export {
@@ -220,6 +232,7 @@ export type {
 export type { DocumentationMetadata, KeywordInfo } from './core/types.js';
 export { keywordNames } from './core/types.js';
 export type { Range } from './core/types.js';
+export { isGlobalScopeListMember } from './core/types.js';
 
 export {
   VariablePropertiesBlock,
@@ -242,6 +255,7 @@ export {
   createSchemaContext,
   getSchemaNamespaces,
   getGlobalScopes,
+  resolveGlobalMemberType,
   resolveNamespaceKeys,
 } from './core/analysis/scope.js';
 
@@ -384,7 +398,10 @@ export {
   inferExpressionType,
   inferredTypeLabel,
 } from './lint/expression-type.js';
-export type { VariableTypeResolver } from './lint/expression-type.js';
+export type {
+  VariableTypeResolver,
+  GlobalMemberTypeResolver,
+} from './lint/expression-type.js';
 
 export type { DialectConfig } from './dialect-config.js';
 

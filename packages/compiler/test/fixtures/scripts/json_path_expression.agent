@@ -1,0 +1,18 @@
+config:
+    agent_name: "JsonPathExpression"
+
+variables:
+    payload: mutable object
+
+start_agent main:
+    description: "Render a JSONPath expression"
+    actions:
+        inspect_payload:
+            description: "Inspect the payload"
+            target: "flow://InspectPayload"
+    reasoning:
+        actions:
+            inspect_payload: @actions.inspect_payload
+                available when json_path(@variables.payload, "$.ready", False) == True
+        instructions: ->
+            | Inspect the payload when it is ready

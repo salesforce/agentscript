@@ -6,7 +6,11 @@
  */
 
 import type { CstMeta, AstNodeLike, Range } from '../core/types.js';
-import { isNamedMap, isAstNodeLike } from '../core/types.js';
+import {
+  isNamedMap,
+  isAstNodeLike,
+  isGlobalScopeListMember,
+} from '../core/types.js';
 import type { AstRoot } from '../core/types.js';
 import {
   storeKey,
@@ -29,6 +33,11 @@ import {
   decomposeAtMemberExpression,
   decomposeAtMemberChain,
 } from '../core/expressions.js';
+import {
+  isMemberExpression,
+  isSubscriptExpression,
+  isAtIdentifier,
+} from '../core/guards.js';
 import { symbolTableKey } from '../core/analysis/symbol-table.js';
 import { constraintValidationKey } from './constraint-validation.js';
 import { findSuggestion } from './lint-utils.js';
@@ -52,6 +61,46 @@ interface NestedCheck {
   namespace: string;
   parent: string;
   member: string;
+}
+
+/**
+ * Attribute access on a list element reached via a subscript, e.g.
+ * `@system_variables.uploaded_files[0].id` or
+ * `@system_variables.uploaded_files[0:3].file_url`.
+ * The subscript's index is opaque (integer, slice, expression) — only the
+ * attribute name past it is validated against the registered
+ * {@link GlobalScopeListMember.elementFields}. Non-global namespaces and
+ * non-list members are ignored (validated elsewhere or intentionally
+ * unchecked).
+ */
+interface ListElementAttrCheck {
+  expr: AstNodeLike;
+  namespace: string;
+  listMember: string;
+  attr: string;
+}
+
+/**
+ * Decompose a `Member(Subscript(Member(AtIdentifier, listName), _index), attr)`
+ * expression into `{ namespace, listMember, attr }`. Returns null when the
+ * expression is not in that shape. The subscript's index is deliberately not
+ * inspected — slice vs. integer vs. expression all produce the same check.
+ */
+function decomposeListElementAttr(
+  expr: unknown
+): { namespace: string; listMember: string; attr: string } | null {
+  if (!isMemberExpression(expr)) return null;
+  const attr = expr.property;
+  if (!attr) return null;
+  const sub = expr.object;
+  if (!isSubscriptExpression(sub)) return null;
+  const inner = sub.object;
+  if (!isMemberExpression(inner)) return null;
+  const listMember = inner.property;
+  if (!listMember) return null;
+  const at = inner.object;
+  if (!isAtIdentifier(at)) return null;
+  return { namespace: at.name, listMember, attr };
 }
 
 type ResolutionResult =
@@ -105,8 +154,16 @@ function resolveInAncestors(
     // happen to hold a map with that name. Peer root scopes (e.g.,
     // `topic` and `subagent` in AgentForce) are both acceptable hosts,
     // so membership is checked against the full set.
+    //
+    // Exception: the document root (ancestors[0]) is always accepted — it
+    // can host agent-level definition blocks (e.g. a top-level `actions:`)
+    // that are inherited by all scopes. Only the true root is exempt; all
+    // other intermediate blocks without a __scope (e.g. reasoning) are
+    // still skipped to avoid matching binding maps.
     if (scopesRequired) {
-      if (!obj.__scope || !scopesRequired.has(obj.__scope)) continue;
+      const isRoot = i === 0;
+      if (!isRoot && (!obj.__scope || !scopesRequired.has(obj.__scope)))
+        continue;
     }
 
     const map = obj[namespace];
@@ -606,11 +663,13 @@ class UndefinedReferencePass implements LintPass {
 
   private pendingChecks: PendingCheck[] = [];
   private nestedChecks: NestedCheck[] = [];
+  private listElementChecks: ListElementAttrCheck[] = [];
   private ancestorStack: unknown[] = [];
 
   init(): void {
     this.pendingChecks = [];
     this.nestedChecks = [];
+    this.listElementChecks = [];
     this.ancestorStack = [];
   }
 
@@ -640,12 +699,24 @@ class UndefinedReferencePass implements LintPass {
     // two-level tail so nested global-scope members can be validated in run().
     const chain = decomposeAtMemberChain(expr);
     if (chain && chain.path.length === 2) {
+      // Only 2-level nesting is validated here; 3+ level support requires
+      // refactoring NestedCheck to store the full path (see P2b test)
       this.nestedChecks.push({
         expr,
         namespace: chain.namespace,
         parent: chain.path[0],
         member: chain.path[1],
       });
+    }
+
+    // Attribute access on a list element reached via a subscript
+    // (`@ns.listMember[…].attr`). The chain walker above stops at
+    // MemberExpression, so the subscript is invisible there — this check
+    // matches the structural shape directly and validates `attr` against
+    // the registered element fields for `listMember`.
+    const listAttr = decomposeListElementAttr(expr);
+    if (listAttr) {
+      this.listElementChecks.push({ expr, ...listAttr });
     }
   }
 
@@ -686,6 +757,13 @@ class UndefinedReferencePass implements LintPass {
         attachDiagnostic(check.expr, diagnostic);
       }
     }
+
+    for (const check of this.listElementChecks) {
+      const diagnostic = resolveListElementAttrCheck(check, schemaCtx);
+      if (diagnostic) {
+        attachDiagnostic(check.expr, diagnostic);
+      }
+    }
   }
 }
 
@@ -706,20 +784,61 @@ function resolveNestedGlobalCheck(
   const globalMembers = schemaCtx.globalScopes.get(check.namespace);
   if (!globalMembers) return undefined;
 
-  const subMembers = globalMembers.get(check.parent);
-  // `parent` is not a nested member (a leaf or absent): the parent-level access
-  // is validated by the standard pending check, so don't double-report here.
+  const parent = globalMembers.get(check.parent);
+  // `parent` is not a nested member (a leaf or absent, or a list — lists are
+  // validated at the subscript-attribute level, not here): the parent-level
+  // access is validated by the standard pending check, so don't double-report.
+  if (!parent || isGlobalScopeListMember(parent)) return undefined;
+  const subMembers = parent.subMembers;
   if (!subMembers) return undefined;
 
   if (subMembers.has(check.member) || subMembers.has('*')) return undefined;
 
   const namespaceLabel = `${check.namespace}.${check.parent}`;
   const referenceName = `@${namespaceLabel}.${check.member}`;
-  const members = [...subMembers];
+  const members = [...subMembers.keys()];
   const suggestion = findSuggestion(check.member, members);
   return undefinedReferenceDiagnostic(
     cst.range,
     `'${check.member}' is not defined in ${namespaceLabel}`,
+    referenceName,
+    suggestion,
+    members
+  );
+}
+
+/**
+ * Validate a list-element attribute access
+ * (`@namespace.listMember[…].attr`). Returns a diagnostic when the namespace
+ * is a global scope whose `listMember` is registered as a list-with-element-
+ * fields shape and `attr` is not one of the declared element fields. Returns
+ * undefined when the access resolves, when the member is not the list shape
+ * (leaf or nested object — deeper semantics belong elsewhere), or when the
+ * namespace is not a global scope.
+ */
+function resolveListElementAttrCheck(
+  check: ListElementAttrCheck,
+  schemaCtx: SchemaContext
+): Diagnostic | undefined {
+  const cst: CstMeta | undefined = check.expr.__cst;
+  if (!cst) return undefined;
+
+  const globalMembers = schemaCtx.globalScopes.get(check.namespace);
+  if (!globalMembers) return undefined;
+
+  const member = globalMembers.get(check.listMember);
+  if (!member) return undefined;
+  if (!isGlobalScopeListMember(member)) return undefined;
+
+  if (member.elementFields.has(check.attr)) return undefined;
+
+  const namespaceLabel = `${check.namespace}.${check.listMember}[]`;
+  const referenceName = `@${check.namespace}.${check.listMember}[].${check.attr}`;
+  const members = [...member.elementFields];
+  const suggestion = findSuggestion(check.attr, members);
+  return undefinedReferenceDiagnostic(
+    cst.range,
+    `'${check.attr}' is not defined on ${namespaceLabel} elements`,
     referenceName,
     suggestion,
     members

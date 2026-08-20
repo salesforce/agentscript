@@ -719,9 +719,20 @@ function parseSubscript(ctx: ParserContext, object: CSTNode): CSTNode {
 
   skipVirtualTokens(ctx);
 
-  const index = parseExpression(ctx, 0);
-  if (index) {
-    node.appendChild(wrapExpression(ctx, index));
+  // Parse the leading (start) bound unless a ':' opens the bracket directly —
+  // that's an open-start slice like `[:b]`, which has no start expression.
+  const startExpr =
+    ctx.peekKind() === TokenKind.COLON ? null : parseExpression(ctx, 0);
+
+  skipVirtualTokens(ctx);
+
+  if (ctx.peekKind() === TokenKind.COLON) {
+    // Slice: `[ start? : stop? ( : step? )? ]`. The slice node is a direct,
+    // unwrapped child of the subscript (matching the tree-sitter grammar).
+    node.appendChild(parseSlice(ctx, startExpr));
+  } else if (startExpr) {
+    // Plain index: `[ expr ]`.
+    node.appendChild(wrapExpression(ctx, startExpr));
   }
 
   skipVirtualTokens(ctx);
@@ -733,6 +744,74 @@ function parseSubscript(ctx: ParserContext, object: CSTNode): CSTNode {
   }
 
   ctx.finishNode(node, startTok);
+  return node;
+}
+
+/**
+ * Parse the slice body inside a subscript once a ':' has been detected:
+ * `start? : stop? ( : step? )?`. At least one of `start`, `stop`, or `step`
+ * must be present (open-bound forms like `[a:]`, `[:b]`, `[::c]` are
+ * accepted); a bare `[:]` — Python's shallow-copy — is rejected as it has no
+ * runtime meaning in AgentScript. `startExpr` is the already-parsed leading
+ * bound, or null for open-start forms. The colons are anonymous children;
+ * the bounds are attached under the `start`/`stop`/`step` field names so the
+ * emitted CST matches tree-sitter's `slice_expression`. The enclosing
+ * parseSubscript owns the surrounding `[`/`]`. Returns an ERROR node when
+ * no bound is present.
+ */
+function parseSlice(ctx: ParserContext, startExpr: CSTNode | null): CSTNode {
+  const startTok = ctx.peek();
+  // Anchor on the start bound when present; otherwise on the ':' token, since
+  // startNodeAt needs an existing child to derive its span from.
+  const node = startExpr
+    ? ctx.startNodeAt('slice_expression', startExpr)
+    : ctx.startNode('slice_expression');
+
+  if (startExpr) {
+    node.appendChild(wrapExpression(ctx, startExpr), 'start');
+  }
+
+  ctx.addAnonymousChild(node, ctx.consume()); // first ':'
+  skipVirtualTokens(ctx);
+
+  // Optional stop bound. parseExpression consumes nothing and returns null
+  // when the next token is ':' or ']', so no explicit guard is needed.
+  const stopExpr = parseExpression(ctx, 0);
+  if (stopExpr) {
+    node.appendChild(wrapExpression(ctx, stopExpr), 'stop');
+  }
+
+  skipVirtualTokens(ctx);
+
+  // Optional step segment: a second ':' followed by an optional step bound.
+  let stepExpr: CSTNode | null = null;
+  if (ctx.peekKind() === TokenKind.COLON) {
+    ctx.addAnonymousChild(node, ctx.consume()); // second ':'
+    skipVirtualTokens(ctx);
+    stepExpr = parseExpression(ctx, 0);
+    if (stepExpr) {
+      node.appendChild(wrapExpression(ctx, stepExpr), 'step');
+    }
+    skipVirtualTokens(ctx);
+  }
+
+  ctx.finishNode(node, startTok);
+
+  // Reject `[:]` — no bounds at all. Wrap the empty slice in an ERROR so the
+  // subscript reports a syntax error instead of silently emitting a shallow
+  // copy at runtime.
+  if (!startExpr && !stopExpr && !stepExpr) {
+    const errNode = new CSTNode(
+      'ERROR',
+      ctx.source,
+      node.startOffset,
+      node.endOffset,
+      node.startPosition,
+      node.endPosition
+    );
+    errNode.appendChild(node);
+    return errNode;
+  }
   return node;
 }
 

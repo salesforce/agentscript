@@ -214,6 +214,178 @@ connection messaging:
     expect(surface?.adaptive_response_allowed).toBe(false);
   });
 
+  it('should interpolate @inputs reference in escalation_message', () => {
+    const source = agentSource(`
+connection messaging:
+    escalation_message: |
+        Transferring — {!@inputs.agent_name}
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "Chat_Queue"
+
+    inputs:
+        agent_name: string = "Support Team"
+            description: "Name of the support agent"
+`);
+    const result = compileSource(source);
+
+    expect(getErrors(result)).toHaveLength(0);
+    const surface = findSurface(result, 'messaging');
+    expect(surface?.outbound_route_configs?.[0]?.escalation_message).toBe(
+      'Transferring — {{connection.messaging.agent_name}}'
+    );
+  });
+
+  it('should interpolate @variables reference in escalation_message', () => {
+    const source = agentSource(`
+variables:
+    customer_name: mutable string
+
+connection telephony:
+    escalation_message: |
+        Connecting {!@variables.customer_name} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "Phone_Queue"
+`);
+    const result = compileSource(source);
+
+    expect(getErrors(result)).toHaveLength(0);
+    const surface = findSurface(result, 'telephony');
+    expect(surface?.outbound_route_configs?.[0]?.escalation_message).toBe(
+      'Connecting {{state.customer_name}} to support'
+    );
+  });
+
+  it('should interpolate linked @variables reference in escalation_message', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    contact_name: linked string
+        source: @Contact.Name
+        description: "Contact name"
+
+connection telephony:
+    escalation_message: |
+        Connecting {!@variables.contact_name} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "Phone_Queue"
+
+start_agent main:
+    description: "desc"
+`;
+    const result = compileSource(source);
+
+    expect(getErrors(result)).toHaveLength(0);
+    const surface = findSurface(result, 'telephony');
+    expect(surface?.outbound_route_configs?.[0]?.escalation_message).toBe(
+      'Connecting {{variables.contact_name}} to support'
+    );
+  });
+
+  it('should leave plain escalation_message unchanged', () => {
+    const source = agentSource(`
+connection telephony:
+    escalation_message: "Connecting to phone support"
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "Phone_Queue"
+`);
+    const result = compileSource(source);
+
+    expect(getErrors(result)).toHaveLength(0);
+    const surface = findSurface(result, 'telephony');
+    expect(surface?.outbound_route_configs?.[0]?.escalation_message).toBe(
+      'Connecting to phone support'
+    );
+  });
+
+  it('should skip reasoning.instructions and response_actions when adaptive_response_allowed is False', () => {
+    const source = agentSource(`
+connection messaging:
+    reasoning:
+        instructions: |
+            Be helpful and concise
+        response_actions:
+            my_choice: @response_formats.messaging_choices
+    response_formats:
+        messaging_choices:
+            description: "A choices format"
+            inputs:
+                f: string
+    adaptive_response_allowed: False
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    expect(surface).toBeDefined();
+    expect(surface?.adaptive_response_allowed).toBe(false);
+    expect(surface?.instructions).toBeUndefined();
+    expect(surface?.response_actions).toBeUndefined();
+    // response_formats is unrelated and should still be emitted.
+    expect(surface?.response_formats?.length).toBeGreaterThan(0);
+  });
+
+  it('should compile reasoning.instructions and response_actions when adaptive_response_allowed is True', () => {
+    const source = agentSource(`
+connection messaging:
+    reasoning:
+        instructions: |
+            Be helpful and concise
+        response_actions:
+            my_choice: @response_formats.messaging_choices
+    response_formats:
+        messaging_choices:
+            description: "A choices format"
+            inputs:
+                f: string
+    adaptive_response_allowed: True
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    expect(surface).toBeDefined();
+    expect(surface?.instructions).toBe('Be helpful and concise');
+    expect(surface?.response_actions).toEqual([
+      {
+        target: 'messaging_choices',
+        name: 'my_choice',
+        description: 'My Choice',
+      },
+    ]);
+  });
+
+  it('should compile reasoning.instructions and response_actions when adaptive_response_allowed is unset', () => {
+    const source = agentSource(`
+connection messaging:
+    reasoning:
+        instructions: |
+            Be helpful and concise
+        response_actions:
+            my_choice: @response_formats.messaging_choices
+    response_formats:
+        messaging_choices:
+            description: "A choices format"
+            inputs:
+                f: string
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    expect(surface).toBeDefined();
+    // unset -> field absent from output
+    expect(surface?.adaptive_response_allowed).toBeUndefined();
+    expect(surface?.instructions).toBe('Be helpful and concise');
+    expect(surface?.response_actions).toEqual([
+      {
+        target: 'messaging_choices',
+        name: 'my_choice',
+        description: 'My Choice',
+      },
+    ]);
+  });
+
   it('should compile a voice connection', () => {
     const source = agentSource(`
 connection voice:

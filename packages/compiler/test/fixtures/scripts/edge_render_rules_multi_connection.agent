@@ -1,0 +1,54 @@
+system:
+    instructions: "You are a support agent available across messaging and voice channels."
+    messages:
+        welcome: "Hi! How can I help you today?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "EdgeRenderRulesMultiConnection"
+    default_agent_user: "support_bot@example.com"
+    agent_label: "Multi-Channel Support Agent"
+    description: "Reasoning action with render_rules across messaging and voice"
+
+connection messaging:
+    response_formats:
+        choices:
+            description: "Choice format for messaging channel"
+            inputs:
+                items: string
+        rich_card:
+            description: "Rich card format for messaging channel"
+            inputs:
+                title: string
+
+connection voice:
+    response_formats:
+        spoken:
+            description: "Spoken response for voice channel"
+            inputs:
+                utterance: string
+
+start_agent main:
+    description: "Handle support requests across channels"
+
+subagent find_restaurants:
+    description: "Find restaurants for the user"
+    actions:
+        Get_List_of_Restaurants:
+            description: "Fetch restaurants"
+            target: "flow://GetList"
+            inputs:
+                location: string
+    reasoning:
+        instructions: ->
+            | Help the user find restaurants.
+              Adapt the response to the channel.
+        actions:
+            Get_List_of_Restaurants: @actions.Get_List_of_Restaurants
+                with location = "seattle"
+                when @connection.messaging
+                    render: @response_formats.choices
+                        show_and_return: True
+                when @connection.voice
+                    render: @response_formats.spoken
+                        show_and_return: False

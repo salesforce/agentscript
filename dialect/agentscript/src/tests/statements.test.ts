@@ -23,6 +23,9 @@ import {
   TemplateText,
   TemplateInterpolation,
   ProcedureValue,
+  RenderStatement,
+  ShowAndReturnStatement,
+  WhenStatement,
 } from '@agentscript/language';
 import type { SyntaxNode } from '@agentscript/types';
 
@@ -456,5 +459,101 @@ test('ProcedureValue.emitField: arrow with indentation', () => {
   const pv = new ProcedureValue([tpl('content')]);
   expect(ProcedureValue.emitField('instructions', pv, { indent: 1 })).toBe(
     '    instructions: ->\n        |content'
+  );
+});
+
+// RenderStatement
+
+test('RenderStatement emits render: <expr>', () => {
+  const stmt = new RenderStatement(
+    new MemberExpression(new AtIdentifier('response_formats'), 'choices')
+  );
+  expect(stmt.__emit(ctx)).toBe('render: @response_formats.choices');
+});
+
+test('RenderStatement emits with simple identifier value', () => {
+  const stmt = new RenderStatement(new Identifier('formatted'));
+  expect(stmt.__emit(ctx)).toBe('render: formatted');
+});
+
+test('RenderStatement emits with indentation', () => {
+  const stmt = new RenderStatement(
+    new MemberExpression(new AtIdentifier('response_formats'), 'LWC_Test1')
+  );
+  expect(stmt.__emit({ indent: 2 })).toBe(
+    '        render: @response_formats.LWC_Test1'
+  );
+});
+
+// ShowAndReturnStatement
+
+test('ShowAndReturnStatement emits show_and_return: True', () => {
+  const stmt = new ShowAndReturnStatement(new BooleanLiteral(true));
+  expect(stmt.__emit(ctx)).toBe('show_and_return: True');
+});
+
+test('ShowAndReturnStatement emits show_and_return: False', () => {
+  const stmt = new ShowAndReturnStatement(new BooleanLiteral(false));
+  expect(stmt.__emit(ctx)).toBe('show_and_return: False');
+});
+
+test('ShowAndReturnStatement emits with reference value', () => {
+  const stmt = new ShowAndReturnStatement(
+    new MemberExpression(new AtIdentifier('variables'), 'done')
+  );
+  expect(stmt.__emit(ctx)).toBe('show_and_return: @variables.done');
+});
+
+test('ShowAndReturnStatement emits with indentation', () => {
+  const stmt = new ShowAndReturnStatement(new BooleanLiteral(true));
+  expect(stmt.__emit({ indent: 1 })).toBe('    show_and_return: True');
+});
+
+// WhenStatement
+
+test('WhenStatement emits when @connection.X with body', () => {
+  const stmt = new WhenStatement(
+    new MemberExpression(new AtIdentifier('connection'), 'messaging'),
+    [
+      new RenderStatement(
+        new MemberExpression(new AtIdentifier('response_formats'), 'choices')
+      ),
+      new ShowAndReturnStatement(new BooleanLiteral(true)),
+    ]
+  );
+  expect(stmt.__emit(ctx)).toBe(
+    'when @connection.messaging\n    render: @response_formats.choices\n    show_and_return: True'
+  );
+});
+
+test('WhenStatement emits with only render clause', () => {
+  const stmt = new WhenStatement(
+    new MemberExpression(new AtIdentifier('connection'), 'ecv2'),
+    [
+      new RenderStatement(
+        new MemberExpression(new AtIdentifier('response_formats'), 'LWC_Test1')
+      ),
+    ]
+  );
+  expect(stmt.__emit(ctx)).toBe(
+    'when @connection.ecv2\n    render: @response_formats.LWC_Test1'
+  );
+});
+
+test('WhenStatement emits with empty body', () => {
+  const stmt = new WhenStatement(
+    new MemberExpression(new AtIdentifier('connection'), 'xyz'),
+    []
+  );
+  expect(stmt.__emit(ctx)).toBe('when @connection.xyz');
+});
+
+test('WhenStatement emits with indentation', () => {
+  const stmt = new WhenStatement(
+    new MemberExpression(new AtIdentifier('connection'), 'messaging'),
+    [new ShowAndReturnStatement(new BooleanLiteral(false))]
+  );
+  expect(stmt.__emit({ indent: 1 })).toBe(
+    '    when @connection.messaging\n        show_and_return: False'
   );
 });

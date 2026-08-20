@@ -18,6 +18,7 @@
  */
 export const ESCAPE_TABLE: ReadonlyMap<string, string> = new Map([
   ['"', '"'],
+  ["'", "'"],
   ['\\', '\\'],
   ['n', '\n'],
   ['t', '\t'],
@@ -35,11 +36,14 @@ export function interpretEscape(char: string): string | undefined {
 }
 
 /**
- * Reverse of ESCAPE_TABLE: maps interpreted characters back to their escape codes.
- * Built from ESCAPE_TABLE so the two stay in sync automatically.
+ * Maps interpreted characters back to escape codes used by double-quoted
+ * serialization. Apostrophes are valid decoded escapes but do not need
+ * escaping in double-quoted literals.
  */
 const REVERSE_ESCAPE_TABLE: ReadonlyMap<string, string> = new Map(
-  [...ESCAPE_TABLE].map(([code, char]) => [char, `\\${code}`] as const)
+  [...ESCAPE_TABLE]
+    .filter(([code]) => code !== "'")
+    .map(([code, char]) => [char, `\\${code}`] as const)
   // backslash maps to itself in ESCAPE_TABLE ('\\' -> '\\'), so its
   // reverse entry is already correct ('\\' -> '\\\\' via the template).
 );

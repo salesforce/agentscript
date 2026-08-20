@@ -31,6 +31,29 @@ export function extractStringValue(value: unknown): string | undefined {
 }
 
 /**
+ * Extract string values from a parsed expression sequence.
+ */
+export function extractStringSequence(value: unknown): string[] {
+  if (value == null || typeof value !== 'object') return [];
+  const items = (value as { items?: unknown[] }).items;
+  if (!Array.isArray(items)) return [];
+  return items
+    .map(item => {
+      const stringValue = extractStringValue(item);
+      if (stringValue !== undefined) return stringValue;
+      if (
+        item != null &&
+        typeof item === 'object' &&
+        typeof (item as { name?: unknown }).name === 'string'
+      ) {
+        return (item as { name: string }).name;
+      }
+      return undefined;
+    })
+    .filter((item): item is string => item !== undefined);
+}
+
+/**
  * Get the CST range for an AST node or value.
  * Falls back to ZERO_RANGE when no CST metadata is available.
  */

@@ -11,7 +11,9 @@ import type {
   Schema,
   AstNodeLike,
   SchemaInfo,
+  GlobalScopeMember,
   GlobalScopeMembers,
+  GlobalScopeMemberDecl,
 } from '../types.js';
 import type { NamedMap } from '../block.js';
 import {
@@ -56,26 +58,21 @@ export interface SchemaContext {
   readonly scopeNavigation: ReadonlyMap<string, ScopeNavInfo>;
   readonly namespaceMetadata: ReadonlyMap<string, NamespaceMeta>;
   readonly schemaNamespaces: ReadonlySet<string>;
-  // TODO: globalScopes are a semantic gap. They're defined as syntax — a bag of known
-  // member names — but carry no type information. We don't know that @utils.transition
-  // is an invocationTarget or that its `to` argument requires a transitionTarget. This
-  // forces resolvedType validation to skip them entirely (see constraint-validation.ts),
-  // punting semantic checks to the compiler.
-  //
-  // The schema should encode semantics (what things *mean*), not just syntax (what names
-  // exist). globalScopes need to declare types/capabilities per member so they participate
-  // in the same type system as schema-defined blocks. Syntax (e.g. "this member takes a
-  // `to` clause") is an additional restriction layered on top of the semantics, not the
-  // other way around.
   /**
-   * Global scopes: namespace -> members. Each member maps to its nested
-   * sub-member set (for two-level access like `@system_variables.last_reply.interrupted`),
-   * or `null` when the member is a leaf. The dialect may declare a flat scope
-   * as a plain `Set`; it is normalized here to a map of members -> null.
+   * Global scopes: namespace -> member -> {@link GlobalScopeMember}. Each
+   * member is a typed declaration carrying an optional primitive `type`, an
+   * optional semantic `capability`, and optional nested `subMembers` (for
+   * arbitrary-depth access like `@system_variables.last_reply.interrupted`).
+   * A member may also declare itself a list of typed elements (`list: true`
+   * + `elementFields`), which lets the lint pass validate attribute accesses
+   * reached through a subscript (`@system_variables.uploaded_files[0].id`).
+   * Dialects may declare a scope in shorthand (a flat `Set`, or a `Map` whose
+   * values are `null` / primitive strings / sub-member sets); it is normalized
+   * here to this uniform typed shape.
    */
   readonly globalScopes: ReadonlyMap<
     string,
-    ReadonlyMap<string, ReadonlySet<string> | null>
+    ReadonlyMap<string, GlobalScopeMember>
   >;
   /** Scoped namespaces that support colinear cross-block @-reference resolution (e.g., 'outputs'). */
   readonly colinearResolvedScopes: ReadonlySet<string>;
@@ -127,7 +124,7 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
   // so a dialect may declare a flat scope as a plain Set and a nested one as a Map.
   const globalScopes = new Map<
     string,
-    ReadonlyMap<string, ReadonlySet<string> | null>
+    ReadonlyMap<string, GlobalScopeMember>
   >();
   if (info.globalScopes) {
     for (const [ns, scope] of Object.entries(info.globalScopes)) {
@@ -179,20 +176,81 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
 }
 
 /**
- * Normalize a dialect-declared global scope into the internal
- * member -> nested-sub-members map. A flat `Set` becomes a map of each member
- * to `null` (leaf); a `Map` is returned as-is (its values already distinguish
- * leaves from nested sub-member sets).
+ * Normalize a dialect-declared global scope into the internal typed member map.
+ *
+ * Accepts every declaration shorthand and produces a uniform
+ * `member -> GlobalScopeMember` map:
+ * - a flat `Set<string>` — each member becomes a bare leaf (`{}`), preserving
+ *   `'*'` wildcards as ordinary member keys.
+ * - a `Map` value of `null` — a bare leaf (`{}`).
+ * - a `Map` value that is a primitive-type string — a typed leaf (`{ type }`).
+ * - a `Map` value that is a `Set<string>` — a nested member whose sub-members
+ *   are untyped leaves.
+ * - a `Map` value that is a {@link GlobalScopeMemberSpec} — the full form; its
+ *   `subMembers` recurse to arbitrary depth, and it may additionally declare
+ *   `list: true` + `elementFields` for a list-of-typed-elements member.
  */
+function isReadonlyStringSet(value: unknown): value is ReadonlySet<string> {
+  return value instanceof Set;
+}
+
 function normalizeGlobalScope(
   scope: GlobalScopeMembers
-): ReadonlyMap<string, ReadonlySet<string> | null> {
-  if (scope instanceof Map) return scope;
-  const normalized = new Map<string, ReadonlySet<string> | null>();
-  for (const member of scope as ReadonlySet<string>) {
-    normalized.set(member, null);
+): ReadonlyMap<string, GlobalScopeMember> {
+  const normalized = new Map<string, GlobalScopeMember>();
+  if (isReadonlyStringSet(scope)) {
+    for (const member of scope) normalized.set(member, {});
+    return normalized;
+  }
+  for (const [member, decl] of scope) {
+    normalized.set(member, normalizeGlobalScopeMember(decl));
   }
   return normalized;
+}
+
+/** Normalize a single member declaration into a {@link GlobalScopeMember}. */
+function normalizeGlobalScopeMember(
+  decl: GlobalScopeMemberDecl
+): GlobalScopeMember {
+  if (decl == null) return {};
+  if (typeof decl === 'string') return { type: decl };
+  if (isReadonlyStringSet(decl)) {
+    return { subMembers: subMemberSetToMap(decl) };
+  }
+  // Full spec form.
+  const member: {
+    type?: GlobalScopeMember['type'];
+    capability?: GlobalScopeMember['capability'];
+    subMembers?: ReadonlyMap<string, GlobalScopeMember>;
+    list?: true;
+    elementFields?: ReadonlySet<string>;
+  } = {};
+  if (decl.type !== undefined) member.type = decl.type;
+  if (decl.capability !== undefined) member.capability = decl.capability;
+  if (decl.subMembers !== undefined) {
+    if (isReadonlyStringSet(decl.subMembers)) {
+      member.subMembers = subMemberSetToMap(decl.subMembers);
+    } else {
+      const subMembers = new Map<string, GlobalScopeMember>();
+      for (const [sub, subDecl] of decl.subMembers) {
+        subMembers.set(sub, normalizeGlobalScopeMember(subDecl));
+      }
+      member.subMembers = subMembers;
+    }
+  }
+  if (decl.list === true) member.list = true;
+  if (decl.elementFields !== undefined) {
+    member.elementFields = decl.elementFields;
+  }
+  return member;
+}
+
+function subMemberSetToMap(
+  set: ReadonlySet<string>
+): ReadonlyMap<string, GlobalScopeMember> {
+  const subMembers = new Map<string, GlobalScopeMember>();
+  for (const sub of set) subMembers.set(sub, {});
+  return subMembers;
 }
 
 /**
@@ -340,11 +398,35 @@ export function getSchemaNamespaces(ctx: SchemaContext): ReadonlySet<string> {
   return ctx.schemaNamespaces;
 }
 
-/** Global scopes: namespace -> member -> nested sub-members (null = leaf). */
+/** Global scopes: namespace -> member -> typed {@link GlobalScopeMember}. */
 export function getGlobalScopes(
   ctx: SchemaContext
-): ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string> | null>> {
+): ReadonlyMap<string, ReadonlyMap<string, GlobalScopeMember>> {
   return ctx.globalScopes;
+}
+
+/**
+ * Resolve a global-scope member path (e.g. `['last_reply', 'interrupted']`
+ * under namespace `system_variables`) to the declared primitive type of the
+ * leaf member, walking `subMembers` for arbitrary nesting depth. Returns
+ * undefined when the namespace/path does not resolve or the leaf carries no
+ * declared type.
+ */
+export function resolveGlobalMemberType(
+  ctx: SchemaContext,
+  namespace: string,
+  path: readonly string[]
+): GlobalScopeMember['type'] | undefined {
+  if (path.length === 0) return undefined;
+  let members = ctx.globalScopes.get(namespace);
+  let member: GlobalScopeMember | undefined;
+  for (const segment of path) {
+    if (!members) return undefined;
+    member = members.get(segment);
+    if (!member) return undefined;
+    members = member.subMembers;
+  }
+  return member?.type;
 }
 
 function isTypedMapField(ft: FieldType): boolean {
@@ -573,11 +655,20 @@ function walkSchemaForNavigation(
       (fieldType.isNamed || isCollectionField(fieldType)) &&
       fieldType.scopeAlias
     ) {
-      if (!registry.has(fieldType.scopeAlias)) {
+      // A scope alias may be hosted both at the document root (recorded with
+      // `rootKeys` by `buildScopeNavigation`) AND nested under a parent scope
+      // (e.g. `actions` at the agent level and inside each `subagent`). When
+      // an entry already exists from the root pass we must still record the
+      // parent scope so nested navigation works — otherwise `findScopeBlock`
+      // only ever looks at the root definitions.
+      const existing = registry.get(fieldType.scopeAlias);
+      if (!existing) {
         registry.set(fieldType.scopeAlias, {
           rootKeys: [],
           parentScope,
         });
+      } else if (existing.parentScope === undefined) {
+        existing.parentScope = parentScope;
       }
       if (fieldType.schema) {
         walkSchemaForNavigation(
@@ -650,23 +741,29 @@ export function findScopeBlock(
   const targetName = scope[targetScope];
   if (!targetName) return null;
 
-  if (!info.parentScope) {
-    for (const rootKey of info.rootKeys) {
-      for (const key of resolveNamespaceKeys(rootKey, ctx)) {
-        const map = ast[key];
-        if (isNamedMap(map)) {
-          const block = map.get(targetName);
-          if (isAstNodeLike(block)) return block;
-        }
-      }
+  // A scope may be hosted both nested (under a parent scope) and at the
+  // document root — e.g. `actions` inside a `subagent` and at the agent
+  // level. Prefer nested navigation when the parent scope is active in the
+  // current context, then fall back to root-level definitions.
+  if (info.parentScope && scope[info.parentScope]) {
+    const parentBlock = findScopeBlock(ast, info.parentScope, scope, ctx);
+    if (parentBlock) {
+      const nested = findNamedBlockInDescendants(parentBlock, targetName);
+      if (nested) return nested;
     }
-    return null;
   }
 
-  const parentBlock = findScopeBlock(ast, info.parentScope, scope, ctx);
-  if (!parentBlock) return null;
+  for (const rootKey of info.rootKeys) {
+    for (const key of resolveNamespaceKeys(rootKey, ctx)) {
+      const map = ast[key];
+      if (isNamedMap(map)) {
+        const block = map.get(targetName);
+        if (isAstNodeLike(block)) return block;
+      }
+    }
+  }
 
-  return findNamedBlockInDescendants(parentBlock, targetName);
+  return null;
 }
 
 /**

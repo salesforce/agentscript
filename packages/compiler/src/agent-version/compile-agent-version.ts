@@ -12,6 +12,7 @@ import type {
   AgentNode,
   ContextVariable,
   AdditionalParameters,
+  RuntimeConfiguration,
 } from '../types.js';
 import type {
   ParsedAgentforce,
@@ -39,6 +40,15 @@ import { compileModalityParameters } from '../modality/compile-modality.js';
 import { compileNode } from '../nodes/compile-node.js';
 import { compileConnectedAgentNode } from '../nodes/compile-connected-agent-node.js';
 import {
+  compileTopLevelActions,
+  mergeTopLevelActionsIntoSubagent,
+} from '../nodes/compile-top-level-actions.js';
+import { compileOrchestratorNode } from '../nodes/compile-orchestrator-node.js';
+import { compileBundles } from './compile-bundles.js';
+import { compileSkillDefinitions } from './compile-skill-definitions.js';
+import { compileWorkflows } from './compile-workflows.js';
+import { compileTriggers } from './compile-triggers.js';
+import {
   compileCustomSubagentNode,
   COMMERCE_SHOPPER_BYO_CLIENT,
   TABLEAU_ANALYZE_DATA_BYO_CLIENT,
@@ -51,6 +61,7 @@ import {
   BYON_SCHEMA_PREFIX,
 } from '@agentscript/agentforce-dialect';
 import { compileSurfaces } from '../surfaces/compile-surfaces.js';
+import type { FileUploadConfiguration } from '../config/compile-file-upload.js';
 import { extractCompanyAndRole } from '../config/agent-configuration.js';
 import { extractGlobalModelConfiguration } from '../config/model-config.js';
 import type { z } from 'zod';
@@ -86,6 +97,8 @@ export function compileAgentVersion(
   parsed: ParsedAgentforce,
   contextVariables: ContextVariable[],
   additionalParameters: AdditionalParameters | undefined,
+  runtime: RuntimeConfiguration | undefined,
+  fileUpload: FileUploadConfiguration | undefined,
   ctx: CompilerContext
 ): AgentVersion {
   // Collect all topic/start_agent blocks
@@ -135,29 +148,36 @@ export function compileAgentVersion(
     }
   }
 
+  // Compile top-level actions (GBA). These are inherited by every subagent:
+  // their action definitions and synthesized tool references are prepended to
+  // each subagent node below. Compiled ONCE before the node loop — the
+  // synthesized tools carry no input-signature dependency, and each node's own
+  // `compileActionDefinitions` re-clears and repopulates `actionInputSignatures`
+  // for its local actions (see Risk R5).
+  const topLevelActions = compileTopLevelActions(parsed.actions, ctx);
+
   // Compile all nodes
   const nodes: AgentNode[] = [];
   // Tracks whether the agent contains a Tableau Analyze Data node, which
   // requires an agent-wide additional parameter (see merge step below).
   let hasTableauAnalyzeDataNode = false;
-  for (const { name, block } of blocks) {
+  for (const { name, block, isStartAgent } of blocks) {
     const schemaValue = extractStringValue(block.schema);
     if (schemaValue === TABLEAU_ANALYZE_DATA_SCHEMA) {
       hasTableauAnalyzeDataNode = true;
     }
     const byoClient = resolveByoClient(schemaValue, name, ctx);
+    let node: AgentNode;
     if (byoClient) {
-      nodes.push(
-        compileCustomSubagentNode(
-          name,
-          block,
-          byoClient,
-          topicDescriptions,
-          ctx
-        )
+      node = compileCustomSubagentNode(
+        name,
+        block,
+        byoClient,
+        topicDescriptions,
+        ctx
       );
     } else {
-      const node = compileNode(
+      node = compileNode(
         name,
         block,
         parsed.system,
@@ -165,7 +185,38 @@ export function compileAgentVersion(
         globalModelConfig,
         ctx
       );
-      nodes.push(node);
+    }
+    // Inherit top-level actions into every regular subagent node, EXCEPT the
+    // node designated as start_agent — the entry/router node routes to other
+    // subagents and does not receive the global actions (see mapping doc).
+    // BYON custom subagents also compile to `subagent` nodes and do inherit.
+    if (node.type === 'subagent' && !isStartAgent) {
+      mergeTopLevelActionsIntoSubagent(node, topLevelActions);
+    }
+    nodes.push(node);
+  }
+
+  // Compile orchestrator nodes (GBA entry point)
+  const parsedWithOrchestrator = parsed as ParsedAgentforce & {
+    orchestrator?: Map<string, unknown>;
+  };
+  if (parsedWithOrchestrator.orchestrator) {
+    if (parsedWithOrchestrator.orchestrator.size > 1) {
+      ctx.error(
+        'A GoalBasedAgent script may only contain one orchestrator block.'
+      );
+    }
+    let orchestratorCount = 0;
+    for (const [name, block] of iterateNamedMap(
+      parsedWithOrchestrator.orchestrator
+    )) {
+      if (orchestratorCount++ > 0) break;
+      const node = compileOrchestratorNode(
+        name,
+        block as Record<string, unknown>,
+        ctx
+      );
+      nodes.push(node as unknown as AgentNode);
     }
   }
 
@@ -230,6 +281,10 @@ export function compileAgentVersion(
       mergedAdditionalParams as AgentVersion['additional_parameters'];
   }
 
+  if (runtime) {
+    version.runtime = runtime;
+  }
+
   if (company !== null || role !== null) {
     version.company = company;
     version.role = role;
@@ -261,6 +316,46 @@ export function compileAgentVersion(
         `Recommended prompts validation failed: ${messages.join('; ')}`
       );
     }
+  }
+
+  // Attach runtime configuration (rc110: moved from global_configuration to agent_version).
+  if (runtime) {
+    version.runtime = runtime;
+  }
+
+  // Attach file_upload configuration. Upload handling is version-specific
+  // behavior, so it lives on agent_version alongside runtime rather than on
+  // global_configuration.
+  if (fileUpload) {
+    version.file_upload = fileUpload;
+  }
+
+  // Attach GBA version-level arrays (bundles / workflows / triggers), only when
+  // non-empty — mirroring the conditional-attach pattern used above.
+  const bundles = compileBundles(parsed.bundles, ctx);
+  if (bundles.length > 0) {
+    version.bundles = bundles;
+  }
+  // Top-level skill definitions, referenced by local handle from subagent
+  // `reasoning.skills` (each node ref compiles to a { name, target }
+  // NodeSkillReference).
+  const skillDefinitions = compileSkillDefinitions(
+    (
+      parsed as {
+        skill_definitions?: Parameters<typeof compileSkillDefinitions>[0];
+      }
+    ).skill_definitions
+  );
+  if (skillDefinitions.length > 0) {
+    version.skill_definitions = skillDefinitions;
+  }
+  const workflows = compileWorkflows(parsed.workflows, ctx);
+  if (workflows.length > 0) {
+    version.workflows = workflows;
+  }
+  const triggers = compileTriggers(parsed.trigger, ctx);
+  if (triggers.length > 0) {
+    version.triggers = triggers;
   }
 
   return version as AgentVersion;
@@ -323,6 +418,18 @@ function getInitialNodeName(
   parsed: ParsedAgentforce,
   ctx: CompilerContext
 ): string {
+  // GBA: entry point is the orchestrator block
+  const parsedWithOrchestrator = parsed as ParsedAgentforce & {
+    orchestrator?: Map<string, unknown>;
+  };
+  if (
+    parsedWithOrchestrator.orchestrator &&
+    parsedWithOrchestrator.orchestrator.size > 0
+  ) {
+    const [firstName] = parsedWithOrchestrator.orchestrator.keys();
+    return firstName;
+  }
+
   if (!parsed.start_agent || parsed.start_agent.size === 0) {
     ctx.error('No start_agent block found');
     return 'start_agent';

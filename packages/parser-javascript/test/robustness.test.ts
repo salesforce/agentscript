@@ -283,6 +283,44 @@ describe('robustness: SOT file mutations', () => {
 });
 
 describe('robustness: real-world error patterns', () => {
+  it('keeps the collect body attached for an @... reference placeholder', () => {
+    const source = `subagent general:
+  reasoning:
+    instructions: ->
+      ask for @...
+        instructions: "Choose a variable"
+      | Continue after collection.
+  actions:
+    Answer:
+      description: "Answer the question"
+      target: "flow://answer"`;
+
+    const root = assertParses(source, 'ask for @... placeholder');
+    const collect = findNodes(root, 'collect_statement')[0];
+
+    expect(collect).toBeDefined();
+    expect(collect!.childForFieldName('target')?.text).toBe('...');
+    expect(collect!.childForFieldName('body')).toBeDefined();
+    expect(findNodes(collect!, 'ERROR')).toHaveLength(1);
+    expect(findMappingElement(root, 'Answer')).toBeDefined();
+  });
+
+  it('does not crash on a pipe line whose content starts with {! after a whitespace gap', () => {
+    // A stray `{!` desyncs the lexer into template mode; a later `|` line
+    // whose same-line content begins with `{!` after a whitespace gap used to
+    // dereference an undefined source position in gatherTemplateContentLine.
+    // Discovered by the fuzz test (SEED=1786127707212, corpus/procedures.txt).
+    const source =
+      'topic tyx:\n' +
+      '   reasoning:\n' +
+      '      instructions: ->\n' +
+      '   {!    if @variables.ready_to_book:\n' +
+      '          run @action.get_account_info\n' +
+      '        |  Info {!@vaériables.hotel_info}.';
+
+    assertParses(source, 'pipe line with {! after whitespace gap');
+  });
+
   it('handles incomplete document being typed', () => {
     // Simulate someone typing a document character by character
     const fullDoc = `topic test:

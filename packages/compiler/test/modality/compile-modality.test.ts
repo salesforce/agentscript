@@ -18,12 +18,16 @@ describe('compile()', () => {
     const fullVoiceSourceV2 = `
 language:
     default_locale: "de"
-    additional_locales: "fr_CA",it"
+    additional_locales:
+        - fr_CA
+        - it
 
 modality voice:
   language:
     default_locale: "de"
-    additional_locales: "fr_CA,it"
+    additional_locales:
+      - fr_CA
+      - it
 
   session_language_switching: "Multilingual"
 
@@ -91,4 +95,41 @@ modality voice:
     expect(deLang.inbound.model.id).toBe('0VMx123456789yx');
     expect(voiceOutput.voice2_config.languages[0].language_code).toBe('de');
   });
+
+  it.each([
+    ['bare', '      - in\n      - is', ['in', 'is']],
+    ['quoted', '      - "fr"\n      - "de"', ['fr', 'de']],
+    ['mixed', '      - fr\n      - "de"', ['fr', 'de']],
+  ])(
+    'compiles a %s voice.language locale sequence',
+    (_variant, members, expected) => {
+      const source = `
+config:
+  agent_name: "VoiceLocaleListBot"
+
+language:
+  default_locale: "en_US"
+  additional_locales:
+${members}
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    additional_locales:
+${members}
+
+start_agent main:
+  description: "test"
+`;
+      const { output, diagnostics } = compile(parseSource(source));
+      const languages =
+        output.agent_version.modality_parameters.voice.voice2_config.languages;
+
+      expect(languages.map(language => language.language_code)).toEqual([
+        'en_US',
+        ...expected,
+      ]);
+      expect(diagnostics).toHaveLength(0);
+    }
+  );
 });

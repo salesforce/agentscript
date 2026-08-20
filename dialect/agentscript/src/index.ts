@@ -20,6 +20,10 @@ export {
   SystemBlock,
   ConfigBlock,
   LanguageBlock,
+  WorkflowBlock,
+  BundleBlock,
+  TriggerBlock,
+  OrchestratorBlock,
   ReasoningBlock,
   SubagentBlock,
   StartAgentBlock,
@@ -54,6 +58,10 @@ import type {
   SystemBlock,
   ConfigBlock,
   LanguageBlock,
+  WorkflowBlock,
+  BundleBlock,
+  TriggerBlock,
+  OrchestratorBlock,
   ReasoningBlock,
   SubagentBlock,
   StartAgentBlock,
@@ -67,6 +75,10 @@ export type ParsedDocument = Parsed<ParsedDocumentFields>;
 export type ParsedSystem = InferFieldType<typeof SystemBlock>;
 export type ParsedConfig = InferFieldType<typeof ConfigBlock>;
 export type ParsedLanguage = InferFieldType<typeof LanguageBlock>;
+export type ParsedWorkflow = InferFieldType<typeof WorkflowBlock>;
+export type ParsedBundle = InferFieldType<typeof BundleBlock>;
+export type ParsedTrigger = InferFieldType<typeof TriggerBlock>;
+export type ParsedOrchestrator = InferFieldType<typeof OrchestratorBlock>;
 export type ParsedSubagent = InferFieldType<typeof SubagentBlock>;
 export type ParsedStartAgent = InferFieldType<typeof StartAgentBlock>;
 export type ParsedAction = InferFieldType<typeof ActionBlock>;
@@ -85,6 +97,8 @@ export {
   typeMapKey,
   reasoningActionsAnalyzer,
   reasoningActionsKey,
+  connectionFormatsAnalyzer,
+  connectionFormatsIndexKey,
   actionIoRule,
   actionTypeCheckRule,
 } from './lint/passes/index.js';

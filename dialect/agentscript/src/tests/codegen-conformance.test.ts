@@ -98,6 +98,11 @@ describe('type conformance', () => {
       | 'config'
       | 'variables'
       | 'language'
+      | 'actions'
+      | 'workflows'
+      | 'bundles'
+      | 'trigger'
+      | 'orchestrator'
       | 'connected_subagent'
       | 'start_agent'
       | 'subagent';

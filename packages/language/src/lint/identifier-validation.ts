@@ -10,6 +10,7 @@ import { storeKey, type LintPass } from '../core/analysis/lint-engine.js';
 import type { AstNodeLike } from '../core/types.js';
 import type { ScopeContext } from '../core/analysis/scope.js';
 import { Identifier, CallExpression } from '../core/expressions.js';
+import { isTemplateInterpolation } from '../core/guards.js';
 import { lintDiagnostic } from './lint-utils.js';
 
 /**
@@ -26,6 +27,10 @@ import { lintDiagnostic } from './lint-utils.js';
  * commonly a lowercase `none`/`true`/`false`/`null` that the author meant as a
  * literal, or an arbitrary word like `abcd`. This pass flags those with a
  * message steering toward the correct literal or an `@variables.X` reference.
+ *
+ * Severity is Error, except for bare identifiers inside `{!...}` template
+ * interpolation (a missing `@`, e.g. `{!variables.x}`), which are reported as
+ * a Warning since the surrounding template text still renders.
  *
  * Diagnostics: identifier-confusable-none, identifier-confusable-boolean,
  * null-not-allowed, unknown-identifier
@@ -62,10 +67,26 @@ class IdentifierValidationPass implements LintPass {
 
     const { message, code } = describeIdentifier(expr.name);
 
-    attachDiagnostic(
-      expr,
-      lintDiagnostic(cst.range, message, DiagnosticSeverity.Error, code)
-    );
+    // Bare identifiers inside `{!...}` template interpolation (e.g. a missing
+    // `@` in `{!variables.x}`) are a softer authoring mistake than one used as
+    // a real expression value — the surrounding text still renders — so report
+    // them as a warning rather than an error.
+    const severity = this.isInsideInterpolation()
+      ? DiagnosticSeverity.Warning
+      : DiagnosticSeverity.Error;
+
+    attachDiagnostic(expr, lintDiagnostic(cst.range, message, severity, code));
+  }
+
+  /**
+   * True when the identifier being visited sits inside a `{!...}` template
+   * interpolation. Both pipe-syntax templates (`Template` statements) and
+   * quoted-string templates (`TemplateExpression`) wrap their interpolated
+   * expressions in a `TemplateInterpolation` node, so its presence anywhere on
+   * the ancestor stack means we are inside interpolation.
+   */
+  private isInsideInterpolation(): boolean {
+    return this.ancestorStack.some(isTemplateInterpolation);
   }
 }
 

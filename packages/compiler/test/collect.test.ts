@@ -56,11 +56,11 @@ subagent patient_intake:
     description: "Gather address line 1 and city."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1
-                message: "Please provide the first line of your address."
+            ask for @variables.patient_address_line1
+                instructions: "Please provide the first line of your address."
 
-            collect @variables.patient_city
-                message: "Please provide your town or city."
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
 `;
 
 function intakeNode(): SubAgentNode {
@@ -98,11 +98,11 @@ subagent patient_intake:
     description: "Gather address line 1 and city."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1
-                message: "Please provide the first line of your address."
+            ask for @variables.patient_address_line1
+                instructions: "Please provide the first line of your address."
 
-            collect @variables.patient_city
-                message: "Please provide your town or city."
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
 
             | Thank you, your intake is complete. We will be in touch shortly.
 `;
@@ -136,14 +136,14 @@ subagent patient_intake:
     description: "Gather address line 1, city, and email."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1
-                message: "Please provide the first line of your address."
+            ask for @variables.patient_address_line1
+                instructions: "Please provide the first line of your address."
 
-            collect @variables.patient_city
-                message: "Please provide your town or city."
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
 
-            collect @variables.patient_email
-                message: "Please provide your email address."
+            ask for @variables.patient_email
+                instructions: "Please provide your email address."
 `;
 
 function intakeNodeThreeFields(): SubAgentNode {
@@ -183,16 +183,16 @@ subagent comms_intake:
     description: "Collect comms preference, then branch to email or phone."
     reasoning:
         instructions: ->
-            collect @variables.communication_preference
-                message: "How would you like us to contact you — email or phone?"
+            ask for @variables.communication_preference
+                instructions: "How would you like us to contact you — email or phone?"
 
             if @variables.communication_preference == "email":
-                collect @variables.contact_email
-                    message: "What is your email address?"
+                ask for @variables.contact_email
+                    instructions: "What is your email address?"
 
             if @variables.communication_preference == "phone":
-                collect @variables.contact_phone
-                    message: "What is your phone number?"
+                ask for @variables.contact_phone
+                    instructions: "What is your phone number?"
 `;
 
 function commsIntakeNode(): {
@@ -261,12 +261,11 @@ describe('collect lowering', () => {
     expect(second.enabled).toContain('state.patient_city is None');
   });
 
-  it('carries a `|` pipe multi-line message into the gather prose', () => {
-    // Regression: a `collect` whose `message:` is a `|` pipe template (rather
-    // than a quoted string), including a blank line, must reach the gather
-    // prose verbatim. Previously collectMessageText only handled StringLiteral
-    // and returned '' for a TemplateExpression, producing `Use exactly this
-    // message: ""`.
+  it('carries a `|` pipe multi-line instruction into the gather prose', () => {
+    // Regression: a `collect` whose `instructions:` is a `|` pipe template
+    // (rather than a quoted string), including a blank line, must reach the
+    // gather prose. Previously collectInstructionsText only handled StringLiteral
+    // and returned '' for a TemplateExpression, producing empty gather prose.
     const script = `
 config:
     agent_name: "CollectBot"
@@ -281,8 +280,8 @@ subagent patient_intake:
     description: "Gather city."
     reasoning:
         instructions: ->
-            collect @variables.patient_city
-                message: |
+            ask for @variables.patient_city
+                instructions: |
                     Please provide your town or city.
 
                     We need this to route your request.
@@ -294,7 +293,9 @@ subagent patient_intake:
     const text = JSON.stringify(node.before_reasoning_iteration);
     expect(text).toContain('Please provide your town or city.');
     expect(text).toContain('We need this to route your request.');
-    expect(text).not.toContain('Use exactly this message: \\"\\"');
+    // Guidance, not verbatim: the removed `message:` field forced the LLM to
+    // reproduce the text ("Use exactly this message: …"); `instructions:` must not.
+    expect(text).not.toContain('Use exactly this message');
   });
 
   it('keeps a collect sandwiched between two `|` instructions on both sides', () => {
@@ -323,8 +324,8 @@ subagent patient_intake:
         instructions: ->
             | Your job is to redirect the conversation to relevant
               topics politely and succinctly.
-            collect @variables.patient_city
-                message: "Please provide your town or city."
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
             | After collecting, thank the user and wrap up.
 `;
     const { output } = compile(parseSource(script));
@@ -368,6 +369,62 @@ subagent patient_intake:
       'patient_address_line1',
       'patient_city',
     ]);
+  });
+
+  it("carries each collected variable's authored description onto the capture tool's input parameters", () => {
+    // The reasoner renders input_parameters[].description into the tool's
+    // function-calling parameter schema, so the variable's description steers
+    // what the LLM extracts for each field (e.g. "Town or city." not the whole
+    // address).
+    const node = intakeNode();
+    const capture = node.tools.find(
+      t => 'name' in t && t.name === 'capture_patient_intake_fields'
+    ) as Tool;
+    expect(capture).toBeDefined();
+
+    const byName = new Map(
+      (capture.input_parameters ?? []).map(p => [p.developer_name, p])
+    );
+    expect(byName.get('patient_address_line1')?.description).toBe(
+      'Street address line 1.'
+    );
+    expect(byName.get('patient_city')?.description).toBe('Town or city.');
+  });
+
+  it('omits the capture-tool param description when the variable has no authored description', () => {
+    // A variable with no `description:` gets one defaulted to its label at
+    // compile time. Emitting that would just echo the label to the LLM (which
+    // the reasoner already falls back to), so the param must carry no
+    // description at all.
+    const script = `
+config:
+    agent_name: "CollectBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    patient_city: mutable string
+
+subagent patient_intake:
+    description: "Gather city."
+    reasoning:
+        instructions: ->
+            ask for @variables.patient_city
+                instructions: "Which city?"
+`;
+    const { output } = compile(parseSource(script));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'patient_intake'
+    ) as SubAgentNode;
+    const capture = node.tools.find(
+      t => 'name' in t && t.name === 'capture_patient_intake_fields'
+    ) as Tool;
+    expect(capture).toBeDefined();
+    const cityParam = (capture.input_parameters ?? []).find(
+      p => p.developer_name === 'patient_city'
+    );
+    expect(cityParam).toBeDefined();
+    expect(cityParam!.description).toBeUndefined();
   });
 
   it('emits PARTIAL-SAFE state_updates that never reference an absent result field', () => {
@@ -481,8 +538,8 @@ subagent patient_intake:
     const src = `subagent intake:
    reasoning:
       instructions: ->
-         collect @variables.patient_city
-            message: "Please provide your town or city."
+         ask for @variables.patient_city
+            instructions: "Please provide your town or city."
 `;
     const { rootNode: root } = parse(src);
     const mappingNode =
@@ -493,9 +550,11 @@ subagent patient_intake:
       value as Record<string, unknown>,
       AgentforceSchema
     );
-    expect(emitted).toContain('collect @variables.patient_city');
-    expect(emitted).not.toContain('collect @variables.patient_city:');
-    expect(emitted).toContain('message: "Please provide your town or city."');
+    expect(emitted).toContain('ask for @variables.patient_city');
+    expect(emitted).not.toContain('ask for @variables.patient_city:');
+    expect(emitted).toContain(
+      'instructions: "Please provide your town or city."'
+    );
   });
 
   it('right-associates the resume handoff condition for 3+ fields', () => {
@@ -540,8 +599,8 @@ subagent patient_intake:
     const warnings = diagnostics.filter(
       d =>
         typeof d.message === 'string' &&
-        d.message.includes('collect') &&
-        d.code !== 'collect-experimental'
+        d.message.includes('ask for') &&
+        d.code !== 'ask-for-beta-services'
     );
     expect(warnings).toEqual([]);
   });
@@ -994,8 +1053,8 @@ start_agent router:
     description: "Router"
     reasoning:
         instructions: ->
-            collect @variables.patient_city
-                message: "Please provide your town or city."
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
 `;
 
 describe('collect placement validation (W-23177847)', () => {
@@ -1007,7 +1066,7 @@ describe('collect placement validation (W-23177847)', () => {
     expect(errors.length).toBeGreaterThan(0);
     expect(
       errors.some(d =>
-        d.message.includes("'collect' cannot be used in start_agent")
+        d.message.includes("'ask for' cannot be used in start_agent")
       )
     ).toBe(true);
   });
@@ -1037,7 +1096,7 @@ describe('collect placement validation (W-23177847)', () => {
   });
 });
 
-// Two subagents each using `collect` — the experimental notice must still fire
+// Two subagents each using `collect` — the beta-services notice must still fire
 // only ONCE per script (guarded by a flag on the per-compile context).
 const SCRIPT_TWO_COLLECT_SUBAGENTS = `
 config:
@@ -1066,45 +1125,45 @@ subagent patient_intake:
     description: "Gather address line 1."
     reasoning:
         instructions: ->
-            collect @variables.patient_address_line1
-                message: "Please provide the first line of your address."
+            ask for @variables.patient_address_line1
+                instructions: "Please provide the first line of your address."
 
 subagent billing_intake:
     description: "Gather city."
     reasoning:
         instructions: ->
-            collect @variables.patient_city
-                message: "Please provide your town or city."
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
 `;
 
-const COLLECT_EXPERIMENTAL_MESSAGE =
-  "'collect' is experimental and provided for early feedback; its behavior may change in future releases.";
+const COLLECT_BETA_SERVICES_MESSAGE =
+  "'ask for' is a pilot or beta service that is subject to the Beta Services Terms at Agreements - Salesforce.com (salesforce.com/company/legal/customer-agreements) or a written Unified Pilot Agreement if executed by Customer, and applicable terms in the Product Terms Directory (ptd.salesforce.com). Use of this pilot or beta service is at the Customer's sole discretion.";
 
-describe('collect experimental notice (W-22865019)', () => {
+describe('collect beta-services legal notice', () => {
   it('emits exactly ONE Information diagnostic with the exact message and code', () => {
     const { diagnostics } = compile(parseSource(SCRIPT));
-    const notices = diagnostics.filter(d => d.code === 'collect-experimental');
+    const notices = diagnostics.filter(d => d.code === 'ask-for-beta-services');
     expect(notices).toHaveLength(1);
     expect(notices[0].severity).toBe(DiagnosticSeverity.Information);
-    expect(notices[0].message).toBe(COLLECT_EXPERIMENTAL_MESSAGE);
+    expect(notices[0].message).toBe(COLLECT_BETA_SERVICES_MESSAGE);
   });
 
   it('emits the notice only ONCE across multiple subagents using collect', () => {
     const { diagnostics } = compile(parseSource(SCRIPT_TWO_COLLECT_SUBAGENTS));
-    const notices = diagnostics.filter(d => d.code === 'collect-experimental');
+    const notices = diagnostics.filter(d => d.code === 'ask-for-beta-services');
     expect(notices).toHaveLength(1);
     expect(notices[0].severity).toBe(DiagnosticSeverity.Information);
   });
 
   it('emits NO notice for a script that does not use collect', () => {
     const { diagnostics } = compile(parseFixture('001_loan_origination.agent'));
-    const notices = diagnostics.filter(d => d.code === 'collect-experimental');
+    const notices = diagnostics.filter(d => d.code === 'ask-for-beta-services');
     expect(notices).toHaveLength(0);
   });
 
   it('points the notice at the first collect, not the (0,0) fallback', () => {
     const { diagnostics } = compile(parseSource(SCRIPT));
-    const notice = diagnostics.find(d => d.code === 'collect-experimental');
+    const notice = diagnostics.find(d => d.code === 'ask-for-beta-services');
     expect(notice).toBeDefined();
     const { start } = notice!.range;
     expect(start.line === 0 && start.character === 0).toBe(false);

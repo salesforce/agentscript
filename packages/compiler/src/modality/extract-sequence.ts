@@ -140,7 +140,13 @@ export function extractStringSequence(
       // Handle SequenceItemChild wrapper
       const itemObj = item as Record<string, unknown>;
       const value = itemObj._value || item;
-      const str = extractStringValue(value);
+      const str =
+        extractStringValue(value) ??
+        (value != null &&
+        typeof value === 'object' &&
+        typeof (value as { name?: unknown }).name === 'string'
+          ? (value as { name: string }).name
+          : undefined);
       if (str) {
         result.push(str);
       }

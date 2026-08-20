@@ -1,0 +1,72 @@
+system:
+    instructions: |
+        ## Sales Pipeline Accelerator
+        Domain: Sales. Monitor CRM activity, email opens, and website visits.
+    messages:
+        welcome: "Hello! How can I help?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "SalesPipelineAccelerator"
+    agent_type: "GoalBasedAgent"
+    description: "Sales pipeline accelerator"
+    default_agent_user: "test_user"
+
+context:
+    memory:
+        enabled: True
+    salesforce:
+        enabled: True
+    data_cloud:
+        enabled: True
+
+actions:
+    log_activity:
+        description: "Log activity to Salesforce"
+        target: "flow://LogActivity"
+    query_crm:
+        description: "Query CRM records"
+        target: "apex://CRMController.query"
+
+bundles:
+    prospecting:
+        target: "bundle://prospecting"
+    targeting:
+        target: "bundle://targeting"
+    deal_cycle:
+        target: "bundle://deal_cycle"
+
+workflows:
+    lead_generation:
+        agent: @connected_subagent.prospect_signals
+    follow_up:
+        prompt: "Follow up on emails from last week"
+
+trigger:
+    every_5_mins:
+        schedule: "*/5 * * * *"
+        target: @bundles.targeting.workflows.check
+    daily_signals_7am:
+        schedule: "0 7 * * *"
+        target: @workflows.lead_generation
+
+connected_subagent prospect_signals:
+    target: "agent://prospect_signals"
+    label: "Prospect Signals"
+    description: "Prospect signals authoring node"
+
+connected_subagent execution:
+    target: "agent://execution"
+    label: "Execution"
+    description: "Execution node"
+
+orchestrator agent:
+    actions:
+        log_activity:
+            description: "Log sales activity"
+            target: "flow://LogActivity"
+    reasoning:
+        instructions: ->
+            | Determine intent and take appropriate action using the available tools.
+        actions:
+            log_activity: @actions.log_activity

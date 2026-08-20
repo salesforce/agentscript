@@ -22,6 +22,8 @@ import {
   extractStringValue,
   extractSourcedString,
   extractSourcedDescription,
+  getCstRange,
+  iterateNamedMap,
 } from '../ast-helpers.js';
 import {
   extractTopicModelConfiguration,
@@ -53,6 +55,19 @@ export function compileRouterNode(
   const label =
     extractSourcedString(topicBlock.label) ?? normalizeDeveloperName(topicName);
   const source = extractSourcedString(topicBlock.source) ?? undefined;
+
+  // Skills are a subagent-reasoning concept — the RouterNode wire has no
+  // `skills` field. When a node resolves to a router (hyperclassifier
+  // model_config), any authored reasoning.skills would be silently dropped;
+  // flag it instead of losing the references.
+  const routerSkills = (topicBlock.reasoning as ParsedReasoningLike)?.skills;
+  if (routerSkills && iterateNamedMap(routerSkills).length > 0) {
+    ctx.error(
+      `Node '${topicName}' declares reasoning.skills, but skills are not supported on router (hyperclassifier) nodes.`,
+      getCstRange(routerSkills),
+      'skills-not-supported-on-router'
+    );
+  }
 
   // Extract topic-level model configuration and merge with global
   const topicModelConfig = extractTopicModelConfiguration(topicBlock, ctx);

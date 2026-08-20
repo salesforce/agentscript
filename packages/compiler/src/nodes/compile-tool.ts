@@ -15,6 +15,10 @@ import {
   IfStatement,
   TransitionStatement,
   ToClause,
+  WhenStatement,
+  RenderStatement,
+  ShowAndReturnStatement,
+  BooleanLiteral,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
@@ -23,9 +27,13 @@ import type {
   HandOffAction,
   Action,
   StateUpdate,
+  RenderRule,
 } from '../types.js';
 import type { ParsedTool } from '../parsed-types.js';
-import { decomposeAtMemberExpression } from '@agentscript/language';
+import {
+  decomposeAtMemberExpression,
+  decomposeAtMemberChain,
+} from '@agentscript/language';
 import { toRange } from '@agentscript/types';
 import { compileExpression } from '../expressions/compile-expression.js';
 import {
@@ -87,6 +95,7 @@ export function compileTool(
   const stateUpdates: StateUpdate[] = [];
   const postActions: Action[] = [];
   const handOffActions: HandOffAction[] = [];
+  const renderRules: RenderRule[] = [];
   let enabledCondition: string | undefined;
   for (const stmt of body) {
     if (stmt instanceof WithClause) {
@@ -129,6 +138,9 @@ export function compileTool(
       const result = compilePostActionConditional(stmt, ctx);
       postActions.push(...result.actions);
       handOffActions.push(...result.handOffs);
+    } else if (stmt instanceof WhenStatement) {
+      const rule = compileWhenConnection(stmt, ctx);
+      if (rule) renderRules.push(rule);
     }
   }
 
@@ -202,6 +214,7 @@ export function compileTool(
     state_updates: stateUpdates,
     name: displayName,
     ...(description !== undefined ? { description } : {}),
+    ...(renderRules.length > 0 ? { render_rules: renderRules } : {}),
   };
 
   if (enabledCondition) {
@@ -289,19 +302,127 @@ function compilePostToolAction(
  * required inputs so authors aren't forced to have the LLM fabricate values
  * for optional fields they didn't reference.
  */
-function setDefaultLlmInputs(
+export function setDefaultLlmInputs(
   target: string,
   boundInputs: Record<string, string>,
   llmInputs: string[],
   ctx: CompilerContext
 ): void {
-  const sig = ctx.actionInputSignatures.get(target);
+  // Fall back to the preserved top-level action signatures: a node's own
+  // `compileActionDefinitions` clears `actionInputSignatures`, so a reasoning
+  // tool referencing an inherited `@actions.X` top-level action would otherwise
+  // find no signature and emit empty `llm_inputs`.
+  const sig =
+    ctx.actionInputSignatures.get(target) ??
+    ctx.topLevelActionSignatures.get(target);
   if (!sig) return;
   for (const name of sig.requiredInputs) {
     if (Object.prototype.hasOwnProperty.call(boundInputs, name)) continue;
     if (llmInputs.includes(name)) continue;
     llmInputs.push(name);
   }
+}
+
+/**
+ * Compile a `when @connection.<surface>` block into a single RenderRule.
+ *
+ * Returns `undefined` when the block has no `render:` clause (also reported
+ * as a lint error) or when a body clause fails validation.
+ */
+function compileWhenConnection(
+  stmt: WhenStatement,
+  ctx: CompilerContext
+): RenderRule | undefined {
+  if (!stmt.subject) return undefined;
+  const surface = resolveAtReference(
+    stmt.subject,
+    'connection',
+    ctx,
+    'surface name'
+  );
+  if (!surface) return undefined;
+
+  const renderStmts = stmt.body.filter(
+    (s): s is RenderStatement => s instanceof RenderStatement
+  );
+  if (renderStmts.length === 0) {
+    ctx.error(
+      `'when @connection.${surface}' block requires a 'render:' clause`,
+      stmt.__cst?.range
+    );
+    return undefined;
+  }
+  if (renderStmts.length > 1) {
+    ctx.error(
+      `'when @connection.${surface}' block has multiple 'render:' clauses; only one is allowed per connection block`,
+      renderStmts[1].__cst?.range
+    );
+    return undefined;
+  }
+
+  const renderStmt = renderStmts[0];
+  const renderValue = renderStmt.value;
+  if (!renderValue) return undefined;
+  const rendererName = resolveRendererRef(renderValue, ctx);
+  if (!rendererName) return undefined;
+
+  const showAndReturnStmts = renderStmt.body.filter(
+    (s): s is ShowAndReturnStatement => s instanceof ShowAndReturnStatement
+  );
+  // The `show_and_return:` script keyword lowers to the DSL's `end_turn` field —
+  // the compiler output intentionally keeps the original AgentJSON name.
+  let endTurn = false;
+  if (showAndReturnStmts.length > 0) {
+    const v = showAndReturnStmts[showAndReturnStmts.length - 1].value;
+    if (v instanceof BooleanLiteral) {
+      endTurn = v.value;
+    } else if (v) {
+      ctx.error(
+        "'show_and_return:' must be a Boolean literal (True or False)",
+        v.__cst?.range
+      );
+    }
+  }
+
+  return {
+    surface_type: surface,
+    response_format_name: rendererName,
+    end_turn: endTurn,
+  };
+}
+
+/**
+ * Resolve a `render:` value against the `@response_formats.<name>` or
+ * `@connection.<surface>.response_formats.<name>` shapes, returning the bare
+ * name. Emits a compiler error if the expression is neither.
+ *
+ * `<name>` is either a reserved built-in (currently `json`) or a
+ * user-declared format on the enclosing connection. The dialect lint pass
+ * performs ownership, shape, and reserved-name checks; the compiler only
+ * extracts the name here.
+ */
+function resolveRendererRef(
+  expr: Expression,
+  ctx: CompilerContext
+): string | undefined {
+  const decomposed = decomposeAtMemberExpression(expr);
+  if (decomposed && decomposed.namespace === 'response_formats') {
+    return decomposed.property;
+  }
+  const chain = decomposeAtMemberChain(expr);
+  if (
+    chain &&
+    chain.namespace === 'connection' &&
+    chain.path.length === 3 &&
+    chain.path[1] === 'response_formats'
+  ) {
+    return chain.path[2];
+  }
+  ctx.error(
+    "'render:' value must reference '@response_formats.<name>' or '@connection.<surface>.response_formats.<name>'",
+    expr.__cst?.range
+  );
+  return undefined;
 }
 
 /**

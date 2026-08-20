@@ -18,6 +18,7 @@ import { checkConnectionUriRules } from './rules/connection-rules.js';
 import { checkCycleRules } from './rules/cycle-rules.js';
 import { checkEchoRules } from './rules/echo-rules.js';
 import { checkExecuteRules } from './rules/execute-rules.js';
+import { checkFirstArtifactAppendRules } from './rules/first-artifact-append-rules.js';
 import { checkOnExitRules } from './rules/on-exit-rules.js';
 import { checkOutputStructureRules } from './rules/output-structure-rules.js';
 import { checkReasoningInstructionsRules } from './rules/reasoning-instructions-rules.js';
@@ -44,6 +45,7 @@ class AgentFabricSemanticPass implements LintPass {
     checkOnExitRules(root);
     checkSwitchRules(store, root);
     checkEchoRules(root);
+    checkFirstArtifactAppendRules(root);
     checkAgenticLlmRules(root);
     checkExecuteRules(root);
     checkActionBindingRules(root);

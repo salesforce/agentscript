@@ -11,6 +11,7 @@ import type {
   FieldType,
   Schema,
   NamedBlockEntryType,
+  GlobalScopeMember,
 } from '../types.js';
 import type { NamedMap } from '../named-map.js';
 import {
@@ -21,6 +22,7 @@ import {
   isCollectionFieldType,
   extractDiscriminantValue,
   hasDiscriminant,
+  isGlobalScopeListMember,
   resolveFieldType,
 } from '../types.js';
 import { generateFieldSnippet } from './snippet-gen.js';
@@ -312,13 +314,41 @@ export function getCompletionCandidates(
   // the member names themselves.
   const globalMembers = ctx.globalScopes.get(namespace);
   if (globalMembers) {
-    return [...globalMembers.keys()].map(member => ({
+    return [...globalMembers].map(([member, decl]) => ({
       name: member,
-      kind: SymbolKind.Property,
+      kind: globalScopeMemberKind(decl),
     }));
   }
 
   return [];
+}
+
+/**
+ * Map a typed global-scope member to its LSP {@link SymbolKind}. Primitive
+ * leaves surface as their value kind (so a boolean member shows a boolean
+ * glyph); untyped members and nested objects fall back to `Property`.
+ */
+function globalScopeMemberKind(member: GlobalScopeMember): SymbolKind {
+  switch (member.type) {
+    case 'boolean':
+      return SymbolKind.Boolean;
+    case 'string':
+    case 'id':
+    case 'date':
+    case 'datetime':
+    case 'time':
+    case 'timestamp':
+      return SymbolKind.String;
+    case 'number':
+    case 'integer':
+    case 'long':
+    case 'currency':
+      return SymbolKind.Number;
+    case 'object':
+      return SymbolKind.Object;
+    default:
+      return SymbolKind.Property;
+  }
 }
 
 /**
@@ -1271,18 +1301,30 @@ export function getNodeMemberAccessCompletions(
   const [namespace, nodeName, ...rest] = parts;
 
   // Global-scope member access, e.g. `@system_variables.last_reply.<partial>`.
-  // The second part (`nodeName`) is a nested member of the global scope, and
-  // the trailing partial is a sub-member being typed. Only two-level nesting
-  // is supported (a nested member's sub-members are always leaves).
+  // Walk through the chain to reach the nested member, supporting arbitrary depth.
   const globalMembers = ctx.globalScopes.get(namespace);
   if (globalMembers) {
-    // Only offer sub-members directly under the nested member — no deeper.
-    if (rest.length !== 1) return [];
-    const subMembers = globalMembers.get(nodeName);
-    if (!subMembers) return [];
-    return [...subMembers].map(name => ({
+    // Walk through the path to find the target member's subMembers
+    // rest contains: [already-typed segments..., partial-being-typed]
+    // We need to resolve all but the last segment
+    const pathToResolve = [nodeName, ...rest.slice(0, -1)];
+    let currentMembers = globalMembers;
+
+    for (const segment of pathToResolve) {
+      const member = currentMembers.get(segment);
+      // List-typed members (e.g. `uploaded_files`) are reached via a
+      // subscript, not a bare `.`, so completion after `files.` intentionally
+      // yields nothing. Element-field completions live under a distinct LSP
+      // trigger path.
+      if (!member || isGlobalScopeListMember(member)) return [];
+      if (!member.subMembers) return [];
+      currentMembers = member.subMembers;
+    }
+
+    // currentMembers now holds the completions to offer
+    return [...currentMembers].map(([name, decl]) => ({
       name,
-      kind: SymbolKind.Property,
+      kind: globalScopeMemberKind(decl),
     }));
   }
   // The last part is the partial being typed; the segments before it are the

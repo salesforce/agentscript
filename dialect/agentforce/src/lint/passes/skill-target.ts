@@ -6,12 +6,17 @@
  */
 
 /**
- * Skill target URI scheme validation.
+ * Skill shape validation.
  *
- * Skills declared under a subagent or start_agent must have a `target:` that
- * starts with the `skill://` scheme. Other schemes are rejected.
+ * A skill is either *inline* (defines `instructions`) or *stored* (references a
+ * `target` URI). This pass enforces:
  *
- * Diagnostic: invalid-skill-target
+ * 1. Exactly one of `instructions` / `target` is present (mutually exclusive,
+ *    and at least one required).                → diagnostic: invalid-skill-shape
+ * 2. Inline skills (with `instructions`) must declare a `description`.
+ *                                               → diagnostic: invalid-skill-shape
+ * 3. A `target`, when present, uses the `skill://` scheme.
+ *                                               → diagnostic: invalid-skill-target
  */
 
 import type {
@@ -30,45 +35,99 @@ import {
 import { DiagnosticSeverity } from '@agentscript/types';
 import { extractStringValue, getBlockRange } from '../utils.js';
 
+/**
+ * URI pattern that reasoner uses to recognize that it's a SkillStore skill
+ * example: skill://skillStoreSkillName
+ **/
 const SKILL_SCHEME = 'skill';
 
 class SkillTargetSchemePass implements LintPass {
   readonly id = storeKey('invalid-skill-target');
-  readonly description = `Skill target URIs must use the ${SKILL_SCHEME}:// scheme.`;
+  readonly description =
+    'A skill must define exactly one of `instructions` (inline) or ' +
+    `\`target\` (stored, ${SKILL_SCHEME}:// scheme); inline skills require a description.`;
 
   run(_store: PassStore, root: AstRoot): void {
-    for (const key of ['subagent', 'start_agent'] as const) {
-      const collection = root[key];
-      if (!isNamedMap(collection)) continue;
+    // Skill definitions live at the top level (`skill_definitions:`); subagents
+    // reference them by name via `reasoning.skills`. Validate the definitions
+    // once, where they are declared.
+    const skills = root['skill_definitions'];
+    if (!isNamedMap(skills)) return;
 
-      for (const [parentName, block] of collection as NamedMap<unknown>) {
-        if (!block || typeof block !== 'object') continue;
-        const skills = (block as Record<string, unknown>)['skills'];
-        if (!isNamedMap(skills)) continue;
+    for (const [skillName, skillBlock] of skills as NamedMap<unknown>) {
+      if (!skillBlock || typeof skillBlock !== 'object') continue;
+      checkSkillDefinition(skillName, skillBlock as AstNodeLike);
+    }
+  }
+}
 
-        for (const [skillName, skillBlock] of skills as NamedMap<unknown>) {
-          if (!skillBlock || typeof skillBlock !== 'object') continue;
-          const targetNode = (skillBlock as Record<string, unknown>)['target'];
-          if (targetNode == null) continue;
+/**
+ * Validate a single skill block's shape: the instructions/target either-or, the
+ * inline-description requirement, and the target URI scheme.
+ */
+function checkSkillDefinition(
+  skillName: string,
+  skillBlock: AstNodeLike
+): void {
+  const record = skillBlock as unknown as Record<string, unknown>;
+  const instructionsNode = record['instructions'];
+  const targetNode = record['target'];
+  const hasInstructions = instructionsNode != null;
+  const hasTarget = targetNode != null;
 
-          const targetValue = extractStringValue(targetNode);
-          if (targetValue == null) continue;
+  // R1: exactly one of instructions / target.
+  if (!hasInstructions && !hasTarget) {
+    attachDiagnostic(
+      skillBlock,
+      lintDiagnostic(
+        getBlockRange(skillBlock),
+        `Skill '${skillName}' must define either ` +
+          `'instructions' (inline skill) or 'target' (stored skill).`,
+        DiagnosticSeverity.Error,
+        'invalid-skill-shape'
+      )
+    );
+    return;
+  }
 
-          checkScheme(
-            parentName,
-            skillName,
-            targetValue,
-            targetNode,
-            skillBlock as AstNodeLike
-          );
-        }
-      }
+  if (hasInstructions && hasTarget) {
+    attachDiagnostic(
+      skillBlock,
+      lintDiagnostic(
+        getBlockRange(targetNode),
+        `Skill '${skillName}' defines both 'instructions' ` +
+          `and 'target'. A skill is either inline ('instructions') or stored ` +
+          `('target'), not both.`,
+        DiagnosticSeverity.Error,
+        'invalid-skill-shape'
+      )
+    );
+    return;
+  }
+
+  // R2: inline skills must declare a description.
+  if (hasInstructions && record['description'] == null) {
+    attachDiagnostic(
+      skillBlock,
+      lintDiagnostic(
+        getBlockRange(skillBlock),
+        `Inline skill '${skillName}' must declare a 'description'.`,
+        DiagnosticSeverity.Error,
+        'invalid-skill-shape'
+      )
+    );
+  }
+
+  // R3: a stored skill's target must use the skill:// scheme.
+  if (hasTarget) {
+    const targetValue = extractStringValue(targetNode);
+    if (targetValue != null) {
+      checkScheme(skillName, targetValue, targetNode, skillBlock);
     }
   }
 }
 
 function checkScheme(
-  parentName: string,
   skillName: string,
   value: string,
   targetNode: unknown,
@@ -82,7 +141,7 @@ function checkScheme(
       diagnosticHost,
       lintDiagnostic(
         getBlockRange(targetNode),
-        `Skill '${skillName}' on '${parentName}' has an invalid target "${value}". ` +
+        `Skill '${skillName}' has an invalid target "${value}". ` +
           `Expected a URI with the ${SKILL_SCHEME}:// scheme.`,
         DiagnosticSeverity.Error,
         'invalid-skill-target'
@@ -97,7 +156,7 @@ function checkScheme(
       diagnosticHost,
       lintDiagnostic(
         getBlockRange(targetNode),
-        `Skill '${skillName}' on '${parentName}' uses unsupported target scheme "${scheme}://". ` +
+        `Skill '${skillName}' uses unsupported target scheme "${scheme}://". ` +
           `Expected ${SKILL_SCHEME}://.`,
         DiagnosticSeverity.Error,
         'invalid-skill-target'

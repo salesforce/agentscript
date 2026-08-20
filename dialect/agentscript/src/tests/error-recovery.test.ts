@@ -52,6 +52,31 @@ function getAllDiagnostics(source: string): Diagnostic[] {
 // =============================================================================
 
 describe('orphaned sibling adoption', () => {
+  it('preserves later action definitions while ask for has an @... placeholder', () => {
+    const source = `subagent general:
+  description: "General help"
+  reasoning:
+    instructions: ->
+      ask for @...
+        instructions: "Choose a variable"
+      | Continue after collection.
+    actions:
+      Answer: @actions.Answer
+        with query = ...
+  actions:
+    Answer:
+      description: "Answer the question"
+      target: "flow://answer"
+      inputs:
+        query: string
+`;
+
+    const agent = parseDocument(source).subagent?.get('general');
+
+    expect(agent?.reasoning?.actions?.has('Answer')).toBe(true);
+    expect(agent?.actions?.has('Answer')).toBe(true);
+  });
+
   const SOURCE_WITH_ERROR = `system:
   instructions: "You are a helpful agent"
 

@@ -50,9 +50,22 @@ function inferDefaultValueType(value: unknown): string | null {
   }
 }
 
+/**
+ * Normalize a declared type for container-level comparison. List literals are
+ * inferred as the bare `list` (see {@link inferDefaultValueType}), so a
+ * parameterized declared type such as `list[string]` must collapse to `list`
+ * to match — the element type can't be verified from a literal (e.g. `[]`)
+ * anyway, and this rule only checks the container.
+ */
+function normalizeType(type: string): string {
+  const t = type.toLowerCase().trim();
+  if (t === 'list' || t.startsWith('list[')) return 'list';
+  return t;
+}
+
 function typesCompatible(declared: string, actual: string): boolean {
-  const d = declared.toLowerCase();
-  const a = actual.toLowerCase();
+  const d = normalizeType(declared);
+  const a = normalizeType(actual);
   if (d === a) return true;
   if (d === 'object' || a === 'object') return true;
   return false;

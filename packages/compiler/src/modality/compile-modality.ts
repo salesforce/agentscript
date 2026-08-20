@@ -97,14 +97,11 @@ function compileLanguageConfiguration(
     );
   }
 
-  const additionalLocalesStr =
-    extractStringValue(languageBlock.additional_locales) ?? '';
-  const additionalLocales = additionalLocalesStr
-    ? additionalLocalesStr
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-    : [];
+  const additionalLocales = extractStringSequence(
+    languageBlock.additional_locales,
+    'language.additional_locales',
+    ctx
+  );
 
   for (const locale of additionalLocales) {
     if (!supportedLocale.safeParse(locale).success) {
@@ -353,15 +350,12 @@ function compileVoiceLanguages(
 
   configs.push(createVoiceLanguageConfig(lang, true));
 
-  // Get all languages
-  const allLangsStr =
-    extractStringValue(voiceBlock.language.additional_locales) ?? '';
-  const allLangs = allLangsStr
-    ? allLangsStr
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-    : [];
+  // Get all additional languages
+  const allLangs = extractStringSequence(
+    voiceBlock.language.additional_locales,
+    'voice.language.additional_locales',
+    ctx
+  );
 
   for (const lang of allLangs) {
     if (!supportedLocale.safeParse(lang).success) {

@@ -78,17 +78,11 @@ export function compile(ast: ParsedAgentforce): CompileResult {
     globalConfiguration.security = security;
   }
 
-  // Step 4c: Compile runtime block (nested under config) and attach to global configuration
+  // Step 4c: Compile runtime block (nested under config; output maps to agent_version)
   const runtime = compileRuntime(ast.config?.runtime, ctx);
-  if (runtime) {
-    globalConfiguration.runtime = runtime;
-  }
 
-  // Step 4d: Compile file_upload (nested under config) and attach to global configuration
+  // Step 4d: Compile file_upload block (nested under config; output maps to agent_version)
   const fileUpload = compileFileUpload(ast.config?.file_upload, ctx);
-  if (fileUpload) {
-    (globalConfiguration as Record<string, unknown>).file_upload = fileUpload;
-  }
 
   // Step 5: Extract additional parameters
   const additionalParameters = extractAdditionalParameters(
@@ -101,6 +95,8 @@ export function compile(ast: ParsedAgentforce): CompileResult {
     ast,
     contextVariables,
     additionalParameters,
+    runtime,
+    fileUpload,
     ctx
   );
 

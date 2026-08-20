@@ -36,6 +36,7 @@ export const ALLOWED_AGENT_TYPES = [
   'SalesCanvasAgent',
   'ScaleAgent',
   'ThirdPartyA2AAgent',
+  'GoalBasedAgent',
 ] as const;
 
 export type AllowedAgentType = (typeof ALLOWED_AGENT_TYPES)[number];

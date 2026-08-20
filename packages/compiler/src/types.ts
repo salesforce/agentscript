@@ -52,6 +52,13 @@ export {
   responseFormat as responseFormatSchema,
   responseAction as responseActionSchema,
   skill as skillSchema,
+  bundle as bundleSchema,
+  nodeBundleReference as nodeBundleReferenceSchema,
+  workflow as workflowSchema,
+  trigger as triggerSchema,
+  salesforceConfiguration as salesforceConfigurationSchema,
+  dataCloudConfiguration as dataCloudConfigurationSchema,
+  orchestratorNode as orchestratorNodeSchema,
 } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
@@ -75,6 +82,12 @@ export type UserProfileConfiguration = z.input<
 >;
 export type PastConversationsConfiguration = z.input<
   typeof schema.pastConversationsConfiguration
+>;
+export type SalesforceConfiguration = z.input<
+  typeof schema.salesforceConfiguration
+>;
+export type DataCloudConfiguration = z.input<
+  typeof schema.dataCloudConfiguration
 >;
 
 // -- Recommended Prompts Configuration --
@@ -104,6 +117,13 @@ export type RecommendedPromptsConfiguration = z.input<
 // -- Agent Version --
 export type AgentVersion = z.input<typeof schema.agentVersion>;
 
+// -- GBA constructs (bundles / workflows / triggers) --
+export type Bundle = z.input<typeof schema.bundle>;
+export type NodeBundleReference = z.input<typeof schema.nodeBundleReference>;
+export type NodeSkillReference = z.input<typeof schema.nodeSkillReference>;
+export type Workflow = z.input<typeof schema.workflow>;
+export type Trigger = z.input<typeof schema.trigger>;
+
 // -- System Messages --
 export type SystemMessage = z.input<typeof schema.systemMessage>;
 
@@ -127,7 +147,13 @@ export type RouterNode = z.input<typeof schema.routerNode>;
 export type RelatedAgentNode = z.input<typeof schema.relatedAgentNode>;
 export type BYONNode = z.input<typeof schema.byonNode>;
 export type BYOClientConfig = z.input<typeof schema.byoClientConfig>;
-export type AgentNode = SubAgentNode | RouterNode | RelatedAgentNode | BYONNode;
+export type OrchestratorNode = z.input<typeof schema.orchestratorNode>;
+export type AgentNode =
+  | SubAgentNode
+  | RouterNode
+  | RelatedAgentNode
+  | BYONNode
+  | OrchestratorNode;
 
 // -- Actions & Tools --
 // `type` is `.optional()` in the upstream schema (no `.default()` since the
@@ -139,7 +165,11 @@ export type Action = z.input<typeof schema.action> & { type: 'action' };
 export type HandOffAction = z.input<typeof schema.handOffAction> & {
   type: 'handoff';
 };
-export type Tool = z.input<typeof schema.tool> & { type: 'action' };
+export type Tool = z.input<typeof schema.tool> & {
+  type: 'action';
+};
+
+export type RenderRule = z.input<typeof schema.renderRule>;
 export type SupervisionTool = z.input<typeof schema.supervisionTool> & {
   type: 'supervision';
 };

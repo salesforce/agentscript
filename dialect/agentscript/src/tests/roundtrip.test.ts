@@ -2176,6 +2176,148 @@ describe('structural verification', () => {
     expect(ast.language?.__kind).toBe('LanguageBlock');
   });
 
+  // Quoted is the canonical locale form (consistent with default_locale) and
+  // round-trips unchanged.
+  test('parses and round-trips a quoted additional_locales sequence', () => {
+    const source = `language:
+    default_locale: "en_US"
+    additional_locales:
+        - "fr"
+        - "de"`;
+    const { value, diagnostics } = parseWithDiagnostics(
+      source,
+      AgentScriptSchema
+    );
+
+    expect(
+      diagnostics.map(d => ({ code: d.code, message: d.message }))
+    ).toEqual([]);
+    expect(value.language?.additional_locales?.items).toHaveLength(2);
+    expect(emitDocument(value)).toBe(source);
+  });
+
+  test('comma-separated additional_locales string is accepted and round-trips verbatim', () => {
+    const source = `language:
+    default_locale: "en_US"
+    additional_locales: " fr, de,  "`;
+    const { value, diagnostics } = parseWithDiagnostics(
+      source,
+      AgentScriptSchema
+    );
+
+    // Comma-separated strings are no longer deprecated — no warning.
+    expect(
+      diagnostics.filter(d => d.code === 'deprecated-additional-locales-string')
+    ).toHaveLength(0);
+    // Still normalized to a sequence for downstream consumers,
+    expect(value.language?.additional_locales?.items).toHaveLength(2);
+    // but emit reproduces the original inline form losslessly.
+    expect(emitDocument(value)).toBe(source);
+  });
+
+  test('scalar additional_locales string round-trips verbatim (no list expansion)', () => {
+    const source = `language:
+    default_locale: "en_US"
+    additional_locales: "en_GB"`;
+    const { value, diagnostics } = parseWithDiagnostics(
+      source,
+      AgentScriptSchema
+    );
+
+    expect(diagnostics).toEqual([]);
+    expect(value.language?.additional_locales?.items).toHaveLength(1);
+    expect(emitDocument(value)).toBe(source);
+  });
+
+  test('inline-list additional_locales round-trips verbatim', () => {
+    const source = `language:
+    default_locale: "en_US"
+    additional_locales: ["fr", "de"]`;
+    const { value, diagnostics } = parseWithDiagnostics(
+      source,
+      AgentScriptSchema
+    );
+
+    expect(diagnostics).toEqual([]);
+    expect(value.language?.additional_locales?.items).toHaveLength(2);
+    expect(emitDocument(value)).toBe(source);
+  });
+
+  // AgentScript is YAML-inspired, so locales may be written as a block list
+  // (bare or quoted), an inline list (bare or quoted), or the deprecated
+  // comma-separated string. All accepted forms normalize to the same
+  // SequenceNode of string members.
+  test.each([
+    [
+      'block list, quoted',
+      `    additional_locales:
+        - "fr"
+        - "de"`,
+    ],
+    [
+      'block list, bare',
+      `    additional_locales:
+        - fr
+        - de`,
+    ],
+    [
+      'block list, mixed bare and quoted',
+      `    additional_locales:
+        - fr
+        - "de"`,
+    ],
+    ['inline list, quoted', '    additional_locales: ["fr", "de"]'],
+    ['inline list, bare', '    additional_locales: [fr, de]'],
+  ])('accepts %s for additional_locales', (_name, field) => {
+    const { value, diagnostics } = parseWithDiagnostics(
+      `language:
+    default_locale: "en_US"
+${field}`,
+      AgentScriptSchema
+    );
+
+    expect(
+      diagnostics.map(d => ({ code: d.code, message: d.message }))
+    ).toEqual([]);
+    expect(value.language?.additional_locales?.items).toHaveLength(2);
+  });
+
+  test.each([
+    [
+      'number member',
+      `    additional_locales:
+        - 42`,
+      'type-mismatch',
+    ],
+    [
+      'boolean member',
+      `    additional_locales:
+        - True`,
+      'type-mismatch',
+    ],
+    [
+      'reference member',
+      `    additional_locales:
+        - @variables.locale`,
+      'type-mismatch',
+    ],
+    [
+      'mapping member',
+      `    additional_locales:
+        - locale: "fr"`,
+      'invalid-sequence-element',
+    ],
+  ])('rejects %s for additional_locales', (_name, field, expectedCode) => {
+    const result = parseWithDiagnostics(
+      `language:
+    default_locale: "en_US"
+${field}`,
+      AgentScriptSchema
+    );
+
+    expect(result.diagnostics.some(d => d.code === expectedCode)).toBe(true);
+  });
+
   test('parsed subagent block has correct __kind', () => {
     const ast = parseDocument(
       `subagent helper:\n    description: "A helper subagent"`
@@ -3097,6 +3239,45 @@ describe('diagnostics', () => {
     );
     expect(diagnostics.length).toBeGreaterThan(0);
   });
+});
+
+// =============================================================================
+// Deterministic escalate tests
+// =============================================================================
+
+test('round-trips after_reasoning with escalate statement', () => {
+  const source = `subagent other_agent:
+    description: "Test escalate"
+    reasoning:
+        instructions: ->
+            |Processing
+    after_reasoning:
+        escalate`;
+
+  const ast1 = parseDocument(source);
+  const emitted = emitDocument(ast1);
+  const ast2 = parseDocument(emitted);
+
+  expect(stripMeta(ast1)).toEqual(stripMeta(ast2));
+  const topic = ast1.subagent?.get('other_agent');
+  expect(topic?.after_reasoning?.statements).toHaveLength(1);
+});
+
+test('round-trips escalate in conditional', () => {
+  const source = `subagent other_agent:
+    description: "Test conditional escalate"
+    reasoning:
+        instructions: ->
+            |Processing
+    after_reasoning:
+        if @variables.need_help:
+            escalate`;
+
+  const ast1 = parseDocument(source);
+  const emitted = emitDocument(ast1);
+  const ast2 = parseDocument(emitted);
+
+  expect(stripMeta(ast1)).toEqual(stripMeta(ast2));
 });
 
 // =============================================================================

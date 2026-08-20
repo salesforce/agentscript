@@ -10,6 +10,7 @@ import type { AstNodeLike } from '../types.js';
 import { isNamedMap, isAstNodeLike } from '../types.js';
 import { isBlockChild } from '../children.js';
 import { isExpressionKind } from '../expressions.js';
+import { isTypedDeclaration } from '../typed-declarations.js';
 import { updateScopeContext } from './scope.js';
 import type { ScopeContext } from './scope.js';
 
@@ -42,6 +43,14 @@ export function recurseAstChildren(
   }
 
   if (!isAstNodeLike(value)) return;
+
+  // Walk a typed declaration's default value so references inside it are
+  // visible — e.g. `@variables.n` in `count: number = @variables.n`.
+  if (isTypedDeclaration(value) && value.defaultValue !== undefined) {
+    // `defaultValue` lives as a direct property rather than in `__children`,
+    // so the walk below would otherwise skip it.
+    recurse('defaultValue', value.defaultValue, value);
+  }
 
   // __children is the single source of truth for blocks and sequences.
   const children = value.__children;
@@ -118,6 +127,15 @@ export function forEachExpressionChild(
       callback(obj.object, 'object', obj);
       callback(obj.index, 'index', obj);
       break;
+    case 'SliceExpression':
+      // Bounds are individually optional (open-bound forms `[a:]`, `[:b]`,
+      // `[::c]`), so guard each before recursing. Any of them can hold a
+      // nested expression (e.g. `[0:@variables.n]`) that analysis must still
+      // visit.
+      if (obj.start) callback(obj.start, 'start', obj);
+      if (obj.stop) callback(obj.stop, 'stop', obj);
+      if (obj.step) callback(obj.step, 'step', obj);
+      break;
     case 'BinaryExpression':
     case 'ComparisonExpression':
       callback(obj.left, 'left', obj);
@@ -125,6 +143,9 @@ export function forEachExpressionChild(
       break;
     case 'UnaryExpression':
       callback(obj.operand, 'operand', obj);
+      break;
+    case 'SpreadExpression':
+      callback(obj.expression, 'expression', obj);
       break;
     case 'ListLiteral': {
       const elements = obj.elements;

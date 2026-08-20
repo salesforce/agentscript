@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "SalesGoalBasedAgent",
+    "label": "Sales Goal Based Agent",
+    "description": "A goal-based sales agent",
+    "enableEnhancedEventLogs": false,
+    "agentType": "GoalBasedAgent",
+    "contextVariables": []
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! How can I help with your sales goals?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "agent",
+    "nodes": [
+      {
+        "type": "orchestrator",
+        "developerName": "agent",
+        "actionDefinitions": [
+          {
+            "developerName": "lookup_account",
+            "label": "Lookup Account",
+            "description": "Look up a Salesforce account by name",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "LookupAccount",
+            "inputType": [
+              {
+                "developerName": "account_name",
+                "label": "Account Name",
+                "description": "Account Name",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "account_id",
+                "label": "Account Id",
+                "description": "Account Id",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              },
+              {
+                "developerName": "revenue",
+                "label": "Revenue",
+                "description": "Revenue",
+                "dataType": "Double",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are a goal-based sales agent. Your goal is to help users\nwith lead generation and account management.\nUse the available tools to answer questions and take actions.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "lookup_account",
+            "boundInputs": {},
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "lookup_account",
+            "description": "Look up a Salesforce account"
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! How can I help with your sales goals?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

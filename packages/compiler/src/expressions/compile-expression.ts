@@ -12,6 +12,7 @@ import {
   AtIdentifier,
   Identifier,
   SubscriptExpression,
+  SliceExpression,
   BinaryExpression,
   UnaryExpression,
   ComparisonExpression,
@@ -108,6 +109,15 @@ function compileExprNode(
   }
   if (expr instanceof SubscriptExpression) {
     return compileSubscriptExpression(expr, ctx, opts);
+  }
+  if (expr instanceof SliceExpression) {
+    // Slices are only legal inside a subscript, where compileSubscriptExpression
+    // handles them directly. Bare slices should never reach this path.
+    ctx.error(
+      'Slice syntax is only valid inside a subscript (e.g. list[1:3])',
+      expr.__cst?.range
+    );
+    return '';
   }
   if (expr instanceof BinaryExpression) {
     return compileBinaryExpression(expr, ctx, opts);
@@ -237,6 +247,8 @@ function compileMemberExpression(
             // `.interrupted_heard_text`) fall through to the generic member
             // builder, yielding `system.last_reply.<member>`.
             return 'system.last_reply';
+          case 'uploaded_files':
+            return 'system.uploaded_files';
         }
         ctx.error(`Unknown system variable: ${property}`, expr.__cst?.range);
         return `state.${property}`;
@@ -292,15 +304,26 @@ function compileSubscriptExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
+  const compileIndex = (): string =>
+    expr.index instanceof SliceExpression
+      ? compileSlice(expr.index, ctx, opts)
+      : compileExprNode(expr.index, ctx, opts);
+
   if (expr.object instanceof AtIdentifier && expr.object.name === 'outputs') {
-    const index = compileExprNode(expr.index, ctx, opts);
-    return `result[${index}]`;
+    return `result[${compileIndex()}]`;
   }
 
   if (
     expr.object instanceof AtIdentifier &&
     expr.object.name === 'system_variables'
   ) {
+    if (expr.index instanceof SliceExpression) {
+      ctx.error(
+        'Slices are not supported on @system_variables (use @system_variables.uploaded_files[…] for slicing uploaded files)',
+        expr.__cst?.range
+      );
+      return '';
+    }
     const index = compileExprNode(expr.index, ctx, opts);
     switch (index) {
       case '"user_input"':
@@ -313,14 +336,44 @@ function compileSubscriptExpression(
         // Nested object; sub-member subscripts fall through to the generic
         // subscript builder, yielding `system["last_reply"][...]`.
         return 'system["last_reply"]';
+      case '"uploaded_files"':
+        return 'system["uploaded_files"]';
     }
     ctx.error(`Unknown system variable: ${index}`, expr.__cst?.range);
     return `state[${index}]`;
   }
 
+  // `@system_variables.uploaded_files[…]` — a subscript on a member expression
+  // whose object resolves to `system.uploaded_files`. Slices are legal here
+  // (uploaded_files is a list).
+  if (
+    expr.object instanceof MemberExpression &&
+    expr.object.object instanceof AtIdentifier &&
+    expr.object.object.name === 'system_variables' &&
+    expr.object.property === 'uploaded_files'
+  ) {
+    return `system.uploaded_files[${compileIndex()}]`;
+  }
+
   const obj = compileExprNode(expr.object, ctx, opts);
-  const index = compileExprNode(expr.index, ctx, opts);
-  return `${obj}[${index}]`;
+  return `${obj}[${compileIndex()}]`;
+}
+
+/**
+ * Emit a Python-style slice, e.g. `1:3`, `:5`, `2:`, `1:9:2`. Slices are only
+ * legal inside a subscript — the compiler never sees a bare slice.
+ */
+function compileSlice(
+  slice: SliceExpression,
+  ctx: CompilerContext,
+  opts: CompileExpressionOptions
+): string {
+  const start = slice.start ? compileExprNode(slice.start, ctx, opts) : '';
+  const stop = slice.stop ? compileExprNode(slice.stop, ctx, opts) : '';
+  if (slice.step) {
+    return `${start}:${stop}:${compileExprNode(slice.step, ctx, opts)}`;
+  }
+  return `${start}:${stop}`;
 }
 
 function compileBinaryExpression(

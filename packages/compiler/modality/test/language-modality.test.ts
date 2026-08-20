@@ -11,6 +11,91 @@ import { parseSource } from '../../test/test-utils.js';
 import { DiagnosticSeverity } from '@agentscript/types';
 
 describe('language modality compilation', () => {
+  // Locales must be quoted strings. Bare-word rejection (`type-mismatch`) is a
+  // parse-time concern enforced by the dialect and covered in the
+  // agentforce-dialect suite; `parseSource` here discards parse diagnostics, so
+  // this layer only exercises the quoted happy path.
+  it('compiles a quoted locale sequence', () => {
+    const source = `
+config:
+    agent_name: "LocaleListBot"
+
+language:
+    default_locale: "en_US"
+    additional_locales:
+        - "fr"
+        - "de"
+
+start_agent main:
+    description: "test"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const language = output.agent_version.modality_parameters.language;
+
+    expect(language?.additional_locales).toEqual(['fr', 'de']);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('compiles deprecated comma-separated locale syntax to a list', () => {
+    const source = `
+config:
+    agent_name: "LegacyLocaleBot"
+
+language:
+    default_locale: "en_US"
+    additional_locales: " fr, de,  "
+
+start_agent main:
+    description: "test"
+`;
+    const { output } = compile(parseSource(source));
+    const language = output.agent_version.modality_parameters.language;
+
+    expect(language?.additional_locales).toEqual(['fr', 'de']);
+  });
+
+  // AgentScript is YAML-inspired: inline-list syntax (`["fr", "de"]`) is an
+  // accepted equivalent of the block list and compiles to the same JSON.
+  it('compiles inline-list locale syntax to a list', () => {
+    const source = `
+config:
+    agent_name: "InlineLocaleBot"
+
+language:
+    default_locale: "en_US"
+    additional_locales: ["fr", "de"]
+
+start_agent main:
+    description: "test"
+`;
+    const { output } = compile(parseSource(source));
+    const language = output.agent_version.modality_parameters.language;
+
+    expect(language?.additional_locales).toEqual(['fr', 'de']);
+  });
+
+  // Bare (unquoted) block members are also accepted and normalized to strings.
+  it('compiles bare-word block locale syntax to a list', () => {
+    const source = `
+config:
+    agent_name: "BareLocaleBot"
+
+language:
+    default_locale: "en_US"
+    additional_locales:
+        - fr
+        - de
+
+start_agent main:
+    description: "test"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const language = output.agent_version.modality_parameters.language;
+
+    expect(language?.additional_locales).toEqual(['fr', 'de']);
+    expect(diagnostics).toHaveLength(0);
+  });
+
   describe('invalid locale produces warning instead of error', () => {
     it('should emit a warning (not error) for invalid default_locale', () => {
       const source = `
@@ -51,8 +136,9 @@ config:
 
 language:
     default_locale: "en_US"
-    additional_locales: "zz_BAD, yy_NOPE"
-
+    additional_locales:
+        - "zz_BAD"
+        - "yy_NOPE"
 start_agent main:
     description: "test"
 `;
@@ -168,7 +254,9 @@ config:
 language:
     adaptive: True
     default_locale: "en_US"
-    additional_locales: "fr, de"
+    additional_locales:
+        - "fr"
+        - "de"
     all_additional_locales: True
 
 start_agent main:

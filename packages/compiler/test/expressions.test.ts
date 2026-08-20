@@ -19,6 +19,7 @@ import {
   UnaryExpression,
   ComparisonExpression,
   SubscriptExpression,
+  SliceExpression,
   TemplateExpression,
   TemplateText,
   TemplateInterpolation,
@@ -303,6 +304,14 @@ describe('compileExpression', () => {
       );
     });
 
+    it('should compile @system_variables.uploaded_files as system.uploaded_files', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('system_variables'),
+        'uploaded_files'
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files');
+    });
+
     it('should error for unknown system variable', () => {
       const expr = new MemberExpression(
         new AtIdentifier('system_variables'),
@@ -445,6 +454,214 @@ describe('compileExpression', () => {
         'system["last_reply"].interrupted'
       );
     });
+
+    it('should compile @system_variables["uploaded_files"] as system["uploaded_files"]', () => {
+      const expr = new SubscriptExpression(
+        new AtIdentifier('system_variables'),
+        new StringLiteral('uploaded_files')
+      );
+      expect(compileExpression(expr, ctx)).toBe('system["uploaded_files"]');
+    });
+  });
+
+  describe('slice expressions', () => {
+    it('should compile a full-form slice [a:b] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(
+          new NumberLiteral(0),
+          new NumberLiteral(3),
+          undefined
+        )
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[0:3]');
+    });
+
+    it('should compile an open-end slice [a:] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(new NumberLiteral(2), undefined, undefined)
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[2:]');
+    });
+
+    it('should compile an open-start slice [:b] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(undefined, new NumberLiteral(5), undefined)
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[:5]');
+    });
+
+    it('should compile a slice with step [a:b:c] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(
+          new NumberLiteral(0),
+          new NumberLiteral(9),
+          new NumberLiteral(2)
+        )
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[0:9:2]');
+    });
+
+    it('should compile an integer index [n] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new NumberLiteral(0)
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[0]');
+    });
+
+    it('should compile a negative index [-1] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new UnaryExpression('-', new NumberLiteral(1))
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[-1]');
+    });
+
+    it('should compile a negative-start slice [-a:] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(
+          new UnaryExpression('-', new NumberLiteral(3)),
+          undefined,
+          undefined
+        )
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[-3:]');
+    });
+
+    it('should compile a negative-stop slice [:-b] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(
+          undefined,
+          new UnaryExpression('-', new NumberLiteral(1)),
+          undefined
+        )
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[:-1]');
+    });
+
+    it('should compile a reversed slice [::-1] on @system_variables.uploaded_files', () => {
+      const expr = new SubscriptExpression(
+        new MemberExpression(
+          new AtIdentifier('system_variables'),
+          'uploaded_files'
+        ),
+        new SliceExpression(
+          undefined,
+          undefined,
+          new UnaryExpression('-', new NumberLiteral(1))
+        )
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[::-1]');
+    });
+
+    it('should compile attribute access on a negative-indexed @system_variables.uploaded_files element', () => {
+      const expr = new MemberExpression(
+        new SubscriptExpression(
+          new MemberExpression(
+            new AtIdentifier('system_variables'),
+            'uploaded_files'
+          ),
+          new UnaryExpression('-', new NumberLiteral(1))
+        ),
+        'id'
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[-1].id');
+    });
+
+    it('should compile attribute access on a slice of @system_variables.uploaded_files', () => {
+      const expr = new MemberExpression(
+        new SubscriptExpression(
+          new MemberExpression(
+            new AtIdentifier('system_variables'),
+            'uploaded_files'
+          ),
+          new SliceExpression(
+            new NumberLiteral(0),
+            new NumberLiteral(3),
+            undefined
+          )
+        ),
+        'file_url'
+      );
+      expect(compileExpression(expr, ctx)).toBe(
+        'system.uploaded_files[0:3].file_url'
+      );
+    });
+
+    it('should compile attribute access on an indexed @system_variables.uploaded_files element', () => {
+      const expr = new MemberExpression(
+        new SubscriptExpression(
+          new MemberExpression(
+            new AtIdentifier('system_variables'),
+            'uploaded_files'
+          ),
+          new NumberLiteral(0)
+        ),
+        'id'
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.uploaded_files[0].id');
+    });
+
+    it('should reject slices directly on @system_variables', () => {
+      const expr = new SubscriptExpression(
+        new AtIdentifier('system_variables'),
+        new SliceExpression(
+          new NumberLiteral(0),
+          new NumberLiteral(1),
+          undefined
+        )
+      );
+      compileExpression(expr, ctx);
+      const errors = ctx.diagnostics.filter(
+        d => d.severity === DiagnosticSeverity.Error
+      );
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toMatch(/Slices are not supported/);
+    });
+
+    it('should reject a bare slice outside a subscript', () => {
+      const bare = new SliceExpression(
+        new NumberLiteral(0),
+        new NumberLiteral(1),
+        undefined
+      );
+      compileExpression(bare, ctx);
+      const errors = ctx.diagnostics.filter(
+        d => d.severity === DiagnosticSeverity.Error
+      );
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toMatch(/only valid inside a subscript/);
+    });
   });
 
   describe('template expressions', () => {
@@ -529,6 +746,56 @@ describe('compileExpression', () => {
         ),
       ]);
       expect(compileExpression(expr, ctx)).toBe('a2a_parts(*state.artifacts)');
+    });
+  });
+
+  describe('json_path calls', () => {
+    it('should render two arguments and rewrite mutable variables to state', () => {
+      ctx.mutableVariableNames.add('payload');
+      const expr = new CallExpression(new Identifier('json_path'), [
+        new MemberExpression(new AtIdentifier('variables'), 'payload'),
+        new StringLiteral('$.items[0].name'),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        'json_path(state.payload, "$.items[0].name")'
+      );
+    });
+
+    it('should render the optional default and escape selector quotes and backslashes', () => {
+      ctx.mutableVariableNames.add('payload');
+      const selector = String.raw`$["customer\"key"]["path\\name"]`;
+      const expr = new CallExpression(new Identifier('json_path'), [
+        new MemberExpression(new AtIdentifier('variables'), 'payload'),
+        new StringLiteral(selector),
+        new StringLiteral('missing'),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        `json_path(state.payload, ${JSON.stringify(selector)}, "missing")`
+      );
+    });
+  });
+
+  describe('lower/upper/to_json/from_json calls', () => {
+    it.each(['lower', 'upper', 'to_json', 'from_json'])(
+      'should render %s(...) and rewrite mutable variables to state',
+      name => {
+        ctx.mutableVariableNames.add('text');
+        const expr = new CallExpression(new Identifier(name), [
+          new MemberExpression(new AtIdentifier('variables'), 'text'),
+        ]);
+
+        expect(compileExpression(expr, ctx)).toBe(`${name}(state.text)`);
+      }
+    );
+
+    it('should compile to_json() on a string literal argument', () => {
+      const expr = new CallExpression(new Identifier('to_json'), [
+        new StringLiteral('hello'),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe('to_json("hello")');
     });
   });
 

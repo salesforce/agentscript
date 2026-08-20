@@ -221,6 +221,9 @@ export const FIXTURES: string[] = [
   'edge_employee_agent.agent',
   'edge_empty_messages.agent',
   'edge_end_session_basic.agent',
+  'directive_escalate_basic.agent',
+  'directive_escalate_conditional.agent',
+  'directive_escalate_before_reasoning.agent',
   'edge_escalation_basic.agent',
   'edge_escalation_conditional.agent',
   'edge_escalation_in_after.agent',
@@ -291,6 +294,7 @@ export const FIXTURES: string[] = [
   'constant_values_edge_cases.agent',
   'constant_values_literals.agent',
   'constant_values_mixed.agent',
+  'json_path_expression.agent',
   // Custom subagent (commerce shopper) fixtures
   'commerce_shopper_agent.agent',
   'byon_minimal.agent',
@@ -306,6 +310,10 @@ export const FIXTURES: string[] = [
   'collect_patient_intake.agent',
   // Collect inside if (branching + branch convergence)
   'collect_comms_branching.agent',
+  // GBA (Goal-Based Agent) fixtures
+  'gba_lead_generation.agent',
+  // GBA with orchestrator node: actions, reasoning.instructions, reasoning.actions
+  'gba_orchestrator.agent',
   // Voice modality fixtures
   'voice_v1_all.agent',
   'voice_v1_minimum.agent',
@@ -314,6 +322,9 @@ export const FIXTURES: string[] = [
   'voice_v2_languages.agent',
   'voice_v2_minimum.agent',
   'voice_v2_outbound.agent',
+  // Render rules — E2E coverage for `when @connection.<surface>` blocks
+  // emitting `render_rules[]` on Tool.
+  'edge_render_rules_multi_connection.agent',
 ];
 
 /**

@@ -467,6 +467,31 @@ export type ColinearFieldKeys<T extends Schema> = {
 /** Semantic capability that a block type declares (e.g., can be called as a tool, can be transitioned to). */
 export type BlockCapability = 'invocationTarget' | 'transitionTarget';
 
+/**
+ * Dialect-neutral primitive type vocabulary owned by core.
+ *
+ * Global-scope members (and any other core-level typed declaration) describe
+ * their value type with one of these strings. Core does NOT import a specific
+ * dialect's primitive set (e.g. `AgentScriptPrimitiveType`) — that would couple
+ * the analysis engine to one dialect. Instead each dialect's primitive union is
+ * required to be assignable to this set, so a dialect may hand core its own
+ * primitive strings and they slot in without a cast. Keep this the superset of
+ * every dialect's primitive keywords.
+ */
+export type CorePrimitiveType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'object'
+  | 'currency'
+  | 'date'
+  | 'datetime'
+  | 'time'
+  | 'timestamp'
+  | 'id'
+  | 'integer'
+  | 'long';
+
 /** Value-level validation constraints, modeled after JSON Schema. */
 export interface ConstraintMetadata {
   minimum?: number;
@@ -862,11 +887,14 @@ export function buildKindToSchemaKey(
     if ('kind' in fieldType && typeof fieldType.kind === 'string') {
       map.set(fieldType.kind, schemaKey);
     }
-    // For CollectionBlock (named or nested), also register the entry block's kind.
-    // Both variants have an entryBlock whose kind must be discoverable via reverse
-    // lookup.  Later schema keys overwrite earlier ones, so canonical keys
-    // (e.g. "topic") win over aliases (e.g. "start_agent").
-    if (isCollectionFieldType(fieldType)) {
+    // For a NamedCollectionBlock, also register the entry block's kind: its
+    // entries are sibling-keyed (e.g. `subagent Foo:`), so a standalone entry
+    // emits with the schema key as a header prefix. A plain (nested)
+    // CollectionBlock — e.g. `actions:` holding `Name: @actions.X` children —
+    // must NOT register its entry kind: those entries emit as bare `Name:`, and
+    // mapping their kind to the container key would emit a spurious prefix
+    // (`actions Get_Weather:`). See emit-component's kind-to-schema-key lookup.
+    if (isNamedCollectionFieldType(fieldType)) {
       const entryKind = (fieldType.entryBlock as { kind?: string }).kind;
       if (entryKind) {
         map.set(entryKind, schemaKey);
@@ -881,16 +909,93 @@ export function buildKindToSchemaKey(
  * Keeps core/ decoupled from any specific schema definition.
  */
 /**
- * The members of a single global scope. Either a flat set of leaf member
- * names (`@ns.member`), or a map of member name -> nested sub-members for
- * two-level access (`@ns.member.submember`); a `null` value marks a leaf
- * member with no sub-members. Use the set form for scopes that are entirely
- * flat (e.g. `@utils`) and the map form when any member is a nested object
- * (e.g. `@system_variables.last_reply`).
+ * A single global-scope member in its normalized (internal) form.
+ *
+ * Every member of a global scope is described by this shape once
+ * {@link normalizeGlobalScope} has run. It is a *typed declaration*: it may
+ * carry a primitive `type` (so the member participates in the same type-mismatch
+ * checks as `@variables.*`), a semantic `capability` (so it participates in
+ * `resolvedType` capability validation like schema-defined blocks), and nested
+ * `subMembers` for multi-level access (`@ns.member.sub.leaf`). All three are
+ * optional; a bare `{}` is a leaf with no type or capability.
+ *
+ * A list-typed member (e.g. `@system_variables.uploaded_files`) additionally
+ * sets `list: true` and enumerates its per-element attribute names via
+ * `elementFields`. The lint pass uses these to validate `.attr` accesses
+ * reached through a subscript or slice.
+ */
+export interface GlobalScopeMember {
+  /** Primitive value type, when known (drives type-mismatch validation). */
+  readonly type?: CorePrimitiveType;
+  /** Semantic capability, when the member is an invocation/transition target. */
+  readonly capability?: BlockCapability;
+  /** Nested sub-members for multi-level access; absent for a leaf. */
+  readonly subMembers?: ReadonlyMap<string, GlobalScopeMember>;
+  /** True when the member is a homogeneous list reached via subscript/slice. */
+  readonly list?: true;
+  /** Legal element attribute names for a list-typed member. */
+  readonly elementFields?: ReadonlySet<string>;
+}
+
+/**
+ * A single global-scope member as a dialect *declares* it (pre-normalization).
+ *
+ * Dialects may use whichever shorthand reads best:
+ * - `null` — a leaf with no type, capability, or sub-members.
+ * - a {@link CorePrimitiveType} string — a typed leaf (e.g. `'boolean'`).
+ * - a `ReadonlySet<string>` — a nested member whose sub-members are untyped leaves.
+ * - a {@link GlobalScopeMemberSpec} — the full form (type + capability + subMembers,
+ *   or the list-with-element-fields variant).
+ */
+export type GlobalScopeMemberDecl =
+  | null
+  | CorePrimitiveType
+  | ReadonlySet<string>
+  | GlobalScopeMemberSpec;
+
+/** The full declaration form for a global-scope member. */
+export interface GlobalScopeMemberSpec {
+  readonly type?: CorePrimitiveType;
+  readonly capability?: BlockCapability;
+  /**
+   * Nested sub-members, declared as a flat leaf set or a map keyed by
+   * sub-member name. Recurses to arbitrary depth via nested specs.
+   */
+  readonly subMembers?:
+    | ReadonlySet<string>
+    | ReadonlyMap<string, GlobalScopeMemberDecl>;
+  /** True when the member is a homogeneous list reached via subscript/slice. */
+  readonly list?: true;
+  /** Legal element attribute names for a list-typed member. */
+  readonly elementFields?: ReadonlySet<string>;
+}
+
+/**
+ * The members of a single global scope as a dialect declares them. Either a
+ * flat set of leaf member names (`@ns.member`) or a map of member name ->
+ * {@link GlobalScopeMemberDecl}. Use the set form for scopes that are entirely
+ * flat, untyped leaves (e.g. `@utils` before typing); use the map form to
+ * declare types, capabilities, or nested sub-members (e.g.
+ * `@system_variables.last_reply.interrupted`). A `'*'` member key is a wildcard
+ * that matches any name.
  */
 export type GlobalScopeMembers =
   | ReadonlySet<string>
-  | ReadonlyMap<string, ReadonlySet<string> | null>;
+  | ReadonlyMap<string, GlobalScopeMemberDecl>;
+
+/** True when a {@link GlobalScopeMember} is the list-with-element-fields variant. */
+export function isGlobalScopeListMember(
+  member: GlobalScopeMember | undefined
+): member is GlobalScopeMember & {
+  list: true;
+  elementFields: ReadonlySet<string>;
+} {
+  return (
+    member !== undefined &&
+    member.list === true &&
+    member.elementFields !== undefined
+  );
+}
 
 export interface SchemaInfo {
   readonly schema: Record<string, FieldType>;

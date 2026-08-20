@@ -22,6 +22,8 @@ import {
   lintDiagnostic,
   inferExpressionType,
   inferredTypeLabel,
+  schemaContextKey,
+  resolveGlobalMemberType,
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { reasoningActionsKey } from './reasoning-actions.js';
@@ -34,15 +36,21 @@ export function availableWhenTypeCheckRule(): LintPass {
       'Validates that available when conditions are boolean expressions or references',
     deps: {
       typeMap: typeMapKey,
+      schemaCtx: schemaContextKey,
       entry: each(reasoningActionsKey),
     },
 
-    run({ typeMap, entry }) {
+    run({ typeMap, schemaCtx, entry }) {
       const { statements } = entry;
       if (!statements) return;
 
       const resolveVar = (name: string) =>
         typeMap.variables.get(name)?.type ?? null;
+
+      const resolvedGlobalMember = (
+        namespace: string,
+        path: readonly string[]
+      ) => resolveGlobalMemberType(schemaCtx, namespace, path) ?? null;
 
       for (const stmt of statements) {
         if (stmt.__kind !== 'AvailableWhen') continue;
@@ -50,7 +58,11 @@ export function availableWhenTypeCheckRule(): LintPass {
         const condition = stmt.condition;
         if (!condition) continue;
 
-        const conditionType = inferExpressionType(condition, resolveVar);
+        const conditionType = inferExpressionType(
+          condition,
+          resolveVar,
+          resolvedGlobalMember
+        );
 
         // Skip if type is unknown (null) or boolean. Unresolved references,
         // function calls, ternaries, list/dict literals, and None all return

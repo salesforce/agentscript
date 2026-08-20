@@ -39,7 +39,12 @@ export function descriptionToStr(
  * into its components.
  */
 export function parseUri(uri: string): { scheme: string; path: string } {
-  const match = uri.match(/^(\w+):\/\/(.+)$/);
+  // The path is optional: a bare `scheme://` (e.g. the empty `placeholder://`
+  // the UI emits for a not-yet-configured action) is a valid scheme with an
+  // empty path. Requiring a non-empty path here would misclassify it as a
+  // schemeless string and treat the literal `placeholder://` as an external
+  // service name. This matches the linter, which parses targets with `new URL`.
+  const match = uri.match(/^(\w+):\/\/(.*)$/);
   if (!match) return { scheme: '', path: uri };
   return { scheme: match[1], path: match[2] };
 }

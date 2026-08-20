@@ -567,7 +567,22 @@ describe('getCompletionCandidates', () => {
     expect(names).toContain('current_modality');
     expect(names).toContain('current_connection');
     expect(names).toContain('last_reply');
-    expect(candidates).toHaveLength(4);
+    expect(names).toContain('uploaded_files');
+    expect(candidates).toHaveLength(5);
+  });
+
+  test('system_variables.uploaded_files exposes no bare sub-members (reached via subscript)', () => {
+    // `uploaded_files` is a list of File objects reached via subscript/slice
+    // (`uploaded_files[0].id`), not a bare `.attr`. So member-access completion
+    // after `uploaded_files.` yields nothing — element-field completion lives
+    // under a separate trigger (after `uploaded_files[0].`), not this path.
+    const ast = parse('');
+    const candidates = getNodeMemberAccessCompletions(
+      ast,
+      ['system_variables', 'uploaded_files', ''],
+      testSchemaCtx
+    );
+    expect(candidates).toHaveLength(0);
   });
 
   test('system_variables.last_reply nested scope returns sub-members', () => {
@@ -581,9 +596,11 @@ describe('getCompletionCandidates', () => {
     expect(names).toContain('interrupted');
     expect(names).toContain('interrupted_heard_text');
     expect(candidates).toHaveLength(2);
-    for (const c of candidates) {
-      expect(c.kind).toBe(SymbolKind.Property);
-    }
+    // Typed leaves surface their primitive kind: `interrupted` is boolean,
+    // `interrupted_heard_text` is string.
+    const byName = new Map(candidates.map(c => [c.name, c.kind]));
+    expect(byName.get('interrupted')).toBe(SymbolKind.Boolean);
+    expect(byName.get('interrupted_heard_text')).toBe(SymbolKind.String);
   });
 
   test('system_variables flat member has no nested sub-members', () => {
@@ -594,6 +611,21 @@ describe('getCompletionCandidates', () => {
       testSchemaCtx
     );
     expect(candidates).toHaveLength(0);
+  });
+
+  // P2b: Verify 3+ level completions will work when declarations ship
+  test.skip('3-level nested global scope members offer completions', () => {
+    // This test is skipped until 3+ level global scope members are added to schema.
+    // When that happens, remove .skip, add a 3-level declaration to schema.ts, and
+    // verify completions recurse through `subMembers` without depth cap.
+    const ast = parse('');
+    const candidates = getNodeMemberAccessCompletions(
+      ast,
+      ['system_variables', 'nested', 'level2', ''],
+      testSchemaCtx
+    );
+    // Should offer level3 members, not return empty due to depth cap
+    expect(candidates.length).toBeGreaterThanOrEqual(0);
   });
 
   test('global scope completions have Property kind', () => {

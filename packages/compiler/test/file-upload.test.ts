@@ -7,7 +7,8 @@
 
 /**
  * file_upload compilation tests — tests that file_upload block nested in config
- * is properly extracted and compiled into global_configuration.
+ * is properly extracted and compiled into agent_version (upload handling is
+ * version-specific, so it lives on agent_version rather than global_configuration).
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
@@ -27,7 +28,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'auto',
     });
   });
@@ -45,7 +46,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'managed',
     });
   });
@@ -63,7 +64,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'disabled',
     });
   });
@@ -81,7 +82,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'error',
     });
   });
@@ -100,7 +101,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'error',
       message:
         "This agent doesn't accept attachments. Please paste the text instead.",
@@ -121,7 +122,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'disabled',
       message: 'Files are not supported',
     });
@@ -140,10 +141,10 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'managed',
     });
-    expect(output.global_configuration.file_upload?.message).toBeUndefined();
+    expect(output.agent_version.file_upload?.message).toBeUndefined();
   });
 
   it('should not include file_upload when omitted from config', () => {
@@ -157,7 +158,7 @@ start_agent main:
     description: "Test agent"
 `;
     const { output } = compile(parseSource(source));
-    expect(output.global_configuration.file_upload).toBeUndefined();
+    expect(output.agent_version.file_upload).toBeUndefined();
   });
 
   it('should omit file_upload when mode is invalid', () => {
@@ -174,7 +175,7 @@ start_agent main:
 `;
     const { output } = compile(parseSource(source));
     // Should not include file_upload in output when mode is invalid
-    expect(output.global_configuration.file_upload).toBeUndefined();
+    expect(output.agent_version.file_upload).toBeUndefined();
   });
 
   it('should omit file_upload when mode is missing', () => {
@@ -191,7 +192,7 @@ start_agent main:
 `;
     const { output } = compile(parseSource(source));
     // Should not include file_upload in output when mode is missing
-    expect(output.global_configuration.file_upload).toBeUndefined();
+    expect(output.agent_version.file_upload).toBeUndefined();
   });
 
   it('should compile file_upload alongside other config fields', () => {
@@ -216,7 +217,7 @@ start_agent main:
 
     expect(output.global_configuration.developer_name).toBe('customer_support');
     expect(output.global_configuration.enable_enhanced_event_logs).toBe(true);
-    expect(output.global_configuration.file_upload).toEqual({
+    expect(output.agent_version.file_upload).toEqual({
       mode: 'managed',
       message: 'Files must be referenced to be visible',
     });

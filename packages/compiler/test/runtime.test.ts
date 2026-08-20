@@ -16,6 +16,7 @@ const RUNTIME_FIELDS = [
   'citation',
   'groundedness',
   'reset_to_initial_node',
+  'user_skills',
 ] as const;
 
 type RuntimeField = (typeof RUNTIME_FIELDS)[number];
@@ -50,12 +51,12 @@ describe('Runtime compilation', () => {
   describe('Field emission', () => {
     it.each(RUNTIME_FIELDS)('emits %s when set to True', field => {
       const output = compileAndAssertNoErrors(sourceWith({ [field]: true }));
-      expect(output.global_configuration.runtime).toEqual({ [field]: true });
+      expect(output.agent_version.runtime).toEqual({ [field]: true });
     });
 
     it.each(RUNTIME_FIELDS)('emits %s when set to False', field => {
       const output = compileAndAssertNoErrors(sourceWith({ [field]: false }));
-      expect(output.global_configuration.runtime).toEqual({ [field]: false });
+      expect(output.agent_version.runtime).toEqual({ [field]: false });
     });
 
     it('emits all fields when every field is set', () => {
@@ -64,7 +65,7 @@ describe('Runtime compilation', () => {
       ) as Record<RuntimeField, boolean>;
 
       const output = compileAndAssertNoErrors(sourceWith(all));
-      expect(output.global_configuration.runtime).toEqual(all);
+      expect(output.agent_version.runtime).toEqual(all);
     });
 
     it('emits only the fields that are present in source', () => {
@@ -75,7 +76,7 @@ describe('Runtime compilation', () => {
       };
 
       const output = compileAndAssertNoErrors(sourceWith(subset));
-      expect(output.global_configuration.runtime).toEqual(subset);
+      expect(output.agent_version.runtime).toEqual(subset);
     });
   });
 
@@ -91,7 +92,7 @@ start_agent main:
 `.trimStart();
 
       const output = compileAndAssertNoErrors(source);
-      expect(output.global_configuration.runtime).toBeUndefined();
+      expect(output.agent_version.runtime).toBeUndefined();
     });
 
     it('errors when the runtime block is present but empty', () => {
@@ -114,7 +115,7 @@ start_agent main:
       expect(errors[0].message).toMatch(
         /runtime block must declare at least one field/
       );
-      expect(output.global_configuration.runtime).toBeUndefined();
+      expect(output.agent_version.runtime).toBeUndefined();
     });
 
     it.each(RUNTIME_FIELDS)(
@@ -125,10 +126,10 @@ start_agent main:
         ) as Partial<Record<RuntimeField, boolean>>;
 
         const output = compileAndAssertNoErrors(sourceWith(set));
-        expect(output.global_configuration.runtime).not.toHaveProperty(omitted);
+        expect(output.agent_version.runtime).not.toHaveProperty(omitted);
         for (const f of RUNTIME_FIELDS) {
           if (f !== omitted) {
-            expect(output.global_configuration.runtime).toHaveProperty(f, true);
+            expect(output.agent_version.runtime).toHaveProperty(f, true);
           }
         }
       }
@@ -144,7 +145,7 @@ start_agent main:
 
       const output = compileAndAssertNoErrors(sourceWith(present));
       for (const f of expectedAbsent) {
-        expect(output.global_configuration.runtime).not.toHaveProperty(f);
+        expect(output.agent_version.runtime).not.toHaveProperty(f);
       }
     });
 
@@ -154,7 +155,7 @@ start_agent main:
       ) as Record<RuntimeField, boolean>;
 
       const output = compileAndAssertNoErrors(sourceWith(allFalse));
-      expect(output.global_configuration.runtime).toEqual(allFalse);
+      expect(output.agent_version.runtime).toEqual(allFalse);
     });
   });
 
@@ -178,10 +179,33 @@ start_agent main:
       const output = compileAndAssertNoErrors(source);
       expect(output.global_configuration.developer_name).toBe('test_agent');
       expect(output.global_configuration.enable_enhanced_event_logs).toBe(true);
-      expect(output.global_configuration.runtime).toEqual({
+      expect(output.global_configuration).not.toHaveProperty('runtime');
+      expect(output.agent_version.runtime).toEqual({
         thought_chunks: true,
         streaming: false,
       });
+    });
+
+    it('emits runtime independently from additional parameters', () => {
+      const source = `
+config:
+    developer_name: "test_agent"
+    default_agent_user: "test@example.com"
+    additional_parameter__debug: True
+    runtime:
+        streaming: False
+
+start_agent main:
+    description: "Main topic"
+`.trimStart();
+
+      const output = compileAndAssertNoErrors(source);
+      expect(output.agent_version.runtime).toEqual({ streaming: false });
+      expect(output.agent_version.additional_parameters).toMatchObject({
+        debug: true,
+        reset_to_initial_node: true,
+      });
+      expect(output.global_configuration).not.toHaveProperty('runtime');
     });
   });
 });

@@ -18,12 +18,22 @@
  * types are returned verbatim, except case-insensitive 'boolean' is normalized
  * to lowercase so callers can compare with `=== 'boolean'`.
  */
-import { KIND_LABELS } from '../core/expressions.js';
+import { KIND_LABELS, decomposeAtMemberChain } from '../core/expressions.js';
 import type { ExpressionKind } from '../core/expressions.js';
 import { extractVariableRef } from './lint-utils.js';
 
 /** Resolve `@variables.X` to a dialect-specific type string. */
 export type VariableTypeResolver = (varName: string) => string | null;
+
+/**
+ * Resolve a global-scope member reference (e.g. `@system_variables.last_reply.interrupted`)
+ * to its declared primitive type, or null when the namespace/path is not a
+ * typed global-scope member.
+ */
+export type GlobalMemberTypeResolver = (
+  namespace: string,
+  path: readonly string[]
+) => string | null;
 
 /**
  * Infer the AgentScript type of an expression when statically determinable.
@@ -39,7 +49,8 @@ export type VariableTypeResolver = (varName: string) => string | null;
  */
 export function inferExpressionType(
   expr: unknown,
-  resolveVariable?: VariableTypeResolver
+  resolveVariable?: VariableTypeResolver,
+  resolveGlobalMember?: GlobalMemberTypeResolver
 ): string | null {
   if (!expr || typeof expr !== 'object') return null;
   const obj = expr as Record<string, unknown>;
@@ -73,6 +84,13 @@ export function inferExpressionType(
         const varName = extractVariableRef(expr);
         if (varName) {
           const t = resolveVariable(varName);
+          if (t) return t.toLowerCase() === 'boolean' ? 'boolean' : t;
+        }
+      }
+      if (resolveGlobalMember) {
+        const chain = decomposeAtMemberChain(expr);
+        if (chain) {
+          const t = resolveGlobalMember(chain.namespace, chain.path);
           if (t) return t.toLowerCase() === 'boolean' ? 'boolean' : t;
         }
       }

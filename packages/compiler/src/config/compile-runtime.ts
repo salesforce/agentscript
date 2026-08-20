@@ -12,12 +12,14 @@ import { extractBooleanValue, getCstRange } from '../ast-helpers.js';
 /**
  * Compile runtime configuration from the `runtime` block under `config`.
  *
- * The runtime block holds opt-in runtime knobs:
- * - streaming: collapse /messages/stream into a single terminal SSE chunk
- * - thought_chunks: emit thought chunks alongside response chunks
- * - citation: skip citation enrichment post-orch step
- * - groundedness: force-off groundedness post-orch step
+ * The runtime block holds opt-in runtime knobs (each defers to the caller's
+ * runtime policy when omitted):
+ * - streaming: stream incremental SSE chunks, or collapse into one terminal chunk when False
+ * - thought_chunks: buffer planner prose into ThoughtTextChunks alongside response chunks
+ * - citation: run the citation enrichment post-orch step, or skip it when False
+ * - groundedness: run the groundedness post-orch step, or force it off when False
  * - reset_to_initial_node: rewind current_node to the initial node after each terminal node
+ * - user_skills: add skill CRUD tools and inject user skill frontmatter into subagent prompts
  *
  * Each field is optional and omitted from the compiled output when unset.
  * When the `runtime:` block is present, it must declare at least one field —
@@ -36,6 +38,7 @@ export function compileRuntime(
         citation?: { value?: boolean };
         groundedness?: { value?: boolean };
         reset_to_initial_node?: { value?: boolean };
+        user_skills?: { value?: boolean };
       }
     | null
     | undefined,
@@ -51,6 +54,7 @@ export function compileRuntime(
     'citation',
     'groundedness',
     'reset_to_initial_node',
+    'user_skills',
   ];
 
   const result: RuntimeConfiguration = {};
@@ -63,7 +67,7 @@ export function compileRuntime(
 
   if (Object.keys(result).length === 0) {
     ctx.error(
-      'runtime block must declare at least one field (streaming, thought_chunks, citation, groundedness, or reset_to_initial_node). Remove the empty `runtime:` block if no runtime overrides are needed.',
+      'runtime block must declare at least one field (streaming, thought_chunks, citation, groundedness, reset_to_initial_node, or user_skills). Remove the empty `runtime:` block if no runtime overrides are needed.',
       getCstRange(runtimeBlock)
     );
     return undefined;

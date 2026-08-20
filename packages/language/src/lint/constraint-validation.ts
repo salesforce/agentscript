@@ -11,6 +11,7 @@ import type {
   ConstraintMetadata,
   AstNodeLike,
   BlockCapability,
+  GlobalScopeMember,
 } from '../core/types.js';
 import { isAstNodeLike } from '../core/types.js';
 import { DiagnosticSeverity, attachDiagnostic } from '../core/diagnostics.js';
@@ -28,6 +29,7 @@ import {
 } from './lint-utils.js';
 import {
   decomposeAtMemberExpression,
+  decomposeAtMemberChain,
   MemberExpression,
 } from '../core/expressions.js';
 import { SequenceNode } from '../core/sequence.js';
@@ -144,13 +146,66 @@ function validateConstraints(
     end: { line: 0, character: 0 },
   };
 
-  // Validate resolvedType — the expression must resolve to a namespace with the given capability.
-  // Unlike allowedNamespaces, we only mark the node as validated when the check fails,
+  // Validate resolvedType — the expression must resolve to a namespace (or a
+  // global-scope member) that carries the given capability. Unlike
+  // allowedNamespaces, we only mark the node as validated when the check fails,
   // so downstream passes (e.g. undefined-reference) can still verify member existence.
-  // Global scopes (e.g. @utils) are skipped — see TODO on SchemaContext.globalScopes.
   if (constraints.resolvedType && node instanceof MemberExpression && ctx) {
+    // Try full chain decomposition first (handles arbitrary depth: @ns.a.b.c...)
+    const chain = decomposeAtMemberChain(value);
+    if (chain && ctx.globalScopes.has(chain.namespace)) {
+      // Walk to the leaf member via resolveGlobalMemberType to get its declaration
+      const globalScope = ctx.globalScopes.get(chain.namespace);
+      if (globalScope && chain.path.length > 0) {
+        // Resolve through the full path to find the leaf member
+        let members: ReadonlyMap<string, GlobalScopeMember> | undefined =
+          globalScope;
+        let leafMember: GlobalScopeMember | undefined;
+        for (const segment of chain.path) {
+          if (!members) break;
+          leafMember = members.get(segment);
+          if (!leafMember) break;
+          members = leafMember.subMembers;
+        }
+
+        // If we found the leaf, validate its capability:
+        // - If the member has an explicit capability, it must match
+        // - If the member has no capability (data member with only `type`),
+        //   reject it when invocationTarget is required (can't invoke data)
+        const shouldReject =
+          leafMember &&
+          ((leafMember.capability !== undefined &&
+            leafMember.capability !== constraints.resolvedType) ||
+            (leafMember.capability === undefined &&
+              constraints.resolvedType === 'invocationTarget'));
+
+        if (shouldReject) {
+          validatedRefs?.add(node);
+          const label = resolvedTypeLabel(constraints.resolvedType);
+          const verb =
+            constraints.resolvedType === 'invocationTarget'
+              ? 'invoke'
+              : 'reference';
+          const fullPath = `@${chain.namespace}.${chain.path.join('.')}`;
+          attachDiagnostic(
+            node,
+            lintDiagnostic(
+              range,
+              `Cannot ${verb} '${fullPath}' — '${chain.namespace}.${chain.path.join('.')}' is not a valid ${label}.`,
+              DiagnosticSeverity.Error,
+              'constraint-resolved-type'
+            )
+          );
+        }
+        // Global scope member was handled (either passed or rejected), don't
+        // fall through to schema namespace check
+        return;
+      }
+    }
+
+    // Fallback: handle non-global-scope references (schema namespaces like @actions)
     const ref = decomposeAtMemberExpression(value);
-    if (ref && !ctx.globalScopes.has(ref.namespace)) {
+    if (ref) {
       const validNamespaces = resolveCapabilityNamespaces(
         constraints.resolvedType,
         ctx

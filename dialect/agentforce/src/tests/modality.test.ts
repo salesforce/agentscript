@@ -87,14 +87,17 @@ modality voice:
   const fullVoiceSourceV2 = `
 language:
     default_locale: "fr_CA"
-    additional_locales: "de,it"
-
+    additional_locales:
+        - "de"
+        - "it"
 modality voice:
     session_language_switching: "Multilingual"
 
     language:
         default_locale: "fr_CA"
-        additional_locales: "de,it"
+        additional_locales:
+            - "de"
+            - "it"
 
     inbound:
         keywords:
@@ -418,6 +421,60 @@ modality voice:
           ? voice.language_settings.size
           : undefined
       ).toBe(expectedLanguageSettingsLength);
+    }
+  );
+
+  // Quoted is the canonical locale form (consistent with default_locale) and
+  // round-trips unchanged.
+  it('parses and round-trips a quoted voice.language additional_locales sequence', () => {
+    const source = `modality voice:
+    language:
+        default_locale: "en_US"
+        additional_locales:
+            - "fr"
+            - "de"`;
+    const { value, diagnostics } = parseWithDiagnostics(source);
+    const voice = value.modality?.get('voice');
+    const language = voice?.language as Record<string, unknown> | undefined;
+    const additionalLocales = language?.additional_locales as
+      | SequenceNode
+      | undefined;
+
+    expect(diagnostics).toEqual([]);
+    expect(
+      additionalLocales?.items.map(
+        item => (item as unknown as { value: string }).value
+      )
+    ).toEqual(['fr', 'de']);
+    expect(emitDocument(value)).toBe(source);
+  });
+
+  // YAML-inspired: bare, quoted, and mixed members are all accepted and
+  // normalized to string locales, matching the standalone `language` block.
+  it.each([
+    ['bare', '            - fr\n            - de'],
+    ['mixed', '            - fr\n            - "de"'],
+  ])(
+    'accepts a %s voice.language additional_locales sequence',
+    (_variant, members) => {
+      const source = `modality voice:
+    language:
+        default_locale: "en_US"
+        additional_locales:
+${members}`;
+      const { value, diagnostics } = parseWithDiagnostics(source);
+      const voice = value.modality?.get('voice');
+      const language = voice?.language as Record<string, unknown> | undefined;
+      const additionalLocales = language?.additional_locales as
+        | SequenceNode
+        | undefined;
+
+      expect(diagnostics).toEqual([]);
+      expect(
+        additionalLocales?.items.map(
+          item => (item as unknown as { value: string }).value
+        )
+      ).toEqual(['fr', 'de']);
     }
   );
 

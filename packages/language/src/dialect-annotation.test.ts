@@ -34,6 +34,15 @@ describe('parseDialectAnnotation', () => {
     expect(result!.versionLength).toBe(0);
   });
 
+  test('parses a hyphenated dialect name', () => {
+    const source = '# @dialect: agentforce-plugin\nsystem:';
+    const result = parseDialectAnnotation(source);
+
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe('agentforce-plugin');
+    expect(result!.nameLength).toBe('agentforce-plugin'.length);
+  });
+
   test('parses annotation with name and major version', () => {
     const source = '# @dialect: agentscript=2\nsystem:';
     const result = parseDialectAnnotation(source);

@@ -291,7 +291,7 @@ describe('unknown block handling', () => {
       '        instructions: ->',
       '            | hello',
       '',
-      'actions:',
+      'nonexistent_block:',
       '    Lookup_Order:',
       '        description: "Retrieve order details"',
       '        target: "flow://Lookup_Order"',
@@ -300,7 +300,7 @@ describe('unknown block handling', () => {
     const diag = result.diagnostics.find(d => d.code === 'unknown-block');
     expect(diag).toBeDefined();
     expect(diag!.severity).toBe(DiagnosticSeverity.Error);
-    expect(diag!.message).toContain('actions');
+    expect(diag!.message).toContain('nonexistent_block');
   });
 
   test('singular block with unexpected name produces diagnostic and preserves block', () => {

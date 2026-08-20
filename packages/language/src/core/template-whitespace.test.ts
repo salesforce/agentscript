@@ -61,9 +61,11 @@ describe('Template whitespace preservation - normalizeBlankLines bug', () => {
       const output = getTemplateContent(`|- item 1
            - nested item`);
 
-      // After dedent, relative indentation should be preserved
+      // After dedent, relative indentation should be preserved. Content
+      // starts one column past `|`, so the nested item keeps its 2-column
+      // offset from `- item 1` (both measured from the content-start column).
       expect(output).toContain('- item 1');
-      expect(output).toContain('   - nested item');
+      expect(output).toContain('  - nested item');
     });
 
     it('should preserve 3-level nested lists', () => {
@@ -72,8 +74,8 @@ describe('Template whitespace preservation - normalizeBlankLines bug', () => {
                - Level 3`);
 
       expect(output).toContain('- Level 1');
-      expect(output).toContain('   - Level 2');
-      expect(output).toContain('       - Level 3');
+      expect(output).toContain('  - Level 2');
+      expect(output).toContain('      - Level 3');
     });
 
     it('should preserve mixed list indentation - production bug case', () => {
@@ -104,11 +106,12 @@ describe('Template whitespace preservation - normalizeBlankLines bug', () => {
       // First line: no indent
       expect(lines[0]).toBe('ab');
 
-      // Second line: 8 spaces relative indent
-      expect(lines[1]).toBe('        ab');
+      // Second line: 7 spaces relative indent (measured from content start,
+      // one column past `|`).
+      expect(lines[1]).toBe('       ab');
 
-      // Third line: 15 spaces relative indent
-      expect(lines[2]).toBe('               ab');
+      // Third line: 14 spaces relative indent.
+      expect(lines[2]).toBe('              ab');
     });
 
     it('should handle multi-level indentation structure', () => {
@@ -118,11 +121,13 @@ describe('Template whitespace preservation - normalizeBlankLines bug', () => {
          Back to 2
          Back to 1`);
 
+      // `Level 2`/`Back to *` sit at the same column as `Level 1`'s content,
+      // so they dedent flush (relative 0); `Level 3` keeps its +4 offset.
       expect(output).toContain('Level 1');
-      expect(output).toContain(' Level 2');
-      expect(output).toContain('     Level 3');
-      expect(output).toContain(' Back to 2');
-      expect(output).toContain(' Back to 1');
+      expect(output).toContain('\nLevel 2');
+      expect(output).toContain('    Level 3');
+      expect(output).toContain('\nBack to 2');
+      expect(output).toContain('\nBack to 1');
     });
   });
 
@@ -146,9 +151,9 @@ describe('Template whitespace preservation - normalizeBlankLines bug', () => {
                return true;
            }`);
 
-      expect(output).toContain('   function test() {');
-      expect(output).toContain('       return true;');
-      expect(output).toContain('   }');
+      expect(output).toContain('  function test() {');
+      expect(output).toContain('      return true;');
+      expect(output).toContain('  }');
     });
 
     it('should handle numbered lists', () => {
@@ -188,20 +193,21 @@ describe('Template whitespace preservation - normalizeBlankLines bug', () => {
 
       const lines = output.split('\n');
 
-      // Expected: Line 0 = "Item", Line 1 = "   Nested" (with 3 spaces)
-      // Bug: normalizeBlankLines treats "   " as blank, making it ""
+      // Expected: Line 0 = "Item", Line 1 = "  Nested" (2 spaces, measured
+      // from the content-start column one past `|`).
+      // Bug: normalizeBlankLines treats indent-only lines as blank, making it ""
       expect(lines[0]).toBe('Item');
-      expect(lines[1]).toBe('   Nested'); // BUG: This will fail - becomes "Nested"
+      expect(lines[1]).toBe('  Nested');
     });
 
     it('demonstrates the bug with list items', () => {
       const output = getTemplateContent(`|- First
             - Second`);
 
-      // After dedent, "- First" has no indent, "    - Second" has 4 spaces
-      // The bug would strip those spaces
+      // After dedent, "- First" has no indent, "   - Second" has 3 spaces
+      // (measured from the content-start column one past `|`).
       expect(output).toContain('- First');
-      expect(output).toContain('    - Second'); // BUG: This will fail
+      expect(output).toContain('   - Second');
     });
   });
 });

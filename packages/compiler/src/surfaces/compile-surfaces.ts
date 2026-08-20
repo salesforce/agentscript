@@ -98,19 +98,25 @@ function compileSurface(
   // Clear response format reference map for this surface
   ctx.responseFormatReferenceMap.clear();
 
+  // When adaptive_response_allowed is explicitly false, the reasoning block
+  // (instructions + response_actions) is inert at runtime — don't emit it.
+  const includeReasoning = adaptiveResponseAllowed?.value !== false;
+
   // Compile reasoning.response_actions first to populate responseFormatReferenceMap
   // (needed for @response_actions resolution in instructions)
-  const responseActions = compileResponseActions(
-    def.reasoning?.response_actions as
-      | NamedMap<Record<string, unknown>>
-      | undefined,
-    ctx
-  );
+  const responseActions = includeReasoning
+    ? compileResponseActions(
+        def.reasoning?.response_actions as
+          | NamedMap<Record<string, unknown>>
+          | undefined,
+        ctx
+      )
+    : [];
 
   // Extract instructions from reasoning block (template-based, format references allowed)
-  const instructionsNode = def.reasoning?.instructions as
-    | Record<string, unknown>
-    | undefined;
+  const instructionsNode = includeReasoning
+    ? (def.reasoning?.instructions as Record<string, unknown> | undefined)
+    : undefined;
   const instructions = instructionsNode
     ? dedent(
         compileTemplateValue(instructionsNode, ctx, {
@@ -180,11 +186,13 @@ function getConnectionType(name: string): string {
 
 function compileOutboundRouteConfigs(
   def: ParsedConnection,
-  _ctx: CompilerContext
+  ctx: CompilerContext
 ): OutboundRouteConfig[] {
   const routeType = extractSourcedString(def.outbound_route_type);
   const routeName = extractSourcedString(def.outbound_route_name);
-  const escalationMessage = extractSourcedString(def.escalation_message);
+  const escalationMessage = def.escalation_message
+    ? compileTemplateValue(def.escalation_message, ctx) || undefined
+    : undefined;
 
   // Any routing field triggers route config creation
   if (!routeType && !routeName && !escalationMessage) {

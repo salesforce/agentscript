@@ -180,23 +180,33 @@ export default grammar({
       choice(
         $.template,
         $.transition_statement,
+        $.escalate_statement,
         $.with_statement,
         $.set_statement,
         $.run_statement,
-        $.available_when_statement
+        $.available_when_statement,
+        $.show_and_return_statement
       ),
 
     compound_statement: $ =>
-      choice($.if_statement, $.run_statement, $.collect_statement),
+      choice(
+        $.if_statement,
+        $.run_statement,
+        $.collect_statement,
+        $.when_statement,
+        $.render_statement
+      ),
 
-    // `collect` gathers a single variable from the user one field at a time.
+    // `ask for` gathers a single variable from the user one field at a time.
     // It is sugar inside reasoning.instructions: an indented body holds the
-    // `message:` (and future) fields. Modeled on run_statement: a verb followed
-    // by a target and an indented body, with no colon (`collect` is an operator,
-    // not a key). The body is required and is a `mapping`, not a `procedure`.
+    // `instructions:` (and future) fields. Modeled on run_statement: a verb
+    // followed by a target and an indented body, with no colon (`ask for` is an
+    // operator, not a key). The body is required and is a `mapping`, not a
+    // `procedure`. `ask for` is a single embedded-space keyword token, exactly
+    // like `available when` below.
     collect_statement: $ =>
       seq(
-        'collect',
+        'ask for',
         field('target', $.expression),
         $._indent,
         field('body', $.mapping),
@@ -281,11 +291,33 @@ export default grammar({
     available_when_statement: $ =>
       seq('available when', field('condition', $.expression)),
 
+    when_statement: $ =>
+      seq(
+        'when',
+        field('subject', $.expression),
+        optional(seq($._indent, field('body', $.procedure), $._dedent)),
+        $._newline
+      ),
+
+    render_statement: $ =>
+      seq(
+        'render',
+        ':',
+        field('value', $.expression),
+        optional(seq($._indent, field('body', $.procedure), $._dedent)),
+        $._newline
+      ),
+
+    show_and_return_statement: $ =>
+      seq('show_and_return', ':', field('value', $.expression)),
+
     transition_statement: $ =>
       seq(
         'transition',
         optional(field('with_to_statement_list', $.with_to_statement_list))
       ),
+
+    escalate_statement: $ => 'escalate',
 
     // Expressions
 
@@ -365,7 +397,30 @@ export default grammar({
     member_expression: $ => prec.left(8, seq($.expression, '.', $.id)),
 
     subscript_expression: $ =>
-      prec.left(8, seq($.expression, '[', $.expression, ']')),
+      prec.left(
+        8,
+        seq($.expression, '[', choice($.expression, $.slice_expression), ']')
+      ),
+
+    // Python-style slice inside a subscript: [a:b], [a:], [:b], [a:b:c].
+    // At least one bound must be present — bare `[:]` is a shallow-copy in
+    // Python semantics we don't want to expose, so it's rejected at parse.
+    // Only meaningful in subscript position; not a general expression.
+    slice_expression: $ =>
+      choice(
+        seq(
+          field('start', $.expression),
+          ':',
+          optional(field('stop', $.expression)),
+          optional(seq(':', optional(field('step', $.expression))))
+        ),
+        seq(
+          ':',
+          field('stop', $.expression),
+          optional(seq(':', optional(field('step', $.expression))))
+        ),
+        seq(':', ':', field('step', $.expression))
+      ),
 
     atom: $ =>
       choice(

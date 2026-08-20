@@ -6,18 +6,26 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "Building linux-x64 prebuilds in Docker..."
 docker run --rm --platform linux/amd64 \
-  -v "$REPO_ROOT:/workspace" \
-  -w /workspace \
-  node:20 \
+  -e CI=true \
+  -v "$REPO_ROOT:/build" \
+  -w /build \
+  node:22 \
   bash -c '
-    corepack enable && corepack prepare pnpm@latest --activate
-    pnpm install
-    cd packages/parser-tree-sitter && pnpm run prebuild
+    set -e
+    npm install -g pnpm@10.28.0 >/dev/null 2>&1
+    # Install tree-sitter CLI (required by "generate" step in prebuild).
+    curl -fsSL -o /tmp/tree-sitter.gz \
+      "https://github.com/tree-sitter/tree-sitter/releases/download/v0.25.10/tree-sitter-linux-x64.gz"
+    gunzip -c /tmp/tree-sitter.gz > /usr/local/bin/tree-sitter
+    chmod +x /usr/local/bin/tree-sitter
+    cd /build
+    pnpm install --frozen-lockfile=false
+    cd /build/packages/parser-tree-sitter && pnpm run prebuild
   '
 
 echo ""

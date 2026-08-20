@@ -34,6 +34,20 @@ export interface UnusedVariablePassOptions {
     name: string,
     decl: AstNodeLike
   ) => string | undefined;
+
+  /**
+   * Collect variable names that should be treated as used but that the
+   * expression walk cannot observe as `@variables.X` references. Dialects use
+   * this for constructs that target a variable by bare name — e.g. the
+   * `with param=...` clauses of `@utils.setVariables`, where `param` is the
+   * write-target variable and no member expression is ever emitted. Reads run
+   * after finalize, so dialect analyzers (e.g. reasoning-action resolution)
+   * have already populated the store.
+   */
+  collectExternallyUsedVariables?: (
+    store: PassStore,
+    root: AstRoot
+  ) => Iterable<string>;
 }
 
 class UnusedVariablePass implements LintPass {
@@ -56,9 +70,17 @@ class UnusedVariablePass implements LintPass {
     }
   }
 
-  run(_store: PassStore, root: AstRoot): void {
+  run(store: PassStore, root: AstRoot): void {
     const variables = root.variables;
     if (!isNamedMap(variables)) return;
+
+    const externallyUsed = this.options.collectExternallyUsedVariables?.(
+      store,
+      root
+    );
+    if (externallyUsed) {
+      for (const name of externallyUsed) this.usedVariables.add(name);
+    }
 
     for (const [name, decl] of variables) {
       if (this.usedVariables.has(name)) continue;

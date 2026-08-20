@@ -61,7 +61,8 @@ import {
 } from '../config/model-config.js';
 import { normalizeDeveloperName, dedent } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
-import { compileSkills } from './compile-skills.js';
+import { extractNodeBundles } from './compile-node-bundles.js';
+import { extractNodeSkills } from './compile-node-skills.js';
 import {
   compileDeterministicDirectives,
   createInstructionResetAction,
@@ -111,9 +112,13 @@ export function compileSubAgentNode(
     ctx
   );
 
-  // Compile skills
-  const skills = compileSkills(
-    (topicBlock as { skills?: Parameters<typeof compileSkills>[0] }).skills
+  // Resolve node-level skill references from `reasoning.skills`. Each entry is a
+  // `<handle>: @skill_definitions.<name>` binding; the node carries
+  // `{ name: handle, target: name }` (see extractNodeSkills). The definitions
+  // themselves are compiled once at the version level.
+  const skills = extractNodeSkills(
+    topicBlock.reasoning as { skills?: unknown } | null | undefined,
+    ctx
   );
 
   // Compile reasoning tools
@@ -279,6 +284,13 @@ export function compileSubAgentNode(
     node.strip_salesforce_system_prompt = stripSalesforceInstructions;
   }
 
+  // Node-level bundle references (GBA). Emit only when the subagent declares a
+  // `bundles:` sequence.
+  const nodeBundles = extractNodeBundles(topicBlock, ctx);
+  if (nodeBundles.length > 0) {
+    node.bundles = nodeBundles;
+  }
+
   ctx.setScriptPath(node, topicName);
 
   return node as SubAgentNode;
@@ -427,19 +439,21 @@ function synthesizeCollectArtifacts(
   const steps = collectStepsFromStatements(proceduralStatements, ctx);
   if (steps.length === 0) return;
 
-  // `collect` is a demo/beta feature. Emit a single Information-severity notice
-  // (once per script, gated by a flag on the per-compile context) pointed at the
-  // first `collect` keyword. It does not fail compilation or alter output.
-  if (!ctx.collectExperimentalNoticeEmitted) {
-    ctx.collectExperimentalNoticeEmitted = true;
+  // `ask for` is a pilot/beta service governed by the Beta Services Terms.
+  // Surface the standard legal notice as a single Information-severity
+  // diagnostic (once per script, gated by a flag on the per-compile context)
+  // pointed at the first `ask for` keyword, so authors are aware of the
+  // applicable terms. It does not fail compilation or alter output.
+  if (!ctx.collectBetaServicesNoticeEmitted) {
+    ctx.collectBetaServicesNoticeEmitted = true;
     ctx.info(
-      "'collect' is experimental and provided for early feedback; its behavior may change in future releases.",
+      "'ask for' is a pilot or beta service that is subject to the Beta Services Terms at Agreements - Salesforce.com (salesforce.com/company/legal/customer-agreements) or a written Unified Pilot Agreement if executed by Customer, and applicable terms in the Product Terms Directory (ptd.salesforce.com). Use of this pilot or beta service is at the Customer's sole discretion.",
       firstCollectRange(proceduralStatements),
-      'collect-experimental'
+      'ask-for-beta-services'
     );
   }
 
-  // `collect` is only well-defined in a NON-initial subagent (W-23177847).
+  // `ask for` is only well-defined in a NON-initial subagent (W-23177847).
   // Its lowering assumes the gathering node is reached via a transition from the
   // router: the self-resume handoff re-arms the gather each turn, and
   // reset_to_initial_node returns the user to the router after the gather / on
@@ -450,7 +464,7 @@ function synthesizeCollectArtifacts(
   if (ctx.initialNode && topicName === ctx.initialNode) {
     const range = firstCollectRange(proceduralStatements);
     ctx.error(
-      "'collect' cannot be used in start_agent. Move it into a subagent.",
+      "'ask for' cannot be used in start_agent. Move it into a subagent.",
       range
     );
     return;

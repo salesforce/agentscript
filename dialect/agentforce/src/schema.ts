@@ -65,7 +65,7 @@ import {
   BYON_SCHEMA_PREFIX,
   byonSubagentVariantFields,
 } from './variants/byon.js';
-import { AFSkillsBlock } from './variants/skills.js';
+import { AFSkillDefinitionsBlock } from './variants/skills.js';
 import { VoiceModalitySchema } from './voice-schema.js';
 import { ALLOWED_AGENT_TYPES } from './lint/agent-types.js';
 export {
@@ -169,6 +169,20 @@ const ContextPastConversationsBlock = Block('ContextPastConversationsBlock', {
   'The configuration for conversation history capabilities that allow the agent to use past conversations with the end user as context.'
 );
 
+/**
+ * A single external context provider the agent can draw on during execution
+ * (e.g., Salesforce org data, Data Cloud). The set of providers is constrained
+ * by the authoring and runtime layers for now; BYO Context is future work.
+ */
+const ContextProviderBlock = Block('ContextProviderBlock', {
+  auto_enabled: BooleanValue.describe(
+    'When True, this context source is gathered automatically during execution.'
+  ),
+  enabled: BooleanValue.describe(
+    'When True, this context source is available to the agent.'
+  ),
+}).describe('Configuration for a single external context provider.');
+
 export const ContextBlock = Block('ContextBlock', {
   memory: ContextMemoryBlock.describe('Memory configuration.'),
   user_profile: ContextUserProfileBlock.describe(
@@ -177,25 +191,41 @@ export const ContextBlock = Block('ContextBlock', {
   past_conversations: ContextPastConversationsBlock.describe(
     'The configuration for conversation history capabilities that allow the agent to use past conversations with the end user as context.'
   ),
+  salesforce: ContextProviderBlock.describe(
+    'Salesforce org context (records, metadata) available to the agent.'
+  ),
+  data_cloud: ContextProviderBlock.describe(
+    'Data Cloud context available to the agent.'
+  ),
 }).describe('Context configuration for the agent.');
 
 const RuntimeConfigBlock = Block('RuntimeConfigBlock', {
   streaming: BooleanValue.describe(
-    'When True, collapse /messages/stream into a single terminal SSE chunk instead of streaming incremental events.'
+    'When True, stream incremental SSE chunks over /messages/stream; when False, ' +
+      "collapse into a single terminal SSE chunk. Omit to defer to the caller's runtime policy."
   ),
   thought_chunks: BooleanValue.describe(
-    'When True, the agent runtime emits thought chunks (reasoning trace events) ' +
-      'alongside response chunks. Defaults to False to preserve existing streaming ' +
-      'behavior for clients that have not opted in.'
+    'When True, the agent runtime buffers planner prose into ThoughtTextChunks ' +
+      '(reasoning trace events) alongside response chunks when the client supports it. ' +
+      "Omit to defer to the caller's runtime policy."
   ),
   citation: BooleanValue.describe(
-    'When True, skip the citation enrichment post-orchestration step.'
+    'When True, run the citation enrichment post-orchestration step; when False, ' +
+      "skip it. Omit to defer to the caller's runtime policy."
   ),
   groundedness: BooleanValue.describe(
-    'When True, force-off the groundedness post-orchestration step. Trumps enable flags and the agent-type default.'
+    'When True, run the groundedness post-orchestration step; when False, force it ' +
+      'off (overrides the agent-type default). Omit to use the agent-type default ' +
+      '(enabled for the Agentforce Service Agent, disabled otherwise).'
   ),
   reset_to_initial_node: BooleanValue.describe(
-    'When True, rewind current_node to the initial node after each terminal node.'
+    'When True, rewind current_node to the initial node after each terminal node is ' +
+      "reached. Omit to defer to the caller's runtime policy."
+  ),
+  user_skills: BooleanValue.describe(
+    'When True, the agent runtime adds skill CRUD tools and retrieves user skill ' +
+      "frontmatter into all subagent nodes' system prompts; when False, they are " +
+      "disabled. Omit to defer to the caller's runtime policy."
   ),
 }).describe('Runtime behavior settings for the agent.');
 
@@ -213,7 +243,7 @@ export const RecommendedPromptsBlock = Block('RecommendedPromptsBlock', {
   'Recommended prompts configuration. Only supported for AgentforceEmployeeAgent.'
 );
 
-const AFSystemBlock = SystemBlock.extend({
+export const AFSystemBlock = SystemBlock.extend({
   recommended_prompts: RecommendedPromptsBlock.describe(
     'Recommended prompts configuration for welcome and in-conversation suggestions.'
   ),
@@ -283,8 +313,8 @@ const AFConfigBlock = ConfigBlock.extend(
       mode: StringValue.describe(
         'How the agent handles user-uploaded files. "auto" (default) surfaces every ' +
           'file to every subagent; "managed" surfaces a file only when an author ' +
-          'references it (e.g. @variables.files[0]); "disabled" drops uploads ' +
-          'silently; "error" rejects uploads with an error message.'
+          'references it (e.g. @system_variables.uploaded_files[0]); "disabled" ' +
+          'drops uploads silently; "error" rejects uploads with an error message.'
       ).enum(['auto', 'managed', 'disabled', 'error']),
       message: NullableStringValue.describe(
         'Custom message to display when mode is "error" or "disabled". ' +
@@ -389,6 +419,56 @@ export const AccessBlock = Block('AccessBlock', {
 );
 
 // ---------------------------------------------------------------------------
+// Reasoning block (Agentforce)
+// ---------------------------------------------------------------------------
+
+// A single node-level skill binding: `<local_handle>: @skill_definitions.<name>`.
+// The map key is the local handle presented to the reasoner/LLM (mirroring a
+// reasoning action's key); the colinear value references a skill declared in the
+// top-level `skill_definitions` block. Reference-only, so no additional fields —
+// modeled on AvailableFormatBlock (`response_actions`).
+export const AFReasoningSkillBlock = NamedBlock(
+  'ReasoningSkillBlock',
+  {},
+  {
+    colinear: ExpressionValue.resolvedType('invocationTarget'),
+    symbol: { kind: SymbolKind.Method },
+    scopeAlias: 'skills',
+  }
+)
+  .describe('A node-level skill reference bound to a local handle.')
+  .example(
+    `skills:
+            my_stored_skill: @skill_definitions.myStoredSkill
+            my_inline_skill: @skill_definitions.myInlineSkill`
+  );
+
+// Collection of node-level skill references, keyed by local handle.
+export const AFReasoningSkillsBlock = CollectionBlock(
+  AFReasoningSkillBlock
+).describe(
+  'Node-level skill references, keyed by a local handle: ' +
+    'my_skill: @skill_definitions.myStoredSkill. Each value must reference a ' +
+    'skill declared in the top-level skill_definitions block. The handle is ' +
+    'presented to the reasoner/LLM (compiles to the wire name); the referenced ' +
+    'definition name compiles to target.'
+);
+
+/**
+ * Agentforce reasoning block: the shared agentscript `ReasoningBlock`
+ * (instructions + actions) plus `skills` — a map of node-level references to
+ * top-level skill definitions, keyed by local handle
+ * (`my_skill: @skill_definitions.myStoredSkill`). Skills are an Agentforce-only
+ * concept, so the field lives here rather than on the shared base. Each entry
+ * must reference a skill declared in the top-level `skill_definitions` block.
+ */
+export const AFReasoningBlock = ReasoningBlock.extend({
+  skills: AFReasoningSkillsBlock,
+}).describe(
+  'Reasoning block containing instructions, actions, and skill references for the agent reasoning loop.'
+);
+
+// ---------------------------------------------------------------------------
 // Shared fields between Topic, Subagent, and StartAgent blocks
 // Extends base agentscript fields with Agentforce-specific fields
 // ---------------------------------------------------------------------------
@@ -490,7 +570,7 @@ export const AFSubagentBlock = NamedBlock(
   {
     ...sharedBlockFields,
     actions: AFActionsBlock,
-    skills: AFSkillsBlock,
+    reasoning: AFReasoningBlock,
   },
   { scopeAlias: 'subagent', ...sharedBlockOpts }
 )
@@ -512,8 +592,7 @@ export const AFSubagentBlock = NamedBlock(
 export const AFStartAgentBlock = StartAgentBlock.extend(
   {
     actions: AFActionsBlock,
-    reasoning: ReasoningBlock,
-    skills: AFSkillsBlock,
+    reasoning: AFReasoningBlock,
     model_config: ModelConfigBlock.describe(
       'Configuration for the model used by this block.'
     ),
@@ -783,7 +862,7 @@ export const ConnectionBlock = NamedBlock(
       'Whether adaptive responses are allowed for this connection.'
     ),
     escalation_message: StringValue.describe(
-      'Message sent when escalating to a human agent.'
+      'Message sent when escalating to a human agent. Supports {!<expression>} template interpolation.'
     ),
     outbound_route_type: StringValue.describe(
       'Type of outbound route (e.g., "OmniChannelFlow").'
@@ -860,6 +939,14 @@ export const AgentforceSchema = {
   modality: ModalitiesBlock,
   access: AccessBlock,
   context: ContextBlock,
+  skill_definitions: AFSkillDefinitionsBlock.example(
+    `skill_definitions:
+    myStoredSkill:
+        target: "skill://Helper_v1"
+    myInlineSkill:
+        instructions: "# Helper\\nInline body."
+        description: "Helper skill"`
+  ),
   subagent: NamedCollectionBlock(
     AFSubagentBlock.clone().example(
       `subagent Order_Management:

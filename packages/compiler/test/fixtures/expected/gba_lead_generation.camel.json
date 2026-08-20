@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "SalesPipelineAccelerator",
+    "label": "Sales Pipeline Accelerator",
+    "description": "Sales pipeline accelerator",
+    "enableEnhancedEventLogs": false,
+    "agentType": "GoalBasedAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "test_user"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! How can I help?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "agent",
+    "nodes": [
+      {
+        "type": "orchestrator",
+        "developerName": "agent",
+        "actionDefinitions": [
+          {
+            "developerName": "log_activity",
+            "label": "Log Activity",
+            "description": "Log sales activity",
+            "requireUserConfirmation": false,
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "LogActivity",
+            "inputType": [],
+            "outputType": []
+          }
+        ],
+        "instructions": "Determine intent and take appropriate action using the available tools.",
+        "tools": [
+          {
+            "type": "action",
+            "target": "log_activity",
+            "boundInputs": {},
+            "llmInputs": [],
+            "stateUpdates": [],
+            "name": "log_activity"
+          }
+        ]
+      },
+      {
+        "type": "related_agent",
+        "developerName": "prospect_signals",
+        "label": "Prospect Signals",
+        "description": "Prospect signals authoring node",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "prospect_signals"
+      },
+      {
+        "type": "related_agent",
+        "developerName": "execution",
+        "label": "Execution",
+        "description": "Execution node",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "execution"
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! How can I help?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    },
+    "bundles": [
+      {
+        "name": "prospecting",
+        "invocationTargetType": "bundle",
+        "invocationTargetName": "prospecting"
+      },
+      {
+        "name": "targeting",
+        "invocationTargetType": "bundle",
+        "invocationTargetName": "targeting"
+      },
+      {
+        "name": "deal_cycle",
+        "invocationTargetType": "bundle",
+        "invocationTargetName": "deal_cycle"
+      }
+    ],
+    "workflows": [
+      {
+        "id": "lead_generation",
+        "invocationTargetType": "agent",
+        "invocationTargetName": "prospect_signals"
+      },
+      {
+        "id": "follow_up",
+        "invocationTargetType": "prompt",
+        "prompt": "Follow up on emails from last week"
+      }
+    ],
+    "triggers": [
+      {
+        "id": "every_5_mins",
+        "schedule": "*/5 * * * *",
+        "invocationTargetType": "workflow",
+        "invocationTargetName": "bundles.targeting.workflows.check"
+      },
+      {
+        "id": "daily_signals_7am",
+        "schedule": "0 7 * * *",
+        "invocationTargetType": "workflow",
+        "invocationTargetName": "lead_generation"
+      }
+    ],
+    "context": {
+      "memory": {
+        "enabled": true
+      },
+      "salesforce": {
+        "enabled": true
+      },
+      "dataCloud": {
+        "enabled": true
+      }
+    }
+  }
+}

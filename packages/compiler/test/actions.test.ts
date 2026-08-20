@@ -697,6 +697,47 @@ start_agent test:
     expect(stubAction?.invocation_target_name).toBe('stub_action');
   });
 
+  it('should compile empty placeholder:// target as a stub', () => {
+    // The UI emits a bare `placeholder://` (empty path) for a not-yet-configured
+    // action. This must compile to invocation_target_type: "stub" — not be
+    // mistaken for an external service named "placeholder://".
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        stub_action:
+            description: "A stub action"
+            target: "placeholder://"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            stub: @actions.stub_action
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    );
+    const actions = node?.action_definitions ?? [];
+    const stubAction = actions.find(a => a.developer_name === 'stub_action');
+
+    expect(stubAction).toBeDefined();
+    expect(stubAction?.invocation_target_type).toBe('stub');
+    expect(stubAction?.invocation_target_name).toBe('stub_action');
+
+    // Still emits the placeholder warning
+    const placeholderWarnings = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Warning &&
+        d.message.includes('placeholder target')
+    );
+    expect(placeholderWarnings).toHaveLength(1);
+  });
+
   it('should emit warnings for multiple placeholder actions', () => {
     const source = `
 config:
@@ -1245,8 +1286,8 @@ start_agent test:
   });
 });
 
-describe('setVariables validation errors', () => {
-  it('should error when @utils.setVariables has transition to statement', () => {
+describe('setVariables validation warnings', () => {
+  it('should warn when @utils.setVariables has transition to statement', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1269,18 +1310,29 @@ agent done:
     response: ->
         | Done
 `;
-    const { diagnostics } = compile(parseSource(source));
-    const errors = diagnostics.filter(
-      d =>
-        d.severity === DiagnosticSeverity.Error &&
-        d.message.includes('cannot have transitions or follow-up actions')
+    const { output, diagnostics } = compile(parseSource(source));
+    const chainedActionDiagnostics = diagnostics.filter(d =>
+      d.message.includes('cannot have transitions or follow-up actions')
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'transition to'");
-    expect(errors[0].message).toContain('will be ignored at runtime');
+    expect(chainedActionDiagnostics).toHaveLength(1);
+    expect(chainedActionDiagnostics[0].severity).toBe(
+      DiagnosticSeverity.Warning
+    );
+    expect(chainedActionDiagnostics[0].severity).toBe(2);
+    expect(chainedActionDiagnostics[0].message).toContain("'transition to'");
+    expect(chainedActionDiagnostics[0].message).toContain(
+      'will be ignored at runtime'
+    );
+
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const setVariablesTool = node.tools.find(t => t.name === 'capture_name');
+    expect(setVariablesTool).toBeDefined();
+    expect(setVariablesTool?.target).toBe(STATE_UPDATE_ACTION);
   });
 
-  it('should error when @utils.setVariables has run statement', () => {
+  it('should warn when @utils.setVariables has run statement', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1302,18 +1354,29 @@ start_agent test:
                 with user_name=...
                 run @actions.some_action
 `;
-    const { diagnostics } = compile(parseSource(source));
-    const errors = diagnostics.filter(
-      d =>
-        d.severity === DiagnosticSeverity.Error &&
-        d.message.includes('cannot have transitions or follow-up actions')
+    const { output, diagnostics } = compile(parseSource(source));
+    const chainedActionDiagnostics = diagnostics.filter(d =>
+      d.message.includes('cannot have transitions or follow-up actions')
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'run'");
-    expect(errors[0].message).toContain('will be ignored at runtime');
+    expect(chainedActionDiagnostics).toHaveLength(1);
+    expect(chainedActionDiagnostics[0].severity).toBe(
+      DiagnosticSeverity.Warning
+    );
+    expect(chainedActionDiagnostics[0].severity).toBe(2);
+    expect(chainedActionDiagnostics[0].message).toContain("'run'");
+    expect(chainedActionDiagnostics[0].message).toContain(
+      'will be ignored at runtime'
+    );
+
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const setVariablesTool = node.tools.find(t => t.name === 'capture_name');
+    expect(setVariablesTool).toBeDefined();
+    expect(setVariablesTool?.target).toBe(STATE_UPDATE_ACTION);
   });
 
-  it('should not error when @utils.setVariables has no transitions or run statements', () => {
+  it('should not report chaining diagnostics when @utils.setVariables has no transitions or run statements', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1334,15 +1397,13 @@ start_agent test:
                 with user_email=...
 `;
     const { diagnostics } = compile(parseSource(source));
-    const errors = diagnostics.filter(
-      d =>
-        d.severity === DiagnosticSeverity.Error &&
-        d.message.includes('cannot have transitions or follow-up actions')
+    const chainedActionDiagnostics = diagnostics.filter(d =>
+      d.message.includes('cannot have transitions or follow-up actions')
     );
-    expect(errors).toHaveLength(0);
+    expect(chainedActionDiagnostics).toHaveLength(0);
   });
 
-  it('should not error when regular @actions.* has transition to statement', () => {
+  it('should not report chaining diagnostics when regular @actions.* has transition to statement', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1372,11 +1433,9 @@ agent done:
         | Done
 `;
     const { diagnostics } = compile(parseSource(source));
-    const errors = diagnostics.filter(
-      d =>
-        d.severity === DiagnosticSeverity.Error &&
-        d.message.includes('cannot have transitions or follow-up actions')
+    const chainedActionDiagnostics = diagnostics.filter(d =>
+      d.message.includes('cannot have transitions or follow-up actions')
     );
-    expect(errors).toHaveLength(0);
+    expect(chainedActionDiagnostics).toHaveLength(0);
   });
 });

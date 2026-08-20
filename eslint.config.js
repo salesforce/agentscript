@@ -81,6 +81,21 @@ export default [
     },
   },
 
+  // The compile-server is a standalone NodeNext project. Resolve its source
+  // files through its explicit tsconfig instead of the shared project service;
+  // the latter can crash when lint-staged supplies this package's source and
+  // default-project test files in the same ESLint invocation.
+  {
+    files: ['packages/compile-server/src/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: ['./packages/compile-server/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+
   // React-specific configuration for UI app
   {
     files: ['apps/ui/**/*.{ts,tsx}'],

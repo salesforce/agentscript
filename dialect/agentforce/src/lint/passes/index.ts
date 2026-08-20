@@ -57,7 +57,7 @@ export { variableValidationRule } from './variable-validation.js';
 export { complexDataTypeWarningRule } from './complex-data-type.js';
 export { customSubagentValidationRule } from './custom-subagent-validation.js';
 export { adaptiveLanguageValidationRule } from './adaptive-language-validation.js';
-export { disabledAdditionalParametersRule } from './disabled-additional-parameters.js';
+export { governedAdditionalParametersRule } from './governed-additional-parameters.js';
 export {
   voiceLanguageValidationRule,
   voiceVersionMixingRule,
@@ -82,7 +82,7 @@ import { variableValidationRule } from './variable-validation.js';
 import { complexDataTypeWarningRule } from './complex-data-type.js';
 import { customSubagentValidationRule } from './custom-subagent-validation.js';
 import { adaptiveLanguageValidationRule } from './adaptive-language-validation.js';
-import { disabledAdditionalParametersRule } from './disabled-additional-parameters.js';
+import { governedAdditionalParametersRule } from './governed-additional-parameters.js';
 import {
   voiceLanguageValidationRule,
   voiceVersionMixingRule,
@@ -119,7 +119,7 @@ export function defaultRules(): LintPass[] {
     complexDataTypeWarningRule(),
     customSubagentValidationRule(),
     adaptiveLanguageValidationRule(),
-    disabledAdditionalParametersRule(),
+    governedAdditionalParametersRule(),
     voiceLanguageValidationRule(),
     voiceVersionMixingRule(),
     emptyBlockRule(),

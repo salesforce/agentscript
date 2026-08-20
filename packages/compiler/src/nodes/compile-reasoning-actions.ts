@@ -50,7 +50,7 @@ type ParsedReasoningLike = Record<string, any> | null | undefined;
  */
 export interface CompileReasoningActionsOptions {
   /** The type of node being compiled */
-  nodeType: 'router' | 'subagent';
+  nodeType: 'router' | 'subagent' | 'orchestrator';
   /** The current topic name (for transitions) */
   topicName: string;
   /** Map of topic/subagent names to their descriptions */
@@ -228,11 +228,22 @@ function extractInstructionTemplate(
 function emitDisallowedActionDiagnostic(
   actionType: ActionType,
   actionName: string,
-  nodeType: 'router' | 'subagent',
+  nodeType: 'router' | 'subagent' | 'orchestrator',
   def: ParsedTool,
   ctx: CompilerContext
 ): void {
-  // Only router nodes have restrictions
+  // Orchestrator nodes do not support supervise (handoff) actions
+  if (nodeType === 'orchestrator' && actionType === 'supervise') {
+    ctx.error(
+      `Orchestrator reasoning.actions cannot reference connected agents or subagents ('${actionName}'). ` +
+        `The orchestrator only supports flow, apex, and MCP actions. ` +
+        `Routing to authoring and execution nodes is handled automatically by the platform.`,
+      def.__cst?.range
+    );
+    return;
+  }
+
+  // Only router nodes have further restrictions
   if (nodeType !== 'router') {
     return;
   }
@@ -316,15 +327,21 @@ function hasLLMInputParameters(def: ParsedTool): boolean {
  * Determines if an action type is allowed for a given node type.
  *
  * - Subagent nodes: support all action types
+ * - Orchestrator nodes: support all action types except supervise (no handoffs to connected agents)
  * - Router nodes: only support transitions
  */
 function isActionTypeAllowed(
   actionType: ActionType,
-  nodeType: 'router' | 'subagent'
+  nodeType: 'router' | 'subagent' | 'orchestrator'
 ): boolean {
   if (nodeType === 'subagent') {
-    // Subagent nodes support all action types
     return true;
+  }
+
+  if (nodeType === 'orchestrator') {
+    // Orchestrator nodes do not support handoffs to connected agents or subagents.
+    // Routing to authoring/execution is handled by the 1:3 expansion, not authored handoffs.
+    return actionType !== 'supervise';
   }
 
   // Router nodes only support transitions
@@ -421,7 +438,7 @@ function compileAction(
   actionName: string,
   def: ParsedTool,
   body: Statement[],
-  nodeType: 'router' | 'subagent',
+  nodeType: 'router' | 'subagent' | 'orchestrator',
   topicName: string,
   topicDescriptions: Record<string, string>,
   ctx: CompilerContext
@@ -557,9 +574,9 @@ function validateNoUnknownFields(
  */
 function adaptToolsForNodeType(
   tools: Array<Tool | SupervisionTool>,
-  nodeType: 'router' | 'subagent'
+  nodeType: 'router' | 'subagent' | 'orchestrator'
 ): Array<Tool | SupervisionTool | RouterTool> {
-  if (nodeType === 'subagent') {
+  if (nodeType === 'subagent' || nodeType === 'orchestrator') {
     return tools;
   }
 

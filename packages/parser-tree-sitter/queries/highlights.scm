@@ -22,7 +22,7 @@
 "set" @keyword
 "to" @keyword
 "transition" @keyword
-"collect" @keyword
+"ask for" @keyword
 "available when" @keyword
 
 ; ============================================
@@ -147,6 +147,24 @@
 ; With-statement parameter names use variable color
 (with_statement
   param: (id) @variable)
+
+; ============================================
+; FUNCTION CALLS
+; ============================================
+; The name in a direct call, e.g. `len(...)`, `json_path(...)`, `foo(...)`.
+; Namespaced calls (`a2a.message(...)`) have a member_expression function and
+; deliberately do NOT match here — they keep member-access highlighting.
+(call_expression
+  function: (expression (atom (id) @function)))
+
+; Built-in functions get a more specific capture (still the `function` token
+; type downstream). NOTE: this #any-of? list must be kept in sync by hand with
+; BUILTIN_CATALOG in packages/language/src/lint/function-catalog.ts — tree-sitter
+; queries can't import TypeScript. The pure-TS highlighter imports that catalog
+; directly, so this is the only hand-mirrored copy.
+((call_expression
+  function: (expression (atom (id) @function.builtin)))
+ (#any-of? @function.builtin "len" "max" "min" "json_path" "lower" "upper" "to_json" "from_json"))
 
 ; ============================================
 ; TOP-LEVEL BLOCK KEYWORDS (highest priority)

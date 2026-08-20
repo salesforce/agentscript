@@ -29,6 +29,7 @@ import {
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import {
+  extractStringSequence,
   extractStringValue,
   getBlockRange,
   getFieldLineRange,
@@ -48,24 +49,11 @@ function extractBooleanValue(value: unknown): boolean | undefined {
 }
 
 /**
- * Parse comma-separated locale string into a set of trimmed locale codes.
- */
-function parseLocales(value: string | undefined): Set<string> {
-  if (!value) return new Set();
-  return new Set(
-    value
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-  );
-}
-
-/**
  * Build a set of locales declared on a language block from its `default_locale`
- * and comma-separated `additional_locales` fields.
+ * and `additional_locales` fields.
  */
 function collectLocales(language: AstNodeLike): Set<string> {
-  const locales = parseLocales(extractStringValue(language.additional_locales));
+  const locales = new Set(extractStringSequence(language.additional_locales));
   const defaultLocale = extractStringValue(language.default_locale);
   if (defaultLocale) locales.add(defaultLocale);
   return locales;
@@ -121,8 +109,8 @@ class VoiceLanguageValidationPass implements LintPass {
           );
         }
 
-        const additionalLocales = parseLocales(
-          extractStringValue(voiceLanguage.additional_locales)
+        const additionalLocales = extractStringSequence(
+          voiceLanguage.additional_locales
         );
         for (const locale of additionalLocales) {
           if (!textLocales.has(locale)) {

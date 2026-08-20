@@ -8,7 +8,12 @@
 import type { Statement } from '@agentscript/language';
 import { CollectClause, IfStatement } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
-import type { Tool, HandOffAction, StateUpdate } from '../types.js';
+import type {
+  Tool,
+  HandOffAction,
+  StateUpdate,
+  InputParameter,
+} from '../types.js';
 import {
   STATE_UPDATE_ACTION,
   NEXT_TOPIC_VARIABLE,
@@ -22,7 +27,7 @@ import type { Sourceable } from '../sourced.js';
 /**
  * `collect` lowering helpers.
  *
- * A `collect @variables.X` + `message: M` statement inside reasoning.instructions
+ * An `ask for @variables.X` + `instructions: I` statement inside reasoning.instructions
  * gathers field X from the user, one field at a time, resuming the subagent
  * across turns until every collected field is filled.
  *
@@ -68,15 +73,38 @@ export function resolveCollectTarget(
 }
 
 /**
- * The verbatim prompt text from a collect statement's `message:` field.
+ * The paraphrasable guidance from a collect statement's `instructions:` field.
  *
- * Handles both a quoted string literal (`message: "…"`) and a `|` pipe
- * template (`message: |` with indented multi-line content). Template values
+ * Handles both a quoted string literal (`instructions: "…"`) and a `|` pipe
+ * template (`instructions: |` with indented multi-line content). Template values
  * are already dedented and cleaned at parse time, so `extractStringValue`
- * returns their content directly.
+ * returns their content directly. Unlike the removed `message:` field, this
+ * text is injected as guidance the agent composes naturally, not reproduced
+ * verbatim.
  */
-export function collectMessageText(stmt: CollectClause): string {
-  return extractStringValue(stmt.message) ?? '';
+export function collectInstructionsText(stmt: CollectClause): string {
+  return extractStringValue(stmt.instructions) ?? '';
+}
+
+/**
+ * The author-written `description:` of a state variable, or undefined when none
+ * was authored.
+ *
+ * `compileStateVariable` defaults a variable's `description` to its `label`
+ * (which itself defaults to a normalized developer name), so `.description` is
+ * never empty on a compiled StateVariable. To tell an authored description apart
+ * from that auto-default we treat a description equal to the label as "not
+ * authored" — the reasoner already falls back to the parameter label when no
+ * description is supplied, so echoing the label buys nothing.
+ */
+function authoredVariableDescription(
+  stateVar: { description?: unknown; label?: unknown } | undefined
+): string | undefined {
+  if (!stateVar || stateVar.description == null) return undefined;
+  const description = String(stateVar.description);
+  const label = stateVar.label == null ? undefined : String(stateVar.label);
+  if (description === '' || description === label) return undefined;
+  return description;
 }
 
 /**
@@ -324,11 +352,20 @@ export function buildCaptureTool(
       const dataType = stateVar
         ? stateVarToParameterDataType(stateVar.data_type)
         : ('String' as const);
-      return {
+      const param: InputParameter = {
         developer_name: inputName,
         label: inputName,
         data_type: dataType,
       };
+      // Surface the author's variable description to the LLM so the capture
+      // knows what to extract (e.g. "Town or city only." vs the whole address).
+      // The reasoner renders input_parameters[].description into the tool's
+      // function-calling parameter schema. Skip the auto-defaulted description:
+      // a variable with no authored `description:` falls back to its label
+      // (see compileStateVariable), so emitting it would just echo the label.
+      const description = authoredVariableDescription(stateVar);
+      if (description !== undefined) param.description = description;
+      return param;
     }),
   };
 

@@ -2292,3 +2292,358 @@ echo done:
     );
   });
 });
+
+describe('echo-first-artifact-append rule', () => {
+  const CODE = 'echo-first-artifact-append';
+
+  function firstAppendDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
+    return diagnostics.filter(d => d.code === CODE);
+  }
+
+  // ── Positives (should flag) ──────────────────────────────────────────
+
+  it('flags append:True on the first artifact echo (literal id)', () => {
+    const source = `
+config:
+  agent_name: "first-append-literal"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://first-append-literal/a2a"
+  on_message: ->
+    transition to @echo.emit
+
+echo emit:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("hi")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(1);
+  });
+
+  it('flags append:True when artifactId is dynamic (uuid())', () => {
+    const source = `
+config:
+  agent_name: "first-append-dynamic"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://first-append-dynamic/a2a"
+  on_message: ->
+    transition to @echo.emit
+
+echo emit:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: uuid(), parts: [a2a.textPart("hi")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    const diags = firstAppendDiagnostics(result.diagnostics);
+    expect(diags).toHaveLength(1);
+    expect(diags[0].message).toContain('not statically resolvable');
+  });
+
+  it('flags append:True when artifactId is absent', () => {
+    const source = `
+config:
+  agent_name: "first-append-no-id"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://first-append-no-id/a2a"
+  on_message: ->
+    transition to @echo.emit
+
+echo emit:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({name: "doc", parts: [a2a.textPart("hi")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(1);
+  });
+
+  it('flags when one branch reaches the append echo with no prior same-id emit', () => {
+    // Router: route A passes through an initial emit (append:False), the
+    // otherwise branch goes straight to the appending echo. All-paths ⇒ flag.
+    const source = `
+config:
+  agent_name: "first-append-branch"
+
+llm:
+  g:
+    target: "llm://openai"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://first-append-branch/a2a"
+  on_message: ->
+    transition to @router.r
+
+router r:
+  routes:
+    - target: @echo.seed
+      when: True
+  otherwise:
+    target: @echo.appendChunk
+
+echo seed:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("first")]})
+  append: False
+  on_exit: ->
+    transition to @echo.appendChunk
+
+echo appendChunk:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("more")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(1);
+  });
+
+  it('flags the first iteration of a self-loop appending echo', () => {
+    const source = `
+config:
+  agent_name: "first-append-loop"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://first-append-loop/a2a"
+  on_message: ->
+    transition to @echo.stream
+
+echo stream:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("chunk")]})
+  append: True
+  on_exit: ->
+    transition to @echo.stream
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(1);
+  });
+
+  // ── Negatives (should NOT flag) ──────────────────────────────────────
+
+  it('does not flag the first artifact echo when append:False', () => {
+    const source = `
+config:
+  agent_name: "first-emit-false"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://first-emit-false/a2a"
+  on_message: ->
+    transition to @echo.emit
+
+echo emit:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("hi")]})
+  append: False
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('does not flag a second same-id echo with an upstream same-id ancestor on all paths', () => {
+    const source = `
+config:
+  agent_name: "second-append-ok"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://second-append-ok/a2a"
+  on_message: ->
+    transition to @echo.seed
+
+echo seed:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("first")]})
+  append: False
+  on_exit: ->
+    transition to @echo.appendChunk
+
+echo appendChunk:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("more")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('does not flag when the same-id predecessor is keyed by a variable reference', () => {
+    const source = `
+config:
+  agent_name: "ref-id-ok"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://ref-id-ok/a2a"
+  on_message: ->
+    transition to @echo.seed
+
+echo seed:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: @variables.aid, parts: [a2a.textPart("first")]})
+  append: False
+  on_exit: ->
+    transition to @echo.appendChunk
+
+echo appendChunk:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: @variables.aid, parts: [a2a.textPart("more")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('does not flag when append is omitted entirely', () => {
+    const source = `
+config:
+  agent_name: "append-omitted"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://append-omitted/a2a"
+  on_message: ->
+    transition to @echo.emit
+
+echo emit:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("hi")]})
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('does not flag an appending echo unreachable from any trigger (orphan)', () => {
+    const source = `
+config:
+  agent_name: "orphan-append"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://orphan-append/a2a"
+  on_message: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+
+echo orphan:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: uuid(), parts: [a2a.textPart("dead")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  // ── Identity discrimination ──────────────────────────────────────────
+
+  it('flags a different-id append even when another artifact was emitted first', () => {
+    // echo seed emits artifact "a"; echo other appends to "b" — b has no
+    // prior emit, so it is flagged despite a being emitted upstream.
+    const source = `
+config:
+  agent_name: "distinct-ids"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://distinct-ids/a2a"
+  on_message: ->
+    transition to @echo.seed
+
+echo seed:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "a", parts: [a2a.textPart("first")]})
+  append: False
+  on_exit: ->
+    transition to @echo.other
+
+echo other:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "b", parts: [a2a.textPart("more")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    const diags = firstAppendDiagnostics(result.diagnostics);
+    expect(diags).toHaveLength(1);
+    expect(diags[0].message).toContain('"b"');
+  });
+
+  it('treats distinct variable references as distinct artifacts', () => {
+    const source = `
+config:
+  agent_name: "distinct-refs"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://distinct-refs/a2a"
+  on_message: ->
+    transition to @echo.seed
+
+echo seed:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: @variables.a, parts: [a2a.textPart("first")]})
+  append: False
+  on_exit: ->
+    transition to @echo.other
+
+echo other:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: @variables.b, parts: [a2a.textPart("more")]})
+  append: True
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(1);
+  });
+
+  // ── Interaction / no-regression ──────────────────────────────────────
+
+  it('produces no echo-first-artifact-append diagnostics for a valid artifact flow', () => {
+    const source = `
+config:
+  agent_name: "valid-artifact-flow"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://valid-artifact-flow/a2a"
+  on_message: ->
+    transition to @echo.emit
+
+echo emit:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "doc", parts: [a2a.textPart("hi")]})
+  append: False
+  on_exit: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('does not flag the customer-support fixture (first artifact uses append:False)', () => {
+    const agentPath = resolve(
+      __dirname,
+      './resources/agentfabric-customer-support-netwrok.agent'
+    );
+    const source = readFileSync(agentPath, 'utf8');
+    const result = parseAndLintSource(source);
+    expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+  });
+});

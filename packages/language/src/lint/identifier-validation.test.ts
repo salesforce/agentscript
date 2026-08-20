@@ -24,9 +24,14 @@ const ActionBlock = NamedBlock(
   { colinear: ExpressionValue, body: ProcedureValue }
 );
 
+const ProcBlock = NamedBlock('ProcBlock', {
+  body: ProcedureValue.describe('Procedure body'),
+});
+
 const TestSchema = {
   value: NamedCollectionBlock(ValueBlock),
   action: NamedCollectionBlock(ActionBlock),
+  proc: NamedCollectionBlock(ProcBlock),
 };
 
 const schemaCtx = createSchemaContext({ schema: TestSchema, aliases: {} });
@@ -125,6 +130,24 @@ value v:
       expect(diags).toHaveLength(1);
       expect(diags[0].code).toBe('unknown-identifier');
       expect(diags[0].message).toContain('abcd');
+      expect(diags[0].severity).toBe(1); // Error outside interpolation
+    });
+  });
+
+  describe('template interpolation severity', () => {
+    it('reports a bare identifier inside {!...} as a warning, not an error', () => {
+      // Missing `@` in an interpolation: `{!variables.x}` instead of
+      // `{!@variables.x}`. The surrounding template text still renders, so
+      // this is a warning rather than a hard error.
+      const diags = getDiagnostics(`
+proc a:
+  body: ->
+    |Use {!variables.vehicleType} in the reply
+`);
+      expect(diags).toHaveLength(1);
+      expect(diags[0].code).toBe('unknown-identifier');
+      expect(diags[0].message).toContain('variables');
+      expect(diags[0].severity).toBe(2); // Warning inside interpolation
     });
   });
 

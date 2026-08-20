@@ -55,8 +55,8 @@ export class CompilerContext {
    */
   initialNode: string | undefined;
 
-  /** True once the one-time `collect` experimental notice has been emitted. */
-  collectExperimentalNoticeEmitted: boolean = false;
+  /** True once the one-time `collect` beta-services legal notice has been emitted. */
+  collectBetaServicesNoticeEmitted: boolean = false;
 
   /**
    * Highest chain-link condition slot index used during node compilation.
@@ -109,6 +109,17 @@ export class CompilerContext {
    * LLM-filled. Cleared at the start of each topic compilation.
    */
   actionInputSignatures: Map<string, ActionInputSignature> = new Map();
+
+  /**
+   * Input signatures for top-level (GBA) actions, by target name. Snapshotted
+   * once when the top-level `actions` block is compiled, and — unlike
+   * `actionInputSignatures` — NOT cleared per node. A node whose
+   * `reasoning.actions` references an inherited top-level action (`@actions.X`)
+   * compiles its reasoning tool after its own `compileActionDefinitions` has
+   * cleared the per-node signatures, so `setDefaultLlmInputs` falls back to this
+   * map to still seed the action's required `llm_inputs`.
+   */
+  topLevelActionSignatures: Map<string, ActionInputSignature> = new Map();
 
   addDiagnostic(
     severity: DiagnosticSeverity,

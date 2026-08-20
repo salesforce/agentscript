@@ -123,7 +123,7 @@ const fixedCases: RegressionCase[] = [
     key: 'parser-javascript/collect_between_pipes',
     fix: 'collect-terminates-template',
     input:
-      'subagent intake:\n    reasoning:\n        instructions: ->\n            | Redirect the conversation politely\n              and succinctly.\n            collect @variables.city\n                message: "Which city?"\n            | Then thank the user.',
+      'subagent intake:\n    reasoning:\n        instructions: ->\n            | Redirect the conversation politely\n              and succinctly.\n            ask for @variables.city\n                instructions: "Which city?"\n            | Then thank the user.',
   },
 ];
 

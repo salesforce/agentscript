@@ -53,6 +53,9 @@ start_agent main:
       d => d.code === 'undefined-reference' && d.message.includes('@inputs')
     );
     expect(undefinedErrors).toHaveLength(0);
+    expect(
+      diagnostics.filter(d => d.code === 'instruction-input-reference')
+    ).toHaveLength(0);
   });
 
   it('should error on undefined @inputs reference in reasoning.instructions', () => {
@@ -83,5 +86,8 @@ start_agent main:
     );
     expect(undefinedErrors.length).toBeGreaterThan(0);
     expect(undefinedErrors[0].message).toContain('inputs');
+    expect(
+      diagnostics.filter(d => d.code === 'instruction-input-reference')
+    ).toHaveLength(0);
   });
 });

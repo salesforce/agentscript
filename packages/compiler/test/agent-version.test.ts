@@ -49,8 +49,9 @@ config:
 
 language:
     default_locale: "en_US"
-    additional_locales: "es_MX, fr"
-
+    additional_locales:
+        - es_MX
+        - fr
 variables:
     test_var: mutable string = "default_value"
 
@@ -495,8 +496,10 @@ config:
 
 language:
     default_locale: "en_US"
-    additional_locales: "en_GB, de, fr"
-
+    additional_locales:
+        - en_GB
+        - de
+        - fr
 start_agent main:
     description: "desc"
 `;
@@ -563,7 +566,9 @@ config:
 
 language:
     default_locale: "ja"
-    additional_locales: "en_US, en_GB"
+    additional_locales:
+        - en_US
+        - en_GB
     all_additional_locales: True
 
 start_agent main:
@@ -665,7 +670,9 @@ config:
 language:
     adaptive: True
     default_locale: "en_US"
-    additional_locales: "fr, de"
+    additional_locales:
+        - fr
+        - de
     all_additional_locales: True
 
 start_agent main:
@@ -736,8 +743,8 @@ config:
 
 language:
     default_locale: "en_US"
-    additional_locales: "JP_jp"
-
+    additional_locales:
+        - JP_jp
 start_agent main:
     description: "desc"
 `;
@@ -756,8 +763,9 @@ config:
 
 language:
     default_locale: "en_UK"
-    additional_locales: "fr_FR, es_ES"
-
+    additional_locales:
+        - fr_FR
+        - es_ES
 start_agent main:
     description: "desc"
 `;
@@ -785,8 +793,15 @@ config:
 
 language:
     default_locale: "ja"
-    additional_locales: "en_US, en_GB, fr, de, es, zh_CN, ko, pt_BR"
-
+    additional_locales:
+        - en_US
+        - en_GB
+        - fr
+        - de
+        - es
+        - zh_CN
+        - ko
+        - pt_BR
 start_agent main:
     description: "desc"
 `;
@@ -1017,8 +1032,9 @@ config:
 
 language:
     default_locale: "en_US"
-    additional_locales: "es_MX, fr"
-
+    additional_locales:
+        - es_MX
+        - fr
 variables:
     customer_name: mutable string = "Unknown"
     retry_count: mutable number = 0

@@ -170,15 +170,13 @@ function dedentTemplateParts(parts: TemplatePart[], node: SyntaxNode): void {
       if (firstLineHasContent) {
         const firstLineIndent = lines[0].match(/^(\s*)/)?.[1]?.length ?? 0;
 
-        // Check if there's a space separator after pipe (e.g. "| line" vs "|-line")
-        // by examining the node's source text
-        const hasSpaceAfterPipe = node.text && node.text.startsWith('| ');
-
-        // When there's a space separator, we need to account for both the pipe
-        // and the separator when computing strip amount
-        stripAmount = hasSpaceAfterPipe
-          ? pipeColumn + 1 + firstLineIndent // pipe + space + content indent
-          : pipeColumn + firstLineIndent; // pipe + content indent (no separator)
+        // Content starts one column past the pipe (`|` occupies one column),
+        // plus any leading whitespace on the first line. When a space separator
+        // is present (`| line`), that space is part of `firstLineIndent`, so the
+        // same formula covers both `| line` and `|line`. This must match emit's
+        // continuation indent (`continuationColumn + 1 + sep.length`) exactly,
+        // otherwise continuation indentation drifts by one column per round-trip.
+        stripAmount = pipeColumn + 1 + firstLineIndent;
       } else {
         // Bare pipe multiline: use min continuation indent directly.
         // This ensures the least-indented content line becomes column 0

@@ -47,6 +47,9 @@ import {
   parseCollectStatement,
   parseWithStatement,
   parseAvailableWhenStatement,
+  parseWhenStatement,
+  parseRenderStatement,
+  parseShowAndReturnStatement,
   tryParseWithToStatementList,
   parseIfStatement,
   parseRunStatement,
@@ -208,11 +211,37 @@ export function parseMappingItem(
         return parseSetStatement(ctx);
       case 'transition':
         return parseTransitionStatement(ctx);
-      case 'collect':
-        return parseCollectStatement(ctx, c => parseTemplate(c));
+      case 'ask': {
+        // "ask for" — two-word statement keyword (mirrors "available when").
+        if (
+          ctx.peekAt(1).kind === TokenKind.ID &&
+          ctx.peekAt(1).text === 'for'
+        ) {
+          return parseCollectStatement(ctx, c => parseTemplate(c));
+        }
+        break;
+      }
       case 'with': {
         if (ctx.peekAt(1).kind !== TokenKind.COLON) {
           return parseWithStatement(ctx);
+        }
+        break;
+      }
+      case 'when': {
+        if (ctx.peekAt(1).kind !== TokenKind.COLON) {
+          return parseWhenStatement(ctx, c => parseTemplate(c));
+        }
+        break;
+      }
+      case 'render': {
+        if (ctx.peekAt(1).kind === TokenKind.COLON) {
+          return parseRenderStatement(ctx, c => parseTemplate(c));
+        }
+        break;
+      }
+      case 'show_and_return': {
+        if (ctx.peekAt(1).kind === TokenKind.COLON) {
+          return parseShowAndReturnStatement(ctx);
         }
         break;
       }

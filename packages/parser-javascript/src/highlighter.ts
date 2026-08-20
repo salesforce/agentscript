@@ -12,6 +12,7 @@
  * Replaces tree-sitter's Query engine with a direct CST walk.
  */
 
+import { BUILTIN_FUNCTION_NAME_SET } from '@agentscript/types';
 import type { CSTNode } from './cst-node.js';
 
 export interface HighlightCapture {
@@ -117,6 +118,22 @@ function walkNode(node: CSTNode, captures: HighlightCapture[]): void {
   }
 }
 
+/**
+ * True when `idNode` is the callee name of a direct call — i.e. it climbs
+ * `id → atom → expression` where that `expression` is the `function` field of a
+ * `call_expression`. Namespaced calls (`a2a.message(...)`) have a
+ * member_expression callee, not a bare atom, so they return false here.
+ */
+function isCallFunctionId(idNode: CSTNode): boolean {
+  const atom = idNode.parent;
+  if (atom?.type !== 'atom') return false;
+  const expression = atom.parent;
+  if (expression?.type !== 'expression') return false;
+  const call = expression.parent;
+  if (call?.type !== 'call_expression') return false;
+  return call.childForFieldName('function') === expression;
+}
+
 /** Check if a key node belongs to a root-level mapping element (source_file > mapping > mapping_element > key). */
 function isRootLevelKey(keyNode: CSTNode): boolean {
   const mappingElement = keyNode.parent;
@@ -154,6 +171,18 @@ function captureId(node: CSTNode, captures: HighlightCapture[]): void {
     } else {
       capture(node, 'key', captures);
     }
+    return;
+  }
+
+  // Function call name: `len(...)`, `json_path(...)`, `foo(...)`.
+  // The name climbs id → atom → expression → call_expression (function field).
+  // Namespaced calls (`a2a.message(...)`) have a member_expression function, so
+  // they fall through to the member-access branch below — matching highlights.scm.
+  if (isCallFunctionId(node)) {
+    const name = BUILTIN_FUNCTION_NAME_SET.has(node.text)
+      ? 'function.builtin'
+      : 'function';
+    capture(node, name, captures);
     return;
   }
 
@@ -241,6 +270,8 @@ function captureAnonymous(node: CSTNode, captures: HighlightCapture[]): void {
     case 'transition':
     case 'available':
     case 'when':
+    case 'ask':
+    case 'for':
     case 'and':
     case 'or':
     case 'not':

@@ -72,4 +72,11 @@ export {
 export type { Emittable, BlockChild } from './children.js';
 
 // Re-export so existing consumers don't need to update imports.
-export type { BlockCapability } from './types.js';
+export type {
+  BlockCapability,
+  CorePrimitiveType,
+  GlobalScopeMember,
+  GlobalScopeMemberDecl,
+  GlobalScopeMemberSpec,
+  GlobalScopeMembers,
+} from './types.js';

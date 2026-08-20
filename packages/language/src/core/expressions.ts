@@ -303,7 +303,7 @@ export class SubscriptExpression extends ExpressionBase {
 
   constructor(
     public object: Expression,
-    public index: Expression
+    public index: Expression | SliceExpression
   ) {
     super();
   }
@@ -318,9 +318,59 @@ export class SubscriptExpression extends ExpressionBase {
   ): Parsed<SubscriptExpression> {
     const children = node.namedChildren;
     const object = parseExpr(children[0]);
-    const index = parseExpr(children[1]);
+    const indexNode = children[1];
+    const index =
+      indexNode.type === 'slice_expression'
+        ? SliceExpression.parse(indexNode, parseExpr)
+        : parseExpr(indexNode);
 
     return withCst(new SubscriptExpression(object, index), node);
+  }
+}
+
+/**
+ * A Python-style slice used inside a subscript: `[a:b]`, `[a:]`, `[:b]`,
+ * `[a:b:c]`. Slices are only meaningful in subscript position and are not
+ * standalone expressions. At least one of `start`/`stop`/`step` must be
+ * present — bare `[:]` (Python's shallow-copy) is rejected at parse time;
+ * other missing bounds default to open (beginning or end).
+ */
+export class SliceExpression extends ExpressionBase {
+  static readonly kind = 'SliceExpression' as const;
+  readonly __kind = SliceExpression.kind;
+
+  constructor(
+    public start: Expression | undefined,
+    public stop: Expression | undefined,
+    public step: Expression | undefined
+  ) {
+    super();
+  }
+
+  __emit(ctx: EmitContext): string {
+    const start = this.start ? this.start.__emit(ctx) : '';
+    const stop = this.stop ? this.stop.__emit(ctx) : '';
+    if (this.step) {
+      return `${start}:${stop}:${this.step.__emit(ctx)}`;
+    }
+    return `${start}:${stop}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression
+  ): Parsed<SliceExpression> {
+    const startNode = node.childForFieldName('start');
+    const stopNode = node.childForFieldName('stop');
+    const stepNode = node.childForFieldName('step');
+    return withCst(
+      new SliceExpression(
+        startNode ? parseExpr(startNode) : undefined,
+        stopNode ? parseExpr(stopNode) : undefined,
+        stepNode ? parseExpr(stepNode) : undefined
+      ),
+      node
+    );
   }
 }
 
@@ -774,6 +824,7 @@ const ALL_EXPRESSION_CLASSES = [
   AtIdentifier,
   MemberExpression,
   SubscriptExpression,
+  SliceExpression,
   BinaryExpression,
   UnaryExpression,
   ComparisonExpression,
@@ -805,6 +856,7 @@ export const KIND_LABELS: ReadonlyMap<ExpressionKind, string> = new Map([
   [AtIdentifier.kind, 'a reference (e.g., @Foo)'],
   [MemberExpression.kind, 'a reference (e.g., @Foo.Bar)'],
   [SubscriptExpression.kind, 'a subscript expression'],
+  [SliceExpression.kind, 'a slice'],
   [BinaryExpression.kind, 'a binary expression'],
   [UnaryExpression.kind, 'a unary expression'],
   [ComparisonExpression.kind, 'a comparison'],
@@ -848,6 +900,8 @@ export const expressionParsers = {
     MemberExpression.parse(node, parseExpr),
   subscript_expression: (node: SyntaxNode, parseExpr: ParseExprFn) =>
     SubscriptExpression.parse(node, parseExpr),
+  slice_expression: (node: SyntaxNode, parseExpr: ParseExprFn) =>
+    SliceExpression.parse(node, parseExpr),
   binary_expression: (node: SyntaxNode, parseExpr: ParseExprFn) =>
     BinaryExpression.parse(node, parseExpr),
   unary_expression: (node: SyntaxNode, parseExpr: ParseExprFn) =>

@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { getFieldCompletions, LintEngine } from '@agentscript/language';
-import { DiagnosticSeverity } from '@agentscript/types';
+import { DiagnosticSeverity, DiagnosticTag } from '@agentscript/types';
 import type { Diagnostic } from '@agentscript/types';
 import {
   parseDocument,
@@ -15,6 +15,7 @@ import {
   testSchemaCtx,
 } from './test-utils.js';
 import { defaultRules } from '../lint/passes/index.js';
+import { DEPRECATED_ADDITIONAL_PARAMS } from '../lint/passes/governed-additional-parameters.js';
 
 /**
  * Parse + run the Agentforce lint passes. `engine.run` already collects every
@@ -93,6 +94,8 @@ start_agent main:
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
     expect(errors[0].message).toContain('graph runtime');
+    // A hard error is not a deprecation — it must not carry the Deprecated tag.
+    expect(errors[0].tags ?? []).not.toContain(DiagnosticTag.Deprecated);
 
     // The diagnostic highlights the whole `key: value` line: it starts at the
     // field's key column (indent = 4), not deep in the line where the value
@@ -128,6 +131,90 @@ start_agent main:
       d => d.code === 'disabled-additional-parameter'
     );
     expect(errors).toHaveLength(0);
+  });
+
+  // Deprecated additional_parameter__ fields → Warning (config keeps working),
+  // steering authors to the first-class config.runtime.* equivalents. Cases are
+  // derived from the pass's exported map so there's a single source of truth.
+  for (const [suffix, runtimeField] of DEPRECATED_ADDITIONAL_PARAMS) {
+    const field = `additional_parameter__${suffix}`;
+    const replacement = `config.runtime.${runtimeField}`;
+    it(`should emit a deprecation warning for ${field}`, () => {
+      const source = `
+config:
+    developer_name: "test"
+    ${field}: True
+
+start_agent main:
+    description: "desc"
+`;
+      const diagnostics = runLint(source);
+      const warnings = diagnostics.filter(
+        d => d.code === 'deprecated-additional-parameter'
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(warnings[0].tags ?? []).toContain(DiagnosticTag.Deprecated);
+      expect(warnings[0].message).toContain(replacement);
+
+      // The diagnostic highlights the whole `key: value` line, starting at the
+      // field's key column (indent = 4), not deep where the value `True` begins.
+      const { range } = warnings[0];
+      expect(range.start.character).toBe(4);
+      expect(range.end.character).toBeGreaterThan(
+        range.start.character + field.length
+      );
+
+      // A deprecation must not also surface as a hard error or unknown-field.
+      expect(
+        diagnostics.filter(d => d.code === 'disabled-additional-parameter')
+      ).toHaveLength(0);
+      expect(diagnostics.filter(d => d.code === 'unknown-field')).toHaveLength(
+        0
+      );
+    });
+  }
+
+  it('should match deprecated parameters case-insensitively', () => {
+    const upper = `
+config:
+    developer_name: "test"
+    additional_parameter__DISABLE_GROUNDEDNESS: True
+
+start_agent main:
+    description: "desc"
+`;
+    const lower = `
+config:
+    developer_name: "test"
+    additional_parameter__disable_groundedness: True
+
+start_agent main:
+    description: "desc"
+`;
+    for (const source of [upper, lower]) {
+      const warnings = runLint(source).filter(
+        d => d.code === 'deprecated-additional-parameter'
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(warnings[0].message).toContain('config.runtime.groundedness');
+    }
+  });
+
+  it('should not flag non-governed additional_parameter__ fields as deprecated', () => {
+    const source = `
+config:
+    developer_name: "test"
+    additional_parameter__custom_flag: True
+
+start_agent main:
+    description: "desc"
+`;
+    const warnings = runLint(source).filter(
+      d => d.code === 'deprecated-additional-parameter'
+    );
+    expect(warnings).toHaveLength(0);
   });
 
   it('should not include additional_parameter__ fields in completions', () => {

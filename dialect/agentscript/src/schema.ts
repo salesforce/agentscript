@@ -14,19 +14,34 @@ import {
   StringValue,
   BooleanValue,
   ExpressionValue,
+  ExpressionSequence,
+  SequenceNode,
+  StringLiteral,
+  Identifier,
+  ListLiteral,
   ProcedureValue,
   createSchemaContext,
   VariablesBlock,
   ActionsBlock,
   ReasoningActionBlock,
   InputsBlock,
+  withCst,
+  parseResult,
+  emitIndent,
+  typeMismatchDiagnostic,
 } from '@agentscript/language';
 
 import type {
+  Diagnostic,
+  Dialect,
+  EmitContext,
+  Expression,
   FieldType,
   SchemaInfo,
   SchemaContext,
+  GlobalScopeMemberDecl,
 } from '@agentscript/language';
+import { toRange, type SyntaxNode } from '@agentscript/types';
 
 export {
   VariablePropertiesBlock,
@@ -89,6 +104,12 @@ export const SystemBlock = Block(
 
 export const ConfigBlock = Block('ConfigBlock', {
   description: StringValue.describe('Agent description. Defaults to label.'),
+  agent_type: StringValue.describe(
+    'Agent type discriminator. Standard agents omit this or use their product type; ' +
+      'goal-based agents (AgentIQ) use "GoalBasedAgent". Any valid backend agent type is accepted.'
+  )
+    .accepts(['StringLiteral'])
+    .suggest(['GoalBasedAgent']),
 })
   .describe('High-level agent configuration.')
   .example(
@@ -97,6 +118,159 @@ export const ConfigBlock = Block('ConfigBlock', {
     description: "An AI assistant for customer support"`
   );
 
+/**
+ * Normalize a single parsed locale expression to a {@link StringLiteral}.
+ *
+ * AgentScript is YAML-inspired, so a locale may be written three equivalent
+ * ways — quoted (`- "en_GB"`), bare (`- en_GB`), or as an inline-list member
+ * (`["en_GB", ...]`). All are accepted and normalized to a `StringLiteral` so
+ * downstream consumers (emit, compiler) handle a single representation.
+ *
+ * Normalizing a bare word here — rather than returning the {@link Identifier}
+ * the parser produced — is also what keeps it out of the identifier-validation
+ * lint pass: that pass only flags standalone `Identifier` nodes, so a locale
+ * that never becomes an `Identifier` in the AST is never mistaken for an
+ * undefined reference (the `'en_GB' is not a defined value` error).
+ *
+ * Non-string forms (numbers, booleans, references, lists) are rejected with a
+ * type-mismatch attached to the node so the editor surfaces it.
+ */
+function normalizeLocale(expression: Expression, node: SyntaxNode) {
+  if (expression instanceof StringLiteral) {
+    return parseResult(withCst(expression, node), []);
+  }
+  if (expression instanceof Identifier) {
+    // Bare word (e.g. `- en_GB`): accept it as the quoted equivalent.
+    return parseResult(withCst(new StringLiteral(expression.name), node), []);
+  }
+  // Attach the diagnostic to the node itself, not just the returned list:
+  // `LanguageService`/`collectDiagnostics` only surface node-attached
+  // diagnostics, so a list-only diagnostic would be dropped and the bad locale
+  // would silently vanish in the editor. Push the same object into both
+  // channels — `parseAndLint` dedupes by identity.
+  const placeholder = withCst(new StringLiteral(''), node);
+  const diagnostic = typeMismatchDiagnostic(
+    toRange(node),
+    `Expected a locale string (e.g. "en_GB" or en_GB), got ${expression.__describe()}`,
+    'StringLiteral',
+    expression.__kind
+  );
+  placeholder.__diagnostics.push(diagnostic);
+  return parseResult(placeholder, [diagnostic]);
+}
+
+/**
+ * A single locale in a locale list. Accepts quoted (`"en_GB"`) and bare
+ * (`en_GB`) forms, both normalized to a {@link StringLiteral}.
+ */
+const LocaleValue = {
+  __fieldKind: 'Primitive' as const,
+  __accepts: ['StringLiteral', 'Identifier'] as const,
+  parse(node: SyntaxNode, dialect: Dialect) {
+    return normalizeLocale(dialect.parseExpression(node), node);
+  },
+  emit(value: StringLiteral, ctx: EmitContext) {
+    return value.__emit(ctx);
+  },
+} satisfies FieldType<StringLiteral>;
+const LocaleSequenceValue = ExpressionSequence(LocaleValue);
+
+/**
+ * Additional supported locales. AgentScript is YAML-inspired, so three
+ * equivalent forms are accepted, all normalized to the same SequenceNode of
+ * {@link StringLiteral} members:
+ *
+ *   - block list, quoted or bare:  `- "fr"` / `- fr`
+ *   - inline list:                 `["fr", "de"]`
+ *
+ * The comma-separated string (`"fr, de"`) is also accepted and normalized to
+ * the same shape. All forms are equally valid — none is warned about.
+ *
+ * Every accepted form normalizes to a `SequenceNode` for downstream consumers,
+ * but emit is a lossless round-trip: inline forms (scalar string, comma string,
+ * inline list) are reproduced verbatim from the original CST rather than
+ * expanded into a block list. See `emitField` below.
+ *
+ * Type-mismatch diagnostics on bad members are attached to the SequenceNode's
+ * `__diagnostics`, not just returned in the list. Sequence fields (unlike
+ * Primitive fields — see the auto-attach in dialect.ts) are not auto-attached,
+ * so a list-only diagnostic is dropped by `LanguageService`/`collectDiagnostics`
+ * and the editor shows nothing. Push the same object into both channels —
+ * `parseAndLint` dedupes by identity.
+ */
+const AdditionalLocalesValue = {
+  __fieldKind: 'Sequence' as const,
+  __metadata: {
+    description: 'Additional supported locales.',
+    example: `additional_locales:
+    - "fr"
+    - "de"`,
+  },
+  parse(node: SyntaxNode, dialect: Dialect) {
+    // Block-list syntax (`- fr` / `- "fr"`) — members validated by LocaleValue.
+    if (node.namedChildren.some(child => child.type === 'sequence_element')) {
+      return LocaleSequenceValue.parse(node, dialect);
+    }
+
+    const expression = dialect.parseExpression(node);
+
+    // Inline-list syntax (`["fr", "de"]`): normalize each member the same way
+    // block-list members are normalized (quoted or bare accepted).
+    if (expression instanceof ListLiteral) {
+      const locales: StringLiteral[] = [];
+      const diagnostics: Diagnostic[] = [];
+      for (const element of expression.elements) {
+        const elementNode = element.__cst?.node ?? node;
+        const result = normalizeLocale(element, elementNode);
+        locales.push(result.value as StringLiteral);
+        diagnostics.push(...result.diagnostics);
+      }
+      const sequence = withCst(new SequenceNode(locales), node);
+      sequence.__diagnostics.push(...diagnostics);
+      return parseResult(sequence, diagnostics);
+    }
+
+    // Comma-separated string (`"fr, de"`): normalized to the same shape.
+    if (expression instanceof StringLiteral) {
+      const locales = expression.value
+        .split(',')
+        .map(locale => locale.trim())
+        .filter(Boolean)
+        .map(locale => new StringLiteral(locale));
+      return parseResult(withCst(new SequenceNode(locales), node), []);
+    }
+
+    // Any other scalar (number, boolean, reference) is not a valid locale list.
+    const rejected = withCst(new SequenceNode(), node);
+    const diagnostic = typeMismatchDiagnostic(
+      toRange(node),
+      `Expected a list of locale strings, got ${expression.__describe()}`,
+      'StringLiteral',
+      expression.__kind
+    );
+    rejected.__diagnostics.push(diagnostic);
+    return parseResult(rejected, [diagnostic]);
+  },
+  emit(value: SequenceNode, ctx: EmitContext) {
+    return LocaleSequenceValue.emit(value, ctx);
+  },
+  emitField(key: string, value: SequenceNode, ctx: EmitContext) {
+    // Lossless round-trip: when the source used an inline form (scalar string,
+    // comma-separated string, or inline list) rather than a block list,
+    // reproduce it verbatim from the original CST instead of expanding into a
+    // normalized block list. A block list — or a programmatically built node
+    // with no CST — falls through to the canonical block-list emit.
+    const node = value.__cst?.node;
+    const isBlockList = node?.namedChildren.some(
+      child => child.type === 'sequence_element'
+    );
+    if (node && !isBlockList) {
+      return `${emitIndent(ctx)}${key}: ${node.text}`;
+    }
+    return LocaleSequenceValue.emitField!(key, value, ctx);
+  },
+} satisfies FieldType<SequenceNode>;
+
 export const LanguageBlock = Block('LanguageBlock', {
   adaptive: BooleanValue.describe(
     'When True, the agent infers the locale from the user and other language fields are ignored.'
@@ -104,9 +278,7 @@ export const LanguageBlock = Block('LanguageBlock', {
   default_locale: StringValue.describe(
     'The primary locale for the agent (e.g., "en_US", "de", "fr").'
   ),
-  additional_locales: StringValue.describe(
-    'Comma-separated list of additional supported locales.'
-  ),
+  additional_locales: AdditionalLocalesValue,
   all_additional_locales: BooleanValue.describe(
     'Whether to support all available locales.'
   ),
@@ -115,7 +287,9 @@ export const LanguageBlock = Block('LanguageBlock', {
   .example(
     `language:
     default_locale: "en_US"
-    additional_locales: "fr, de"
+    additional_locales:
+        - "fr"
+        - "de"
     all_additional_locales: True`
   );
 
@@ -210,6 +384,10 @@ export const baseSubagentFields = {
   ).required(),
   system: SystemBlock.pick(['instructions', 'strip_salesforce_instructions']),
   actions: ActionsBlock.describe('Action definitions available to this block.'),
+  bundles: ExpressionSequence().describe(
+    'Node-level bundle references, e.g. @bundles.targeting. ' +
+      'Each entry must reference a top-level bundle declared in the bundles block.'
+  ),
   reasoning: ReasoningBlock.describe(
     'Reasoning block containing instructions and actions for the agent reasoning loop.'
   ),
@@ -329,11 +507,154 @@ export const ConnectedSubagentBlock = NamedBlock(
   { capabilities: ['invocationTarget', 'transitionTarget'] }
 );
 
+/**
+ * A workflow — a named, independently-executable unit defined in the scope of
+ * the agent. Workflows are either routed deterministically to a specific
+ * subagent (`agent`), executed with a free-form `prompt`, or both — when
+ * `agent` is present, `prompt` is an optional instruction passed alongside.
+ */
+export const WorkflowBlock = NamedBlock(
+  'WorkflowBlock',
+  {
+    agent: ExpressionValue.describe(
+      'Subagent (or connected subagent) this workflow routes to deterministically, e.g. @subagent.lead_generation.'
+    ).resolvedType('invocationTarget'),
+    prompt: StringValue.describe(
+      'Instruction for this workflow. Required when no agent is set; optional additional context when agent is set.'
+    ).accepts(['StringLiteral']),
+  },
+  {
+    symbol: { kind: SymbolKind.Method },
+    scopeAlias: 'workflows',
+    capabilities: ['invocationTarget'],
+  }
+)
+  .describe('A named, independently-executable workflow scoped to the agent.')
+  .example(
+    `workflows:
+    lead_generation:
+        agent: @subagent.lead_generation
+    follow_up:
+        agent: @subagent.outreach
+        prompt: "Follow up on emails from last week that haven't received a reply."
+    free_form:
+        prompt: "Summarise recent activity for this account."`
+  );
+
+/**
+ * A trigger — fires a workflow on a cron schedule. Targets are always
+ * references to a workflow (an agent-level workflow or a bundle-exposed one).
+ * There can be one or more triggers per workflow.
+ */
+export const TriggerBlock = NamedBlock(
+  'TriggerBlock',
+  {
+    schedule: StringValue.describe(
+      'Cron schedule expression (e.g., "30 8 * * *").'
+    )
+      .accepts(['StringLiteral'])
+      .required(),
+    // AgentIQ validation checks the two supported target shapes:
+    // @workflows.<workflow> and @bundles.<bundle>.workflows.<workflow>.
+    // This cannot use resolvedType('invocationTarget'): bundle declarations
+    // are namespaces, not callable targets themselves.
+    target: ExpressionValue.describe(
+      'Reference to the workflow to execute, e.g. @workflows.follow_up.'
+    ).required(),
+  },
+  {
+    symbol: { kind: SymbolKind.Event },
+    scopeAlias: 'trigger',
+  }
+)
+  .describe('A scheduled trigger that executes a workflow on a cron schedule.')
+  .example(
+    `trigger:
+    daily_lead_gen:
+        schedule: "30 8 * * *"
+        target: @workflows.lead_generation`
+  );
+
+/**
+ * A bundle reference — an agent-level declaration that makes a bundle
+ * available to the agent. Bundles are stored as independent packages
+ * and referenced by a `bundle://<name>` URI. Once referenced here, the
+ * bundle's constructs (workflows, actions, and subagents) become addressable
+ * via `@bundles.<name>`, including workflow invocation targets such as
+ * `@bundles.<name>.workflows.<workflow>`.
+ */
+export const BundleBlock = NamedBlock(
+  'BundleBlock',
+  {
+    target: StringValue.accepts(['StringLiteral'])
+      .describe(
+        'URI identifying the bundle, e.g. "bundle://prospecting". ' +
+          'Matches the name of the bundle.'
+      )
+      .required()
+      .pattern(/^bundle:\/\/\S+$/),
+  },
+  {
+    symbol: { kind: SymbolKind.Namespace },
+    scopeAlias: 'bundles',
+  }
+)
+  .describe('A bundle the agent can load and route to.')
+  .example(
+    `bundles:
+    prospecting:
+        target: "bundle://prospecting"
+    outreach:
+        target: "bundle://outreach"`
+  );
+
+/**
+ * The orchestrator — the primary entry point for a goal-based agent.
+ * Contains optional top-level action definitions and an optional reasoning
+ * block for LLM-facing instructions and reasoning tools. Aliased as `agent`.
+ */
+export const OrchestratorBlock = NamedBlock(
+  'OrchestratorBlock',
+  {
+    actions: ActionsBlock.describe(
+      'Action definitions available to the orchestrator during reasoning.'
+    ),
+    reasoning: ReasoningBlock.describe(
+      'LLM-facing reasoning configuration: instructions and available tools.'
+    ),
+  },
+  {
+    scopeAlias: 'orchestrator',
+    allowAnonymous: true,
+    capabilities: ['invocationTarget', 'transitionTarget'],
+  }
+)
+  .describe('The primary, LLM-driven entry point for a goal-based agent.')
+  .example(
+    `orchestrator agent:
+    actions:
+        lookup_account:
+            description: "Look up an account by name"
+            target: "flow://LookupAccount"
+    reasoning:
+        instructions: ->
+            | You are a goal-based agent. Determine the user's intent and act.
+        actions:
+            lookup_account:
+                description: "Look up an account"`
+  );
+
 export const AgentScriptSchema = {
   system: SystemBlock,
   config: ConfigBlock,
   variables: VariablesBlock,
   language: LanguageBlock,
+  actions: ActionsBlock.describe(
+    'Agent-level action definitions. Inherited by every subagent, which can reference them in reasoning actions.'
+  ),
+  workflows: NamedCollectionBlock(WorkflowBlock),
+  bundles: NamedCollectionBlock(BundleBlock),
+  trigger: NamedCollectionBlock(TriggerBlock),
   connected_subagent: NamedCollectionBlock(ConnectedSubagentBlock),
   start_agent: NamedCollectionBlock(
     StartAgentBlock.clone().example(
@@ -359,6 +680,7 @@ start_agent topic_selector:
                 description: "Escalate to human agent"`
     )
   ).singular(),
+  orchestrator: NamedCollectionBlock(OrchestratorBlock).singular(),
   subagent: NamedCollectionBlock(
     SubagentBlock.clone().example(
       `# Additional subagents handle specific conversation areas
@@ -429,6 +751,7 @@ export type AgentScriptSchema = typeof AgentScriptSchema;
 
 export const AgentScriptSchemaAliases: Record<string, string> = {
   start_agent: 'subagent',
+  agent: 'orchestrator',
 };
 
 /**
@@ -448,21 +771,52 @@ export const AgentScriptSchemaInfo: SchemaInfo = {
   schema: AgentScriptSchema as Record<string, FieldType>,
   aliases: AgentScriptSchemaAliases,
   nodeMemberAccess: NodeMemberAccess,
-  // TODO: globalScopes are just bags of member names with no type information.
-  // Each member is an invokable with its own signature — e.g. transition takes a
-  // transitionTarget argument, setVariables takes variable bindings, escalate takes
-  // no arguments. These need to be promoted to typed declarations so they participate
-  // in resolvedType validation instead of being silently skipped.
+  // Global scopes are typed declarations: each member carries an optional
+  // capability (so it flows through resolvedType validation) or a primitive
+  // type (so it flows through type-mismatch checking), matching the way
+  // @variables members are declared.
   globalScopes: {
-    utils: new Set(['transition', 'setVariables', 'escalate', 'end_session']),
+    // Every @utils member is an invocationTarget — `run @utils.transition` etc.
+    utils: new Map<string, GlobalScopeMemberDecl>([
+      ['transition', { capability: 'invocationTarget' }],
+      ['setVariables', { capability: 'invocationTarget' }],
+      ['escalate', { capability: 'invocationTarget' }],
+      ['end_session', { capability: 'invocationTarget' }],
+    ]),
     // `last_reply` is a nested object exposing voice-barge-in state; its
     // sub-members are accessed as `@system_variables.last_reply.interrupted`
-    // and `.interrupted_heard_text`. The other members are flat leaves (null).
-    system_variables: new Map<string, ReadonlySet<string> | null>([
-      ['user_input', null],
-      ['current_modality', null],
-      ['current_connection', null],
-      ['last_reply', new Set(['interrupted', 'interrupted_heard_text'])],
+    // (boolean) and `.interrupted_heard_text` (string). The other scalar
+    // members are flat typed leaves.
+    //
+    // `uploaded_files` is the list of user-uploaded files for the turn. Each
+    // element is a File object (mirrors the agent-dsl `File` type — required
+    // `id` and `file_url`, optional `name` and `mime_type`). Authors reach
+    // elements via a subscript or slice —
+    // `@system_variables.uploaded_files[0].id`,
+    // `@system_variables.uploaded_files[0:3].file_url` — so it is registered
+    // with the list-with-element-fields shape: the linter validates that
+    // whatever attribute follows the subscript is one of the declared element
+    // fields.
+    system_variables: new Map<string, GlobalScopeMemberDecl>([
+      ['user_input', { type: 'string' }],
+      ['current_modality', { type: 'string' }],
+      ['current_connection', { type: 'string' }],
+      [
+        'last_reply',
+        {
+          subMembers: new Map<string, GlobalScopeMemberDecl>([
+            ['interrupted', { type: 'boolean' }],
+            ['interrupted_heard_text', { type: 'string' }],
+          ]),
+        },
+      ],
+      [
+        'uploaded_files',
+        {
+          list: true,
+          elementFields: new Set(['id', 'file_url', 'name', 'mime_type']),
+        },
+      ],
     ]),
   },
 };

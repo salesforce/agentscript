@@ -6,7 +6,7 @@
  */
 
 import type { SymbolMeta } from './types.js';
-import { AstNodeBase, SymbolKind } from './types.js';
+import { AstNodeBase, SymbolKind, isAstNodeLike } from './types.js';
 import type { Expression } from './expressions.js';
 import { Identifier } from './expressions.js';
 import type { BlockChild } from './children.js';
@@ -66,4 +66,15 @@ export class ParameterDeclarationNode extends TypedDeclarationBase {
   }) {
     super(data);
   }
+}
+
+/** Reports whether a node is a variable or parameter declaration. */
+export function isTypedDeclaration(
+  value: unknown
+): value is TypedDeclarationBase {
+  return (
+    isAstNodeLike(value) &&
+    (value.__kind === 'VariableDeclaration' ||
+      value.__kind === 'ParameterDeclaration')
+  );
 }

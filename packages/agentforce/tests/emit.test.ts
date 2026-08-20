@@ -216,8 +216,13 @@ topic billing:
     expect(parse(emitted).emit()).toBe(source);
   });
 
-  test('round-trips trailing comment in actions named entry body', () => {
-    const source = `actions:
+  test('round-trips trailing comment in unknown-block colinear invocation body', () => {
+    // Uses an unknown top-level block so the CST passthrough path is
+    // exercised — colinear invocation bodies (`Name: @actions.X with... set...`)
+    // are a reasoning-action form, not a top-level `actions:` definition, so
+    // the definitions schema would reject them. Passthrough must preserve the
+    // trailing comment verbatim.
+    const source = `custom_actions:
     Get_Current_Weather_Data: @actions.Get_Current_Weather_Data
         with city=@variables.user_city
         set @variables.temperature = @outputs.temperature_celsius
@@ -351,8 +356,10 @@ topic weather:
         mustContain: ['# keep me'],
       },
       {
-        name: 'actions trailing comment after body',
-        source: `actions:
+        // Unknown top-level block → CST passthrough of a colinear invocation
+        // body (not a top-level `actions:` definition).
+        name: 'unknown-block colinear trailing comment after body',
+        source: `custom_actions:
     Get_Current_Weather_Data: @actions.Get_Current_Weather_Data
         with city=@variables.user_city
         # tail`,
@@ -545,7 +552,11 @@ topic billing:
   });
 
   test('round-trips action invocation with if condition containing extra tokens and body', () => {
-    const source = `actions:
+    // Unknown top-level block: exercises CST passthrough of a colinear
+    // invocation body (with clauses, set clauses, and an if/transition tail),
+    // which is a reasoning-action form rather than a top-level `actions:`
+    // definition.
+    const source = `custom_actions:
     VerifyCustomer: @actions.VerifyCustomer
         with authenticationKey = @variables.authenticationKey
         with customerCode = ...

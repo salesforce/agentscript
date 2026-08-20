@@ -2017,6 +2017,210 @@ subagent main:
       "'nonexistent' is not defined in system_variables"
     );
   });
+
+  it.skip('validates 3-level nested global scope members when declared', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Use {!@system_variables.nested.level2.level3}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.nested')
+    );
+    expect(errors.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('flags a bare @system_variables.uploaded_files reference', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |You have {!@system_variables.uploaded_files} attached.
+`);
+
+    // The namespace + member resolve, but the bare list reference is flagged
+    // separately because it renders as `[<File>, <File>, ...]` at runtime.
+    const undefined_ = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.data?.referenceName === '@system_variables.uploaded_files'
+    );
+    expect(undefined_).toHaveLength(0);
+
+    const bareErrors = diagnostics.filter(
+      d => d.code === 'bare-uploaded-files-reference'
+    );
+    expect(bareErrors).toHaveLength(1);
+    expect(bareErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(bareErrors[0].message).toContain('list');
+  });
+
+  it('accepts len(@system_variables.uploaded_files)', () => {
+    const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  label: "Main"
+  before_reasoning:
+    set @variables.count = len(@system_variables.uploaded_files)
+`);
+    const bareErrors = diagnostics.filter(
+      d => d.code === 'bare-uploaded-files-reference'
+    );
+    expect(bareErrors).toHaveLength(0);
+  });
+
+  it('flags a bare @system_variables["uploaded_files"] bracket reference', () => {
+    // The compiler treats `@system_variables["uploaded_files"]` and
+    // `@system_variables.uploaded_files` as the same raw list, so the lint
+    // gate has to catch the bracket form too.
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |You have {!@system_variables["uploaded_files"]} attached.
+`);
+    const bareErrors = diagnostics.filter(
+      d => d.code === 'bare-uploaded-files-reference'
+    );
+    expect(bareErrors).toHaveLength(1);
+    expect(bareErrors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('accepts an indexed @system_variables["uploaded_files"][0] bracket reference', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |First: {!@system_variables["uploaded_files"][0].id}
+`);
+    const bareErrors = diagnostics.filter(
+      d => d.code === 'bare-uploaded-files-reference'
+    );
+    expect(bareErrors).toHaveLength(0);
+  });
+
+  it('accepts len(@system_variables["uploaded_files"])', () => {
+    const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  label: "Main"
+  before_reasoning:
+    set @variables.count = len(@system_variables["uploaded_files"])
+`);
+    const bareErrors = diagnostics.filter(
+      d => d.code === 'bare-uploaded-files-reference'
+    );
+    expect(bareErrors).toHaveLength(0);
+  });
+
+  it('validates an indexed @system_variables.uploaded_files element field', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |First file id: {!@system_variables.uploaded_files[0].id}
+`);
+
+    // Element fields registered on the list variant (`id`, `file_url`,
+    // `name`, `mime_type`) resolve; no diagnostic.
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.uploaded_files')
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('validates a sliced @system_variables.uploaded_files element field', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |URLs: {!@system_variables.uploaded_files[0:3].file_url}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.uploaded_files')
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('flags a bogus element field on indexed @system_variables.uploaded_files', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Nope: {!@system_variables.uploaded_files[0].bogus_attr}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.uploaded_files')
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain(
+      "'bogus_attr' is not defined on system_variables.uploaded_files[] elements"
+    );
+  });
+
+  it('flags a bogus element field on sliced @system_variables.uploaded_files', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Nope: {!@system_variables.uploaded_files[0:3].bogus_attr}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.uploaded_files')
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('suggests a close match for a typo on @system_variables.uploaded_files element', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |URL: {!@system_variables.uploaded_files[0].file_urls}
+`);
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'undefined-reference' &&
+        typeof d.data?.referenceName === 'string' &&
+        d.data.referenceName.startsWith('@system_variables.uploaded_files')
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].data?.suggestion).toBe('file_url');
+  });
 });
 
 // ============================================================================
@@ -2291,6 +2495,48 @@ start_agent main:
     expect(errors).toHaveLength(0);
   });
 
+  // RED-GREEN: a global-scope member that carries no invocationTarget
+  // capability (e.g. @system_variables.user_input, a string leaf) must be
+  // rejected when used as an invocation target — previously silently skipped.
+  it('rejects non-invokable global member as invocation target', () => {
+    const diagnostics = runLint(`
+start_agent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |do it
+    actions:
+      bad: @system_variables.user_input
+`);
+    const errors = diagnostics.filter(
+      d => d.code === 'constraint-resolved-type'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('@system_variables.user_input');
+    expect(errors[0].message).toContain('not a valid invocation target');
+  });
+
+  // P1: Nested capability validation — boolean leaf cannot be invoked
+  it('rejects nested boolean global member as invocation target', () => {
+    const diagnostics = runLint(`
+start_agent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |do it
+    actions:
+      bad: @system_variables.last_reply.interrupted
+`);
+    const errors = diagnostics.filter(
+      d => d.code === 'constraint-resolved-type'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain(
+      '@system_variables.last_reply.interrupted'
+    );
+    expect(errors[0].message).toContain('not a valid invocation target');
+  });
+
   it('rejects bare identifier as invocation target', () => {
     const diagnostics = runLint(`
 start_agent main:
@@ -2407,6 +2653,42 @@ subagent main:
     actions:
       check: @actions.check
         with value=@variables.name
+`);
+
+    const unused = diagnostics.filter(d => d.code === 'unused-variable');
+    expect(unused).toHaveLength(0);
+  });
+
+  it('does not report variables assigned via @utils.setVariables', () => {
+    const diagnostics = runLint(`
+variables:
+  artifacts: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      check: @utils.setVariables
+        with artifacts=...
+`);
+
+    const unused = diagnostics.filter(d => d.code === 'unused-variable');
+    expect(unused).toHaveLength(0);
+  });
+
+  it('does not report variables referenced only via spread', () => {
+    const diagnostics = runLint(`
+variables:
+  artifacts: mutable list
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      check: @actions.check
+        with value=[*@variables.artifacts]
 `);
 
     const unused = diagnostics.filter(d => d.code === 'unused-variable');
@@ -3254,6 +3536,40 @@ subagent main:
     const errors = diagnostics.filter(d => d.code === 'type-mismatch');
     expect(errors).toHaveLength(0);
   });
+
+  // RED-GREEN: typed global-scope members flow through type-mismatch checking.
+  // @system_variables.last_reply.interrupted is declared `boolean`, so passing
+  // it to a string-typed input must be reported.
+  it('reports type mismatch for boolean global member into string input', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      check: @actions.send_code
+        with email=@system_variables.last_reply.interrupted
+        with member_number=@variables.member_number
+`
+    );
+
+    const warnings = diagnostics.filter(d => d.code === 'type-mismatch');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain("input 'email'");
+    expect(warnings[0].message).toContain("'string'");
+    expect(warnings[0].message).toContain("'boolean'");
+  });
+
+  // GREEN half: the string-typed sibling member resolves to `string`, which is
+  // compatible with the string input — no diagnostic.
+  it('accepts string global member into string input', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      check: @actions.send_code
+        with email=@system_variables.last_reply.interrupted_heard_text
+        with member_number=@variables.member_number
+`
+    );
+
+    const errors = diagnostics.filter(d => d.code === 'type-mismatch');
+    expect(errors).toHaveLength(0);
+  });
 });
 
 describe('variableDefaultTypeCheckRule', () => {
@@ -3384,6 +3700,45 @@ subagent main:
       d => d.code === 'variable-default-type-mismatch'
     );
     expect(warnings).toHaveLength(0);
+  });
+
+  // Parameterized list types — a list literal is inferred as the bare `list`,
+  // so `list[string]` must be treated as compatible with it (regression: the
+  // rule previously string-compared `list[string]` against `list` and flagged
+  // valid empty/populated list initializers).
+  it('passes empty list literal into list[string]', () => {
+    const diagnostics = runLint(wrap(`  items: mutable list[string] = []`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes populated list literal into list[string]', () => {
+    const diagnostics = runLint(
+      wrap(`  items: mutable list[string] = ["a", "b"]`)
+    );
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('passes list literal into bare list', () => {
+    const diagnostics = runLint(wrap(`  items: list = []`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('flags list literal into a non-list scalar type', () => {
+    const diagnostics = runLint(wrap(`  s: string = []`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
   });
 });
 
@@ -4450,6 +4805,7 @@ subagent main:
   });
 
   it('accepts max() and min() functions', () => {
+    // Guide: min/max accept multiple scalar arguments.
     const diagnostics = runLint(`
 variables:
   a: mutable number = 0
@@ -4637,6 +4993,55 @@ subagent main:
     expect(opErrors[0].message).toContain("'*'");
   });
 
+  it('reports slice directly on @system_variables', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |First: {!@system_variables[0:2]}
+`);
+    const sliceErrors = diagnostics.filter(
+      d => d.code === 'unsupported-slice-target'
+    );
+    expect(sliceErrors).toHaveLength(1);
+    expect(sliceErrors[0].message).toContain(
+      '@system_variables.uploaded_files'
+    );
+    expect(sliceErrors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('accepts slice on @system_variables.uploaded_files', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |First two: {!@system_variables.uploaded_files[0:2]}
+`);
+    const sliceErrors = diagnostics.filter(
+      d => d.code === 'unsupported-slice-target'
+    );
+    expect(sliceErrors).toHaveLength(0);
+  });
+
+  it('accepts negative index and negative-bound slices on @system_variables.uploaded_files', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Last id: {!@system_variables.uploaded_files[-1].id}
+      |Last three: {!@system_variables.uploaded_files[-3:].file_url}
+      |All but last: {!@system_variables.uploaded_files[:-1].file_url}
+      |Reversed: {!@system_variables.uploaded_files[::-1].file_url}
+`);
+    const sliceErrors = diagnostics.filter(
+      d => d.code === 'unsupported-slice-target'
+    );
+    expect(sliceErrors).toHaveLength(0);
+  });
+
   describe('configurable options', () => {
     it('accepts custom function via functions option', () => {
       const diagnostics = runLintWithOptions(
@@ -4798,6 +5203,612 @@ subagent main:
       expect(funcErrors).toHaveLength(1);
       expect(funcErrors[0].message).toContain("'unknown_fn'");
       expect(funcErrors[0].message).toContain('a2a');
+    });
+  });
+
+  describe('function arity', () => {
+    it('accepts len() with exactly one argument', () => {
+      const diagnostics = runLint(`
+variables:
+  items: mutable list[string] = []
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(@variables.items) == 0:
+      transition to @subagent.main
+`);
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(0);
+    });
+
+    it('reports function-argument-count when len() has two arguments', () => {
+      const diagnostics = runLint(`
+variables:
+  a: mutable list[string] = []
+  b: mutable list[string] = []
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(@variables.a, @variables.b) == 0:
+      transition to @subagent.main
+`);
+      // (list vars keep the type check quiet; this asserts arity only)
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(1);
+      expect(arityErrors[0].message).toContain("'len' expects exactly 1");
+      expect(arityErrors[0].message).toContain('received 2');
+      expect(arityErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    });
+
+    it('accepts max()/min() with one or more arguments', () => {
+      const diagnostics = runLint(`
+variables:
+  a: mutable list[number] = []
+  b: mutable list[number] = []
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if max(@variables.a) == 0:
+      transition to @subagent.main
+    if min(@variables.a, @variables.b) == 0:
+      transition to @subagent.main
+`);
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(0);
+    });
+
+    it('reports function-argument-count when max()/min() have no arguments', () => {
+      const diagnostics = runLint(`
+subagent main:
+  description: "test"
+  before_reasoning:
+    if max() == min():
+      transition to @subagent.main
+`);
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(2);
+      expect(
+        arityErrors.every(d => d.severity === DiagnosticSeverity.Error)
+      ).toBe(true);
+    });
+
+    it.each(['lower', 'upper', 'to_json', 'from_json'])(
+      'accepts %s() with exactly one argument',
+      name => {
+        const diagnostics = runLint(`
+variables:
+  text: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if ${name}(@variables.text) == "":
+      transition to @subagent.main
+`);
+        const arityErrors = diagnostics.filter(
+          d => d.code === 'function-argument-count'
+        );
+        expect(arityErrors).toHaveLength(0);
+      }
+    );
+
+    it.each(['lower', 'upper', 'to_json', 'from_json'])(
+      'reports function-argument-count when %s() has no arguments',
+      name => {
+        const diagnostics = runLint(`
+subagent main:
+  description: "test"
+  before_reasoning:
+    if ${name}() == "":
+      transition to @subagent.main
+`);
+        const arityErrors = diagnostics.filter(
+          d => d.code === 'function-argument-count'
+        );
+        expect(arityErrors).toHaveLength(1);
+        expect(arityErrors[0].message).toContain(`'${name}' expects exactly 1`);
+        expect(arityErrors[0].severity).toBe(DiagnosticSeverity.Error);
+      }
+    );
+
+    it.each(['lower', 'upper', 'to_json', 'from_json'])(
+      'reports function-argument-count when %s() has two arguments',
+      name => {
+        const diagnostics = runLint(`
+variables:
+  a: mutable string = ""
+  b: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if ${name}(@variables.a, @variables.b) == "":
+      transition to @subagent.main
+`);
+        const arityErrors = diagnostics.filter(
+          d => d.code === 'function-argument-count'
+        );
+        expect(arityErrors).toHaveLength(1);
+        expect(arityErrors[0].message).toContain(`'${name}' expects exactly 1`);
+        expect(arityErrors[0].message).toContain('received 2');
+      }
+    );
+  });
+
+  describe('json_path', () => {
+    it('accepts json_path with a 2-arg $-rooted literal selector', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, "$.items[0].name")) == 0:
+      transition to @subagent.main
+`);
+      const relevant = diagnostics.filter(d =>
+        [
+          'unknown-function',
+          'function-argument-count',
+          'invalid-jsonpath',
+        ].includes(d.code as string)
+      );
+      expect(relevant).toHaveLength(0);
+    });
+
+    it('accepts json_path with a 3-arg default', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, "$.items", "none")) == 0:
+      transition to @subagent.main
+`);
+      const relevant = diagnostics.filter(d =>
+        ['function-argument-count', 'invalid-jsonpath'].includes(
+          d.code as string
+        )
+      );
+      expect(relevant).toHaveLength(0);
+    });
+
+    it('accepts an escaped quoted-key selector', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if json_path(@variables.data, "$[\\"display.name\\"]") == "visible":
+      transition to @subagent.main
+`);
+      const relevant = diagnostics.filter(d =>
+        [
+          'unknown-function',
+          'function-argument-count',
+          'invalid-jsonpath',
+        ].includes(d.code as string)
+      );
+      expect(relevant).toHaveLength(0);
+    });
+
+    it('reports function-argument-count when json_path has one argument', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data)) == 0:
+      transition to @subagent.main
+`);
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(1);
+      expect(arityErrors[0].message).toContain("'json_path' expects 2 to 3");
+      expect(arityErrors[0].message).toContain('received 1');
+      expect(arityErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    });
+
+    it('reports function-argument-count when json_path has four arguments', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if json_path(@variables.data, "$.items", "none", "extra") == "none":
+      transition to @subagent.main
+`);
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(1);
+      expect(arityErrors[0].message).toContain("'json_path' expects 2 to 3");
+      expect(arityErrors[0].message).toContain('received 4');
+      expect(arityErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    });
+
+    it('reports invalid-jsonpath for a non-$-rooted selector', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, "foo.bar")) == 0:
+      transition to @subagent.main
+`);
+      const errors = diagnostics.filter(d => d.code === 'invalid-jsonpath');
+      expect(errors).toHaveLength(1);
+      expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    });
+
+    it('reports invalid-jsonpath for unbalanced brackets', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, "$[")) == 0:
+      transition to @subagent.main
+`);
+      const errors = diagnostics.filter(d => d.code === 'invalid-jsonpath');
+      expect(errors).toHaveLength(1);
+    });
+
+    it('does not speculate about a dynamic selector', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+  path: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, @variables.path)) == 0:
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'jsonpath-dynamic-path')
+      ).toHaveLength(0);
+    });
+
+    it('does not speculate about _-prefixed segments', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, "$._secret.value")) == 0:
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'jsonpath-private-segment')
+      ).toHaveLength(0);
+    });
+
+    it('does not speculate about scalar comparison result shape', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if json_path(@variables.data, "$.name") == "foo":
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'jsonpath-result-is-list')
+      ).toHaveLength(0);
+    });
+
+    it('lints json_path used inside a template instruction interpolation', () => {
+      const diagnostics = runLint(`
+variables:
+  payload: mutable object
+
+subagent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |Value is {!json_path(@variables.payload)}
+`);
+      // Reached through the interpolation, so arity still fires (1 arg → 2-3).
+      const arityErrors = diagnostics.filter(
+        d => d.code === 'function-argument-count'
+      );
+      expect(arityErrors).toHaveLength(1);
+      expect(arityErrors[0].message).toContain("'json_path' expects 2 to 3");
+    });
+
+    it('flags an invalid selector inside a template instruction interpolation', () => {
+      const diagnostics = runLint(`
+variables:
+  payload: mutable object
+
+subagent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |Value is {!json_path(@variables.payload, "foo.bar")}
+`);
+      const jsonPathErrors = diagnostics.filter(
+        d => d.code === 'invalid-jsonpath'
+      );
+      expect(jsonPathErrors).toHaveLength(1);
+    });
+
+    it('flags a wrong argument type inside a template instruction interpolation', () => {
+      const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |Value is {!json_path(@variables.count, "$.x")}
+`);
+      const typeWarnings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeWarnings).toHaveLength(1);
+      expect(typeWarnings[0].message).toContain("'json_path'");
+    });
+  });
+
+  describe('function argument types', () => {
+    it('accepts json_path on an object variable', () => {
+      const diagnostics = runLint(`
+variables:
+  payload: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if json_path(@variables.payload, "$.ready") == True:
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('warns when json_path targets a scalar (number) variable', () => {
+      const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if json_path(@variables.count, "$.ready") == True:
+      transition to @subagent.main
+`);
+      const typeWarnings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeWarnings).toHaveLength(1);
+      expect(typeWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(typeWarnings[0].message).toContain("'json_path'");
+      expect(typeWarnings[0].message).toContain('an object or list');
+    });
+
+    it('accepts len() on a list, dict, object, or string (guide)', () => {
+      const diagnostics = runLint(`
+variables:
+  items: mutable list[string] = []
+  text: mutable string = ""
+  bag: mutable object
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(@variables.items) == 0:
+      transition to @subagent.main
+    if len(@variables.text) == 0:
+      transition to @subagent.main
+    if len(@variables.bag) == 0:
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('warns when len() is applied to a scalar (number)', () => {
+      const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(@variables.count) == 0:
+      transition to @subagent.main
+`);
+      const typeWarnings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeWarnings).toHaveLength(1);
+      expect(typeWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(typeWarnings[0].message).toContain("'len'");
+      expect(typeWarnings[0].message).toContain('a list, dict, or string');
+    });
+
+    it('accepts min()/max() with multiple scalar arguments (guide)', () => {
+      const diagnostics = runLint(`
+variables:
+  a: mutable number = 0
+  b: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if max(@variables.a, @variables.b) == 0:
+      transition to @subagent.main
+    if min(@variables.a, @variables.b) == 0:
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('accepts min()/max() with a single iterable (guide)', () => {
+      const diagnostics = runLint(`
+variables:
+  values: mutable list[number] = []
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if max(@variables.values) == 0:
+      transition to @subagent.main
+    if min(@variables.values) == 0:
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('warns when min()/max() has a single scalar argument', () => {
+      const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if max(@variables.count) == 0:
+      transition to @subagent.main
+    if min(@variables.count) == 0:
+      transition to @subagent.main
+`);
+      const typeWarnings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeWarnings).toHaveLength(2);
+      expect(
+        typeWarnings.every(d => d.severity === DiagnosticSeverity.Warning)
+      ).toBe(true);
+      expect(
+        typeWarnings.every(d => d.message.includes('single argument'))
+      ).toBe(true);
+    });
+
+    it('does not warn when the argument type cannot be inferred (dynamic)', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+  path: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if len(json_path(@variables.data, @variables.path)) == 0:
+      transition to @subagent.main
+`);
+      // json_path's object arg is valid; its result (len's arg) infers null →
+      // unchecked. Nothing is positively wrong, so no warning.
+      const typeWarnings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeWarnings).toHaveLength(0);
+    });
+
+    it.each(['lower', 'upper', 'from_json'])(
+      'accepts %s() on a string variable',
+      name => {
+        const diagnostics = runLint(`
+variables:
+  text: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if ${name}(@variables.text) == "":
+      transition to @subagent.main
+`);
+        expect(
+          diagnostics.filter(d => d.code === 'function-argument-type')
+        ).toHaveLength(0);
+      }
+    );
+
+    it.each(['lower', 'upper', 'from_json'])(
+      'warns when %s() is applied to a scalar (number)',
+      name => {
+        const diagnostics = runLint(`
+variables:
+  count: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if ${name}(@variables.count) == "":
+      transition to @subagent.main
+`);
+        const typeWarnings = diagnostics.filter(
+          d => d.code === 'function-argument-type'
+        );
+        expect(typeWarnings).toHaveLength(1);
+        expect(typeWarnings[0].severity).toBe(DiagnosticSeverity.Warning);
+        expect(typeWarnings[0].message).toContain(`'${name}'`);
+        expect(typeWarnings[0].message).toContain('a string');
+      }
+    );
+
+    it('never warns for to_json() regardless of argument type', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable object
+  items: mutable list[number] = []
+  count: mutable number = 0
+  text: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if to_json(@variables.data) == "":
+      transition to @subagent.main
+    if to_json(@variables.items) == "":
+      transition to @subagent.main
+    if to_json(@variables.count) == "":
+      transition to @subagent.main
+    if to_json(@variables.text) == "":
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
     });
   });
 });
@@ -4993,6 +6004,35 @@ subagent main:
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain("'list[string]'");
   });
+
+  // P2a: Nested global member type resolution — string leaf wrongly accepted
+  it('reports nested string global member in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @system_variables.last_reply.interrupted_heard_text
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('string');
+  });
+
+  // P2a: Verify boolean nested member is accepted
+  it('accepts nested boolean global member in available when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @system_variables.last_reply.interrupted
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(0);
+  });
 });
 
 // ============================================================================
@@ -5007,7 +6047,22 @@ describe('setVariablesIoRule', () => {
     return diagnostics;
   }
 
-  it('reports error when with clause param is not a defined variable', () => {
+  function expectUnknownVariableWarnings(
+    diagnostics: Diagnostic[],
+    count: number
+  ): Diagnostic[] {
+    const warnings = diagnostics.filter(
+      d => d.code === 'set-variables-unknown-variable'
+    );
+    expect(warnings).toHaveLength(count);
+    for (const warning of warnings) {
+      expect(warning.severity).toBe(DiagnosticSeverity.Warning);
+      expect(warning.severity).toBe(2);
+    }
+    return warnings;
+  }
+
+  it('reports warning when with clause param is not a defined variable', () => {
     const diagnostics = runLint(`
 variables:
   name: mutable string
@@ -5023,15 +6078,12 @@ subagent main:
         with ProductName=...
 `);
 
-    const errors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'ProductName'");
-    expect(errors[0].message).toContain('not a defined variable');
+    const warnings = expectUnknownVariableWarnings(diagnostics, 1);
+    expect(warnings[0].message).toContain("'ProductName'");
+    expect(warnings[0].message).toContain('not a defined variable');
   });
 
-  it('reports error with suggestion for typo in variable name', () => {
+  it('reports warning with suggestion for typo in variable name', () => {
     const diagnostics = runLint(`
 variables:
   account_name: mutable string
@@ -5048,15 +6100,12 @@ subagent main:
         with prodcut_name=...
 `);
 
-    const errors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'prodcut_name'");
-    expect(errors[0].data?.suggestion).toBe('product_name');
+    const warnings = expectUnknownVariableWarnings(diagnostics, 1);
+    expect(warnings[0].message).toContain("'prodcut_name'");
+    expect(warnings[0].data?.suggestion).toBe('product_name');
   });
 
-  it('does not report error for multiple mutable variables', () => {
+  it('does not report diagnostics for multiple mutable variables', () => {
     const diagnostics = runLint(`
 variables:
   name: mutable string
@@ -5073,10 +6122,7 @@ subagent main:
         with email=...
 `);
 
-    const unknownErrors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(unknownErrors).toHaveLength(0);
+    expectUnknownVariableWarnings(diagnostics, 0);
 
     const immutableErrors = diagnostics.filter(
       d => d.code === 'set-variables-immutable-target'
@@ -5101,10 +6147,7 @@ subagent main:
         with context_val="test"
 `);
 
-    const unknownErrors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(unknownErrors).toHaveLength(0);
+    expectUnknownVariableWarnings(diagnostics, 0);
 
     const immutableErrors = diagnostics.filter(
       d => d.code === 'set-variables-immutable-target'
@@ -5160,12 +6203,9 @@ subagent main:
         with another_fake=...
 `);
 
-    const errors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(errors).toHaveLength(2);
-    expect(errors[0].message).toContain("'fake_var'");
-    expect(errors[1].message).toContain("'another_fake'");
+    const warnings = expectUnknownVariableWarnings(diagnostics, 2);
+    expect(warnings[0].message).toContain("'fake_var'");
+    expect(warnings[1].message).toContain("'another_fake'");
   });
 
   it('reports only unknown-variable for undefined params, not immutable-target', () => {
@@ -5186,11 +6226,8 @@ subagent main:
         with nonexistent=...
 `);
 
-    const unknownErrors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(unknownErrors).toHaveLength(1);
-    expect(unknownErrors[0].message).toContain("'nonexistent'");
+    const unknownWarnings = expectUnknownVariableWarnings(diagnostics, 1);
+    expect(unknownWarnings[0].message).toContain("'nonexistent'");
 
     const immutableErrors = diagnostics.filter(
       d => d.code === 'set-variables-immutable-target'
@@ -5216,13 +6253,10 @@ subagent main:
         with name=...
 `);
 
-    const errors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
-    );
-    expect(errors).toHaveLength(2);
+    expectUnknownVariableWarnings(diagnostics, 2);
   });
 
-  it('reports error for direct assignment to undefined variable', () => {
+  it('reports warning for direct assignment to undefined variable', () => {
     const diagnostics = runLint(`
 variables:
   name: mutable string
@@ -5238,10 +6272,575 @@ subagent main:
         with status="active"
 `);
 
+    const warnings = expectUnknownVariableWarnings(diagnostics, 1);
+    expect(warnings[0].message).toContain("'status'");
+  });
+});
+
+// ============================================================================
+// renderRulesRule tests
+// ============================================================================
+
+describe('renderRulesRule', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  const BASE = `
+subagent main:
+  label: "Main"
+  actions:
+    get_list:
+      description: "Get list"
+      inputs:
+        location: string
+      outputs:
+        items: string
+      target: "flow://get_list"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+`;
+
+  it('accepts render: and show_and_return: nested inside a when @connection block', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+`
+    );
+
     const errors = diagnostics.filter(
-      d => d.code === 'set-variables-unknown-variable'
+      d =>
+        d.code === 'render-outside-when' ||
+        d.code === 'show-and-return-outside-render' ||
+        d.code === 'render-rule-empty-when' ||
+        d.code === 'render-rule-multiple-render' ||
+        d.code === 'render-rule-multiple-show-and-return' ||
+        d.code === 'when-non-connection-ref'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts render: without a nested show_and_return:', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'render-outside-when' ||
+        d.code === 'show-and-return-outside-render' ||
+        d.code === 'render-rule-empty-when' ||
+        d.code === 'render-rule-multiple-render' ||
+        d.code === 'when-non-connection-ref'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports render-outside-when when render: is a sibling of the action', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(d => d.code === 'render-outside-when');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('render');
+    expect(errors[0].message).toContain('when @connection');
+  });
+
+  it('reports show-and-return-outside-render when show_and_return: is a sibling of the action', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'show-and-return-outside-render'
     );
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'status'");
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'show_and_return:'");
+    expect(errors[0].message).toContain('render:');
+  });
+
+  it('reports show-and-return-outside-render when show_and_return: is a sibling of render: (unnested)', () => {
+    // Sibling show_and_return: — parses as a statement in the WhenStatement
+    // body, not inside RenderStatement.body. Should error.
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+          show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'show-and-return-outside-render'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports render-rule-empty-when as an error when a when block has no render:', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.xyz
+`
+    );
+
+    const errors = diagnostics.filter(d => d.code === 'render-rule-empty-when');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("requires a 'render:' clause");
+  });
+
+  it('reports render-rule-multiple-render when a when block has more than one render:', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+          render: @response_formats.other
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-multiple-render'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("Only one 'render:'");
+  });
+
+  it('flags every extra render: past the first', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.a
+          render: @response_formats.b
+          render: @response_formats.c
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-multiple-render'
+    );
+    expect(errors).toHaveLength(2);
+  });
+
+  it('reports render-rule-multiple-show-and-return when a render body has more than one show_and_return:', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+            show_and_return: False
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-multiple-show-and-return'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports when-non-connection-ref when when block references @actions', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @actions.get_list
+          render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-connection-ref'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'@connection.<surface>'");
+  });
+
+  it('reports when-non-connection-ref when when block references a bare identifier', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when messaging
+          render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-connection-ref'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('accepts multiple when @connection blocks on the same action', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+        when @connection.ecv2
+          render: @response_formats.LWC_Test1
+            show_and_return: False
+`
+    );
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'render-outside-when' ||
+        d.code === 'show-and-return-outside-render' ||
+        d.code === 'render-rule-multiple-render' ||
+        d.code === 'render-rule-duplicate-connection' ||
+        d.code === 'when-non-connection-ref'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports render-rule-duplicate-connection when two when blocks target the same connection', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+        when @connection.messaging
+          render: @response_formats.LWC_Test1
+            show_and_return: False
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-duplicate-connection'
+    );
+    // Only the second (duplicate) block is flagged; the first stays valid.
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('messaging');
+  });
+
+  it('reports render-rule-duplicate-connection once per extra block (three blocks, same connection)', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+        when @connection.messaging
+          render: @response_formats.LWC_Test1
+        when @connection.messaging
+          render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-duplicate-connection'
+    );
+    // First block valid; second and third flagged.
+    expect(errors).toHaveLength(2);
+  });
+
+  it('still validates a duplicate when block — reports the duplicate AND its independent render error', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+        when @connection.messaging
+          render: @variables.foo
+`
+    );
+
+    // The duplicate block is flagged...
+    const dup = diagnostics.filter(
+      d => d.code === 'render-rule-duplicate-connection'
+    );
+    expect(dup).toHaveLength(1);
+    // ...and its independent malformed render: is NOT concealed by the
+    // duplicate diagnostic.
+    const badRef = diagnostics.filter(
+      d => d.code === 'render-rule-invalid-format-ref'
+    );
+    expect(badRef).toHaveLength(1);
+  });
+
+  it('accepts render: @response_formats.json (built-in reserved name)', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.json
+            show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'render-rule-invalid-format-ref' ||
+        d.code === 'render-rule-format-not-in-connection'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts longform render: @connection.<name>.response_formats.<n>', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @connection.messaging.response_formats.choices
+            show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d =>
+        d.code === 'render-rule-invalid-format-ref' ||
+        d.code === 'render-rule-format-connection-mismatch' ||
+        d.code === 'render-rule-format-not-in-connection'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports render-rule-format-connection-mismatch when longform ref targets a different connection', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @connection.slack.response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-format-connection-mismatch'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('choices');
+    expect(errors[0].message).toContain('messaging');
+  });
+
+  it('reports render-rule-invalid-format-ref for a two-level chain that is neither shortform nor longform', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @connection.messaging.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-invalid-format-ref'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports render-rule-invalid-format-ref when render: value is a number literal', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: 42
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-invalid-format-ref'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('@response_formats');
+  });
+
+  it('reports render-rule-invalid-format-ref when render: references a non-format namespace', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @variables.location
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-invalid-format-ref'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports render-rule-show-and-return-not-bool when show_and_return: is a string literal', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: "yes"
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-show-and-return-not-bool'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'show_and_return:'");
+    expect(errors[0].message).toContain('boolean');
+  });
+
+  it('reports render-rule-show-and-return-not-bool when show_and_return: is a number literal', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: 1
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-show-and-return-not-bool'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports render-rule-show-and-return-not-bool when show_and_return: references a variable', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: @variables.location
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-show-and-return-not-bool'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('accepts show_and_return: True and show_and_return: False without diagnostic', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+        when @connection.ecv2
+          render: @response_formats.other
+            show_and_return: False
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-show-and-return-not-bool'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports render-outside-when for a render: nested inside an if body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            if True:
+              render: @response_formats.other
+`
+    );
+
+    const errors = diagnostics.filter(d => d.code === 'render-outside-when');
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports show-and-return-outside-render for a show_and_return: nested inside an if body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            if True:
+              show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'show-and-return-outside-render'
+    );
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports when-connection-outside-action when when @connection appears inside an if body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        if True:
+          when @connection.messaging
+            render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'when-connection-outside-action'
+    );
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
   });
 });

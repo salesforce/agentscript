@@ -811,6 +811,42 @@ export class Dialect {
           dc.mergeAll(entryDiagnostics);
         }
       } else if (isSingularFieldType(fieldType)) {
+        // Structured container fields (Block, TypedMap, Collection) expect
+        // nested content, not a scalar. Tree-sitter still parses
+        // `model_config: "x"` (inline) or an indented bare literal
+        // (`model_config:\n    "x"`, a scalar `atom` block_value) as a value
+        // node, which would otherwise be silently swallowed as an ErrorBlock
+        // with no diagnostic. Flag the mismatch so authors get a real error.
+        if (!isTypedEntryWildcard && valueNode) {
+          const kind = fieldType.__fieldKind;
+          // Only genuine Block factories (which expose fromParsedFields),
+          // TypedMaps, and Collections require nested mapping content. Custom
+          // FieldTypes that report __fieldKind: 'Block' but accept an inline
+          // keyword (e.g. TypeDescriptor's `type: string`) do not expose
+          // fromParsedFields and are intentionally excluded.
+          const expectsMapping =
+            kind === 'TypedMap' ||
+            kind === 'Collection' ||
+            (kind === 'Block' &&
+              typeof (fieldType as { fromParsedFields?: unknown })
+                .fromParsedFields === 'function');
+          // colinearValue = inline value after the colon (`key: "x"`).
+          // An `atom` block_value = indented bare scalar (`key:\n    "x"`).
+          const isScalarValue =
+            valueNode === colinearValue ||
+            (valueNode === blockValue && blockValue?.type === 'atom');
+          if (expectsMapping && isScalarValue) {
+            dc.add(
+              createDiagnostic(
+                getElementKeyRange(element) ?? toRange(element),
+                `\`${typeId}\` expects a nested block with fields, not a value`,
+                DiagnosticSeverity.Error,
+                'invalid-block-value'
+              )
+            );
+          }
+        }
+
         // For typedEntry wildcards, extract the colinear type expression
         // before parsing the block body — parseSingularField would otherwise
         // lose it (Block picks blockValue over colinearValue).

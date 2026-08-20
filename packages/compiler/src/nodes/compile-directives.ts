@@ -13,6 +13,7 @@ import {
   RunStatement,
   IfStatement,
   TransitionStatement,
+  EscalateStatement,
   CollectClause,
   Template,
   UnknownStatement,
@@ -27,13 +28,15 @@ import {
   AGENT_INSTRUCTIONS_VARIABLE,
   TRANSITION_TARGET_NAMESPACES,
   chainConditionVariableName,
+  EMPTY_ESCALATION_NODE_VALUE,
+  ESCALATION_TARGET,
 } from '../constants.js';
 import { compileExpression } from '../expressions/compile-expression.js';
 import { compileTemplateValue } from '../expressions/compile-template.js';
 import { resolveAtReference } from '../ast-helpers.js';
 import {
   captureActionName,
-  collectMessageText,
+  collectInstructionsText,
   resolveCollectTarget,
   joinRightAssociated,
   collectStepsFromStatements,
@@ -154,6 +157,9 @@ function compileDirective(
   }
   if (stmt instanceof TransitionStatement) {
     return compileTransitionDirective(stmt, ctx, dctx);
+  }
+  if (stmt instanceof EscalateStatement) {
+    return compileEscalateDirective(dctx);
   }
   if (stmt instanceof CollectClause) {
     return compileCollectDirective(stmt, ctx, dctx);
@@ -308,6 +314,28 @@ function compileTransitionDirective(
 }
 
 // ---------------------------------------------------------------------------
+// Escalate statement
+// ---------------------------------------------------------------------------
+
+function compileEscalateDirective(
+  dctx: DirectiveContext
+): (Action | HandOffAction)[] {
+  const enabled = buildEnabledCondition(dctx);
+  return [
+    createStateUpdateAction(
+      [{ [NEXT_TOPIC_VARIABLE]: EMPTY_ESCALATION_NODE_VALUE }],
+      enabled
+    ),
+    {
+      type: 'handoff',
+      target: ESCALATION_TARGET,
+      enabled: `state.${NEXT_TOPIC_VARIABLE} == ${EMPTY_ESCALATION_NODE_VALUE}`,
+      state_updates: [{ [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE }],
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Collect statement (gather one field at a time)
 // ---------------------------------------------------------------------------
 
@@ -319,7 +347,7 @@ function compileCollectDirective(
   const varName = resolveCollectTarget(stmt, ctx);
   if (!varName) return [];
 
-  const message = collectMessageText(stmt);
+  const instructions = collectInstructionsText(stmt);
   const captureName = captureActionName(dctx.topicName ?? '');
 
   // Gate: ask for this field only once every PRIOR STEP is satisfied (chained
@@ -340,7 +368,9 @@ function compileCollectDirective(
     ? `(${baseEnabled}) and (${collectCondition})`
     : collectCondition;
 
-  // Gather prose: ask the user using the verbatim message, then capture.
+  // Gather prose: ask the user for the field using the author's instructions as
+  // paraphrasable guidance (the agent composes the wording naturally — it is
+  // NOT reproduced verbatim), then capture.
   // The capture tool is referenced by its BARE name, not the `{!@actions.X}`
   // AgentScript reference syntax. This prose is injected into a dynamic
   // `template::{{state.<agent_instructions>}}` state-update, which the runtime
@@ -351,8 +381,7 @@ function compileCollectDirective(
   // same field (the "double-ask" loop). The bare name matches what the LLM
   // sees for the tool and resolves the double-ask.
   const prose =
-    `Ask the user for ${varName}. ` +
-    `Use exactly this message: "${message}" ` +
+    `Ask the user for ${varName}. ${instructions} ` +
     `When they answer, call ${captureName} with ${varName}.`;
 
   const varNameOut =

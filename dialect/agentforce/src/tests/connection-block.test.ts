@@ -714,3 +714,98 @@ connection messaging:
     expect(refError?.message).toContain('my_wrong_choice');
   });
 });
+
+// ============================================================================
+// escalation_message template interpolation
+// ============================================================================
+
+describe('escalation_message template interpolation', () => {
+  it('parses pipe template in escalation_message as TemplateExpression', () => {
+    const source = `
+connection messaging:
+    escalation_message: |
+        Transferring {!@inputs.agent_name} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route"
+    inputs:
+        agent_name: string = "Support"
+            description: "Agent name"
+`.trimStart();
+
+    const messaging = getConnection(source, 'messaging');
+    const msg = messaging.escalation_message as Record<string, unknown>;
+    expect(msg.__kind).toBe('TemplateExpression');
+  });
+
+  it('produces no diagnostics for valid @inputs reference in escalation_message', () => {
+    const source = `
+connection messaging:
+    escalation_message: |
+        Transferring {!@inputs.agent_name} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route"
+    inputs:
+        agent_name: string = "Support"
+            description: "Agent name"
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const refErrors = diagnostics.filter(d => d.code === 'undefined-reference');
+    expect(refErrors).toHaveLength(0);
+  });
+
+  it('produces no diagnostics for valid @variables reference in escalation_message', () => {
+    const source = `
+variables:
+    customer_name: mutable string
+
+connection telephony:
+    escalation_message: |
+        Connecting {!@variables.customer_name} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route"
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const refErrors = diagnostics.filter(d => d.code === 'undefined-reference');
+    expect(refErrors).toHaveLength(0);
+  });
+
+  it('produces undefined-reference diagnostic for unknown @variables in escalation_message', () => {
+    const source = `
+variables:
+    customer_name: mutable string
+
+connection telephony:
+    escalation_message: |
+        Connecting {!@variables.nonexistent_var} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route"
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const refError = diagnostics.find(
+      d =>
+        d.code === 'undefined-reference' &&
+        d.message.includes('nonexistent_var')
+    );
+    expect(refError).toBeDefined();
+  });
+
+  it('roundtrips escalation_message with pipe template', () => {
+    const source = `
+connection messaging:
+    escalation_message: |
+        Transferring {!@inputs.agent_name} to support
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Route"
+    inputs:
+        agent_name: string = "Support"
+            description: "Agent name"
+`.trimStart();
+
+    const ast = parseDocument(source);
+    const emitted = emitDocument(ast);
+    expect(emitted).toContain('{!@inputs.agent_name}');
+  });
+});

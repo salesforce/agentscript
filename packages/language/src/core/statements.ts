@@ -295,6 +295,105 @@ export class AvailableWhen extends AstNodeBase implements Statement {
   }
 }
 
+export class RenderStatement extends AstNodeBase implements Statement {
+  readonly __kind = 'RenderStatement';
+
+  constructor(
+    public value: Expression | null,
+    public body: Statement[] = []
+  ) {
+    super();
+  }
+
+  __emit(ctx: EmitContext): string {
+    const indent = emitIndent(ctx);
+    const valText = this.value
+      ? this.value.__emit(ctx)
+      : (this.__cst?.node?.childForFieldName('value')?.text ?? '');
+    const head = `${indent}render: ${valText}`;
+    if (this.body.length === 0) return head;
+    const bodyCtx = { ...ctx, indent: ctx.indent + 1 };
+    const bodyText = this.body
+      .map(s => wrapWithComments(s.__emit(bodyCtx), s, bodyCtx))
+      .join('\n');
+    return `${head}\n${bodyText}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression,
+    parseProcedure: (n: SyntaxNode) => Statement[]
+  ): Parsed<RenderStatement> {
+    const valueNode = node.childForFieldName('value');
+    const bodyNode = node.childForFieldName('body');
+    const value = valueNode ? parseExpr(valueNode) : null;
+    const body = bodyNode ? parseProcedure(bodyNode) : [];
+    return withCst(new RenderStatement(value, body), node);
+  }
+}
+
+export class ShowAndReturnStatement extends AstNodeBase implements Statement {
+  readonly __kind = 'ShowAndReturnStatement';
+
+  constructor(public value: Expression | null) {
+    super();
+  }
+
+  __emit(ctx: EmitContext): string {
+    const indent = emitIndent(ctx);
+    const valText = this.value
+      ? this.value.__emit(ctx)
+      : (this.__cst?.node?.childForFieldName('value')?.text ?? '');
+    return `${indent}show_and_return: ${valText}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression
+  ): Parsed<ShowAndReturnStatement> {
+    const valueNode = node.childForFieldName('value');
+    const value = valueNode ? parseExpr(valueNode) : null;
+    return withCst(new ShowAndReturnStatement(value), node);
+  }
+}
+
+export class WhenStatement extends AstNodeBase implements Statement {
+  readonly __kind = 'WhenStatement';
+
+  constructor(
+    public subject: Expression | null,
+    public body: Statement[]
+  ) {
+    super();
+  }
+
+  __emit(ctx: EmitContext): string {
+    const indent = emitIndent(ctx);
+    const subjectText = this.subject
+      ? this.subject.__emit(ctx)
+      : (this.__cst?.node?.childForFieldName('subject')?.text ?? '');
+    const head = `${indent}when ${subjectText}`;
+    if (this.body.length === 0) return head;
+    const bodyCtx = { ...ctx, indent: ctx.indent + 1 };
+    const bodyText = this.body
+      .map(s => wrapWithComments(s.__emit(bodyCtx), s, bodyCtx))
+      .join('\n');
+    return `${head}\n${bodyText}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression,
+    parseProcedure: (n: SyntaxNode) => Statement[]
+  ): Parsed<WhenStatement> {
+    const subjectNode = node.childForFieldName('subject');
+    const bodyNode = node.childForFieldName('body');
+    const subject = subjectNode ? parseExpr(subjectNode) : null;
+    const body = bodyNode ? parseProcedure(bodyNode) : [];
+    return withCst(new WhenStatement(subject, body), node);
+  }
+}
+
 export class RunStatement extends AstNodeBase implements Statement {
   readonly __kind = 'RunStatement';
 
@@ -653,10 +752,19 @@ export class TransitionStatement extends AstNodeBase implements Statement {
 }
 
 /**
- * `collect @variables.X` + `message: "..."` — sugar for gathering a single
+ * `ask for @variables.X` + `instructions: "..."` — sugar for gathering a single
  * variable from the user, one field at a time, inside reasoning.instructions.
+ * (The internal AST/CST names keep the `Collect`/`collect_statement` spelling.)
  *
- * The compiler lowers a `collect` into a guarded instruction (ask the user for
+ * The `instructions:` are paraphrasable guidance: the compiler lowers them into
+ * a gather prompt the agent composes naturally (it is NOT reproduced verbatim).
+ * An author who needs exact wording says so inside the instructions themselves
+ * (e.g. "ask using exactly these words: ..."). This mirrors the language's
+ * existing distinction between verbatim `|` prose and paraphrasable
+ * `instructions:`, and matches the plural `instructions:` naming used by
+ * `system.instructions` and `reasoning.instructions`.
+ *
+ * The compiler lowers an `ask for` into a guarded instruction (ask the user for
  * the field while it is unset), a capture action, and a self-targeted
  * end-turn-first handoff that resumes the subagent until the gather completes.
  */
@@ -665,7 +773,7 @@ export class CollectClause extends AstNodeBase implements Statement {
 
   constructor(
     public target: Expression,
-    public message: Expression
+    public instructions: Expression
   ) {
     super();
   }
@@ -677,12 +785,12 @@ export class CollectClause extends AstNodeBase implements Statement {
     const targetText = this.target
       ? this.target.__emit({ ...ctx, indent: 0 })
       : (this.__cst?.node?.childForFieldName('target')?.text ?? '');
-    const messageText = this.message
-      ? this.message.__emit({ ...ctx, indent: 0 })
+    const instructionsText = this.instructions
+      ? this.instructions.__emit({ ...ctx, indent: 0 })
       : '';
     return (
-      `${indent}collect ${targetText}\n` +
-      `${bodyIndent}message: ${messageText}`
+      `${indent}ask for ${targetText}\n` +
+      `${bodyIndent}instructions: ${instructionsText}`
     );
   }
 
@@ -693,8 +801,11 @@ export class CollectClause extends AstNodeBase implements Statement {
     const targetNode = node.childForFieldName('target');
     const target = targetNode ? parseExpr(targetNode) : null!;
 
-    // The body is a `mapping`; find the `message:` element's value.
-    let message: Expression = null!;
+    // The body is a `mapping`; find the `instructions:` element's value. The
+    // removed `message:` key is detected here to surface a migration diagnostic.
+    let instructions: Expression = null!;
+    let sawMessageKey = false;
+    const diagnostics: Diagnostic[] = [];
     const bodyNode = node.childForFieldName('body');
     if (bodyNode) {
       for (const element of bodyNode.namedChildren) {
@@ -702,15 +813,55 @@ export class CollectClause extends AstNodeBase implements Statement {
         const keyNode = element.childForFieldName('key');
         const keyChild = keyNode?.namedChildren[0];
         const keyText = keyChild ? getKeyText(keyChild) : '';
-        if (keyText !== 'message') continue;
+        if (keyText === 'message') {
+          sawMessageKey = true;
+          diagnostics.push(
+            createDiagnostic(
+              keyChild ?? element,
+              '`message:` has been replaced by `instructions:`.',
+              DiagnosticSeverity.Error,
+              'collect-message-removed'
+            )
+          );
+          continue;
+        }
+        if (keyText !== 'instructions') continue;
         const valueNode =
           element.childForFieldName('colinear_value') ??
           element.childForFieldName('expression');
-        if (valueNode) message = parseExpr(valueNode);
+        if (valueNode) instructions = parseExpr(valueNode);
       }
     }
 
-    return withCst(new CollectClause(target, message), node);
+    // Require `instructions:`, but don't double-report when the author used the
+    // removed `message:` key — the migration diagnostic above is the actionable
+    // one, and fixing it satisfies the requirement.
+    if (!instructions && !sawMessageKey) {
+      diagnostics.push(
+        createDiagnostic(
+          node,
+          '`ask for` requires an `instructions:` field.',
+          DiagnosticSeverity.Error,
+          'collect-missing-instructions'
+        )
+      );
+    }
+
+    const clause = withCst(new CollectClause(target, instructions), node);
+    clause.__diagnostics.push(...diagnostics);
+    return clause;
+  }
+}
+
+export class EscalateStatement extends AstNodeBase implements Statement {
+  readonly __kind = 'EscalateStatement';
+
+  __emit(ctx: EmitContext): string {
+    return `${emitIndent(ctx)}escalate`;
+  }
+
+  static parse(node: SyntaxNode): Parsed<EscalateStatement> {
+    return withCst(new EscalateStatement(), node);
   }
 }
 
@@ -744,10 +895,18 @@ export const statementParsers: Record<string, StatementParser> = {
     AvailableWhen.parse(node, parseExpr),
   transition_statement: (node, parseExpr) =>
     TransitionStatement.parse(node, parseExpr),
+  escalate_statement: node => EscalateStatement.parse(node),
   collect_statement: (node, parseExpr) => CollectClause.parse(node, parseExpr),
 
   run_statement: (node, parseExpr, _parseProcedure, parseStmt) =>
     RunStatement.parse(node, parseExpr, parseStmt),
   if_statement: (node, parseExpr, parseProcedure) =>
     IfStatement.parse(node, parseExpr, parseProcedure),
+
+  render_statement: (node, parseExpr, parseProcedure) =>
+    RenderStatement.parse(node, parseExpr, parseProcedure),
+  show_and_return_statement: (node, parseExpr) =>
+    ShowAndReturnStatement.parse(node, parseExpr),
+  when_statement: (node, parseExpr, parseProcedure) =>
+    WhenStatement.parse(node, parseExpr, parseProcedure),
 };

@@ -12,7 +12,7 @@
  * Diagnostics: set-variables-unknown-variable, set-variables-immutable-target
  */
 
-import type { LintPass } from '@agentscript/language';
+import type { LintPass, PassStore } from '@agentscript/language';
 import {
   defineRule,
   each,
@@ -24,6 +24,28 @@ import type { CstMeta, SyntaxNode } from '@agentscript/types';
 import { toRange, DiagnosticSeverity } from '@agentscript/types';
 import { setVariablesEntriesKey } from './reasoning-actions.js';
 import { typeMapKey } from './type-map.js';
+
+/**
+ * Variables written by `@utils.setVariables` are targeted by the bare `with`
+ * param name (e.g. `with artifacts=...`), not by an `@variables.artifacts`
+ * member expression, so the unused-variable walk never observes them. Feed
+ * these write-targets to `unusedVariablePass` so an assigned-only variable is
+ * treated as used — matching how `set @variables.X=...` already counts.
+ */
+export function collectSetVariablesTargets(store: PassStore): Iterable<string> {
+  const entries = store.get(setVariablesEntriesKey);
+  const names = new Set<string>();
+  if (!entries) return names;
+
+  for (const entry of entries) {
+    for (const stmt of entry.statements ?? []) {
+      if (stmt.__kind !== 'WithClause') continue;
+      const param = stmt.param as string | undefined;
+      if (param) names.add(param);
+    }
+  }
+  return names;
+}
 
 export function setVariablesIoRule(): LintPass {
   return defineRule({
@@ -58,7 +80,7 @@ export function setVariablesIoRule(): LintPass {
             lintDiagnostic(
               range,
               msg,
-              DiagnosticSeverity.Error,
+              DiagnosticSeverity.Warning,
               'set-variables-unknown-variable',
               { suggestion }
             )

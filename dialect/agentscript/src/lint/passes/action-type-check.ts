@@ -24,6 +24,8 @@ import {
   extractOutputRef,
   extractVariableRef,
   inferExpressionType,
+  resolveGlobalMemberType,
+  schemaContextKey,
   DiagnosticSeverity,
 } from '@agentscript/language';
 import { reasoningActionsKey } from './reasoning-actions.js';
@@ -45,15 +47,21 @@ export function actionTypeCheckRule(): LintPass {
       'Validates type compatibility in with/set clauses against action parameter types',
     deps: {
       typeMap: typeMapKey,
+      schemaCtx: schemaContextKey,
       entry: each(reasoningActionsKey),
     },
 
-    run({ typeMap, entry }) {
+    run({ typeMap, schemaCtx, entry }) {
       const { sig, statements } = entry;
       if (!statements) return;
 
       const resolveVar = (name: string) =>
         typeMap.variables.get(name)?.type ?? null;
+
+      const resolvedGlobalMember = (
+        namespace: string,
+        path: readonly string[]
+      ) => resolveGlobalMemberType(schemaCtx, namespace, path) ?? null;
 
       for (const stmt of statements) {
         if (stmt.__kind === 'WithClause') {
@@ -63,7 +71,11 @@ export function actionTypeCheckRule(): LintPass {
           const inputInfo = sig.inputs.get(param);
           if (!inputInfo) continue;
 
-          const actualType = inferExpressionType(stmt.value, resolveVar);
+          const actualType = inferExpressionType(
+            stmt.value,
+            resolveVar,
+            resolvedGlobalMember
+          );
           if (!actualType) continue;
 
           if (!typesCompatible(inputInfo.type, actualType)) {

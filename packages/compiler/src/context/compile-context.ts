@@ -16,6 +16,8 @@ import { extractBooleanValue } from '../ast-helpers.js';
  * - memory: memory configuration with enabled flag (boolean)
  * - user_profile: user profile configuration with enabled flag (boolean)
  * - past_conversations: conversation history configuration with enabled flag (boolean)
+ * - salesforce: Salesforce context provider configuration with enabled flag (boolean)
+ * - data_cloud: Data Cloud context provider configuration with enabled flag (boolean)
  *
  * @param contextBlock - The parsed context block from AST
  * @param ctx - Compiler context for error reporting
@@ -27,6 +29,14 @@ export function compileContext(
         memory?: { enabled?: { value?: boolean } };
         user_profile?: { enabled?: { value?: boolean } };
         past_conversations?: { enabled?: { value?: boolean } };
+        salesforce?: {
+          enabled?: { value?: boolean };
+          auto_enabled?: { value?: boolean };
+        };
+        data_cloud?: {
+          enabled?: { value?: boolean };
+          auto_enabled?: { value?: boolean };
+        };
       }
     | null
     | undefined,
@@ -76,6 +86,32 @@ export function compileContext(
       );
     } else {
       result.past_conversations = { enabled };
+    }
+  }
+
+  // Extract salesforce configuration if present
+  if (contextBlock.salesforce) {
+    const enabled = extractBooleanValue(contextBlock.salesforce.enabled);
+
+    if (enabled === null || enabled === undefined) {
+      ctx.error(
+        'Context salesforce block requires an "enabled" field with a boolean value'
+      );
+    } else {
+      result.salesforce = { enabled };
+    }
+  }
+
+  // Extract data_cloud configuration if present
+  if (contextBlock.data_cloud) {
+    const enabled = extractBooleanValue(contextBlock.data_cloud.enabled);
+
+    if (enabled === null || enabled === undefined) {
+      ctx.error(
+        'Context data_cloud block requires an "enabled" field with a boolean value'
+      );
+    } else {
+      result.data_cloud = { enabled };
     }
   }
 

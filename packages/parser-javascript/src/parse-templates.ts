@@ -74,7 +74,13 @@ export function parseTemplate(ctx: ParserContext): CSTNode {
 
   if (hasContentOnSameLine) {
     const afterPipeOffset = pipeToken.startOffset + 1;
-    gatherTemplateContentLine(ctx, node, afterPipeOffset);
+    // Pair the offset with its source position (right after the `|`) so the
+    // TEMPLATE_EXPR_START branch of gatherTemplateContentLine can build a
+    // template_content node covering a whitespace gap before a `{!`. Without
+    // this, initialPos is undefined and the CSTNode ctor throws when the
+    // same-line content begins with `{!` after a gap (reachable once a stray
+    // `{!` has desync'd the lexer into template mode).
+    gatherTemplateContentLine(ctx, node, afterPipeOffset, pipeToken.end);
   }
 
   // Consume NEWLINE if present
@@ -201,7 +207,6 @@ function templateContinues(
       case 'run':
       case 'set':
       case 'transition':
-      case 'collect':
         return false;
       case 'with':
         // "with" not followed by colon is a statement
@@ -211,6 +216,14 @@ function templateContinues(
         if (
           ctx.peekAt(i + 1).kind === TokenKind.ID &&
           ctx.peekAt(i + 1).text === 'when'
+        )
+          return false;
+        break;
+      case 'ask':
+        // "ask for" is a two-word statement keyword (mirrors "available when").
+        if (
+          ctx.peekAt(i + 1).kind === TokenKind.ID &&
+          ctx.peekAt(i + 1).text === 'for'
         )
           return false;
         break;

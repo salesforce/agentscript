@@ -12,10 +12,12 @@ import type {
   ParseResult,
   Schema,
   InferFields,
+  FieldType,
 } from './types.js';
 import { withCst, AstNodeBase, emitIndent, parseResult } from './types.js';
 import type { Dialect } from './dialect.js';
 import type { Expression } from './expressions.js';
+import { ListLiteral } from './expressions.js';
 import type { BlockCore } from './named-map.js';
 import type { BlockFactory } from './factory-types.js';
 import type { BlockChild } from './children.js';
@@ -23,6 +25,7 @@ import {
   extractChildren,
   SequenceItemChild,
   emitChildren,
+  isEmittable,
 } from './children.js';
 import {
   createDiagnostic,
@@ -38,6 +41,15 @@ import { addBuilderMethods } from './field-builder.js';
 export class SequenceNode extends AstNodeBase {
   readonly __kind = 'Sequence';
   __children: BlockChild[] = [];
+
+  /**
+   * When true, emit as an inline bracket array (`[a, b]`) rather than a
+   * dash list. Set when the sequence was authored inline (e.g. a value in a
+   * sequence-item field like `- waiting: ["a", "b"]`, where a nested dash
+   * list would not re-parse). Inline arrays round-trip in any nesting
+   * context, so preserving the form keeps emission idempotent.
+   */
+  inline = false;
 
   get items(): (BlockCore | Expression)[] {
     const result: (BlockCore | Expression)[] = [];
@@ -62,6 +74,12 @@ export class SequenceNode extends AstNodeBase {
   }
 
   __emit(ctx: EmitContext): string {
+    if (this.inline) {
+      const parts = this.items.map(item =>
+        isEmittable(item) ? item.__emit({ ...ctx, indent: 0 }) : String(item)
+      );
+      return `[${parts.join(', ')}]`;
+    }
     return emitChildren(this.__children, ctx);
   }
 }
@@ -98,7 +116,8 @@ function hasMappingContent(child: SyntaxNode): boolean {
  * When omitted, mapping elements produce a diagnostic.
  */
 function createSequenceFieldType<T extends Schema>(
-  blockType?: BlockFactory<T>
+  blockType?: BlockFactory<T>,
+  expressionType?: FieldType
 ) {
   const fieldType: SingularFieldType<SequenceNode> = {
     __fieldKind: 'Sequence',
@@ -107,6 +126,26 @@ function createSequenceFieldType<T extends Schema>(
     parse(node: SyntaxNode, dialect: Dialect): ParseResult<SequenceNode> {
       const items: (BlockCore | Expression)[] = [];
       const dc = new DiagnosticCollector();
+
+      // Inline bracket-array form (e.g. `waiting: ["a", "b"]`): the value node
+      // is an expression rather than a dash sequence, so it has no
+      // `sequence_element` children. Parse it as an expression and spread a
+      // list literal's elements as items — otherwise the inline values are
+      // silently dropped, producing an empty sequence.
+      const hasSequenceElements = node.namedChildren.some(
+        c => c.type === 'sequence_element'
+      );
+      if (!hasSequenceElements && node.type !== 'sequence') {
+        const expr = dialect.parseExpression(node);
+        if (expr instanceof ListLiteral) {
+          items.push(...expr.elements);
+        } else {
+          items.push(expr);
+        }
+        const seq = withCst(new SequenceNode(items), node);
+        seq.inline = true;
+        return parseResult(seq, dc.all);
+      }
 
       for (const child of node.namedChildren) {
         if (child.type !== 'sequence_element') continue;
@@ -142,7 +181,13 @@ function createSequenceFieldType<T extends Schema>(
             );
             const cv = child.childForFieldName('colinear_value');
             if (cv) {
-              items.push(dialect.parseExpression(cv));
+              if (expressionType) {
+                const result = expressionType.parse(cv, dialect);
+                items.push(result.value as Expression);
+                dc.merge(result);
+              } else {
+                items.push(dialect.parseExpression(cv));
+              }
             }
           }
           continue;
@@ -151,7 +196,13 @@ function createSequenceFieldType<T extends Schema>(
         // Form A: plain expression
         const colinearValue = child.childForFieldName('colinear_value');
         if (colinearValue) {
-          items.push(dialect.parseExpression(colinearValue));
+          if (expressionType) {
+            const result = expressionType.parse(colinearValue, dialect);
+            items.push(result.value as Expression);
+            dc.merge(result);
+          } else {
+            items.push(dialect.parseExpression(colinearValue));
+          }
         }
       }
 
@@ -164,6 +215,10 @@ function createSequenceFieldType<T extends Schema>(
 
     emitField(key: string, value: SequenceNode, ctx: EmitContext): string {
       const indent = emitIndent(ctx);
+      // Inline arrays stay on the key line: `key: [a, b]`.
+      if (value.inline) {
+        return `${indent}${key}: ${value.__emit({ ...ctx, indent: 0 })}`;
+      }
       const childCtx = { ...ctx, indent: ctx.indent + 1 };
       return `${indent}${key}:\n${value.__emit(childCtx)}`;
     },
@@ -183,7 +238,10 @@ export function Sequence<T extends Schema>(blockType: BlockFactory<T>) {
 /**
  * Create a FieldType for expression-only sequences.
  * Mapping elements produce diagnostics.
+ *
+ * @param elementType - when provided, every expression item is parsed and validated against
+ *   that type. Omitting it preserves the existing behavior of accepting any expression.
  */
-export function ExpressionSequence() {
-  return createSequenceFieldType();
+export function ExpressionSequence(elementType?: FieldType) {
+  return createSequenceFieldType(undefined, elementType);
 }
