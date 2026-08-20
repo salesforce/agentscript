@@ -139,6 +139,7 @@ export {
   TemplateInterpolation,
   NumberLiteral,
   BooleanLiteral,
+  unwrapPrimitiveLiteral,
   NoneLiteral,
   ErrorValue,
   Identifier,
@@ -160,6 +161,7 @@ export {
   decomposeAtMemberExpression,
   decomposeMemberExpression,
 } from './core/expressions.js';
+export type { PrimitiveLiteralValue } from './core/expressions.js';
 
 export type { Statement } from './core/statements.js';
 

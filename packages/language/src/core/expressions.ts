@@ -142,6 +142,49 @@ export class BooleanLiteral extends ExpressionBase {
   }
 }
 
+export type PrimitiveLiteralValue = string | number | boolean;
+
+/**
+ * Read a primitive from either its native representation or a serialized AST
+ * literal. Serialized literals cross process boundaries as plain objects, so
+ * callers must inspect their kind and value rather than object truthiness.
+ */
+export function unwrapPrimitiveLiteral(
+  input: unknown
+): PrimitiveLiteralValue | undefined {
+  if (
+    typeof input === 'string' ||
+    typeof input === 'number' ||
+    typeof input === 'boolean'
+  ) {
+    return input;
+  }
+
+  if (typeof input !== 'object' || input === null) return undefined;
+
+  const literal = input as { __kind?: unknown; value?: unknown };
+  if (
+    literal.__kind === StringLiteral.kind &&
+    typeof literal.value === 'string'
+  ) {
+    return literal.value;
+  }
+  if (
+    literal.__kind === NumberLiteral.kind &&
+    typeof literal.value === 'number'
+  ) {
+    return literal.value;
+  }
+  if (
+    literal.__kind === BooleanLiteral.kind &&
+    typeof literal.value === 'boolean'
+  ) {
+    return literal.value;
+  }
+
+  return undefined;
+}
+
 export class NoneLiteral extends ExpressionBase {
   static readonly kind = 'NoneLiteral' as const;
   readonly __kind = NoneLiteral.kind;

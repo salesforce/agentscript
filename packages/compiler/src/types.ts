@@ -113,6 +113,10 @@ export type LanguageConfiguration = z.input<
   typeof schema.languageConfiguration
 >;
 export type VoiceConfiguration = z.input<typeof schema.voiceConfiguration>;
+export type VoiceV2Config = z.input<typeof schema.voiceV2Config>;
+export type VoiceLanguageConfig = z.input<typeof schema.voiceLanguageConfig>;
+export type VoiceInboundModel = z.input<typeof schema.voiceInboundModel>;
+export type VoiceOutboundModel = z.input<typeof schema.voiceOutboundModel>;
 
 // -- State Variables --
 export type StateVariable = z.input<typeof schema.stateVariable>;

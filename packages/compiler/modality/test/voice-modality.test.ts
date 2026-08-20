@@ -372,6 +372,8 @@ config:
     agent_name: "BeepBoopBot"
 
 modality voice:
+    voice_id: "MyFaveVoice"
+
     additional_configs:
         beepboop_config:
             max_wait_time_ms: 1200

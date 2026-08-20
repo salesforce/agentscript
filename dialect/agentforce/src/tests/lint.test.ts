@@ -2697,6 +2697,145 @@ start_agent main:
   });
 });
 
+describe('modality block requirements', () => {
+  it('reports empty-block for a bare modality collection with no entries', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "BareModalityBot"
+
+modality:
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(
+      d => d.code === 'empty-block' && d.message.includes("'modality'")
+    );
+    expect(empties).toHaveLength(1);
+    expect(empties[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports empty-block for a voice modality entry with no properties', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "EmptyVoiceBot"
+
+modality voice:
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(
+      d => d.code === 'empty-block' && d.message.includes("'modality voice'")
+    );
+    expect(empties).toHaveLength(1);
+    expect(empties[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('accepts a voice modality with any single property (not just voice_id)', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "VoiceBot"
+
+modality voice:
+    outbound_speed: 1.0
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(d => d.code === 'empty-block');
+    expect(empties).toHaveLength(0);
+  });
+
+  it('does not report when the voice block has a voice_id', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "VoiceBot"
+
+modality voice:
+    voice_id: "v_abc"
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(d => d.code === 'empty-block');
+    expect(empties).toHaveLength(0);
+  });
+
+  it('does not report when there is no modality block at all', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "PlainBot"
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(d => d.code === 'empty-block');
+    expect(empties).toHaveLength(0);
+  });
+});
+
+describe('empty top-level block (empty-block rule)', () => {
+  const EMPTY_BLOCKS = [
+    'system',
+    'variables',
+    'model_config',
+    'knowledge',
+    'connection',
+    'access',
+    'context',
+  ];
+
+  for (const block of EMPTY_BLOCKS) {
+    it(`reports an error for an empty ${block} block`, () => {
+      const diagnostics = runSecurityLint(`
+config:
+    agent_name: "EmptyBlockBot"
+
+${block}:
+
+start_agent main:
+    description: "test"
+`);
+      const empties = diagnostics.filter(
+        d => d.code === 'empty-block' && d.message.includes(`'${block}'`)
+      );
+      expect(empties).toHaveLength(1);
+      expect(empties[0].severity).toBe(DiagnosticSeverity.Error);
+    });
+  }
+
+  it('does not report when a block has content', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "PopulatedBot"
+
+context:
+    memory:
+        enabled: True
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(
+      d => d.code === 'empty-block' && d.message.includes("'context'")
+    );
+    expect(empties).toHaveLength(0);
+  });
+
+  it('does not report top-level blocks that are simply absent', () => {
+    const diagnostics = runSecurityLint(`
+config:
+    agent_name: "MinimalBot"
+
+start_agent main:
+    description: "test"
+`);
+    const empties = diagnostics.filter(d => d.code === 'empty-block');
+    expect(empties).toHaveLength(0);
+  });
+});
+
 describe('adaptive-language-overrides rule', () => {
   it('emits one warning per ignored field when adaptive: True is set with other fields', () => {
     const diagnostics = runSecurityLint(`
@@ -3155,7 +3294,7 @@ subagent main:
 // ============================================================================
 
 describe('voice language validation', () => {
-  it('allows voice language keys that match declared locales', () => {
+  it('allows voice languages that match declared text locales', () => {
     const diagnostics = runSecurityLint(`
 language:
   default_locale: "en_US"
@@ -3165,19 +3304,9 @@ config:
   agent_name: "TestAgent"
 
 modality voice:
-  languages:
-    en_US:
-      is_default: True
-    fr_CA:
-      outbound:
-        persona_id: "test123"
-    de:
-      inbound:
-        filler_words_detection: True
-    it:
-      inbound:
-        keywords:
-          - "urgent"
+  language:
+    default_locale: "en_US"
+    additional_locales: "fr_CA, de, it"
 
 start_agent main:
   description: "Main"
@@ -3189,7 +3318,7 @@ start_agent main:
     expect(voiceLangErrors).toHaveLength(0);
   });
 
-  it('reports error for voice language key not in declared locales', () => {
+  it('reports error for voice language not in declared text locales', () => {
     const diagnostics = runSecurityLint(`
 language:
   default_locale: "en_US"
@@ -3199,12 +3328,9 @@ config:
   agent_name: "TestAgent"
 
 modality voice:
-  languages:
-    en_US:
-      is_default: True
-    de:
-      inbound:
-        filler_words_detection: True
+  language:
+    default_locale: "en_US"
+    additional_locales: "de"
 
 start_agent main:
   description: "Main"
@@ -3221,7 +3347,7 @@ start_agent main:
     expect(voiceLangErrors[0].severity).toBe(DiagnosticSeverity.Error);
   });
 
-  it('reports error for multiple invalid voice language keys', () => {
+  it('reports error for multiple invalid voice languages', () => {
     const diagnostics = runSecurityLint(`
 language:
   default_locale: "en_US"
@@ -3230,19 +3356,9 @@ config:
   agent_name: "TestAgent"
 
 modality voice:
-  languages:
-    en_US:
-      is_default: True
-    fr_CA:
-      outbound:
-        persona_id: "test123"
-    de:
-      inbound:
-        filler_words_detection: True
-    it:
-      inbound:
-        keywords:
-          - "urgent"
+  language:
+    default_locale: "fr_CA"
+    additional_locales: "de, it"
 
 start_agent main:
   description: "Main"
@@ -3258,15 +3374,14 @@ start_agent main:
     expect(errorMessages.some(m => m.includes("'it'"))).toBe(true);
   });
 
-  it('warns when voice languages are defined but no language block exists', () => {
+  it('warns when voice languages are defined but no text language block exists', () => {
     const diagnostics = runSecurityLint(`
 config:
   agent_name: "TestAgent"
 
 modality voice:
-  languages:
-    en_US:
-      is_default: True
+  language:
+    default_locale: "en_US"
 
 start_agent main:
   description: "Main"
@@ -3280,57 +3395,6 @@ start_agent main:
     expect(missingLangBlock[0].severity).toBe(DiagnosticSeverity.Warning);
   });
 
-  it('skips validation when all_additional_locales is True', () => {
-    const diagnostics = runSecurityLint(`
-language:
-  default_locale: "en_US"
-  all_additional_locales: True
-
-config:
-  agent_name: "TestAgent"
-
-modality voice:
-  languages:
-    fr_CA:
-      is_default: True
-    de:
-      inbound:
-        filler_words_detection: True
-
-start_agent main:
-  description: "Main"
-`);
-
-    const voiceLangErrors = diagnostics.filter(
-      d => d.code === 'voice-language-not-declared'
-    );
-    expect(voiceLangErrors).toHaveLength(0);
-  });
-
-  it('skips validation when adaptive language is enabled', () => {
-    const diagnostics = runSecurityLint(`
-language:
-  adaptive: True
-  default_locale: "en_US"
-
-config:
-  agent_name: "TestAgent"
-
-modality voice:
-  languages:
-    fr_CA:
-      is_default: True
-
-start_agent main:
-  description: "Main"
-`);
-
-    const voiceLangErrors = diagnostics.filter(
-      d => d.code === 'voice-language-not-declared'
-    );
-    expect(voiceLangErrors).toHaveLength(0);
-  });
-
   it('handles comma-separated additional_locales with whitespace', () => {
     const diagnostics = runSecurityLint(`
 language:
@@ -3341,16 +3405,9 @@ config:
   agent_name: "TestAgent"
 
 modality voice:
-  languages:
-    fr_CA:
-      is_default: True
-    de:
-      inbound:
-        filler_words_detection: True
-    it:
-      inbound:
-        keywords:
-          - "urgent"
+  language:
+    default_locale: "fr_CA"
+    additional_locales: " de,  it "
 
 start_agent main:
   description: "Main"
@@ -3362,7 +3419,126 @@ start_agent main:
     expect(voiceLangErrors).toHaveLength(0);
   });
 
-  it('does not validate when voice modality has no languages', () => {
+  it('allows language_settings keys that are declared voice languages', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales: "fr_CA, de"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    additional_locales: "fr_CA, de"
+  language_settings:
+    fr_CA:
+      outbound:
+        persona_id: "test123"
+    de:
+      inbound:
+        filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(0);
+  });
+
+  it('reports error for language_settings key not in voice languages', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales: "fr_CA, de"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    additional_locales: "fr_CA"
+  language_settings:
+    de:
+      inbound:
+        filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(1);
+    expect(settingsErrors[0].message).toContain("'de'");
+    expect(settingsErrors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('flags all language_settings keys when no voice language block exists', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales: "fr_CA, de"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language_settings:
+    fr_CA:
+      outbound:
+        persona_id: "test123"
+    de:
+      inbound:
+        filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(2);
+  });
+
+  it('accepts any language_settings key when voice all_additional_locales is True', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    all_additional_locales: True
+  language_settings:
+    fr_CA:
+      outbound:
+        persona_id: "test123"
+    de:
+      inbound:
+        filler_words_detection: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(0);
+  });
+
+  it('does not validate when voice modality has no language config', () => {
     const diagnostics = runSecurityLint(`
 language:
   default_locale: "en_US"
@@ -3382,8 +3558,12 @@ start_agent main:
     const missingLangBlock = diagnostics.filter(
       d => d.code === 'voice-language-missing-language-block'
     );
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
     expect(voiceLangErrors).toHaveLength(0);
     expect(missingLangBlock).toHaveLength(0);
+    expect(settingsErrors).toHaveLength(0);
   });
 
   it('does not validate when there is no voice modality', () => {
@@ -3541,9 +3721,8 @@ modality voice:
   inbound:
     keywords:
       - "urgent"
-  languages:
-    en_US:
-      is_default: True
+  language:
+    default_locale: "en_US"
   voice_id: "v123"
 
 start_agent main:
@@ -3555,7 +3734,7 @@ start_agent main:
     );
     expect(mixingErrors).toHaveLength(1);
     expect(mixingErrors[0].message).toContain('inbound');
-    expect(mixingErrors[0].message).toContain('languages');
+    expect(mixingErrors[0].message).toContain('language');
     expect(mixingErrors[0].message).toContain("'voice_id'");
   });
 });

@@ -6,14 +6,17 @@
  */
 
 /**
- * Lint pass that validates `modality voice: languages:` keys against declared locales.
+ * Lint pass that validates `modality voice: language:` keys against declared languages.
  *
- * Voice language overrides in `languages:` must be a subset of the locales
- * declared in the `language` block (`default_locale` + `additional_locales`).
+ * Voice language overrides in `modality voice: language:` must be a subset of the text languages
+ * declared in the top-level `language` block (`default_locale` + `additional_locales`).
+ *
+ * In addition, voice `language_settings` keys must be declared in `modality voice: language` block (`default_locale` + `additional_locales`).
  *
  * Diagnostics:
- *   - voice-language-not-declared: A language key is not in the declared locales
+ *   - voice-language-not-declared: A voice language is not in the declared locales of the text languages.
  *   - voice-language-missing-language-block: Voice languages defined but no language block exists
+ *   - voice-language-settings-not-declared: A voice language setting is not in the declared voice languages.
  */
 
 import type { AstNodeLike, AstRoot } from '@agentscript/language';
@@ -57,6 +60,17 @@ function parseLocales(value: string | undefined): Set<string> {
   );
 }
 
+/**
+ * Build a set of locales declared on a language block from its `default_locale`
+ * and comma-separated `additional_locales` fields.
+ */
+function collectLocales(language: AstNodeLike): Set<string> {
+  const locales = parseLocales(extractStringValue(language.additional_locales));
+  const defaultLocale = extractStringValue(language.default_locale);
+  if (defaultLocale) locales.add(defaultLocale);
+  return locales;
+}
+
 class VoiceLanguageValidationPass implements LintPass {
   readonly id = storeKey('voice-language-validation');
   readonly description =
@@ -67,61 +81,92 @@ class VoiceLanguageValidationPass implements LintPass {
     if (!isNamedMap(modality) || !modality.has('voice')) return;
 
     const voice = modality.get('voice') as AstNodeLike;
-    const languages = voice.languages;
-    if (!isNamedMap(languages) || languages.size === 0) return;
+    const voiceLanguage = voice.language as AstNodeLike | undefined;
+    const voiceSettings = voice.language_settings;
 
-    const language = root.language as AstNodeLike | undefined;
+    const hasVoiceLanguage =
+      !!voiceLanguage && typeof voiceLanguage === 'object';
+    const hasVoiceSettings =
+      isNamedMap(voiceSettings) && voiceSettings.size > 0;
+    if (!hasVoiceLanguage && !hasVoiceSettings) return;
 
-    // If no language block exists but voice languages are defined, warn
-    if (!language || typeof language !== 'object') {
-      attachDiagnostic(
-        voice,
-        lintDiagnostic(
-          getBlockRange(languages as unknown as AstNodeLike),
-          "Voice languages are defined but no 'language' block exists. Define 'default_locale' and/or 'additional_locales'.",
-          DiagnosticSeverity.Warning,
-          'voice-language-missing-language-block'
-        )
-      );
-      return;
-    }
+    // Check A: the voice languages must be a subset of the top-level text languages.
+    if (hasVoiceLanguage) {
+      const textLanguage = root.language as AstNodeLike | undefined;
 
-    // If adaptive language is enabled, skip validation (adaptive-language rule handles voice conflict)
-    const adaptive = extractBooleanValue(language.adaptive);
-    if (adaptive === true) return;
-
-    // If all_additional_locales is True, all locales are valid
-    const allAdditionalLocales = extractBooleanValue(
-      language.all_additional_locales
-    );
-    if (allAdditionalLocales === true) return;
-
-    // Build set of allowed locales from default_locale and additional_locales
-    const allowedLocales = new Set<string>();
-
-    const defaultLocale = extractStringValue(language.default_locale);
-    if (defaultLocale) {
-      allowedLocales.add(defaultLocale);
-    }
-
-    const additionalLocales = extractStringValue(language.additional_locales);
-    const additionalSet = parseLocales(additionalLocales);
-    for (const locale of additionalSet) {
-      allowedLocales.add(locale);
-    }
-
-    // Validate each voice language key
-    for (const [langKey, decl] of languages) {
-      if (!allowedLocales.has(langKey)) {
+      if (!textLanguage || typeof textLanguage !== 'object') {
+        // Voice languages are defined but no text 'language' block exists.
         attachDiagnostic(
-          decl as AstNodeLike,
+          voice,
           lintDiagnostic(
-            getBlockRange(decl as AstNodeLike),
-            `Voice language '${langKey}' is not declared in the language block. Add it to 'default_locale' or 'additional_locales'.`,
-            DiagnosticSeverity.Error,
-            'voice-language-not-declared'
+            getBlockRange(voiceLanguage),
+            "Voice languages are defined but no 'language' block exists. Define 'default_locale' and/or 'additional_locales'.",
+            DiagnosticSeverity.Warning,
+            'voice-language-missing-language-block'
           )
         );
+      } else {
+        const textLocales = collectLocales(textLanguage);
+
+        const defaultLocale = extractStringValue(voiceLanguage.default_locale);
+        if (defaultLocale && !textLocales.has(defaultLocale)) {
+          attachDiagnostic(
+            voiceLanguage,
+            lintDiagnostic(
+              getBlockRange(voiceLanguage.default_locale),
+              `Voice language '${defaultLocale}' is not declared in the language block. Add it to 'default_locale' or 'additional_locales'.`,
+              DiagnosticSeverity.Error,
+              'voice-language-not-declared'
+            )
+          );
+        }
+
+        const additionalLocales = parseLocales(
+          extractStringValue(voiceLanguage.additional_locales)
+        );
+        for (const locale of additionalLocales) {
+          if (!textLocales.has(locale)) {
+            attachDiagnostic(
+              voiceLanguage,
+              lintDiagnostic(
+                getBlockRange(voiceLanguage.additional_locales),
+                `Voice language '${locale}' is not declared in the language block. Add it to 'default_locale' or 'additional_locales'.`,
+                DiagnosticSeverity.Error,
+                'voice-language-not-declared'
+              )
+            );
+          }
+        }
+      }
+    }
+
+    // Check B: each language_settings key must be a declared voice language.
+    if (hasVoiceSettings) {
+      // A voice 'all_additional_locales: True' accepts every language_settings key.
+      const allAdditionalLocales = hasVoiceLanguage
+        ? extractBooleanValue(voiceLanguage.all_additional_locales)
+        : undefined;
+
+      if (allAdditionalLocales !== true) {
+        // Locales declared on the voice language block. Empty when there is no
+        // voice language block, in which case every settings key is undeclared.
+        const voiceLocales = hasVoiceLanguage
+          ? collectLocales(voiceLanguage)
+          : new Set<string>();
+
+        for (const [langKey, decl] of voiceSettings) {
+          if (!voiceLocales.has(langKey)) {
+            attachDiagnostic(
+              decl as AstNodeLike,
+              lintDiagnostic(
+                getBlockRange(decl as AstNodeLike),
+                `Voice language setting '${langKey}' is not a declared voice language. Add it to the voice 'language' block's 'default_locale' or 'additional_locales'.`,
+                DiagnosticSeverity.Error,
+                'voice-language-settings-not-declared'
+              )
+            );
+          }
+        }
       }
     }
   }
@@ -137,7 +182,8 @@ const V2_VOICE_PROPERTIES = [
   'inbound',
   'outbound',
   'session_language_switching',
-  'languages',
+  'language',
+  'language_settings',
 ] as const;
 
 const V1_VOICE_PROPERTIES = [

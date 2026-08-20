@@ -69,6 +69,8 @@ const KNOWN_SYSTEM_TARGET_NAMES: readonly string[] = [
   'MessagingChoicesWithImages',
   'MessagingTimePicker',
   'ESTypeMessage',
+  'MessagingAudio',
+  'ClientAction',
 ];
 
 /**
@@ -76,9 +78,11 @@ const KNOWN_SYSTEM_TARGET_NAMES: readonly string[] = [
  *
  * - `ESTypeMessage`: accepts a dynamic schema native to the agent response;
  *   it can't be expressed as a static structured schema.
+ * - `MessagingAudio`: carries no structured payload, so it takes no input schema.
  */
 const SYSTEM_TARGETS_WITHOUT_INPUTS: ReadonlySet<string> = new Set([
   'ESTypeMessage',
+  'MessagingAudio',
 ]);
 
 /** Allowed types for connection inputs (linting restriction) */
@@ -144,8 +148,8 @@ function missingFieldsError(node: AstNodeLike, connectionType: string): void {
     node,
     lintDiagnostic(
       cst.range,
-      `${connectionType} connections require configuration fields ` +
-        `(e.g. escalation_message, outbound_route_type, outbound_route_name).`,
+      `${connectionType} connections require at least one configuration field ` +
+        `(e.g. description).`,
       DiagnosticSeverity.Error,
       'connection-missing-required-fields'
     )

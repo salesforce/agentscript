@@ -170,6 +170,25 @@ connection messaging:
       expect(warnings).toHaveLength(0);
     });
 
+    it('recognizes ClientAction and MessagingAudio system targets', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        client_action:
+            target: "system://ClientAction"
+            inputs:
+                field: string
+        audio:
+            target: "system://MessagingAudio"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const warnings = diagnostics.filter(
+        d => d.code === 'response-format-unknown-system-target'
+      );
+      expect(warnings).toHaveLength(0);
+    });
+
     it('warns (non-blocking) when system:// target name is not recognized', () => {
       const source = `
 connection messaging:
@@ -420,6 +439,60 @@ connection messaging:
       expect(warnings.length).toBeGreaterThan(0);
       expect(warnings[0].severity).toBe(2 /* Warning */);
       expect(warnings[0].message).toContain('ESTypeMessage');
+    });
+
+    it('does not require inputs when target is system://MessagingAudio', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        audio_format:
+            description: "Audio response"
+            target: "system://MessagingAudio"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const missingInputs = diagnostics.filter(
+        d =>
+          d.code === 'missing-required-field' && d.message.includes("'inputs'")
+      );
+      expect(missingInputs).toHaveLength(0);
+    });
+
+    it('warns when inputs are authored for system://MessagingAudio', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        audio_format:
+            description: "Audio response"
+            target: "system://MessagingAudio"
+            inputs:
+                ignored: string
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const warnings = diagnostics.filter(
+        d => d.code === 'response-format-inputs-ignored-for-target'
+      );
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0].severity).toBe(2 /* Warning */);
+      expect(warnings[0].message).toContain('MessagingAudio');
+    });
+
+    it('still requires inputs for system://ClientAction', () => {
+      const source = `
+connection customer_web_client:
+    response_formats:
+        client_action:
+            description: "Needs inputs"
+            target: "system://ClientAction"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const missingInputs = diagnostics.filter(
+        d =>
+          d.code === 'missing-required-field' && d.message.includes("'inputs'")
+      );
+      expect(missingInputs.length).toBeGreaterThan(0);
     });
   });
 

@@ -306,6 +306,14 @@ export const FIXTURES: string[] = [
   'collect_patient_intake.agent',
   // Collect inside if (branching + branch convergence)
   'collect_comms_branching.agent',
+  // Voice modality fixtures
+  'voice_v1_all.agent',
+  'voice_v1_minimum.agent',
+  'voice_v2_all.agent',
+  'voice_v2_inbound.agent',
+  'voice_v2_languages.agent',
+  'voice_v2_minimum.agent',
+  'voice_v2_outbound.agent',
 ];
 
 /**

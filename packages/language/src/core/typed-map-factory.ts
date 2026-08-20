@@ -23,7 +23,7 @@ import {
   keywordNames,
 } from './types.js';
 import type { Dialect } from './dialect.js';
-import { Identifier } from './expressions.js';
+import { Identifier, unwrapPrimitiveLiteral } from './expressions.js';
 import { addBuilderMethods } from './field-builder.js';
 import { ErrorBlock, isEmittable } from './children.js';
 import { NamedMap } from './named-map.js';
@@ -163,14 +163,7 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
         // Canvas AST round-trips may hydrate this boolean as a BooleanLiteral.
         const rawTypeInBlock: unknown =
           decl instanceof ParameterDeclarationNode ? decl.typeInBlock : false;
-        const typeInBlock =
-          rawTypeInBlock === true ||
-          (typeof rawTypeInBlock === 'object' &&
-            rawTypeInBlock !== null &&
-            '__kind' in rawTypeInBlock &&
-            rawTypeInBlock.__kind === 'BooleanLiteral' &&
-            'value' in rawTypeInBlock &&
-            rawTypeInBlock.value === true);
+        const typeInBlock = unwrapPrimitiveLiteral(rawTypeInBlock) === true;
         let line = `${indent}${emittedKey}:`;
 
         if (!typeInBlock) {

@@ -62,6 +62,7 @@ export {
   voiceLanguageValidationRule,
   voiceVersionMixingRule,
 } from './voice-language-validation.js';
+export { emptyBlockRule } from './empty-block.js';
 
 import { actionTargetSchemeRule } from './action-target.js';
 import { skillTargetSchemeRule } from './skill-target.js';
@@ -86,6 +87,7 @@ import {
   voiceLanguageValidationRule,
   voiceVersionMixingRule,
 } from './voice-language-validation.js';
+import { emptyBlockRule } from './empty-block.js';
 
 /** All Agentforce lint rules — extends AgentScript rules with security checks. */
 export function defaultRules(): LintPass[] {
@@ -120,5 +122,6 @@ export function defaultRules(): LintPass[] {
     disabledAdditionalParametersRule(),
     voiceLanguageValidationRule(),
     voiceVersionMixingRule(),
+    emptyBlockRule(),
   ];
 }

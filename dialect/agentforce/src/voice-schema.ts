@@ -15,6 +15,7 @@ import {
   StringValue,
   TypedMap,
 } from '@agentscript/language';
+import { LanguageBlock } from '@agentscript/agentscript-dialect';
 
 export const PronunciationDictEntryBlock = Block(
   'PronunciationDictEntryBlock',
@@ -127,9 +128,6 @@ const OutboundDirectionBlock = Block('VoiceOutboundDirectionBlock', {
 
 /** Common data structure for all Voice Languages */
 const VoiceLanguageSchema = {
-  is_default: BooleanValue.describe(
-    'When True, this is the default voice language of the agent. Defaults to False.'
-  ),
   inbound: InboundDirectionBlock,
   outbound: OutboundDirectionBlock,
 };
@@ -146,7 +144,10 @@ export const VoiceModalitySchema = {
   ]).describe(
     'When multilingual, any language can be used on any turn. Defaults to monolingual (one language per session).'
   ),
-  languages: TypedMap(
+  language: LanguageBlock.describe(
+    'The languages available for Voice. Voice languages can be the same or a subset of the text languages.'
+  ),
+  language_settings: TypedMap(
     'VoiceLanguageMap',
     Block('VoiceLanguageBlock', VoiceLanguageSchema),
     { allowTypelessEntries: true } // this is what allows the user to enter any string as a child property, e.g. BCP 47 lang tags. Validation happens in linter/compiler.
