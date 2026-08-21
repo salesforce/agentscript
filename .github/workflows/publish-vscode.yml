@@ -1,0 +1,114 @@
+# Copyright (c) 2026, Salesforce, Inc.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+
+name: Publish VS Code Extension
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  TREE_SITTER_VERSION: '0.25.3'
+  EXTENSION_NAME: agent-script-language-client
+
+jobs:
+  # Gate: compare packages/vscode's version against each registry independently.
+  # Downstream publish steps only run for a registry whose published version
+  # differs from local, so re-runs after an unrelated sync are no-ops.
+  check-version:
+    name: Check published versions
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      publish_vsce: ${{ steps.check.outputs.publish_vsce }}
+      publish_ovsx: ${{ steps.check.outputs.publish_ovsx }}
+      any: ${{ steps.check.outputs.any }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Compare local version against marketplaces
+        id: check
+        run: node scripts/check-vscode-version.mjs
+
+  # Build the VSIX once, then publish to each registry that needs it. A build
+  # failure skips both publishes; a failure publishing to one registry does not
+  # block the other (Open VSX is gated on the build step's own outcome).
+  publish:
+    name: Build & publish VSIX
+    needs: [check-version]
+    if: needs.check-version.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Cache tree-sitter CLI
+        id: cache-tree-sitter
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.local/bin/tree-sitter
+          key: tree-sitter-${{ env.TREE_SITTER_VERSION }}-linux-x64
+
+      - name: Install tree-sitter CLI
+        if: steps.cache-tree-sitter.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin
+          curl -sSL "https://github.com/tree-sitter/tree-sitter/releases/download/v${TREE_SITTER_VERSION}/tree-sitter-linux-x64.gz" \
+            | gunzip > ~/.local/bin/tree-sitter
+          chmod +x ~/.local/bin/tree-sitter
+
+      - name: Add tree-sitter to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build VSIX
+        id: build_vsix
+        run: pnpm --filter @agentscript/vscode package
+        env:
+          # check-changelog.mjs is interactive; in CI (non-TTY) this lets it
+          # continue when CHANGELOG.md lacks an entry for the current version.
+          ACCEPT_CHANGELOG_WARNING: '1'
+
+      - name: Publish to Microsoft Marketplace
+        if: needs.check-version.outputs.publish_vsce == 'true'
+        run: |
+          pnpm --filter @agentscript/vscode exec vsce publish \
+            --pat "$VSCE_PERSONAL_ACCESS_TOKEN" \
+            --packagePath "packages/vscode/publish/${EXTENSION_NAME}-${VERSION}.vsix"
+        env:
+          VSCE_PERSONAL_ACCESS_TOKEN: ${{ secrets.VSCE_PERSONAL_ACCESS_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+
+      - name: Publish to Open VSX Registry
+        if: ${{ !cancelled() && needs.check-version.outputs.publish_ovsx == 'true' && steps.build_vsix.outcome == 'success' }}
+        run: |
+          pnpm dlx ovsx@0.10.9 publish \
+            "packages/vscode/publish/${EXTENSION_NAME}-${VERSION}.vsix" \
+            -p "$OVSX_PAT"
+        env:
+          OVSX_PAT: ${{ secrets.IDEE_OVSX_PAT }}
+          VERSION: ${{ needs.check-version.outputs.version }}
