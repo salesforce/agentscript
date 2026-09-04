@@ -2,8 +2,8 @@
 
 <!-- Badges go here once repo is public -->
 
-Agent Script is an open agent specification language. It allows you to configure agents
-with a common set of building blocks. It was developed for agentforce, but is meant to apply towards agents in general.
+Agent Script is an open agent specification language, allowing you to configure agents
+with a common set of building blocks that harmonize both nondeterministic and deterministic control flow. It was first developed for Agentforce agents, but is meant to extend to all kinds of agents in general.
 
 ## Overview
 
@@ -22,7 +22,7 @@ For a formal language specification, see [SPEC.md](SPEC.md).
 Agent Script allows you to define an agent as a single file with custom syntax for storing state,
 specifying execution flow, string templating, and defining deterministic hooks for agent control.
 
-At salesforce, agent script integrates with the agent builder, as well as a variety of developer tools that enable management of the agent development lifecycle.
+At Salesforce, Agent Script integrates with the Agent Builder, as well as a variety of developer tools that enable management of the agent development lifecycle (ADLC).
 
 ### Determinism versus Autonomy
 
