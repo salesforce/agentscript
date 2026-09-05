@@ -1,7 +1,17 @@
 #!/usr/bin/env node
-/* Copyright (c) 2026, Salesforce, Inc. Apache-2.0 */
-/* Pre-publish guard for agentscript issue 71; run after scope rewrite. */
-/* Complementary to verify-published-packages.mjs (PR 72). */
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+ */
+
+/**
+ * Pre-publish guard for agentscript issue #71: refuse to publish dependents
+ * that would stamp workspace:* onto a reused version whose registry dist
+ * differs from local dist. Complementary to verify-published-packages.mjs (PR #72).
+ * Run after the scope rewrite in scripts/publish.mjs.
+ */
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
