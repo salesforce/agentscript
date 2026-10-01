@@ -201,10 +201,6 @@ The A2A trigger reacts to send/message methods and automatically manages the tas
 - [List Tasks](https://a2a-protocol.org/latest/specification/#314-list-tasks)
 - [Cancel Task](https://a2a-protocol.org/latest/specification/#315-cancel-task)
 - [Subscribe to Task](https://a2a-protocol.org/latest/specification/#316-subscribe-to-task)
-- [Create Push Notification Config](https://a2a-protocol.org/latest/specification/#317-create-push-notification-config)
-- [Get Push Notification Config](https://a2a-protocol.org/latest/specification/#318-get-push-notification-config)
-- [List Push Notification Config](https://a2a-protocol.org/latest/specification/#319-list-push-notification-configs)
-- [Delete Push Notification Config](https://a2a-protocol.org/latest/specification/#3110-delete-push-notification-config)
 - [Get Extended Agent Card](https://a2a-protocol.org/latest/specification/#3111-get-extended-agent-card)
 
 **Example**
