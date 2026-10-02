@@ -136,3 +136,16 @@ execFileSync(
     stdio: 'inherit',
   }
 );
+
+// Step 6: Verify what we just published is actually installable and importable.
+// The workspace can't tell us this: pnpm resolves siblings from source, so a
+// stale dependency pin or an unrewritten specifier only breaks once a consumer
+// resolves from the registry (see #35, #71 and #73). Fails the job if a release
+// is broken, so it is caught in minutes rather than by the first user to try
+// it. Because `pnpm -r publish` is idempotent, this also re-checks registry
+// state on no-op re-runs — a broken earlier release keeps failing the sync
+// until it is fixed.
+execFileSync('node', [join(ROOT, 'scripts', 'verify-published-packages.mjs')], {
+  cwd: ROOT,
+  stdio: 'inherit',
+});
