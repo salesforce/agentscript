@@ -403,3 +403,57 @@ access:
     expect(config).not.toContain('default_agent_user');
   });
 });
+
+/** Return the undefined-reference quick fixes offered for `source`. */
+function getUndefinedReferenceActions(source: string) {
+  const state = createState(source);
+  const diags = state.diagnostics.filter(d => d.code === 'undefined-reference');
+  const actions = provideCodeActions(
+    state,
+    { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+    diags
+  );
+  return { diags, actions };
+}
+
+describe('undefined-reference quick-fix', () => {
+  const agent = (ref: string) => `config:
+    developer_name: "agent"
+    agent_type: "AgentforceServiceAgent"
+
+variables:
+    customer_name: string = ""
+
+start_agent topic_selector:
+    description: "route"
+    reasoning:
+        instructions: ->
+            | Hello {!${ref}}
+`;
+
+  test('replaces a misspelled member', () => {
+    const source = agent('@variables.custmer_name');
+    const { actions } = getUndefinedReferenceActions(source);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].title).toBe("Change to 'customer_name'");
+    const edits = Object.values(actions[0].edit!.changes!)[0];
+    expect(applyEdits(source, edits)).toBe(agent('@variables.customer_name'));
+  });
+
+  test('replaces a misspelled namespace', () => {
+    const source = agent('@varibles.customer_name');
+    const { actions } = getUndefinedReferenceActions(source);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].title).toBe("Change to 'variables'");
+    const edits = Object.values(actions[0].edit!.changes!)[0];
+    expect(applyEdits(source, edits)).toBe(agent('@variables.customer_name'));
+  });
+
+  test('offers nothing when there is no close match', () => {
+    const { diags, actions } = getUndefinedReferenceActions(
+      agent('@variables.zzzzzzzz')
+    );
+    expect(diags).toHaveLength(1);
+    expect(actions).toHaveLength(0);
+  });
+});

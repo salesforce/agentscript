@@ -109,9 +109,9 @@ General-purpose factory for schema validation diagnostics. Accepts a `Range`, `S
 
 Parser-level errors only. Source is always `'parser'`. Code must be `'syntax-error'` or `'missing-token'`.
 
-### `undefinedReferenceDiagnostic(range, message, referenceName, suggestion?, expected?)`
+### `undefinedReferenceDiagnostic(range, message, referenceName, found, suggestion?, expected?)`
 
-For undefined reference errors. Automatically appends "Did you mean?" hints via `formatSuggestionHint()`.
+For undefined reference errors. Automatically appends "Did you mean?" hints via `formatSuggestionHint()`. `found` is the misspelled segment (used by the LSP quick fix).
 
 ### `typeMismatchDiagnostic(range, message, expectedType, actualType, source?)`
 

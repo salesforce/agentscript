@@ -607,6 +607,7 @@ function formatResolutionDiagnostic(
         range,
         `'${property}' is not defined in ${namespace}`,
         referenceName,
+        property,
         suggestion,
         result.members
       );
@@ -618,6 +619,7 @@ function formatResolutionDiagnostic(
         range,
         `'@${namespace}' is not a recognized namespace`,
         referenceName,
+        namespace,
         suggestion,
         result.knownNamespaces
       );
@@ -628,7 +630,8 @@ function formatResolutionDiagnostic(
         range,
         `'@${namespace}' cannot be used as a reference. ` +
           `This namespace is scoped to its parent block and is not directly referenceable`,
-        referenceName
+        referenceName,
+        namespace
       );
 
     case 'colinear-miss': {
@@ -637,6 +640,7 @@ function formatResolutionDiagnostic(
         range,
         `'${property}' is not defined in ${namespace}`,
         referenceName,
+        property,
         suggestion,
         result.members
       );
@@ -648,6 +652,7 @@ function formatResolutionDiagnostic(
         range,
         `'${property}' is not defined in ${namespace}`,
         referenceName,
+        property,
         suggestion,
         result.candidates
       );
@@ -802,6 +807,7 @@ function resolveNestedGlobalCheck(
     cst.range,
     `'${check.member}' is not defined in ${namespaceLabel}`,
     referenceName,
+    check.member,
     suggestion,
     members
   );
@@ -840,6 +846,7 @@ function resolveListElementAttrCheck(
     cst.range,
     `'${check.attr}' is not defined on ${namespaceLabel} elements`,
     referenceName,
+    check.attr,
     suggestion,
     members
   );
