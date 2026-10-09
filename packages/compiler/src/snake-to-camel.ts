@@ -80,7 +80,8 @@ function resolveObjectSchema(
   shape: Record<string, ZodType>;
   recordValueType?: ZodType;
 } {
-  const result: Record<string, ZodType> = {};
+  // Only schema-declared keys belong in this lookup, including prototype names.
+  const result: Record<string, ZodType> = Object.create(null);
   let recordValueType: ZodType | undefined;
 
   function visit(s: ZodType | undefined): void {
@@ -214,7 +215,12 @@ export function snakeKeysToCamel(
           // Schema doesn't declare this key and isn't a record. Leave the
           // key and its subtree alone — we have no guidance and renaming
           // could corrupt user data.
-          dst[key] = src[key];
+          Object.defineProperty(dst, key, {
+            value: src[key],
+            enumerable: true,
+            writable: true,
+            configurable: true,
+          });
           const range = srcRanges?.get(key);
           if (range) {
             if (!dstRanges) dstRanges = new Map();
@@ -223,7 +229,13 @@ export function snakeKeysToCamel(
           continue;
         }
 
-        dst[outKey] = walk(src[key], nextSchema);
+        // Define a data property so an own __proto__ key cannot change dst's prototype.
+        Object.defineProperty(dst, outKey, {
+          value: walk(src[key], nextSchema),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
 
         const range = srcRanges?.get(key);
         if (range) {
