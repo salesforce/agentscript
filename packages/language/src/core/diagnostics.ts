@@ -58,6 +58,7 @@ export function undefinedReferenceDiagnostic(
   range: Range,
   message: string,
   referenceName: string,
+  found: string,
   suggestion?: string,
   expected?: string[]
 ): Diagnostic {
@@ -70,6 +71,7 @@ export function undefinedReferenceDiagnostic(
     source: 'agentscript-lint',
     data: {
       referenceName,
+      found,
       ...(suggestion ? { suggestion } : {}),
       ...(expected && expected.length > 0 ? { expected } : {}),
     },
