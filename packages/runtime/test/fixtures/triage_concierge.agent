@@ -1,0 +1,185 @@
+system:
+    instructions: "You are a customer-support concierge. Classify the user's request and delegate to the right specialist."
+    messages:
+        error: "Sorry, something went wrong while routing your request."
+        welcome: "Hi! Tell me what you need — I'll route you to the right specialist."
+
+config:
+    agent_name: "TriageConcierge"
+    default_agent_user: "concierge@example.com"
+
+language:
+    default_locale: "en_US"
+
+variables:
+    customer_id: mutable string = ""
+        description: "Customer identifier captured during triage"
+    intent: mutable string = ""
+        description: "Classified intent: 'order', 'shipping', or 'refund'"
+    resolution_text: mutable string = ""
+        description: "Specialist's resolution for the request"
+    escalation_needed: mutable boolean = False
+        description: "True when the refund specialist sees an ineligible request"
+
+start_agent triage:
+    description: "Classify the request and delegate to a specialist"
+
+    actions:
+        Route_To_Order:
+            description: "Hand off to the order specialist"
+            inputs:
+                customer_id: string
+                    description: "Customer identifier"
+                    is_required: True
+                order_number: string
+                    description: "Order number to look up"
+                    is_required: True
+            target: "delegate://order_specialist"
+
+        Route_To_Shipping:
+            description: "Hand off to the shipping specialist"
+            inputs:
+                customer_id: string
+                    description: "Customer identifier"
+                    is_required: True
+                tracking_number: string
+                    description: "Tracking number to look up"
+                    is_required: True
+            target: "delegate://shipping_specialist"
+
+        Route_To_Refund:
+            description: "Hand off to the refund specialist"
+            inputs:
+                customer_id: string
+                    description: "Customer identifier"
+                    is_required: True
+                order_number: string
+                    description: "Order number for the refund"
+                    is_required: True
+            target: "delegate://refund_specialist"
+
+    reasoning:
+        instructions: ->
+            |   Classify the user's request into exactly one intent:
+            |     - 'order'    → call {!@actions.route_order}
+            |     - 'shipping' → call {!@actions.route_shipping}
+            |     - 'refund'   → call {!@actions.route_refund}
+            |   Always pass the customer_id. After the specialist responds,
+            |   the conversation will transition to a summary step.
+            |   Current state:
+            |     - customer_id: {! @variables.customer_id }
+            |     - intent: {! @variables.intent }
+        actions:
+            route_order: @actions.Route_To_Order
+                with customer_id=@variables.customer_id
+                with order_number=...
+
+            route_shipping: @actions.Route_To_Shipping
+                with customer_id=@variables.customer_id
+                with tracking_number=...
+
+            route_refund: @actions.Route_To_Refund
+                with customer_id=@variables.customer_id
+                with order_number=...
+
+    after_reasoning:
+        if @variables.intent != "":
+            transition to @topic.summary
+
+subagent order_specialist:
+    description: "Looks up order status by order number"
+
+    actions:
+        Lookup_Order:
+            description: "Look up an order by its number"
+            inputs:
+                order_number: string
+                    description: "Order number"
+                    is_required: True
+            outputs:
+                status: string
+                    description: "Order status"
+            target: "fn://lookup_order"
+
+    before_reasoning:
+        if @variables.intent == "":
+            set @variables.intent = "order"
+
+    reasoning:
+        instructions: ->
+            |   Use {!@actions.lookup} to fetch the status, then reply with one
+            |   sentence describing the order status.
+        actions:
+            lookup: @actions.Lookup_Order
+                with order_number=...
+                set @variables.resolution_text = @outputs.status
+
+subagent shipping_specialist:
+    description: "Returns tracking information for a shipment"
+
+    actions:
+        Get_Tracking:
+            description: "Fetch tracking details by tracking number"
+            inputs:
+                tracking_number: string
+                    description: "Tracking number"
+                    is_required: True
+            outputs:
+                last_location: string
+                    description: "Most recent known location"
+            target: "fn://get_tracking"
+
+    before_reasoning:
+        if @variables.intent == "":
+            set @variables.intent = "shipping"
+
+    reasoning:
+        instructions: ->
+            |   Use {!@actions.tracking} to fetch the location, then reply with
+            |   one sentence describing where the package is.
+        actions:
+            tracking: @actions.Get_Tracking
+                with tracking_number=...
+                set @variables.resolution_text = @outputs.last_location
+
+subagent refund_specialist:
+    description: "Checks refund eligibility and flags escalation when ineligible"
+
+    actions:
+        Check_Refund:
+            description: "Check whether an order is eligible for a refund"
+            inputs:
+                order_number: string
+                    description: "Order number"
+                    is_required: True
+            outputs:
+                escalation_needed: boolean
+                    description: "True when the order is not refund-eligible and needs human review"
+                reason: string
+                    description: "Reason text"
+            target: "fn://check_refund_eligibility"
+
+    before_reasoning:
+        if @variables.intent == "":
+            set @variables.intent = "refund"
+
+    reasoning:
+        instructions: ->
+            |   Use {!@actions.check} to determine eligibility, then reply with
+            |   one sentence describing the outcome.
+        actions:
+            check: @actions.Check_Refund
+                with order_number=...
+                set @variables.resolution_text = @outputs.reason
+                set @variables.escalation_needed = @outputs.escalation_needed
+
+topic summary:
+    description: "Wrap up with a single resolution sentence"
+
+    reasoning:
+        instructions: ->
+            |   Summarize the resolution in one short paragraph.
+            |   Intent: {! @variables.intent }
+            |   Resolution: {! @variables.resolution_text }
+            |   Escalation needed: {! @variables.escalation_needed }
+            |   If escalation_needed is True, end with: "I'll escalate this to a human agent."

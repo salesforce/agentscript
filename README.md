@@ -224,6 +224,14 @@ Each block has a **schema** defined by its dialect. A **dialect** is a collectio
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [`@agentscript/agentforce`](packages/agentforce/) | Batteries-included SDK. Combines parser, language, compiler, and dialects into a single import. Provides `parse()`, `Document` (with mutation/undo/redo), `parseComponent()`, `emitComponent()`, and `compileSource()`. Works in Node.js and browsers. |
 
+### Runtime Layer
+
+| Package                                                   | Description                                                                                                              |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`@agentscript/runtime`](packages/runtime/)               | Lightweight TypeScript runtime for AgentScript — executes the `AgentDSLAuthoring` IR emitted by `@agentscript/compiler`. |
+| [`@agentscript/runtime-vercel`](packages/runtime-vercel/) | Vercel AI SDK adapter for `@agentscript/runtime`.                                                                        |
+| [`@agentscript/memory`](packages/memory/)                 | Embedding + vector-store + semantic-recall + working-memory primitives for AgentScript agents.                           |
+
 ### LSP Layer
 
 | Package                                             | Description                                                                                                                                                                                                |

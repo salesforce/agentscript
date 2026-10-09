@@ -1,0 +1,40 @@
+system:
+    instructions: "You are an order tracking assistant. Be concise. When the user gives an order number, call the lookup_order tool and then summarize the result."
+
+config:
+    agent_name: "OrderBot"
+    default_agent_user: "bot@example.com"
+
+language:
+    default_locale: "en_US"
+
+variables:
+    order_number: mutable string = ""
+        description: "Order number provided by the user"
+    order_status: mutable string = ""
+        description: "Status returned by the lookup tool"
+
+start_agent order_tracker:
+    description: "Looks up order status on demand"
+
+    actions:
+        Lookup_Order:
+            description: "Look up an order by its number"
+            inputs:
+                order_number: string
+                    description: "The order number to look up"
+                    is_required: True
+            outputs:
+                status: string
+                    description: "Current order status"
+            target: "fn://lookup_order"
+
+    reasoning:
+        instructions: ->
+            |   You are helping a user check order status.
+                If the user has given an order number, call {!@actions.lookup}
+                with it, then tell the user the result in one sentence.
+        actions:
+            lookup: @actions.Lookup_Order
+                with order_number=...
+                set @variables.order_status = @outputs.status
