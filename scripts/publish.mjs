@@ -122,7 +122,13 @@ execFileSync('pnpm', ['install', '--no-frozen-lockfile'], {
   stdio: 'inherit',
 });
 
-// Step 5: Publish every public workspace package at the version in its
+// Step 5: Guard against #71 — stale registry content at reused versions
+execFileSync('node', [join(ROOT, 'scripts', 'assert-registry-content.mjs')], {
+  cwd: ROOT,
+  stdio: 'inherit',
+});
+
+// Step 6: Publish every public workspace package at the version in its
 // package.json. `pnpm -r publish` iterates the workspace, skips packages
 // marked `"private": true`, resolves `workspace:*` deps to exact versions in
 // the tarball, and no-ops any version already on the registry — so this is
