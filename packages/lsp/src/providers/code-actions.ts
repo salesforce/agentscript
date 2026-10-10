@@ -295,6 +295,58 @@ export function provideCodeActions(
         });
       }
 
+      // Quick fix for a misspelled `@namespace.member` reference. The range
+      // covers the whole reference, so only the misspelled segment is replaced:
+      // the namespace (right after the `@`) or the last member.
+      if (diagnostic.code === 'undefined-reference') {
+        const found = diagnostic.data?.found as string | undefined;
+        const suggestion = diagnostic.data?.suggestion as string | undefined;
+        const referenceName = diagnostic.data?.referenceName as
+          | string
+          | undefined;
+        if (!found || !suggestion || !referenceName) continue;
+
+        const { start, end } = diagnostic.range;
+        if (start.line !== end.line) continue;
+
+        // `@foo.foo` can't tell the namespace from the member; offer nothing.
+        if (referenceName === `@${found}.${found}`) continue;
+        const isNamespace = referenceName.startsWith(`@${found}.`);
+        const foundStart = isNamespace
+          ? start.character + 1
+          : end.character - found.length;
+        const line = source.split('\n')[start.line];
+        if (
+          line === undefined ||
+          line.slice(foundStart, foundStart + found.length) !== found
+        ) {
+          continue;
+        }
+
+        actions.push({
+          title: `Change to '${suggestion}'`,
+          kind: CodeActionKind.QuickFix,
+          diagnostics: [diagnostic],
+          isPreferred: true,
+          edit: {
+            changes: {
+              [uri]: [
+                {
+                  range: {
+                    start: { line: start.line, character: foundStart },
+                    end: {
+                      line: start.line,
+                      character: foundStart + found.length,
+                    },
+                  },
+                  newText: suggestion,
+                },
+              ],
+            },
+          },
+        });
+      }
+
       // Quick fix for unknown dialect — offer each available dialect
       if (diagnostic.code === 'unknown-dialect') {
         const availableNames = diagnostic.data?.availableNames as
