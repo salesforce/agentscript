@@ -1,0 +1,70 @@
+system:
+    instructions: "You are a helpful order management agent."
+    messages:
+        welcome: "Hello! I can help you manage your orders."
+        error: "An error occurred while processing your request."
+
+config:
+    developer_name: "Async_Actions_Agent"
+    default_agent_user: "user@test.com"
+    description: "Agent with actions exercising the async_mode flag (@W-23852778)"
+
+variables:
+    order_id: mutable string = ""
+        description: "Order identifier"
+
+start_agent main:
+    description: "Agent with actions exercising the async_mode flag"
+
+    actions:
+        Lookup_Order_Async:
+            description: "Look up an order asynchronously"
+            target: "standardInvocableAction://Lookup_Order"
+            async_mode: True
+            label: "Lookup Order Async"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+            outputs:
+                status: string
+                    label: "Order Status"
+
+        Lookup_Order_Sync:
+            description: "Look up an order synchronously (async_mode explicitly False)"
+            target: "standardInvocableAction://Lookup_Order"
+            async_mode: False
+            label: "Lookup Order Sync"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+            outputs:
+                status: string
+                    label: "Order Status"
+
+        Check_Status_Default:
+            description: "Check order status with no async_mode annotation (defaults to False)"
+            target: "flow://Check_Order_Status"
+            label: "Check Status"
+            inputs:
+                order_id: string
+                    label: "Order ID"
+                    is_required: True
+            outputs:
+                status: string
+                    label: "Order Status"
+
+    reasoning:
+        instructions: ->
+            | Help the user look up and check the status of their orders.
+
+        actions:
+            Lookup_Async_Action: @actions.Lookup_Order_Async
+                with order_id=@variables.order_id
+
+            Lookup_Sync_Action: @actions.Lookup_Order_Sync
+                with order_id=@variables.order_id
+
+            Status_Action: @actions.Check_Status_Default
+                with order_id=@variables.order_id

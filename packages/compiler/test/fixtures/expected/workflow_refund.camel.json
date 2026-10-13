@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "refund_agent",
+    "label": "Refund Agent",
+    "description": "Processes order refunds through a deterministic workflow.",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "refund_agent@example.com"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! How can I help with your order?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "order_id",
+        "label": "Order Id",
+        "description": "The order to refund",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "refund_complete",
+        "label": "Refund Complete",
+        "description": "Whether the refund was issued",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "customer_name",
+        "label": "Customer Name",
+        "description": "The customer's name",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      }
+    ],
+    "initialNode": "intent_router",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Route the user to the right place",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"refund_workflow\""
+              }
+            ],
+            "name": "start_refund",
+            "description": "Collects an order id, issues a refund, and confirms."
+          }
+        ],
+        "developerName": "intent_router",
+        "label": "Intent Router",
+        "actionDefinitions": [],
+        "instructions": "You are a helpful refund assistant.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nUse start_refund when the user wants a refund."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "refund_workflow",
+            "enabled": "state.AgentScriptInternal_next_topic==\"refund_workflow\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Answer follow-up questions after a refund",
+        "tools": [],
+        "developerName": "refund_followup",
+        "label": "Refund Followup",
+        "actionDefinitions": [],
+        "instructions": "You are a helpful refund assistant.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nAnswer any follow-up questions about the refund for order {{state.order_id}}."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "workflow",
+        "developerName": "refund_workflow",
+        "label": "Refund Workflow",
+        "steps": [
+          {
+            "name": "greet",
+            "directives": [
+              {
+                "type": "say",
+                "text": "Hi! I can help you process a refund.",
+                "developerName": "refund_workflow_greet_say_01"
+              }
+            ]
+          },
+          {
+            "name": "collect_order",
+            "directives": [
+              {
+                "type": "ask_for",
+                "llmInputs": [
+                  "order_id"
+                ],
+                "instructions": "Ask the user for the order id they want refunded.",
+                "developerName": "refund_workflow_collect_order_ask_for_01"
+              }
+            ]
+          },
+          {
+            "name": "issue_refund",
+            "directives": [
+              {
+                "type": "action",
+                "target": "__state_update_action__",
+                "stateUpdates": [
+                  {
+                    "customer_name": "\"SomeData\""
+                  }
+                ],
+                "developerName": "refund_workflow_issue_refund_action_01"
+              },
+              {
+                "type": "action",
+                "target": "issue_refund",
+                "boundInputs": {
+                  "orderId": "state.order_id"
+                },
+                "stateUpdates": [
+                  {
+                    "refund_complete": "True"
+                  }
+                ],
+                "developerName": "refund_workflow_issue_refund_action_02"
+              },
+              {
+                "type": "say",
+                "text": "Your refund for order {{state.order_id}} has been issued.",
+                "enabled": "state.refund_complete == True",
+                "developerName": "refund_workflow_issue_refund_say_03"
+              },
+              {
+                "type": "handoff",
+                "target": "refund_followup",
+                "enabled": "state.refund_complete == True",
+                "developerName": "refund_workflow_issue_refund_handoff_04"
+              },
+              {
+                "type": "handoff",
+                "target": "__human__",
+                "enabled": "not (state.refund_complete == True)",
+                "developerName": "refund_workflow_issue_refund_handoff_05"
+              }
+            ]
+          }
+        ],
+        "description": "Collects an order id, issues a refund, and confirms.",
+        "actionDefinitions": [
+          {
+            "developerName": "issue_refund",
+            "label": "Issue Refund",
+            "description": "Issue a refund for the given order id.",
+            "includeInProgressIndicator": true,
+            "invocationTargetType": "standardInvocableAction",
+            "invocationTargetName": "issueRefund",
+            "inputType": [
+              {
+                "developerName": "orderId",
+                "label": "Order Id",
+                "description": "Order Id",
+                "dataType": "String",
+                "isList": false,
+                "required": true,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ],
+            "requireUserConfirmation": false,
+            "progressIndicatorMessage": "Issuing your refund..."
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! How can I help with your order?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

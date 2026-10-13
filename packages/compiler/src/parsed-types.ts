@@ -27,6 +27,8 @@ export type {
   ParsedTopicReasoning,
   ParsedConnection,
   ParsedConnectedAgent,
+  ParsedWorkflowProcedure,
+  ParsedWorkflowStep,
   ParsedReasoningAction,
   ParsedMessages,
 } from '@agentscript/agentforce-dialect';

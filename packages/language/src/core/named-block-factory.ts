@@ -77,6 +77,9 @@ export function NamedBlock<T extends Schema>(
 
   const colinear = opts?.colinear;
   const body = opts?.body;
+  const hasColinear = !!colinear;
+  const hasBody = !!body;
+  const entrySeparator = body && !colinear ? ': ->' : ':';
   const symbol: SymbolMeta = opts?.symbol ?? { kind: SymbolKind.Class };
   const scopeLevel = opts?.scopeAlias;
   const rawVariants = opts?.variants;
@@ -245,8 +248,9 @@ export function NamedBlock<T extends Schema>(
     static readonly allowAnonymous = opts?.allowAnonymous ?? false;
     static readonly scopeAlias = scopeLevel;
     static readonly colinearType = colinear;
-    static readonly hasColinear = !!colinear;
-    static readonly hasBody = !!body;
+    static readonly hasColinear = hasColinear;
+    static readonly hasBody = hasBody;
+    static readonly entrySeparator = entrySeparator;
     static readonly capabilities = opts?.capabilities;
 
     constructor(
@@ -468,7 +472,7 @@ export function NamedBlock<T extends Schema>(
     /** Emit as a top-level entry with schema key prefix (e.g., `topic main:`). */
     emitWithKey(schemaKey: string, ctx: EmitContext): string {
       const indent = emitIndent(ctx);
-      const header = `${indent}${schemaKey} ${emitKeyName(this.__name!)}:`;
+      const header = `${indent}${schemaKey} ${emitKeyName(this.__name!)}${entrySeparator}`;
       const childCtx = { ...ctx, indent: ctx.indent + 1 };
       const body = emitChildren(this.__children, childCtx);
       return body ? `${header}\n${body}` : header;
@@ -477,7 +481,7 @@ export function NamedBlock<T extends Schema>(
     /** Emit as a nested entry with just the name (e.g., `fetch_data:` inside `actions:`). */
     private emitAsEntry(ctx: EmitContext): string {
       const indent = emitIndent(ctx);
-      const header = `${indent}${emitKeyName(this.__name!)}:`;
+      const header = `${indent}${emitKeyName(this.__name!)}${entrySeparator}`;
       const childCtx = { ...ctx, indent: ctx.indent + 1 };
       const body = emitChildren(this.__children, childCtx);
       return body ? `${header}\n${body}` : header;

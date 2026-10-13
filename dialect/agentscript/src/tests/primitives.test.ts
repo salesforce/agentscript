@@ -136,7 +136,7 @@ test('ExpressionValue emits string', () => {
 
 test('id primitive is marked deprecated with replacement', () => {
   const id = AGENTSCRIPT_PRIMITIVE_TYPES.find(t => t.keyword === 'id');
-  expect(id?.metadata?.deprecated?.replacement).toBe('string');
+  expect(id?.metadata?.deprecated?.replacement).toBe('object');
 });
 
 test('using deprecated id type emits deprecated-field diagnostic', () => {
@@ -149,8 +149,9 @@ test('using deprecated id type emits deprecated-field diagnostic', () => {
   const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
   expect(deprecated).toHaveLength(1);
   expect(deprecated[0].message).toContain("'id' is deprecated");
+  expect(deprecated[0].message).toContain('object');
   expect(deprecated[0].tags).toContain(DiagnosticTag.Deprecated);
-  expect(deprecated[0].data?.replacement).toBe('string');
+  expect(deprecated[0].data?.replacement).toBe('object');
 });
 
 test('using deprecated id as list element type emits diagnostic', () => {
@@ -163,6 +164,31 @@ test('using deprecated id as list element type emits diagnostic', () => {
   const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
   expect(deprecated).toHaveLength(1);
   expect(deprecated[0].message).toContain("'id' is deprecated");
+});
+
+test('id is deprecated in action inputs/outputs, recommending object', () => {
+  // `id` is deprecated everywhere; the warning steers authors to `object`
+  // rather than `string`, in action inputs/outputs as well as variables.
+  const { diagnostics } = parseWithDiagnostics(
+    [
+      'actions:',
+      '    GetActivityDetails:',
+      '        inputs:',
+      '            activityId: id',
+      '                description: "The record ID."',
+      '        outputs:',
+      '            resultId: id',
+      '        target: "flow://GetActivityDetails"',
+    ].join('\n'),
+    AgentScriptSchema
+  );
+  const deprecated = diagnostics.filter(d => d.code === 'deprecated-field');
+  expect(deprecated).toHaveLength(2);
+  for (const d of deprecated) {
+    expect(d.message).toContain("'id' is deprecated");
+    expect(d.message).toContain('object');
+    expect(d.data?.replacement).toBe('object');
+  }
 });
 
 test('non-deprecated primitive types do not emit diagnostics', () => {

@@ -147,6 +147,9 @@ export function forEachExpressionChild(
     case 'SpreadExpression':
       callback(obj.expression, 'expression', obj);
       break;
+    case 'KeywordArgument':
+      callback(obj.value, 'value', obj);
+      break;
     case 'ListLiteral': {
       const elements = obj.elements;
       if (Array.isArray(elements)) {

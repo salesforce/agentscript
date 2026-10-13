@@ -38,6 +38,7 @@ export const FIXTURES: string[] = [
   'case_escalation_bot.agent',
   'claim_processing_assistant.agent',
   'conditional_runtime_test.agent',
+  'system_instruction_conditionals.agent',
   'csa.agent',
   'employee_agent.agent',
   'employee_agent_with_none_user.agent',
@@ -164,6 +165,8 @@ export const FIXTURES: string[] = [
   '100_citizen_feedback.agent',
   // Edge case fixtures (100 scripts)
   'edge_action_after_reasoning.agent',
+  'edge_action_async.agent',
+  'edge_action_non_blocking_cache.agent',
   'edge_action_alias_targets.agent',
   'edge_action_apex.agent',
   'edge_action_api.agent',
@@ -224,6 +227,9 @@ export const FIXTURES: string[] = [
   'directive_escalate_basic.agent',
   'directive_escalate_conditional.agent',
   'directive_escalate_before_reasoning.agent',
+  'directive_end_session_basic.agent',
+  'directive_end_session_conditional.agent',
+  'directive_end_session_before_reasoning.agent',
   'edge_escalation_basic.agent',
   'edge_escalation_conditional.agent',
   'edge_escalation_in_after.agent',
@@ -242,6 +248,8 @@ export const FIXTURES: string[] = [
   'edge_knowledge_escalation_combo.agent',
   'edge_knowledge_in_topic.agent',
   'edge_knowledge_with_clauses.agent',
+  'edge_locale_empty_list.agent',
+  'edge_locale_empty_string.agent',
   'edge_locale_multiple.agent',
   'edge_locale_non_us.agent',
   'edge_logistics_tracking.agent',
@@ -295,6 +303,7 @@ export const FIXTURES: string[] = [
   'constant_values_literals.agent',
   'constant_values_mixed.agent',
   'json_path_expression.agent',
+  'concat_expression.agent',
   // Custom subagent (commerce shopper) fixtures
   'commerce_shopper_agent.agent',
   'byon_minimal.agent',
@@ -325,6 +334,20 @@ export const FIXTURES: string[] = [
   // Render rules — E2E coverage for `when @connection.<surface>` blocks
   // emitting `render_rules[]` on Tool.
   'edge_render_rules_multi_connection.agent',
+  // Billing: outcome-based billing mode compiles to agent_version.billing.
+  'outcome_based_billing.agent',
+  // Large synthetic fixture for perf-guard corpus stress testing.
+  'large_script_perf_test_01.agent',
+  // Medium synthetic fixture for perf-guard corpus stress testing.
+  'medium_script_perf_test_01.agent',
+  // File upload (MANAGED) — E2E coverage for per-node `file_references[]`:
+  // captured from @system_variables.uploaded_files in prompt text only (bare,
+  // index, and gated slice), never from the `with` action binding.
+  'file_upload_managed.agent',
+  // Workflow node — named steps, unnamed `steps:`, if/else-if `enabled`
+  // guards, and @workflow transition targets.
+  'workflow_refund.agent',
+  'workflow_unnamed_steps.agent',
 ];
 
 /**

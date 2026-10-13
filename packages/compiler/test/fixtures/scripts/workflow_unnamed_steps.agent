@@ -1,0 +1,56 @@
+system:
+    instructions: "You help customers check order status."
+    messages:
+        welcome: "Hello! How can I help?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "OrderStatusAgent"
+    description: "Checks order status through a workflow"
+    default_agent_user: "test_user"
+
+variables:
+    order_id: mutable string = ""
+        description: "The order to look up"
+    order_status: mutable string = ""
+        description: "The current order status"
+    is_vip: mutable boolean = False
+        description: "Whether the customer is a VIP"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route order status requests to the workflow.
+        actions:
+            check_status: @utils.transition to @workflow.order_status
+
+subagent support:
+    description: "General support"
+    reasoning:
+        instructions: ->
+            | Help the customer with anything else.
+
+workflow order_status:
+    description: "Look up and report order status"
+    actions:
+        lookup_order:
+            description: "Look up an order by id"
+            inputs:
+                orderId: string
+            outputs:
+                status: string
+            target: "flow://LookupOrder"
+    steps: ->
+        ask for @variables.order_id
+            instructions: "Ask for the order number."
+        run @actions.lookup_order
+            with orderId = @variables.order_id
+            set @variables.order_status = @outputs.status
+        if @variables.order_status == "shipped":
+            say "Your order {!@variables.order_id} has shipped."
+        else if @variables.is_vip:
+            say "As a VIP, we are prioritizing your order."
+        else:
+            say "Your order is {!@variables.order_status}."
+        transition to @subagent.support

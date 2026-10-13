@@ -28,6 +28,7 @@ export const BUILTIN_FUNCTION_NAMES = [
   'upper',
   'to_json',
   'from_json',
+  'concat',
 ] as const;
 
 /** A built-in function name. */

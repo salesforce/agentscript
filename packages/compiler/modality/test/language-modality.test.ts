@@ -96,6 +96,34 @@ start_agent main:
     expect(diagnostics).toHaveLength(0);
   });
 
+  // An empty value for additional_locales is legitimately "no additional
+  // locales" — it must compile to an empty list without emitting the
+  // "CST structure may have changed" inline-list warning.
+  it.each([
+    ['empty string', 'additional_locales: ""'],
+    ['empty inline list', 'additional_locales: []'],
+  ])('does not warn for an %s additional_locales', (_variant, field) => {
+    const source = `
+config:
+    agent_name: "EmptyLocaleBot"
+
+language:
+    default_locale: "en_US"
+    ${field}
+
+start_agent main:
+    description: "test"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const language = output.agent_version.modality_parameters.language;
+
+    expect(language?.additional_locales).toEqual([]);
+    const inlineListWarnings = diagnostics.filter(d =>
+      d.message.includes('inline list syntax')
+    );
+    expect(inlineListWarnings).toHaveLength(0);
+  });
+
   describe('invalid locale produces warning instead of error', () => {
     it('should emit a warning (not error) for invalid default_locale', () => {
       const source = `

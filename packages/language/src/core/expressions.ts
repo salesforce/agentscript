@@ -727,6 +727,49 @@ export class SpreadExpression extends ExpressionBase {
   }
 }
 
+/** A keyword call argument, e.g. `sep=', '`. */
+export class KeywordArgument extends ExpressionBase {
+  static readonly kind = 'KeywordArgument' as const;
+  readonly __kind = KeywordArgument.kind;
+
+  constructor(
+    public name: string,
+    public value: Expression
+  ) {
+    super();
+  }
+
+  __describe(): string {
+    return `keyword argument ${this.name}=${this.value.__describe()}`;
+  }
+
+  __emit(ctx: EmitContext): string {
+    return `${this.name}=${this.value.__emit(ctx)}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression
+  ): Parsed<KeywordArgument> {
+    const nameNode = node.childForFieldName('name');
+    const valueNode = node.childForFieldName('value');
+    const name = nameNode ? nameNode.text : '';
+    if (valueNode) {
+      return withCst(new KeywordArgument(name, parseExpr(valueNode)), node);
+    }
+    const inner = withCst(new ErrorValue(''), node);
+    inner.__diagnostics.push(
+      createDiagnostic(
+        node,
+        `Keyword argument '${name}' requires a value`,
+        DiagnosticSeverity.Error,
+        'keyword-argument-missing-value'
+      )
+    );
+    return withCst(new KeywordArgument(name, inner), node);
+  }
+}
+
 export function createExpression<T extends Expression>(expr: T): AstNode<T> {
   return createNode(expr);
 }
@@ -834,6 +877,7 @@ const ALL_EXPRESSION_CLASSES = [
   DictLiteral,
   Ellipsis,
   SpreadExpression,
+  KeywordArgument,
 ] as const;
 
 export type ExpressionKind = (typeof ALL_EXPRESSION_CLASSES)[number]['kind'];
@@ -866,6 +910,7 @@ export const KIND_LABELS: ReadonlyMap<ExpressionKind, string> = new Map([
   [DictLiteral.kind, 'a dictionary'],
   [Ellipsis.kind, 'an ellipsis (...)'],
   [SpreadExpression.kind, 'a spread expression'],
+  [KeywordArgument.kind, 'a keyword argument'],
 ]);
 
 const EXPRESSION_KIND_STRINGS: ReadonlySet<string> = EXPRESSION_KINDS;
@@ -918,4 +963,6 @@ export const expressionParsers = {
     DictLiteral.parse(node, parseExpr),
   spread_expression: (node: SyntaxNode, parseExpr: ParseExprFn) =>
     SpreadExpression.parse(node, parseExpr),
+  keyword_argument: (node: SyntaxNode, parseExpr: ParseExprFn) =>
+    KeywordArgument.parse(node, parseExpr),
 } satisfies Record<string, ExpressionParser>;

@@ -43,6 +43,7 @@ import {
   isStatementStart,
   parseProcedure,
   parseSetStatement,
+  parseSayStatement,
   parseTransitionStatement,
   parseCollectStatement,
   parseWithStatement,
@@ -209,6 +210,8 @@ export function parseMappingItem(
         return parseRunStatement(ctx, c => parseTemplate(c));
       case 'set':
         return parseSetStatement(ctx);
+      case 'say':
+        return parseSayStatement(ctx);
       case 'transition':
         return parseTransitionStatement(ctx);
       case 'ask': {
@@ -593,14 +596,18 @@ function parseColinearAndBlock(
     ctx.peekAt(1).kind === TokenKind.ID &&
     ctx.peekAt(1).text === 'to'
   ) {
-    ctx.consumeKind(TokenKind.INDENT);
+    ctx.consume(); // INDENT
     const withToList = tryParseWithToStatementList(ctx);
     if (withToList) {
       colinear.value.appendChild(withToList, 'with_to_statement_list');
       node.endOffset = colinear.value.endOffset;
       node.endPosition = colinear.value.endPosition;
     }
-    ctx.consumeKind(TokenKind.DEDENT);
+    // Drain any leftover tokens (including deeper-nested indented blocks on
+    // malformed input) before the DEDENT so we never assume the next token is
+    // a DEDENT — matches parseIndentedBlockValue()'s recovery idiom.
+    recoverToBlockEnd(ctx, node);
+    if (ctx.peekKind() === TokenKind.DEDENT) ctx.consume();
   } else if (ctx.peekKind() === TokenKind.INDENT) {
     parseIndentedBlockValue(ctx, node, parseSequence);
   }

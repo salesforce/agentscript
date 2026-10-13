@@ -633,4 +633,32 @@ topic billing:
     expect(withDefault).toContain('Hello');
     expect(withTab2).toContain('Hello');
   });
+
+  // The `end_session` / `escalate` terminal statements are keyword-only, so a
+  // regression that dropped them on emit would still be *idempotent* (both
+  // passes stably omit the keyword). Assert the keyword actually survives the
+  // round-trip so a silent drop is caught.
+  test('round-trips the bare `end_session` statement', () => {
+    const source = `topic done:
+    description: "Ends the session"
+    after_reasoning:
+        if @variables.finished:
+            end_session`;
+    const emitted = parse(source).emit();
+    expect(emitted).toContain('end_session');
+    // Idempotent
+    expect(parse(emitted).emit()).toBe(emitted);
+  });
+
+  test('round-trips the bare `escalate` statement', () => {
+    const source = `topic help:
+    description: "Escalates to a human"
+    after_reasoning:
+        if @variables.stuck:
+            escalate`;
+    const emitted = parse(source).emit();
+    expect(emitted).toContain('escalate');
+    // Idempotent
+    expect(parse(emitted).emit()).toBe(emitted);
+  });
 });

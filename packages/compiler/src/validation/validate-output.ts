@@ -50,6 +50,11 @@ export function validateOutput(
     // avoid duplicate diagnostics.
     if (isLocaleField(path)) continue;
 
+    // starter_prompts value constraints (max-20 entries, 1-50 chars) are
+    // reported by the dialect lint pass with friendly wording — skip the
+    // generic Zod restatement here to avoid duplicate diagnostics.
+    if (isRecommendedPromptsField(path)) continue;
+
     const location = resolveLocation(output, path, ctx);
     const found = resolveInputValue(output, path);
 
@@ -62,6 +67,12 @@ const LOCALE_FIELDS = new Set(['default_locale', 'additional_locales']);
 function isLocaleField(path: (string | number)[]): boolean {
   return path.some(
     segment => typeof segment === 'string' && LOCALE_FIELDS.has(segment)
+  );
+}
+
+function isRecommendedPromptsField(path: (string | number)[]): boolean {
+  return path.some(
+    segment => typeof segment === 'string' && segment === 'starter_prompts'
   );
 }
 

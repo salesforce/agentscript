@@ -13,11 +13,14 @@
  * - lower(s)/upper(s): string (one arg).
  * - from_json(s): string (one arg).
  * - to_json(obj): any type — no positively-wrong shape, so unchecked.
+ * - concat(parts, sep=""): each part joins into a string; the sep keyword must
+ *   be a string.
  *
- * Lives at the dialect layer because type inference needs the typeMap. Warns
- * only when a type is positively known-wrong; null (dynamic) is skipped.
+ * Lives at the dialect layer because type inference needs the typeMap. Reports
+ * only when a type is positively known-wrong; null (dynamic) is skipped, except
+ * for concat parts.
  *
- * Diagnostic: function-argument-type (Warning)
+ * Diagnostic: function-argument-type (Warning or Error)
  */
 
 import type { AstRoot, LintPass, AstNodeLike } from '@agentscript/language';
@@ -33,6 +36,10 @@ import {
   resolveGlobalMemberType,
   CallExpression,
   Identifier,
+  NoneLiteral,
+  KeywordArgument,
+  ListLiteral,
+  DictLiteral,
   type Expression,
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
@@ -59,10 +66,40 @@ function isJsonPathTarget(type: string): boolean {
   return type === 'object' || type === 'dict' || isListType(type);
 }
 
+/**
+ * Classify a positional `concat` argument:
+ * - `'skip'`         — string or `list[string]`: allowed.
+ * - `'warn-list'`    — bare `list` or list literal: elements may not be strings.
+ * - `'warn-unknown'` — un-inferable (`null`): data-dependent call (json_path,
+ *                      from_json), ternary, unresolved ref.
+ * - `'error'`        — anything else (None, number, boolean, dict/object,
+ *                      `list[number]`, dict literal): can never be a part.
+ *
+ * List/dict literals infer to `null`, so they are matched on the AST node first.
+ */
+function classifyConcatPart(
+  expr: Expression,
+  type: string | null
+): 'skip' | 'warn-list' | 'warn-unknown' | 'error' {
+  if (expr instanceof NoneLiteral) return 'error';
+  if (expr instanceof ListLiteral) return 'warn-list';
+  if (expr instanceof DictLiteral) return 'error';
+  if (type === 'string' || type === 'list[string]') return 'skip';
+  if (type === 'list') return 'warn-list';
+  // Any other statically-known list (e.g. list[number]) has non-string elements.
+  if (isListType(type ?? '')) return 'error';
+  if (type === null) return 'warn-unknown';
+  // Any other statically-known type (number, boolean, dict, object) is not a
+  // string and cannot be joined.
+  return 'error';
+}
+
 /** A single (argument, message) finding produced by a function rule. */
 interface ArgFinding {
   readonly arg: Expression;
   readonly message: string;
+  /** Diagnostic severity for this finding. Defaults to Warning in `run()`. */
+  readonly severity?: DiagnosticSeverity;
 }
 
 /**
@@ -112,6 +149,71 @@ const FUNCTION_VALIDATORS: Readonly<Record<string, FunctionArgValidator>> = {
 
   // to_json(obj): accepts dict/list/primitive/model — no positively-wrong
   // shape to flag, so left unvalidated.
+
+  // concat(parts, sep=""): parts must be string or list[string]; sep must be a
+  // string. Bare list / list literal / un-inferable part warns; any other known
+  // non-string part errors.
+  concat: args => {
+    const findings: ArgFinding[] = [];
+    for (const arg of args) {
+      // sep=...: must be a string. Any known non-string (including a literal
+      // None) is a hard error.
+      if (arg.expr instanceof KeywordArgument) {
+        if (arg.expr.value instanceof NoneLiteral) {
+          findings.push({
+            arg: arg.expr,
+            message: `'concat' sep must be a string, but got None`,
+            severity: DiagnosticSeverity.Error,
+          });
+        } else if (arg.type !== null && arg.type !== 'string') {
+          findings.push({
+            arg: arg.expr,
+            message: `'concat' sep must be a string, but got ${inferredTypeLabel(arg.type)}`,
+            severity: DiagnosticSeverity.Error,
+          });
+        }
+        continue;
+      }
+
+      // Positional part.
+      const kind = classifyConcatPart(arg.expr, arg.type);
+      if (kind === 'skip') continue;
+
+      if (kind === 'warn-list') {
+        const label =
+          arg.expr instanceof ListLiteral
+            ? 'a list'
+            : inferredTypeLabel(arg.type as string);
+        findings.push({
+          arg: arg.expr,
+          message: `'concat' joins a list only when its elements are strings, but got ${label} — this raises an error at runtime if any element is not a string`,
+        });
+        continue;
+      }
+
+      if (kind === 'warn-unknown') {
+        findings.push({
+          arg: arg.expr,
+          message: `'concat' expects a string or list of strings; this argument's type can't be determined and will raise an error at runtime if it is neither`,
+        });
+        continue;
+      }
+
+      // kind === 'error'
+      const label =
+        arg.expr instanceof NoneLiteral
+          ? 'None'
+          : arg.expr instanceof DictLiteral
+            ? 'a dictionary'
+            : inferredTypeLabel(arg.type as string);
+      findings.push({
+        arg: arg.expr,
+        message: `'concat' expects string arguments, but got ${label}`,
+        severity: DiagnosticSeverity.Error,
+      });
+    }
+    return findings;
+  },
 };
 
 function stringArgValidator(name: string): FunctionArgValidator {
@@ -151,7 +253,7 @@ export function functionArgumentTypeCheckRule(): LintPass {
   return {
     id: functionArgumentTypeCheckKey,
     description:
-      'Validates argument types of built-in function calls (json_path, len, max, min, lower, upper, to_json, from_json)',
+      'Validates argument types of built-in function calls (json_path, len, max, min, lower, upper, to_json, from_json, concat)',
     requires: [typeMapKey, schemaContextKey],
 
     run(store: PassStore, root: AstRoot): void {
@@ -192,7 +294,7 @@ export function functionArgumentTypeCheckRule(): LintPass {
             lintDiagnostic(
               cst.range,
               finding.message,
-              DiagnosticSeverity.Warning,
+              finding.severity ?? DiagnosticSeverity.Warning,
               'function-argument-type'
             )
           );

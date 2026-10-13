@@ -166,6 +166,7 @@ export function voiceLanguageValidationRule(): LintPass {
 
 // --- V1/V2 voice property mixing detection ---
 
+// additional_config is shared by both V1 and V2
 const V2_VOICE_PROPERTIES = [
   'inbound',
   'outbound',
@@ -184,7 +185,6 @@ const V1_VOICE_PROPERTIES = [
   'outbound_similarity',
   'outbound_filler_sentences',
   'pronunciation_dict',
-  'additional_configs',
 ] as const;
 
 class VoiceVersionMixingPass implements LintPass {

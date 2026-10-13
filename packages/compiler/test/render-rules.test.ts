@@ -279,3 +279,51 @@ describe('render_rules — malformed clauses emit errors', () => {
     expect(tool.render_rules).toBeUndefined();
   });
 });
+
+describe('render_rules — `with` input bindings under render are a no-op', () => {
+  // `with` bindings are a compile-time no-op: the compiler reads only
+  // `show_and_return:` and drops every `with` clause. A rule carries just
+  // surface_type / response_format_name / end_turn, and binding emits no error.
+
+  it('drops `with` bindings and emits a rule with only the three canonical keys', () => {
+    const source = agentWithReasoningBody(
+      `                when @connection.messaging
+                    render: @response_formats.LWC_Test1
+                        with foo = "hello"
+                        show_and_return: True`
+    );
+    const result = compile(parseSource(source));
+    expect(errors(result)).toEqual([]);
+
+    const tool = getReasoningActionTool(result, 'find_restaurants');
+    const rule = tool.render_rules?.[0];
+    expect(rule).toEqual({
+      surface_type: 'messaging',
+      response_format_name: 'LWC_Test1',
+      end_turn: true,
+    } satisfies RenderRule);
+  });
+
+  it('drops multiple `with` bindings of mixed value shapes without diagnostics', () => {
+    const source = agentWithReasoningBody(
+      `                when @connection.messaging
+                    render: @response_formats.LWC_Test1
+                        with foo = "hi"
+                        with foo = @variables.name
+                        show_and_return: False`
+    );
+    const result = compile(parseSource(source));
+    // Bindings are dropped wholesale — even a duplicate/unknown binding is
+    // invisible to the compiler (that's the linter's job, not a compile error).
+    expect(errors(result)).toEqual([]);
+
+    const tool = getReasoningActionTool(result, 'find_restaurants');
+    expect(tool.render_rules).toEqual([
+      {
+        surface_type: 'messaging',
+        response_format_name: 'LWC_Test1',
+        end_turn: false,
+      } satisfies RenderRule,
+    ]);
+  });
+});

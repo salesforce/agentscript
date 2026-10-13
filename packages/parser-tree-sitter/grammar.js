@@ -181,8 +181,10 @@ export default grammar({
         $.template,
         $.transition_statement,
         $.escalate_statement,
+        $.end_session_statement,
         $.with_statement,
         $.set_statement,
+        $.say_statement,
         $.run_statement,
         $.available_when_statement,
         $.show_and_return_statement
@@ -319,6 +321,8 @@ export default grammar({
 
     escalate_statement: $ => 'escalate',
 
+    end_session_statement: $ => 'end_session',
+
     // Expressions
 
     expression: $ =>
@@ -341,10 +345,18 @@ export default grammar({
         seq(
           field('function', $.expression),
           '(',
-          optional(commaSep1(field('argument', $.expression))),
+          optional(
+            commaSep1(
+              field('argument', choice($.expression, $.keyword_argument))
+            )
+          ),
           ')'
         )
       ),
+
+    // Keyword call argument, e.g. `sep=', '`.
+    keyword_argument: $ =>
+      seq(field('name', $.id), '=', field('value', $.expression)),
 
     // Python-style ternary: a if condition else b (lowest precedence, right-associative)
     ternary_expression: $ =>
@@ -459,6 +471,29 @@ export default grammar({
 
     // Must match ESCAPE_TABLE in @agentscript/language (packages/language/src/core/string-escapes.ts)
     escape_sequence: $ => /\\["'\\nrt0]/,
+
+    // Kept after existing rules so adding `say` does not renumber generated
+    // symbols for the rest of the grammar.
+    say_statement: $ => seq('say', field('value', $.say_string)),
+
+    say_string: $ =>
+      seq(
+        '"',
+        repeat(
+          choice($.say_string_content, $.escape_sequence, $.say_interpolation)
+        ),
+        '"'
+      ),
+
+    // `say` supports reference interpolation, but deliberately not arbitrary
+    // expressions. Semantic reference validation is shared with templates.
+    say_interpolation: $ => seq('{!', field('reference', $.say_reference), '}'),
+
+    say_reference: $ =>
+      seq(field('namespace', $.at_id), '.', field('property', $.id)),
+
+    // A lone `{` is text. `{!` is reserved for say_interpolation above.
+    say_string_content: _ => token(choice(/[^"\\{]+/, '{')),
   },
 });
 

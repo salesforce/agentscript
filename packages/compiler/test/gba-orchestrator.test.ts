@@ -191,4 +191,127 @@ orchestrator main_orchestrator:
     expect(errors).toHaveLength(0);
     expect(agentVersion.initial_node).toBe('main_orchestrator');
   });
+
+  describe('model_config (author-declared model selection)', () => {
+    it('compiles an explicit orchestrator-level model_config to model_configuration.model_ref', () => {
+      const { agentVersion, errors } = compileOrchestrator(`
+system:
+    instructions: "A GBA."
+    messages:
+        welcome: "Hi!"
+        error: "Err."
+config:
+    developer_name: "TestGba"
+    agent_type: "GoalBasedAgent"
+orchestrator agent:
+    model_config:
+        model: "model://gpt-4"
+        params:
+            temperature: 0.7
+    reasoning:
+        instructions: ->
+            | Act.
+`);
+      expect(errors).toHaveLength(0);
+      const orch = agentVersion.nodes.find(n => n.type === 'orchestrator');
+      expect(orch).toBeDefined();
+      expect(orch!.model_configuration).toBeDefined();
+      expect(orch!.model_configuration!.model_ref).toBe('gpt-4');
+      expect(orch!.model_configuration!.configuration).toEqual({
+        temperature: 0.7,
+      });
+    });
+
+    it('inherits the agent-wide model_config default when the orchestrator sets none', () => {
+      const { agentVersion, errors } = compileOrchestrator(`
+system:
+    instructions: "A GBA."
+    messages:
+        welcome: "Hi!"
+        error: "Err."
+config:
+    developer_name: "TestGba"
+    agent_type: "GoalBasedAgent"
+model_config:
+    model: "model://gpt-4"
+    params:
+        temperature: 0.7
+        max_tokens: 2000
+orchestrator agent:
+    reasoning:
+        instructions: ->
+            | Act.
+`);
+      expect(errors).toHaveLength(0);
+      const orch = agentVersion.nodes.find(n => n.type === 'orchestrator');
+      expect(orch).toBeDefined();
+      expect(orch!.model_configuration).toBeDefined();
+      expect(orch!.model_configuration!.model_ref).toBe('gpt-4');
+      expect(orch!.model_configuration!.configuration).toEqual({
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+    });
+
+    it('omits model_configuration entirely when neither orchestrator nor agent-wide model_config is set (no-regression)', () => {
+      const { agentVersion, errors } = compileOrchestrator(`
+system:
+    instructions: "A GBA."
+    messages:
+        welcome: "Hi!"
+        error: "Err."
+config:
+    developer_name: "TestGba"
+    agent_type: "GoalBasedAgent"
+orchestrator agent:
+    reasoning:
+        instructions: ->
+            | Act.
+`);
+      expect(errors).toHaveLength(0);
+      const orch = agentVersion.nodes.find(n => n.type === 'orchestrator');
+      expect(orch).toBeDefined();
+      expect(orch!.model_configuration).toBeUndefined();
+      expect(
+        Object.prototype.hasOwnProperty.call(orch, 'model_configuration')
+      ).toBe(false);
+    });
+
+    it('overrides the agent-wide model_config default with an orchestrator-level model_config', () => {
+      const { agentVersion, errors } = compileOrchestrator(`
+system:
+    instructions: "A GBA."
+    messages:
+        welcome: "Hi!"
+        error: "Err."
+config:
+    developer_name: "TestGba"
+    agent_type: "GoalBasedAgent"
+model_config:
+    model: "model://gpt-4"
+    params:
+        temperature: 0.7
+        max_tokens: 2000
+orchestrator agent:
+    model_config:
+        model: "model://gpt-3.5-turbo"
+        params:
+            temperature: 0.9
+    reasoning:
+        instructions: ->
+            | Act.
+`);
+      expect(errors).toHaveLength(0);
+      const orch = agentVersion.nodes.find(n => n.type === 'orchestrator');
+      expect(orch).toBeDefined();
+      expect(orch!.model_configuration).toBeDefined();
+      // orchestrator-level model_ref wins
+      expect(orch!.model_configuration!.model_ref).toBe('gpt-3.5-turbo');
+      // orchestrator-level temperature wins, max_tokens inherited from global
+      expect(orch!.model_configuration!.configuration).toEqual({
+        temperature: 0.9,
+        max_tokens: 2000,
+      });
+    });
+  });
 });

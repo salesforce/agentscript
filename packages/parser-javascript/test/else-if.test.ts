@@ -81,6 +81,51 @@ describe('else if clauses', () => {
     expect(nodesOfType(rootNode, 'else_clause')).toHaveLength(1);
   });
 
+  it('flags a missing colon on else if with a MISSING `:` node (not a bare ERROR)', () => {
+    // A colon-less `else if` should surface a targeted "Missing :" diagnostic
+    // (MISSING `:` node), not a generic ERROR, so authors know what to fix.
+    const source = [
+      'topic main:',
+      '    instructions: ->',
+      '        if @var.a:',
+      '            run @action.one',
+      '        else if @var.b',
+      '            run @action.two',
+    ].join('\n');
+
+    const { rootNode } = parse(source);
+
+    // The clause is still recognized as an else_if_clause…
+    expect(nodesOfType(rootNode, 'else_if_clause')).toHaveLength(1);
+    // …with the missing colon pinpointed by a MISSING `:` node.
+    const missingColons = [...walk(rootNode)].filter(
+      n => n.isMissing === true && n.type === ':'
+    );
+    expect(missingColons).toHaveLength(1);
+    // No bare, empty ERROR node should be produced for the missing colon.
+    expect(nodesOfType(rootNode, 'ERROR')).toHaveLength(0);
+  });
+
+  it('flags a missing colon on else with a MISSING `:` node (not a bare ERROR)', () => {
+    const source = [
+      'topic main:',
+      '    instructions: ->',
+      '        if @var.a:',
+      '            run @action.one',
+      '        else',
+      '            run @action.default',
+    ].join('\n');
+
+    const { rootNode } = parse(source);
+
+    expect(nodesOfType(rootNode, 'else_clause')).toHaveLength(1);
+    const missingColons = [...walk(rootNode)].filter(
+      n => n.isMissing === true && n.type === ':'
+    );
+    expect(missingColons).toHaveLength(1);
+    expect(nodesOfType(rootNode, 'ERROR')).toHaveLength(0);
+  });
+
   it('rejects the legacy elif keyword as unrecognized syntax', () => {
     // Used to be valid grammar before the rename; should now produce ERROR
     // somewhere in the tree (parsed as orphan / unrecognized statement).

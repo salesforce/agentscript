@@ -211,11 +211,21 @@ class AgentIqValidationPass implements LintPass {
       const workflow = rawWorkflow as AstNodeLike;
       const hasAgent = workflow.agent !== undefined;
       const hasPrompt = workflow.prompt !== undefined;
+      const hasTarget = workflow.target !== undefined;
 
-      if (!hasAgent && !hasPrompt) {
+      // A `target` reference is mutually exclusive with `agent`/`prompt`;
+      // otherwise a workflow must define `agent` and/or `prompt`. Mirrors the
+      // compiler's guard in compile-workflows.ts.
+      if (hasTarget && (hasAgent || hasPrompt)) {
         attachError(
           workflow,
-          "Workflow must define 'agent', 'prompt', or both",
+          "Workflow 'target' cannot be combined with 'agent' or 'prompt'",
+          'workflow-exactly-one-target'
+        );
+      } else if (!hasAgent && !hasPrompt && !hasTarget) {
+        attachError(
+          workflow,
+          "Workflow must define 'agent', 'prompt', or 'target'",
           'workflow-exactly-one-target'
         );
       }

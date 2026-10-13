@@ -14,6 +14,10 @@
  * capabilities) instead of special-casing each namespace here.
  *
  * Store key: 'reasoning-actions'
+ *
+ * Diagnostic codes:
+ *   missing-action-reference (Error)
+ *   when-non-action-binding (Error)
  */
 
 import type { AstNodeLike, AstRoot, NamedMap } from '@agentscript/language';
@@ -31,7 +35,11 @@ import type { LintPass, PassStore } from '@agentscript/language';
 import type { CstMeta, Range } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { typeMapKey } from './type-map.js';
-import type { ActionSignature, ConnectedAgentInfo } from './type-map.js';
+import type {
+  ActionSignature,
+  ConnectedAgentInfo,
+  ParamInfo,
+} from './type-map.js';
 
 export interface ReasoningActionEntry {
   topicName: string;
@@ -73,6 +81,42 @@ export interface SetVariablesEntry {
 export const setVariablesEntriesKey = storeKey<SetVariablesEntry[]>(
   'set-variables-entries'
 );
+
+/**
+ * Flags `when` blocks used on a reasoning action not bound to `@actions.<name>`.
+ *
+ * `when` attaches to a specific action invocation, so it's only valid on an
+ * `@actions.<name>` binding — not `@utils.X`, `@connected_subagent.X`, etc.
+ * `render:` / `show_and_return:` only nest inside `when`, so flagging the `when`
+ * covers them too.
+ */
+function reportWhenOnNonActionBinding(
+  statements: Array<Record<string, unknown>> | undefined
+): void {
+  if (!statements) return;
+  for (const stmt of statements) {
+    if ((stmt as { __kind?: string }).__kind !== 'WhenStatement') continue;
+    // Squiggle the header line only (`when` keyword → end of subject), not the
+    // whole multi-line block, so it marks the `when` clause and not its body.
+    const stmtRange = (stmt.__cst as CstMeta | undefined)?.range;
+    const subjectRange = (stmt as { subject?: { __cst?: CstMeta } }).subject
+      ?.__cst?.range;
+    const range =
+      stmtRange && subjectRange
+        ? { start: stmtRange.start, end: subjectRange.end }
+        : stmtRange;
+    if (!range) continue;
+    attachDiagnostic(
+      stmt,
+      lintDiagnostic(
+        range,
+        "'when' blocks are only supported on reasoning actions bound to '@actions.<name>'",
+        DiagnosticSeverity.Error,
+        'when-non-action-binding'
+      )
+    );
+  }
+}
 
 class ReasoningActionsAnalyzer implements LintPass {
   readonly id = reasoningActionsKey;
@@ -159,6 +203,8 @@ class ReasoningActionsAnalyzer implements LintPass {
             continue;
           }
 
+          reportWhenOnNonActionBinding(statements);
+
           // Try @connected_subagent.X
           const decomposed = decomposeAtMemberExpression(ra.value);
           if (decomposed && decomposed.namespace === 'connected_subagent') {
@@ -224,11 +270,13 @@ export function reasoningActionsAnalyzer(): LintPass {
  * TODO: When connected agents support outputs, include them here.
  */
 function connectedAgentSignature(info: ConnectedAgentInfo): ActionSignature {
-  const inputs = new Map<string, { type: string; hasDefault: boolean }>();
+  const inputs = new Map<string, ParamInfo>();
   for (const [name, inputInfo] of info.inputs) {
+    // Connected agent inputs without a default are always required.
     inputs.set(name, {
       type: inputInfo.type,
       hasDefault: inputInfo.hasDefault,
+      isRequired: true,
     });
   }
   return { inputs, outputs: new Map() };

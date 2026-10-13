@@ -18,6 +18,8 @@ export const SCHEMA_VERSION = '2.0' as const;
 export const NEXT_TOPIC_VARIABLE = 'AgentScriptInternal_next_topic';
 export const AGENT_INSTRUCTIONS_VARIABLE =
   'AgentScriptInternal_agent_instructions';
+export const SYSTEM_INSTRUCTIONS_VARIABLE =
+  'AgentScriptInternal_system_instructions';
 export const RUNTIME_CONDITION_VARIABLE = 'AgentScriptInternal_condition';
 
 /**
@@ -50,6 +52,7 @@ export const TRANSITION_TARGET_NAMESPACES = [
   'subagent',
   'start_agent',
   'connected_subagent',
+  'workflow',
 ];
 
 // ---------------------------------------------------------------------------
@@ -108,6 +111,16 @@ export const INSTRUCTION_STATE_VARIABLE: InternalStateVariable = {
   developer_name: AGENT_INSTRUCTIONS_VARIABLE,
   label: 'Agent Instructions',
   description: 'The agent instructions',
+  data_type: 'string',
+  is_list: false,
+  default: "''",
+  visibility: 'Internal',
+};
+
+export const SYSTEM_INSTRUCTION_STATE_VARIABLE: InternalStateVariable = {
+  developer_name: SYSTEM_INSTRUCTIONS_VARIABLE,
+  label: 'System Instructions',
+  description: 'Dynamic system instructions for the current turn',
   data_type: 'string',
   is_list: false,
   default: "''",

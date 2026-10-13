@@ -30,7 +30,7 @@ import {
 import { DiagnosticSeverity } from '@agentscript/types';
 import { typeMapKey } from '@agentscript/agentscript-dialect';
 
-const ALLOWED_SCHEMES = ['agent', 'agentforce'];
+export const ALLOWED_SCHEMES = ['agent', 'agentforce'];
 
 // Validation pattern for target names
 function validateTargetName(targetName: string): string | null {

@@ -22,7 +22,7 @@ import type {
 import { getCoreExtension } from './coreExtensionUtils';
 import { setTelemetryService, getTelemetryService } from './telemetry';
 
-const DIALECT_PATTERN = /^#\s*@dialect:/;
+const DIALECT_PATTERN = /^#\s*@dialect:(?!\s*agentfabric)/i;
 const EXCLUDED_PATH_PATTERN = /[/\\]genAiPlannerBundles[/\\]/;
 
 function isExcludedPath(doc: vscode.TextDocument): boolean {

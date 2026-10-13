@@ -26,6 +26,7 @@ import {
   extractSourcedString,
   extractSourcedDescription,
   extractSourcedBoolean,
+  extractSourcedNumber,
   getCstRange,
   getExpressionName,
   isListType,
@@ -75,20 +76,29 @@ function compileActionDefinition(
     );
   }
 
-  const requireUserConfirmation =
-    extractSourcedBoolean(def['require_user_confirmation']) ?? false;
+  // Tristate (W-23309645): preserve the author's intent instead of coercing an
+  // unset value to `false`. When the author omits `require_user_confirmation`,
+  // we leave it off the compiled Agent JSON entirely so downstream can treat
+  // "unset" as distinct from an explicit `false` opt-out. We omit the field
+  // rather than emit an explicit `null`: consumers that predate the tristate
+  // schema reject a null value and some stores disallow nulls, whereas an
+  // absent field is read as the safe default by both old and new consumers.
+  const requireUserConfirmation = extractSourcedBoolean(
+    def['require_user_confirmation']
+  );
   const includeInProgressIndicator =
     extractSourcedBoolean(def['include_in_progress_indicator']) ?? false;
   const progressIndicatorMessage =
     extractSourcedString(def['progress_indicator_message']) ?? undefined;
-
   // Parse target URI (e.g. "flow://check_business_hours") to derive invocation type/name
   const targetUri = extractStringValue(def['target']);
   let invocationTargetType = 'externalService';
   let invocationTargetName = name;
+  let targetScheme: string | undefined;
 
   if (targetUri) {
     const { scheme, path } = parseUri(targetUri);
+    targetScheme = scheme || undefined;
 
     // For placeholder actions, use "stub" as the invocation target type
     // and keep the developer name as the target name
@@ -108,6 +118,33 @@ function compileActionDefinition(
       if (scheme) invocationTargetType = toAgentJsonActionTargetType(scheme);
       if (path) invocationTargetName = path;
     }
+  }
+
+  // async_mode (@W-23852778): only valid for standard invocable actions. This
+  // constraint is primarily enforced by the agentforce dialect's
+  // actionTargetSchemeRule lint pass (diagnostic invalid-async-action-target),
+  // but `compile()` is a public API that callers can invoke directly without
+  // ever running that linter (e.g. bypassing Agentforce-specific validation
+  // entirely). Re-check the same constraint here so an invalid combination
+  // can never reach compiled AgentJSON, regardless of caller. Mirrors the
+  // lint rule's wording for consistency; message/diagnostic code intentionally
+  // match dialect/agentforce/src/lint/passes/action-target.ts.
+  let asyncMode = extractSourcedBoolean(def['async_mode']);
+  if (
+    asyncMode?.value === true &&
+    (targetScheme ?? '').toLowerCase() !== 'standardinvocableaction'
+  ) {
+    ctx.error(
+      `Action '${name}' sets 'async_mode: True' but its target uses the ` +
+        `"${targetScheme ?? 'unknown'}://" scheme. 'async_mode' is only supported for standard ` +
+        `invocable actions (target: "standardInvocableAction://..."); set ` +
+        `'async_mode: False' or change the target scheme.`,
+      getCstRange(def['async_mode']),
+      'invalid-async-action-target'
+    );
+    // Do not forward an invalid async_mode: true into AgentJSON — the
+    // downstream agent-dsl hard validator would reject it anyway.
+    asyncMode = undefined;
   }
 
   const inputDecls = def['inputs'] as
@@ -146,7 +183,6 @@ function compileActionDefinition(
     developer_name: name,
     label,
     description,
-    require_user_confirmation: requireUserConfirmation,
     include_in_progress_indicator: includeInProgressIndicator,
     invocation_target_type: invocationTargetType,
     invocation_target_name: invocationTargetName,
@@ -155,6 +191,10 @@ function compileActionDefinition(
   };
 
   // Add optional fields only when they have values
+  if (requireUserConfirmation !== undefined) {
+    (actionDef2 as Record<string, unknown>).require_user_confirmation =
+      requireUserConfirmation;
+  }
   if (source !== undefined) {
     (actionDef2 as Record<string, unknown>).source = source;
   }
@@ -162,8 +202,34 @@ function compileActionDefinition(
     (actionDef2 as Record<string, unknown>).progress_indicator_message =
       progressIndicatorMessage;
   }
+  if (asyncMode !== undefined) {
+    (actionDef2 as Record<string, unknown>).async_mode = asyncMode;
+  }
+
+  const cache = def['cache'] as Record<string, unknown> | undefined;
+  if (cache) {
+    const expiration = extractSourcedNumber(cache['expiration']);
+    const ttl = expiration
+      ? cacheExpirationToMilliseconds(expiration.value)
+      : NaN;
+    if (
+      expiration &&
+      expiration.value >= 0.001 &&
+      Number.isSafeInteger(ttl) &&
+      ttl > 0
+    ) {
+      actionDef2.cache = { ttl: sourced(ttl, expiration.range) };
+    }
+  }
 
   return actionDef2 as ActionDefinition;
+}
+
+function cacheExpirationToMilliseconds(seconds: number): number {
+  // Shift decimal units before rounding: multiplication can turn a half
+  // millisecond (0.5005 seconds) into 500.49999999999994 milliseconds.
+  const [significand, exponent = '0'] = seconds.toString().split('e');
+  return Math.round(Number(`${significand}e${Number(exponent) + 3}`));
 }
 
 function compileInputParameters(

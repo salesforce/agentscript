@@ -22,6 +22,7 @@ import {
 import type { Sourceable } from '../sourced.js';
 import { TRANSITION_TARGET_NAMESPACES } from '../constants.js';
 import { compileExpression } from '../expressions/compile-expression.js';
+import { compileExecutionMode } from './compile-execution-mode.js';
 
 /**
  * Compile a supervision reasoning action (e.g. @topic.X or @subagent.X).
@@ -93,6 +94,11 @@ export function compileSupervision(
     name: alias ?? name,
     description,
   };
+
+  const nonBlockingBehavior = compileExecutionMode(actionDef.execution_mode);
+  if (nonBlockingBehavior) {
+    tool.non_blocking_behavior = nonBlockingBehavior;
+  }
 
   if (enabledCondition) {
     tool.enabled = enabledCondition;

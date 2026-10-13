@@ -14,6 +14,8 @@ import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
 import { END_SESSION_TARGET } from '../src/constants.js';
+import { isHandOffAction } from '../src/types.js';
+import { DiagnosticSeverity } from '@agentscript/types';
 
 describe('end_session', () => {
   it('should compile end_session to a tool targeting __end_session_action__', () => {
@@ -152,5 +154,100 @@ start_agent main:
     const handoffs = node.after_all_tool_calls ?? [];
     expect(handoffs.length).toBe(1);
     expect(handoffs[0].target).toBe('__human__');
+  });
+});
+
+describe('deterministic end_session directive', () => {
+  it('compiles bare `end_session` to an end-session action + end_turn_first handoff', () => {
+    const source = `
+config:
+    agent_name: "TestAgent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "tester@example.com"
+
+system:
+    instructions: "System"
+
+start_agent main:
+    description: "Handle request"
+    reasoning:
+        instructions: ->
+            | Handle request
+    after_reasoning: ->
+        end_session
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toHaveLength(0);
+
+    const node = output.agent_version.nodes.find(
+      (n: { developer_name: string }) => n.developer_name === 'main'
+    )!;
+
+    const after = (node.after_reasoning ?? []) as {
+      type: string;
+      target: string;
+      end_turn_first?: boolean;
+      state_updates?: unknown;
+    }[];
+
+    // 1. The end-session action: shaped like a state update but carrying only
+    //    the synthetic target. `end_turn_first` is NOT a field on `action`.
+    const action = after.find(a => a.target === END_SESSION_TARGET)!;
+    expect(action).toBeDefined();
+    expect(action.type).toBe('action');
+    expect(action.end_turn_first).toBeUndefined();
+    expect(action.state_updates).toBeUndefined();
+
+    // 2. A handoff carrying end_turn_first, targeting the current node.
+    const handoff = after.find(a => isHandOffAction(a) && a.end_turn_first)!;
+    expect(handoff).toBeDefined();
+    expect(handoff.end_turn_first).toBe(true);
+    expect(handoff.target).toBe('main');
+
+    // The action precedes the handoff.
+    expect(after.indexOf(action)).toBeLessThan(after.indexOf(handoff));
+  });
+
+  it('gates both the action and the handoff on a wrapping `if` condition', () => {
+    const source = `
+config:
+    agent_name: "TestAgent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "tester@example.com"
+
+system:
+    instructions: "System"
+
+variables:
+    done: mutable boolean = False
+
+start_agent main:
+    description: "Handle request"
+    reasoning:
+        instructions: ->
+            | Handle request
+    after_reasoning:
+        if @variables.done:
+            end_session
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      (n: { developer_name: string }) => n.developer_name === 'main'
+    )!;
+
+    const after = (node.after_reasoning ?? []) as {
+      type: string;
+      target: string;
+      end_turn_first?: boolean;
+      enabled?: string;
+    }[];
+
+    const action = after.find(a => a.target === END_SESSION_TARGET)!;
+    const handoff = after.find(a => isHandOffAction(a) && a.end_turn_first)!;
+    // The `if` condition is AND-ed into the enabled guard on both.
+    expect(action.enabled).toContain('AgentScriptInternal_condition_1');
+    expect(handoff.enabled).toContain('AgentScriptInternal_condition_1');
   });
 });

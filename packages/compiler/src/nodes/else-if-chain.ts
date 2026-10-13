@@ -41,6 +41,8 @@ export interface ElseIfChainWalk {
   branches: ChainBranch[];
   /** Statements in the trailing `else:` body, or null if no else clause. */
   elseBody: Statement[] | null;
+  /** Highest condition-slot index this chain allocated. */
+  maxSlotIndex: number;
 }
 
 /** True when this IfStatement starts an `else if` chain. */
@@ -53,12 +55,10 @@ export function isElseIfChainHead(stmt: IfStatement): boolean {
 }
 
 /**
- * Walk an `else if` chain starting at `head`, allocating a slot variable
- * for each branch. Slot indices start at 1 and increment per branch within
- * this chain — multiple chains in the same node reuse the same slots, which
- * is safe because chains execute sequentially. Updates
- * `ctx.maxChainConditionSlot` so the agent_version assembler can declare
- * exactly the slots used.
+ * Walk an `else if` chain starting at `head`, allocating a slot variable per
+ * branch from `ctx.nodeConditionSlotBase + 1`. Updates
+ * `ctx.maxChainConditionSlot` so the agent_version assembler declares exactly
+ * the slots used.
  *
  * The `expressionContext` string is forwarded to `compileExpression` so
  * diagnostics correctly attribute parse errors to the calling code path
@@ -72,13 +72,15 @@ export function walkElseIfChain(
   const branches: ChainBranch[] = [];
   let elseBody: Statement[] | null = null;
   let cursor: IfStatement | null = head;
-  let slotCounter = 1;
+  let slotCounter = ctx.nodeConditionSlotBase + 1;
+  let maxSlotIndex = ctx.nodeConditionSlotBase;
 
   while (cursor) {
     const condition = compileExpression(cursor.condition, ctx, {
       expressionContext,
     });
     const slotIndex = slotCounter++;
+    maxSlotIndex = slotIndex;
     const slotName = chainConditionVariableName(slotIndex);
     ctx.maxChainConditionSlot = Math.max(
       ctx.maxChainConditionSlot ?? 0,
@@ -100,7 +102,28 @@ export function walkElseIfChain(
     }
   }
 
-  return { branches, elseBody };
+  return { branches, elseBody, maxSlotIndex };
+}
+
+/**
+ * Reserve a conditional's slots against sibling reuse when it captured a file
+ * reference: if `ctx.fileCapture.count` grew past `fileRefCountBefore` (sampled
+ * before the conditional compiled), advance the per-node base past
+ * `maxSlotIndex`. File-less conditionals leave the base untouched.
+ *
+ * TODO(setu-shah): Clean this up and fix conditionals generally
+ */
+export function advanceConditionSlotBaseIfFileGated(
+  ctx: CompilerContext,
+  fileRefCountBefore: number,
+  maxSlotIndex: number
+): void {
+  if (ctx.fileCapture.count > fileRefCountBefore) {
+    ctx.nodeConditionSlotBase = Math.max(
+      ctx.nodeConditionSlotBase,
+      maxSlotIndex
+    );
+  }
 }
 
 /**

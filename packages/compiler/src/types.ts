@@ -20,7 +20,6 @@
 
 import { z } from 'zod';
 import * as schema from './generated/agent-dsl.js';
-import { recommendedPromptsConfiguration as _recommendedPromptsConfigurationBase } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
 // Re-export zod schemas (for runtime validation)
@@ -35,6 +34,7 @@ export {
   memoryConfiguration as memoryConfigurationSchema,
   userProfileConfiguration as userProfileConfigurationSchema,
   pastConversationsConfiguration as pastConversationsConfigurationSchema,
+  searchConfiguration as searchConfigurationSchema,
   stateVariable as stateVariableSchema,
   subAgentNode as subAgentNodeSchema,
   routerNode as routerNodeSchema,
@@ -51,6 +51,7 @@ export {
   byoClientConfig as byoClientConfigSchema,
   responseFormat as responseFormatSchema,
   responseAction as responseActionSchema,
+  fileReference as fileReferenceSchema,
   skill as skillSchema,
   bundle as bundleSchema,
   nodeBundleReference as nodeBundleReferenceSchema,
@@ -59,6 +60,8 @@ export {
   salesforceConfiguration as salesforceConfigurationSchema,
   dataCloudConfiguration as dataCloudConfigurationSchema,
   orchestratorNode as orchestratorNodeSchema,
+  workflowNode as workflowNodeSchema,
+  workflowStep as workflowStepSchema,
 } from './generated/agent-dsl.js';
 
 // ---------------------------------------------------------------------------
@@ -83,6 +86,7 @@ export type UserProfileConfiguration = z.input<
 export type PastConversationsConfiguration = z.input<
   typeof schema.pastConversationsConfiguration
 >;
+export type SearchConfiguration = z.input<typeof schema.searchConfiguration>;
 export type SalesforceConfiguration = z.input<
   typeof schema.salesforceConfiguration
 >;
@@ -92,24 +96,9 @@ export type DataCloudConfiguration = z.input<
 
 // -- Recommended Prompts Configuration --
 //
-// NOTE: max-entries (20) and per-string-length (1-50) limits are NOT
-// duplicated here — they already live on the OpenAPI-generated
-// `recommendedPromptsConfiguration` schema (see ./generated/agent-dsl.ts).
-// `safeParse()` against that base schema enforces them; friendly messages
-// for those specific Zod issues are derived at the call site
-// (compile-agent-version.ts) instead of being hardcoded a second time here.
-//
-// Only refinements for rules that are NOT expressible in the OpenAPI spec
-// belong here.
-export const recommendedPromptsConfigurationSchema =
-  _recommendedPromptsConfigurationBase
-    .refine(data => !data.starter_prompts || data.welcome_screen, {
-      message: 'starter_prompts can only be set when welcome_screen is True',
-    })
-    .refine(data => !data.starter_prompts || data.starter_prompts.length >= 3, {
-      message: 'starter_prompts must contain at least 3 entries',
-    });
-
+// Value validation (welcome_screen gating, min-3 / max-20 entries, per-string
+// length) lives in the dialect lint pass `recommended-prompts-validation.ts`
+// so authors get live editor feedback.
 export type RecommendedPromptsConfiguration = z.input<
   typeof schema.recommendedPromptsConfiguration
 >;
@@ -142,18 +131,59 @@ export type VoiceOutboundModel = z.input<typeof schema.voiceOutboundModel>;
 export type StateVariable = z.input<typeof schema.stateVariable>;
 
 // -- Nodes --
-export type SubAgentNode = z.input<typeof schema.subAgentNode>;
-export type RouterNode = z.input<typeof schema.routerNode>;
-export type RelatedAgentNode = z.input<typeof schema.relatedAgentNode>;
-export type BYONNode = z.input<typeof schema.byonNode>;
+// Every generated node schema shares one optional `type` enum, so `z.input`
+// gives each variant `type?: 'byon' | 'orchestrator' | ...` and `AgentNode`
+// can't narrow on it. The compiler always emits the matching literal — narrow
+// each variant here so `node.type === 'router'` narrows natively.
+export type SubAgentNode = z.input<typeof schema.subAgentNode> & {
+  type: 'subagent';
+};
+export type RouterNode = z.input<typeof schema.routerNode> & {
+  type: 'router';
+};
+export type RelatedAgentNode = z.input<typeof schema.relatedAgentNode> & {
+  type: 'related_agent';
+};
+export type BYONNode = z.input<typeof schema.byonNode> & { type: 'byon' };
 export type BYOClientConfig = z.input<typeof schema.byoClientConfig>;
-export type OrchestratorNode = z.input<typeof schema.orchestratorNode>;
+export type OrchestratorNode = z.input<typeof schema.orchestratorNode> & {
+  type: 'orchestrator';
+};
+export type WorkflowNode = z.input<typeof schema.workflowNode> & {
+  type: 'workflow';
+};
+export type WorkflowStep = z.input<typeof schema.workflowStep>;
 export type AgentNode =
   | SubAgentNode
   | RouterNode
   | RelatedAgentNode
   | BYONNode
-  | OrchestratorNode;
+  | OrchestratorNode
+  | WorkflowNode;
+
+// -- Workflow directives --
+// Like Action/HandOffAction below, `type` is optional upstream; the compiler
+// always emits it, so narrow each branch to its literal discriminant.
+export type WorkflowAction = z.input<typeof schema.workflowAction> & {
+  type: 'action';
+};
+export type WorkflowHandoff = z.input<typeof schema.workflowHandoff> & {
+  type: 'handoff';
+};
+export type SayAction = z.input<typeof schema.sayAction> & { type: 'say' };
+export type AskForAction = z.input<typeof schema.askForAction> & {
+  type: 'ask_for';
+};
+export type WorkflowDirective =
+  | WorkflowAction
+  | WorkflowHandoff
+  | SayAction
+  | AskForAction;
+
+// -- File references (MANAGED file-upload) --
+// One compiler-emitted `@system_variables.uploaded_files` descriptor: exactly
+// one selector (all/index/slice) plus an optional compiled `enabled` condition.
+export type FileReference = z.input<typeof schema.fileReference>;
 
 // -- Actions & Tools --
 // `type` is `.optional()` in the upstream schema (no `.default()` since the
@@ -161,10 +191,21 @@ export type AgentNode =
 // `type?: 'action' | 'handoff' | undefined`. The downstream union types
 // (`actionOrHandoff`, `actionOrSupervision`) require the literal-narrowed
 // branch, and the compiler always emits an explicit `type` — narrow it here.
-export type Action = z.input<typeof schema.action> & { type: 'action' };
+export type Action = z.input<typeof schema.action> & {
+  type: 'action';
+};
 export type HandOffAction = z.input<typeof schema.handOffAction> & {
   type: 'handoff';
 };
+
+// Guards for the lifecycle `(Action | HandOffAction)[]` lists; they narrow
+// because of the literal `type` intersections above.
+export function isAction(a: Action | HandOffAction): a is Action {
+  return a.type === 'action';
+}
+export function isHandOffAction(a: Action | HandOffAction): a is HandOffAction {
+  return a.type === 'handoff';
+}
 export type Tool = z.input<typeof schema.tool> & {
   type: 'action';
 };

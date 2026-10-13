@@ -30,10 +30,12 @@ import { actionTypeCheckRule } from './action-type-check.js';
 import { availableWhenTypeCheckRule } from './available-when-type-check.js';
 import { functionArgumentTypeCheckRule } from './function-argument-type-check.js';
 import { variableDefaultTypeCheckRule } from './variable-default-type-check.js';
+import { askForRule } from './ask-for.js';
 import {
   setVariablesIoRule,
   collectSetVariablesTargets,
 } from './set-variables-io.js';
+import { setVariablesChainingRule } from './set-variables-chaining.js';
 import { instructionTemplateSyntaxPass } from './instruction-template-syntax.js';
 import {
   renderRulesRule,
@@ -43,8 +45,14 @@ import {
 } from './render-rules.js';
 import { agentIqValidationPass } from './agentiq-validation.js';
 import { gbaOnlyBlocksPass } from './gba-only-blocks.js';
+import { systemInstructionsPass } from './system-instructions.js';
+import { workflowValidationPass } from '../../workflow/lint/index.js';
 
-export { typeMapAnalyzer, typeMapKey } from './type-map.js';
+export {
+  typeMapAnalyzer,
+  typeMapKey,
+  extractActionSignature,
+} from './type-map.js';
 export type {
   TypeMap,
   VariableTypeInfo,
@@ -70,7 +78,8 @@ export {
   connectionFormatsAnalyzer,
   connectionFormatsIndexKey,
 } from './render-rules.js';
-export { actionIoRule } from './action-io.js';
+export { actionIoRule, analyzeActionIo, isRequiredInput } from './action-io.js';
+export type { ActionInvocation, ActionIoIssue } from './action-io.js';
 export { actionTypeCheckRule } from './action-type-check.js';
 export { availableWhenTypeCheckRule } from './available-when-type-check.js';
 export {
@@ -78,14 +87,20 @@ export {
   functionArgumentTypeCheckKey,
 } from './function-argument-type-check.js';
 export { variableDefaultTypeCheckRule } from './variable-default-type-check.js';
+export { askForRule } from './ask-for.js';
 export { setVariablesIoRule } from './set-variables-io.js';
+export { setVariablesChainingRule } from './set-variables-chaining.js';
 export {
   renderRulesRule,
   renderRuleScopePass,
   renderTargetExemptionPass,
+  parseFormatRef,
 } from './render-rules.js';
+export type { ParsedFormatRef } from './render-rules.js';
 export { instructionTemplateSyntaxPass } from './instruction-template-syntax.js';
 export { gbaOnlyBlocksPass } from './gba-only-blocks.js';
+export { systemInstructionsPass } from './system-instructions.js';
+export { workflowValidationPass } from '../../workflow/lint/index.js';
 
 /** All AgentScript lint passes in engine execution order. */
 export function defaultRules(): LintPass[] {
@@ -94,6 +109,7 @@ export function defaultRules(): LintPass[] {
     symbolTableAnalyzer(),
     duplicateKeyPass(),
     requiredFieldPass(),
+    workflowValidationPass(),
     singularCollectionPass(),
     constraintValidationPass(),
     positionIndexPass(),
@@ -110,6 +126,7 @@ export function defaultRules(): LintPass[] {
     identifierValidationPass(),
     agentIqValidationPass(),
     gbaOnlyBlocksPass(),
+    systemInstructionsPass(),
     // AgentScript analyzers
     typeMapAnalyzer(),
     reasoningActionsAnalyzer(),
@@ -122,10 +139,12 @@ export function defaultRules(): LintPass[] {
     undefinedReferencePass(),
     actionIoRule(),
     variableDefaultTypeCheckRule(),
+    askForRule(),
     actionTypeCheckRule(),
     availableWhenTypeCheckRule(),
     functionArgumentTypeCheckRule(),
     setVariablesIoRule(),
+    setVariablesChainingRule(),
     renderRulesRule(),
     renderRuleScopePass(),
     instructionTemplateSyntaxPass(),

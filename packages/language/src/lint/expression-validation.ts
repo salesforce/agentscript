@@ -13,9 +13,12 @@ import {
   AtIdentifier,
   BinaryExpression,
   CallExpression,
+  type Expression,
   Identifier,
+  KeywordArgument,
   MemberExpression,
   SliceExpression,
+  SpreadExpression,
   StringLiteral,
   SubscriptExpression,
 } from '../core/expressions.js';
@@ -215,6 +218,15 @@ class ExpressionValidationPass implements LintPass {
     const func = expr.func;
     if (!func || typeof func !== 'object' || !('__kind' in func)) return;
 
+    const call = expr as unknown as CallExpression;
+    const functionName =
+      func instanceof Identifier
+        ? func.name
+        : func instanceof MemberExpression
+          ? func.property
+          : 'function call';
+    this.validateCallArgumentStructure(functionName, call.args ?? []);
+
     if (func instanceof MemberExpression) {
       const namespaceExpression = func.object;
       if (namespaceExpression instanceof Identifier) {
@@ -327,6 +339,30 @@ class ExpressionValidationPass implements LintPass {
     const call = expr as unknown as CallExpression;
     const args = call.args ?? [];
 
+    if (sig.allowedKeywords !== undefined) {
+      const allowedKeywords = new Set(sig.allowedKeywords);
+      for (const arg of args) {
+        if (!(arg instanceof KeywordArgument)) continue;
+        if (allowedKeywords.has(arg.name)) continue;
+        const argCst = arg.__cst;
+        if (!argCst) continue;
+
+        const message =
+          allowedKeywords.size === 0
+            ? `'${funcName}' does not accept keyword arguments, but got '${arg.name}'`
+            : `'${funcName}' only accepts the keyword argument${allowedKeywords.size === 1 ? '' : 's'} ${[...allowedKeywords].map(name => `'${name}'`).join(', ')}, but got '${arg.name}'`;
+        attachDiagnostic(
+          arg as unknown as AstNodeLike,
+          lintDiagnostic(
+            argCst.range,
+            message,
+            DiagnosticSeverity.Error,
+            'invalid-function-keyword'
+          )
+        );
+      }
+    }
+
     // Generic arity check driven by the catalog signature.
     const arityMessage = arityViolationMessage(funcName, sig, args.length);
     if (arityMessage) {
@@ -354,6 +390,48 @@ class ExpressionValidationPass implements LintPass {
           finding.suggestion ? { suggestion: finding.suggestion } : undefined
         )
       );
+    }
+  }
+
+  /** Validate Python-compatible keyword structure. */
+  private validateCallArgumentStructure(
+    functionName: string,
+    args: readonly Expression[]
+  ): void {
+    const seenKeywords = new Set<string>();
+    let sawKeyword = false;
+
+    for (const arg of args) {
+      if (arg instanceof KeywordArgument) {
+        sawKeyword = true;
+        const argCst = arg.__cst;
+        if (seenKeywords.has(arg.name) && argCst) {
+          attachDiagnostic(
+            arg as unknown as AstNodeLike,
+            lintDiagnostic(
+              argCst.range,
+              `'${functionName}' received keyword argument '${arg.name}' more than once`,
+              DiagnosticSeverity.Error,
+              'duplicate-function-keyword'
+            )
+          );
+        }
+        seenKeywords.add(arg.name);
+        continue;
+      }
+
+      // Python allows spreads, but not positional arguments, after keywords.
+      if (sawKeyword && !(arg instanceof SpreadExpression) && arg.__cst) {
+        attachDiagnostic(
+          arg as unknown as AstNodeLike,
+          lintDiagnostic(
+            arg.__cst.range,
+            `Positional arguments cannot follow keyword arguments in '${functionName}'`,
+            DiagnosticSeverity.Error,
+            'invalid-function-argument-order'
+          )
+        );
+      }
     }
   }
 

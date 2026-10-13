@@ -69,6 +69,7 @@ export {
   DiagnosticTag,
   createDiagnostic,
   attachDiagnostic,
+  diagnosticTarget,
   undefinedReferenceDiagnostic,
   typeMismatchDiagnostic,
 } from './core/diagnostics.js';
@@ -88,6 +89,16 @@ export {
 } from './core/primitives.js';
 
 export { Sequence, ExpressionSequence, SequenceNode } from './core/sequence.js';
+
+export {
+  readSequenceEntries,
+  readStringSequence,
+  readStringSequenceValues,
+} from './core/read-sequence.js';
+export type {
+  SequenceEntry,
+  SequenceStringEntry,
+} from './core/read-sequence.js';
 
 export {
   Block,
@@ -162,6 +173,7 @@ export {
   DictLiteral,
   Ellipsis,
   SpreadExpression,
+  KeywordArgument,
   TEMPLATE_PART_KINDS,
   isTemplatePartKind,
   parseTemplateParts,
@@ -175,6 +187,7 @@ export type { Statement } from './core/statements.js';
 
 export {
   Template,
+  SayStatement,
   WithClause,
   SetClause,
   ToClause,
@@ -183,6 +196,7 @@ export {
   IfStatement,
   TransitionStatement,
   EscalateStatement,
+  EndSessionStatement,
   CollectClause,
   UnknownStatement,
   RenderStatement,
@@ -204,6 +218,7 @@ export {
   isToClause,
   isSetClause,
   isWithClause,
+  isSayStatement,
 } from './core/guards.js';
 
 export { Dialect } from './core/dialect.js';
@@ -289,11 +304,17 @@ export {
   getFieldCompletions,
   getValueCompletions,
   getWithCompletions,
+  getWhenRenderCompletions,
+  getShowAndReturnCompletions,
+  getResponseFormatCompletions,
+  getConnectionMemberCompletions,
   getNodeMemberAccessCompletions,
   resolveFieldAtPosition,
 } from './core/analysis/completions.js';
 
 export type { CompletionCandidate } from './core/analysis/completions.js';
+
+export { RESERVED_BUILT_IN_RESPONSE_FORMATS } from './core/response-format-constants.js';
 
 export { generateFieldSnippet } from './core/analysis/snippet-gen.js';
 
@@ -429,6 +450,8 @@ export { createLanguageService } from './service.js';
 export type { LanguageService } from './service.js';
 
 export { parseAndLint } from './parse-and-lint.js';
+
+export { dedupeDiagnostics } from './dedupe-diagnostics.js';
 
 export type { OnEnterRule } from './core/indentation.js';
 export {

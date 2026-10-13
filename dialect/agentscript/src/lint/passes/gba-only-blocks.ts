@@ -132,12 +132,12 @@ class GbaOnlyBlocksPass implements LintPass {
       }
     }
 
-    // context.salesforce and context.data_cloud are GBA-only
+    // context.search, context.salesforce, and context.data_cloud are GBA-only
     const contextNode = isAstNodeLike(rootFields.context)
       ? (rootFields.context as AstNodeLike & Record<string, unknown>)
       : undefined;
     if (contextNode) {
-      for (const key of ['salesforce', 'data_cloud'] as const) {
+      for (const key of ['search', 'salesforce', 'data_cloud'] as const) {
         const value = contextNode[key];
         if (isAstNodeLike(value)) {
           attachError(value, `context-${key}`);

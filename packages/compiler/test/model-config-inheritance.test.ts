@@ -20,7 +20,7 @@ describe('SubAgent model_config inheritance', () => {
 config:
     developer_name: "TestAgent"
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     model_config:
         model: "model://gpt-4"
@@ -30,7 +30,7 @@ topic order_management:
         instructions: ->
             | Help with orders
 
-topic billing:
+subagent billing:
     description: "Billing support"
     reasoning:
         instructions: ->
@@ -69,13 +69,13 @@ model_config:
         temperature: 0.7
         max_tokens: 2000
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     reasoning:
         instructions: ->
             | Help with orders
 
-topic billing:
+subagent billing:
     description: "Billing support"
     reasoning:
         instructions: ->
@@ -107,6 +107,55 @@ topic billing:
         max_tokens: 2000,
       });
     });
+
+    it('should apply global params-only config (no model) to all nodes', () => {
+      const source = `
+config:
+    developer_name: "TestAgent"
+
+model_config:
+    params:
+        max_tokens: 2000
+
+subagent order_management:
+    description: "Order management"
+    reasoning:
+        instructions: ->
+            | Help with orders
+
+subagent billing:
+    description: "Billing support"
+    reasoning:
+        instructions: ->
+            | Help with billing
+`;
+      const { output, diagnostics } = compileSource(source);
+
+      // Params-only global config is valid: no warning about a missing model.
+      expect(diagnostics.some(d => /no model specified/i.test(d.message))).toBe(
+        false
+      );
+
+      const orderNode = output.agent_version.nodes.find(
+        n => n.developer_name === 'order_management'
+      )!;
+      const billingNode = output.agent_version.nodes.find(
+        n => n.developer_name === 'billing'
+      )!;
+
+      // Both nodes inherit the global params with no model_ref.
+      expect(orderNode.model_configuration).toBeDefined();
+      expect(orderNode.model_configuration.model_ref).toBeNull();
+      expect(orderNode.model_configuration.configuration).toEqual({
+        max_tokens: 2000,
+      });
+
+      expect(billingNode.model_configuration).toBeDefined();
+      expect(billingNode.model_configuration.model_ref).toBeNull();
+      expect(billingNode.model_configuration.configuration).toEqual({
+        max_tokens: 2000,
+      });
+    });
   });
 
   describe('Scenario 3: Mixed inheritance (global + overrides)', () => {
@@ -121,7 +170,7 @@ model_config:
         temperature: 0.7
         max_tokens: 2000
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     model_config:
         params:
@@ -130,7 +179,7 @@ topic order_management:
         instructions: ->
             | Help with orders
 
-topic billing:
+subagent billing:
     description: "Billing support"
     reasoning:
         instructions: ->
@@ -174,7 +223,7 @@ model_config:
     params:
         temperature: 0.7
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     model_config:
         model: "model://gpt-3.5-turbo"
@@ -209,7 +258,7 @@ model_config:
         temperature: 0.7
         max_tokens: 2000
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     model_config:
         params:
@@ -259,10 +308,10 @@ start_agent router:
         instructions: ->
             | Route
         actions:
-            go_support: @utils.transition to @topic.support
+            go_support: @utils.transition to @subagent.support
                 description: "Go to support"
 
-topic support:
+subagent support:
     description: "Support"
     reasoning:
         instructions: ->
@@ -317,10 +366,10 @@ start_agent router:
         instructions: ->
             | Route
         actions:
-            go_support: @utils.transition to @topic.support
+            go_support: @utils.transition to @subagent.support
                 description: "Go to support"
 
-topic support:
+subagent support:
     description: "Support"
     reasoning:
         instructions: ->
@@ -349,7 +398,7 @@ topic support:
 config:
     developer_name: "TestAgent"
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     reasoning:
         instructions: ->
@@ -370,17 +419,17 @@ topic order_management:
 config:
     developer_name: "TestAgent"
 
-topic topic1:
+subagent topic1:
     description: "Topic 1"
     reasoning:
         instructions: -> | Help 1
 
-topic topic2:
+subagent topic2:
     description: "Topic 2"
     reasoning:
         instructions: -> | Help 2
 
-topic topic3:
+subagent topic3:
     description: "Topic 3"
     reasoning:
         instructions: -> | Help 3
@@ -415,7 +464,7 @@ config:
 model_config:
     model: "gpt-4"
 
-topic order_management:
+subagent order_management:
     description: "Order management"
     reasoning:
         instructions: ->
@@ -452,12 +501,12 @@ model_config:
         temperature: 0.7
         max_tokens: 2000
 
-topic topic1:
+subagent topic1:
     description: "Topic 1"
     reasoning:
         instructions: -> | Help 1
 
-topic topic2:
+subagent topic2:
     description: "Topic 2"
     model_config:
         params:
@@ -465,7 +514,7 @@ topic topic2:
     reasoning:
         instructions: -> | Help 2
 
-topic topic3:
+subagent topic3:
     description: "Topic 3"
     model_config:
         model: "model://gpt-3.5-turbo"
@@ -474,7 +523,7 @@ topic topic3:
     reasoning:
         instructions: -> | Help 3
 
-topic topic4:
+subagent topic4:
     description: "Topic 4"
     reasoning:
         instructions: -> | Help 4

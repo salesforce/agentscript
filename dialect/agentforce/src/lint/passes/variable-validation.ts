@@ -24,6 +24,7 @@ import {
   storeKey,
   attachDiagnostic,
   lintDiagnostic,
+  diagnosticTarget,
   isNamedMap,
 } from '@agentscript/language';
 import { typeMapKey } from '@agentscript/agentscript-dialect';
@@ -88,7 +89,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Variable name '${name}' cannot start with an underscore.`,
           DiagnosticSeverity.Error,
-          'invalid-variable-name'
+          'invalid-variable-name',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }
@@ -102,7 +104,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Variable name '${name}' cannot end with an underscore (except __c suffix).`,
           DiagnosticSeverity.Error,
-          'invalid-variable-name'
+          'invalid-variable-name',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }
@@ -117,7 +120,8 @@ class VariableValidationPass implements LintPass {
             range,
             `Variable name '${name}' cannot contain consecutive underscores (except __c suffix).`,
             DiagnosticSeverity.Error,
-            'invalid-variable-name'
+            'invalid-variable-name',
+            { target: diagnosticTarget('variable', name) }
           )
         );
       } else if (name.slice(0, -3).includes('__')) {
@@ -128,7 +132,8 @@ class VariableValidationPass implements LintPass {
             range,
             `Variable name '${name}' cannot contain consecutive underscores (except __c suffix).`,
             DiagnosticSeverity.Error,
-            'invalid-variable-name'
+            'invalid-variable-name',
+            { target: diagnosticTarget('variable', name) }
           )
         );
       }
@@ -154,7 +159,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Mutable variable '${name}' cannot have a source property. Only linked variables can have a source.`,
           DiagnosticSeverity.Error,
-          'mutable-variable-cannot-have-source'
+          'mutable-variable-cannot-have-source',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }
@@ -166,7 +172,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Linked variable '${name}' must have a source property (e.g., source: @MessagingSession.Id).`,
           DiagnosticSeverity.Error,
-          'linked-variable-missing-source'
+          'linked-variable-missing-source',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }
@@ -189,7 +196,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Context variable '${name}' cannot be a list.`,
           DiagnosticSeverity.Error,
-          'linked-variable-cannot-be-list'
+          'linked-variable-cannot-be-list',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }
@@ -202,7 +210,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Context variable '${name}' cannot be an object.`,
           DiagnosticSeverity.Error,
-          'linked-variable-cannot-be-object'
+          'linked-variable-cannot-be-object',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }
@@ -215,7 +224,8 @@ class VariableValidationPass implements LintPass {
           range,
           `Context variable '${name}' cannot have a default value.`,
           DiagnosticSeverity.Error,
-          'linked-variable-cannot-have-default'
+          'linked-variable-cannot-have-default',
+          { target: diagnosticTarget('variable', name) }
         )
       );
     }

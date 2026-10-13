@@ -14,6 +14,92 @@ import { parseSource } from '../test-utils.js';
 // ---------------------------------------------------------------------------
 
 describe('compile()', () => {
+  it('compiles the Japanese Kotoba STT model, parameters, and keywords unchanged', () => {
+    const source = `
+config:
+  agent_name: "KotobaTest"
+  agent_type: "AgentforceServiceAgent"
+  default_agent_user: "test@example.com"
+
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "ja"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    additional_locales:
+      - "ja"
+
+  session_language_switching: "Monolingual"
+
+  inbound:
+    model:
+      id: "nova-3"
+
+  language_settings:
+    ja:
+      inbound:
+        model:
+          id: "EinsteinKotobaSTT"
+          parameters:
+            silence_duration_ms: 0
+            kana: False
+        keywords:
+          - "サータック"
+
+start_agent main:
+  description: "test"
+`.trimStart();
+
+    const { output, diagnostics } = compile(parseSource(source));
+    const voice = output.agent_version.modality_parameters.voice.voice2_config;
+    const japanese = voice.languages.find(
+      language => language.language_code === 'ja'
+    );
+
+    expect(diagnostics).toHaveLength(0);
+    expect(voice.inbound.model.id).toBe('nova-3');
+    expect(japanese.inbound.model).toEqual({
+      id: 'EinsteinKotobaSTT',
+      params: { silence_duration_ms: 0, kana: false },
+    });
+    expect(japanese.inbound.keywords).toEqual(['サータック']);
+  });
+
+  it('does not invent Kotoba STT parameter defaults when parameters are omitted', () => {
+    const source = `
+config:
+  agent_name: "KotobaDefaultsTest"
+  agent_type: "AgentforceServiceAgent"
+  default_agent_user: "test@example.com"
+
+language:
+  default_locale: "ja"
+
+modality voice:
+  language:
+    default_locale: "ja"
+
+  session_language_switching: "Monolingual"
+
+  inbound:
+    model:
+      id: "EinsteinKotobaSTT"
+
+start_agent main:
+  description: "test"
+`.trimStart();
+
+    const { output, diagnostics } = compile(parseSource(source));
+    const inbound =
+      output.agent_version.modality_parameters.voice.voice2_config.inbound;
+
+    expect(diagnostics).toHaveLength(0);
+    expect(inbound.model).toEqual({ id: 'EinsteinKotobaSTT' });
+  });
+
   it('should compile modality voice', () => {
     const fullVoiceSourceV2 = `
 language:

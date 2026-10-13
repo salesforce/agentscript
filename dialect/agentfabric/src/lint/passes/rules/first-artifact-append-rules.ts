@@ -6,10 +6,11 @@
  */
 
 import { isNamedMap } from '@agentscript/language';
-import { extractGraph } from '../../../graph/extractor.js';
-import { AgentFabricSchemaInfo } from '../../../schema.js';
-import { Namespace } from '../../../constants.js';
 import { attachError, extractStringValue, type AstLike } from './shared.js';
+import {
+  buildGraphAdjacency,
+  reachableFrom,
+} from '../../../graph/reachability.js';
 
 const ARTIFACT_KIND = 'a2a:artifact_update_event';
 const DIAGNOSTIC_CODE = 'echo-first-artifact-append';
@@ -131,34 +132,6 @@ function resolveArtifactIdentity(entry: Record<string, unknown>): Identity {
 }
 
 /**
- * Breadth-first forward reachability from `seeds`, skipping any node in
- * `removed` (both as a seed and as a traversal target). Used to test whether
- * an echo can be reached without first passing through a same-artifact emit.
- */
-function reachableFrom(
-  seeds: string[],
-  adjacency: Map<string, string[]>,
-  removed: Set<string>
-): Set<string> {
-  const visited = new Set<string>();
-  const queue: string[] = [];
-  for (const seed of seeds) {
-    if (removed.has(seed) || visited.has(seed)) continue;
-    visited.add(seed);
-    queue.push(seed);
-  }
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    for (const next of adjacency.get(current) ?? []) {
-      if (removed.has(next) || visited.has(next)) continue;
-      visited.add(next);
-      queue.push(next);
-    }
-  }
-  return visited;
-}
-
-/**
  * Prefer squiggling the `append` field itself (precise range); fall back to
  * the echo block instance when the field node can't carry diagnostics.
  */
@@ -186,29 +159,6 @@ function dynamicMessage(name: string): string {
     `first emit, or use a stable artifactId (a string literal or a variable ` +
     `reference).`
   );
-}
-
-/**
- * Build an adjacency-list representation of the agent graph for reachability
- * queries. Returns the adjacency map and the list of trigger node ids.
- */
-function buildGraphAdjacency(root: Record<string, unknown>): {
-  adjacency: Map<string, string[]>;
-  triggerIds: string[];
-} {
-  const { nodes, edges } = extractGraph(root, AgentFabricSchemaInfo);
-  const adjacency = new Map<string, string[]>();
-  for (const node of nodes) adjacency.set(node.id, []);
-  for (const edge of edges) {
-    if (!adjacency.has(edge.from)) continue;
-    adjacency.get(edge.from)!.push(edge.to);
-  }
-
-  const triggerIds = nodes
-    .filter(node => node.namespace === Namespace.Trigger)
-    .map(node => node.id);
-
-  return { adjacency, triggerIds };
 }
 
 /**

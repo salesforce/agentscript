@@ -30,6 +30,13 @@ import {
 import { DiagnosticSeverity } from '@agentscript/types';
 import { ConnectionBlock } from '../../schema.js';
 import { VALID_SCHEMES } from './action-target.js';
+import {
+  resolveFieldsMap,
+  iterateFieldDeclarations,
+  getBaseTypeName,
+  declAcceptsFields,
+  typeDescriptorProps,
+} from './response-format-shape.js';
 
 /** Known connection fields from the ConnectionBlock schema. */
 const CONNECTION_FIELDS = Object.keys(ConnectionBlock.schema).filter(
@@ -53,7 +60,7 @@ const INVOCATION_TARGET_BASE_SCHEMES = [
 const RESPONSE_FORMAT_ONLY_TARGET_SCHEMES = ['system'] as const;
 
 /** Allowed invocation target schemes for response formats (as authored). */
-const RESPONSE_FORMAT_TARGET_SCHEMES: readonly string[] = [
+export const RESPONSE_FORMAT_TARGET_SCHEMES: readonly string[] = [
   ...INVOCATION_TARGET_BASE_SCHEMES,
   ...RESPONSE_FORMAT_ONLY_TARGET_SCHEMES,
 ];
@@ -85,8 +92,15 @@ const SYSTEM_TARGETS_WITHOUT_INPUTS: ReadonlySet<string> = new Set([
   'MessagingAudio',
 ]);
 
+/**
+ * Connection types whose response formats never require an `inputs` block
+ * - Telephony: voice-only surface. No current need for structured schema.
+ */
+const CONNECTIONS_WITHOUT_REQUIRED_RESPONSE_FORMAT_INPUTS: ReadonlySet<string> =
+  new Set(['telephony']);
+
 /** Allowed types for connection inputs (linting restriction) */
-const ALLOWED_CONNECTION_INPUT_TYPES = ['string', 'number', 'boolean'];
+export const ALLOWED_CONNECTION_INPUT_TYPES = ['string', 'number', 'boolean'];
 
 /** Allowed properties for connection inputs (linting restriction) */
 const ALLOWED_CONNECTION_INPUT_PROPERTIES = ['description'];
@@ -157,9 +171,11 @@ function missingFieldsError(node: AstNodeLike, connectionType: string): void {
 }
 
 function validateSlack(node: AstNodeLike): void {
-  // Slack connections only allow adaptive_response_allowed - all other fields disallowed
+  // Slack connections only allow adaptive_response_allowed and
+  // additional_system_instructions - all other fields disallowed
   for (const field of CONNECTION_FIELDS) {
     if (field === 'adaptive_response_allowed') continue;
+    if (field === 'additional_system_instructions') continue;
     if (hasField(node, field)) {
       fieldError(node, 'Slack', field);
     }
@@ -395,7 +411,8 @@ function targetSkipsInputs(format: AstNodeLike): boolean {
 
 /**
  * Validate response_formats
- * - Requires `inputs` (except for {@link SYSTEM_TARGETS_WITHOUT_INPUTS})
+ * - Requires `inputs` (except for {@link SYSTEM_TARGETS_WITHOUT_INPUTS} targets
+ *   and {@link CONNECTIONS_WITHOUT_REQUIRED_RESPONSE_FORMAT_INPUTS} connections)
  * - Validates target URI format
  * - Validates schema URIs on input declarations
  */
@@ -413,7 +430,11 @@ function validateResponseFormats(
     const hasTarget = format.target != null;
 
     const skipsInputs = targetSkipsInputs(format);
-    if (format.inputs == null && !skipsInputs) {
+    if (
+      format.inputs == null &&
+      !skipsInputs &&
+      !CONNECTIONS_WITHOUT_REQUIRED_RESPONSE_FORMAT_INPUTS.has(connectionType)
+    ) {
       const cst = format.__cst;
       if (cst) {
         attachDiagnostic(
@@ -603,67 +624,6 @@ function isMessagingComponentInput(props: AstNodeLike): boolean {
 }
 
 /**
- * Resolve the `fields` NamedMap from input properties, checking:
- * 1. props.type.properties.fields (for type: object)
- * 2. props.type.properties.value.properties.fields (for type: list > value: object)
- */
-function resolveFieldsMap(props: AstNodeLike): NamedMap<unknown> | undefined {
-  const propsRecord = props as Record<string, unknown>;
-
-  const typeDesc = propsRecord.type as
-    | { properties?: Record<string, unknown> }
-    | undefined;
-  if (typeDesc?.properties) {
-    const fields = typeDesc.properties['fields'];
-    if (isNamedMap(fields)) return fields as NamedMap<unknown>;
-
-    // list > value: object > fields
-    const valueDesc = typeDesc.properties['value'] as
-      | { properties?: Record<string, unknown> }
-      | undefined;
-    if (valueDesc?.properties) {
-      const nestedFields = valueDesc.properties['fields'];
-      if (isNamedMap(nestedFields)) return nestedFields as NamedMap<unknown>;
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Iterate the nested parameter declarations of a response-format input,
- * declared under its `fields:` block, as `[key, declaration]` pairs.
- */
-function* iterateFieldDeclarations(
-  props: AstNodeLike
-): Iterable<[string, AstNodeLike]> {
-  const fields = resolveFieldsMap(props);
-  if (!fields) return;
-  for (const [key, decl] of fields) {
-    if (!isAstNodeLike(decl)) continue;
-    if (decl.__kind !== 'ParameterDeclaration') continue;
-    yield [key, decl];
-  }
-}
-
-/**
- * Resolve the base type of a parameter declaration. For `list[X]` this is the
- * element type `X`; for a bare type it is the type name itself.
- */
-function getBaseTypeName(decl: AstNodeLike): string | undefined {
-  const type = decl.type as AstNodeLike | undefined;
-  if (!type) return undefined;
-  if (type.__kind === 'Identifier') return type.name as string;
-  if (type.__kind === 'SubscriptExpression') {
-    const index = type.index as AstNodeLike | undefined;
-    if (index?.__kind === 'Identifier') return index.name as string;
-    const object = type.object as AstNodeLike | undefined;
-    if (object?.__kind === 'Identifier') return object.name as string;
-  }
-  return undefined;
-}
-
-/**
  * Validate a parameter's type structure placement.
  * `fields:` is only valid under `type: object` in the TypeDescriptor.
  * An object without fields (and without `schema:`) is valid but not useful → warning.
@@ -713,32 +673,6 @@ function validateFieldsPlacement(
 }
 
 /**
- * True when a declaration's type can carry a `fields:` block: i.e. object and list of objects
- */
-function declAcceptsFields(
-  decl: AstNodeLike,
-  props: AstNodeLike | undefined
-): boolean {
-  const base = getBaseTypeName(decl);
-  if (base === 'object') return true;
-  if (base !== 'list') return false;
-
-  const propsRecord = props as Record<string, unknown> | undefined;
-  const typeDesc = propsRecord?.type as
-    | { properties?: Record<string, unknown> }
-    | undefined;
-  const value = typeDesc?.properties?.['value'];
-  if (!isAstNodeLike(value)) return false;
-  // `value:` is a TypeDescriptor, not a ParameterDeclaration — its type keyword
-  // lives on `.typeName`. (`getBaseTypeName` reads `.type`, so it won't work here.)
-  const typeName = value.typeName as AstNodeLike | undefined;
-  if (typeName?.__kind === 'Identifier') {
-    return (typeName.name as string) === 'object';
-  }
-  return false;
-}
-
-/**
  * Validate that a `type: list` declaration includes a `value:` parameter.
  * A list type without value is invalid — you must specify the element type.
  */
@@ -751,14 +685,11 @@ function validateListHasValue(
   const typeName = getBaseTypeName(decl);
   if (typeName !== 'list') return;
 
-  const propsRecord = props as Record<string, unknown> | undefined;
-  const typeDesc = propsRecord?.type as
-    | { properties?: Record<string, unknown> }
-    | undefined;
   // Short-form list[X] has no type descriptor — element type is already inline
-  if (!typeDesc?.properties) return;
+  const tdProps = typeDescriptorProps(props);
+  if (!tdProps) return;
 
-  const hasValue = typeDesc.properties['value'] != null;
+  const hasValue = tdProps['value'] != null;
   if (hasValue) return;
 
   const cst = decl.__cst;

@@ -187,4 +187,25 @@ value v:
       ).toHaveLength(0);
     });
   });
+
+  // A dict-literal key is a field label, not a value reference, so the pass
+  // must leave bare-word keys alone while still validating the values beside
+  // them. These pin the key-vs-value distinction, which rests on how the AST
+  // walker visits dict entries — a refactor there could silently break it.
+  describe('dict-literal keys', () => {
+    it('does not flag a bare-word key', () => {
+      expect(
+        getDiagnostics(`\nvalue v:\n    expr: {version: @variables.n}\n`)
+      ).toHaveLength(0);
+    });
+
+    it('still flags a bare-word value that shares its key name', () => {
+      const diags = getDiagnostics(
+        `\nvalue v:\n    expr: {version: version}\n`
+      );
+      expect(diags).toHaveLength(1);
+      expect(diags[0].code).toBe('unknown-identifier');
+      expect(diags[0].message).toContain('version');
+    });
+  });
 });

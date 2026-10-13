@@ -18,17 +18,15 @@ import { extractStringSequence } from '../modality/extract-sequence.js';
  *   welcome_screen          → welcome_screen
  *   starter_prompts          → starter_prompts
  *
- * Validations are enforced at schema level via
- * `recommendedPromptsConfigurationSchema.safeParse(...)` (called by
- * compile-agent-version.ts), which is derived from the OpenAPI-generated
- * `recommendedPromptsConfiguration` schema:
- *   - starter_prompts only allowed when welcome_screen is true (refine)
- *   - starter_prompts must have at least 3 entries (refine)
- *   - max items (20) and string length (1-50) enforced by the generated
- *     base schema — NOT duplicated here.
+ * Value validations run at lint time in the dialect pass
+ * `recommended-prompts-validation.ts` (live editor feedback):
+ *   - starter_prompts only allowed when welcome_screen is true
+ *   - starter_prompts must have at least 3 entries
+ *   - at most 20 entries; each string 1-50 characters
  *
- * Agent type restriction (AgentforceEmployeeAgent only) is enforced
- * by the lint pass in config-validation.ts.
+ * The agent-type restriction (AgentforceEmployeeAgent only) is enforced by
+ * the lint pass in config-validation.ts. This function only extracts and
+ * serializes the block.
  */
 export function compileRecommendedPrompts(
   recsBlock: Record<string, unknown> | null | undefined,

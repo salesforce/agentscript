@@ -643,6 +643,318 @@ topic main:
 });
 
 // ============================================================================
+// async_mode action flag validation tests (@W-23852778)
+// ============================================================================
+
+describe('async_mode action flag validation', () => {
+  it('allows async_mode: True on a standardInvocableAction:// target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    lookup:
+      description: "Lookup"
+      async_mode: True
+      target: "standardInvocableAction://Lookup_Order"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('allows async_mode: False on any target scheme', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    lookup:
+      description: "Lookup"
+      async_mode: False
+      target: "flow://Get_Account"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('allows an action with no async_mode set on a non-standard-invocable target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    lookup:
+      description: "Lookup"
+      target: "flow://Get_Account"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports error for async_mode: True on a flow:// target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    check_hours:
+      description: "Check business hours"
+      async_mode: True
+      target: "flow://Check_Business_Hours"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('check_hours');
+    expect(errors[0].message).toContain('async_mode: True');
+    expect(errors[0].message).toContain('flow://');
+    expect(errors[0].message).toContain('standardInvocableAction');
+  });
+
+  it('reports error for async_mode: True on an apex:// target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    call_apex:
+      description: "Call Apex"
+      async_mode: True
+      target: "apex://MyApexClass"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('reports errors for multiple actions with invalid async_mode usage', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    action_a:
+      description: "Action A"
+      async_mode: True
+      target: "flow://Flow_A"
+    action_b:
+      description: "Action B"
+      async_mode: True
+      target: "externalService://api"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(errors).toHaveLength(2);
+  });
+
+  it('reports error for async_mode: True on an unrecognized but syntactically valid scheme', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    custom_action:
+      description: "Call a custom action"
+      async_mode: True
+      target: "custom://Action"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(1);
+    expect(asyncErrors[0].message).toContain('custom_action');
+    expect(asyncErrors[0].message).toContain('async_mode: True');
+    expect(asyncErrors[0].message).toContain('custom://');
+
+    const targetErrors = diagnostics.filter(
+      d => d.code === 'invalid-action-target'
+    );
+    expect(targetErrors).toHaveLength(1);
+  });
+
+  it('reports error for async_mode: True with a malformed target URI', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    broken_action:
+      description: "Broken action"
+      async_mode: True
+      target: "not a url at all!!"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(1);
+    expect(asyncErrors[0].message).toContain('broken_action');
+    expect(asyncErrors[0].message).toContain('async_mode: True');
+
+    const targetErrors = diagnostics.filter(
+      d => d.code === 'invalid-action-target'
+    );
+    expect(targetErrors).toHaveLength(1);
+  });
+
+  it('reports error for async_mode: True with a schemeless target', () => {
+    const diagnostics = runSecurityLint(`
+topic main:
+  label: "Main"
+  actions:
+    nameless_action:
+      description: "Nameless action"
+      async_mode: True
+      target: "just_a_name"
+  reasoning:
+    instructions: ->
+      |Do it
+`);
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(1);
+    expect(asyncErrors[0].message).toContain('nameless_action');
+    expect(asyncErrors[0].message).toContain('async_mode: True');
+
+    const targetErrors = diagnostics.filter(
+      d => d.code === 'invalid-action-target'
+    );
+    expect(targetErrors).toHaveLength(1);
+  });
+});
+
+describe('action cache and execution mode validation', () => {
+  const source = (expiration: string, mode: string) => `
+config:
+  developer_name: "Options"
+start_agent main:
+  description: "Main"
+  actions:
+    lookup:
+      description: "Lookup"
+      target: "flow://Lookup"
+      cache:
+        expiration: ${expiration}
+  reasoning:
+    instructions: ->
+      |Lookup
+    actions:
+      lookup: @actions.lookup
+        execution_mode: "${mode}"
+`;
+
+  it.each(['blocking', 'fire_and_forget'])(
+    'accepts fractional seconds and execution_mode %s',
+    mode => {
+      const errors = runLint(source('1.5', mode)).filter(
+        d => d.severity === DiagnosticSeverity.Error
+      );
+      expect(errors).toEqual([]);
+    }
+  );
+
+  it.each(['0', '-1', '0.0001'])(
+    'rejects expiration %s below one millisecond',
+    expiration => {
+      expect(
+        runLint(source(expiration, 'fire_and_forget')).some(
+          d => d.code === 'constraint-minimum'
+        )
+      ).toBe(true);
+    }
+  );
+
+  it('rejects expiration outside safe millisecond range', () => {
+    expect(
+      runLint(source('10000000000000', 'fire_and_forget')).some(
+        d => d.code === 'constraint-maximum'
+      )
+    ).toBe(true);
+  });
+
+  it('rejects an unrecognized execution behavior', () => {
+    expect(
+      runLint(source('60', 'later')).some(d => d.code === 'constraint-enum')
+    ).toBe(true);
+  });
+
+  it.each([
+    'topic main:',
+    'orchestrator main:',
+    'subagent main:\n  schema: "node://commerce/shopper_agent/v1"',
+    'subagent main:\n  schema: "node://tableau/analyze_data/v1"',
+    'subagent main:\n  schema: "node://byon/team/worker/v1"',
+  ])('accepts the execution behavior on %s', node => {
+    const diagnostics = runLint(`
+${node}
+${node.startsWith('orchestrator') ? '' : '  description: "Main"'}
+  actions:
+    lookup:
+      description: "Lookup"
+      target: "flow://Lookup"
+  reasoning:
+    actions:
+      lookup: @actions.lookup
+        execution_mode: "fire_and_forget"
+`);
+    expect(diagnostics.filter(d => d.code === 'unknown-field')).toEqual([]);
+  });
+
+  it('accepts fractional cache expiration on an orchestrator action', () => {
+    const diagnostics = runLint(`
+config:
+  developer_name: "CacheOptions"
+  agent_type: "GoalBasedAgent"
+orchestrator main:
+  actions:
+    lookup:
+      description: "Lookup"
+      target: "flow://Lookup"
+      cache:
+        expiration: 1.5
+`);
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toEqual([]);
+  });
+});
+
+// ============================================================================
 // Skill target scheme validation tests
 // ============================================================================
 
@@ -937,6 +1249,19 @@ model_config:
     expect(diagnostics.filter(d => d.code === 'invalid-block-value')).toEqual(
       []
     );
+  });
+
+  it('accepts arbitrary model_config params (e.g. max_tokens)', () => {
+    const diagnostics = runLint(`
+config:
+  developer_name: "TestAgent"
+model_config:
+  model: "model://sfdc_ai__DefaultGPT54"
+  params:
+    max_tokens: 2048
+    temperature: 0.7
+`);
+    expect(diagnostics.filter(d => d.code === 'unknown-field')).toEqual([]);
   });
 
   it('does not flag inline type keywords on response format inputs', () => {
@@ -1362,6 +1687,10 @@ variables:
     expect(errors[0].message).toContain("'user_name'");
     expect(errors[0].message).toContain('mutable');
     expect(errors[0].message).toContain('linked');
+    expect(errors[0].data?.target).toEqual({
+      type: 'variable',
+      name: 'user_name',
+    });
   });
 
   it('allows linked variable in welcome message', () => {
@@ -1572,6 +1901,10 @@ variables:
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
     expect(errors[0].message).toContain("'session_id'");
     expect(errors[0].message).toContain('cannot have a source');
+    expect(errors[0].data?.target).toEqual({
+      type: 'variable',
+      name: 'session_id',
+    });
   });
 
   it('reports error when linked variable missing source property', () => {
@@ -1588,6 +1921,10 @@ variables:
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
     expect(errors[0].message).toContain("'user_id'");
     expect(errors[0].message).toContain('must have a source');
+    expect(errors[0].data?.target).toEqual({
+      type: 'variable',
+      name: 'user_id',
+    });
   });
 
   it('allows linked variable with valid source', () => {
@@ -1736,6 +2073,36 @@ connection slack:
       d => d.code === 'connection-disallowed-field'
     );
     expect(errors).toHaveLength(0);
+  });
+
+  it('allows slack with additional_system_instructions', () => {
+    const diagnostics = runSecurityLint(`
+connection slack:
+    adaptive_response_allowed: True
+    additional_system_instructions: |
+        Prefer concise replies.
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'connection-disallowed-field'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('flags slack with a disallowed field even when additional_system_instructions is present', () => {
+    const diagnostics = runSecurityLint(`
+connection slack:
+    additional_system_instructions: |
+        Prefer concise replies.
+    escalation_message: "Escalating to slack"
+    adaptive_response_allowed: True
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'connection-disallowed-field'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('escalation_message');
   });
 
   it('flags service_email with escalation_message', () => {
@@ -3396,6 +3763,9 @@ subagent main:
       expect(unused).toHaveLength(1);
       expect(unused[0].severity).toBe(DiagnosticSeverity.Information);
       expect(unused[0].message).toBe(PLATFORM_REQUIRED_MESSAGE(name));
+      // Structured target lets downstream tooling read the variable name
+      // directly instead of regex-parsing the message.
+      expect(unused[0].data?.target).toEqual({ type: 'variable', name });
     }
   );
 
@@ -3409,6 +3779,10 @@ subagent main:
     expect(unused[0].message).toBe(
       "Variable 'my_custom_var' is declared but never used"
     );
+    expect(unused[0].data?.target).toEqual({
+      type: 'variable',
+      name: 'my_custom_var',
+    });
   });
 
   it('uses the generic message when name matches but source differs', () => {
@@ -4238,201 +4612,5 @@ start_agent main:
     expect(mixingErrors[0].message).toContain('inbound');
     expect(mixingErrors[0].message).toContain('language');
     expect(mixingErrors[0].message).toContain("'voice_id'");
-  });
-});
-
-// ============================================================================
-// render-rule format ownership (S14)
-// ============================================================================
-
-describe('render-rule format ownership', () => {
-  const CONN_MESSAGING = `
-connection messaging:
-    label: "Messaging"
-    response_formats:
-        choices:
-            description: "Multiple choice"
-            source: "response_format://SurfaceAction__MessagingChoices"
-        rich_link:
-            description: "Rich link"
-            source: "response_format://SurfaceAction__MessagingRichLink"
-`;
-
-  const CONN_SLACK = `
-connection slack:
-    label: "Slack"
-    response_formats:
-        blocks:
-            description: "Slack blocks"
-            source: "response_format://SurfaceAction__SlackBlocks"
-`;
-
-  function topicWithRender(renderExpr: string): string {
-    return (
-      CONN_MESSAGING +
-      CONN_SLACK +
-      `
-subagent main:
-  description: "Main"
-  actions:
-    get_list:
-      description: "Get list"
-      target: "flow://get_list"
-  reasoning:
-    instructions: ->
-      |Do it
-    actions:
-      list_it: @actions.get_list
-        when @connection.messaging
-          render: ${renderExpr}
-`
-    );
-  }
-
-  it('accepts shortform ref to a format owned by the connection', () => {
-    const diagnostics = runSecurityLint(
-      topicWithRender('@response_formats.choices')
-    );
-    const errors = diagnostics.filter(
-      d =>
-        d.code === 'render-rule-format-not-in-connection' ||
-        d.code === 'render-rule-format-connection-mismatch' ||
-        d.code === 'render-rule-invalid-format-ref' ||
-        d.code === 'undefined-reference'
-    );
-    expect(errors).toHaveLength(0);
-  });
-
-  it('accepts longform ref to a format owned by the connection', () => {
-    const diagnostics = runSecurityLint(
-      topicWithRender('@connection.messaging.response_formats.choices')
-    );
-    const errors = diagnostics.filter(
-      d =>
-        d.code === 'render-rule-format-not-in-connection' ||
-        d.code === 'render-rule-format-connection-mismatch' ||
-        d.code === 'render-rule-invalid-format-ref' ||
-        d.code === 'undefined-reference'
-    );
-    expect(errors).toHaveLength(0);
-  });
-
-  it('reports render-rule-format-not-in-connection when shortform names a format that belongs to a different connection', () => {
-    // `blocks` is defined on connection `slack`, not on `messaging`.
-    const diagnostics = runSecurityLint(
-      topicWithRender('@response_formats.blocks')
-    );
-    const errors = diagnostics.filter(
-      d => d.code === 'render-rule-format-not-in-connection'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain('blocks');
-    expect(errors[0].message).toContain('messaging');
-  });
-
-  it('reports render-rule-format-not-in-connection when the format does not exist on any connection', () => {
-    const diagnostics = runSecurityLint(
-      topicWithRender('@response_formats.unknown')
-    );
-    const errors = diagnostics.filter(
-      d => d.code === 'render-rule-format-not-in-connection'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-  });
-
-  it('reports render-rule-format-connection-mismatch when longform names a different connection', () => {
-    const diagnostics = runSecurityLint(
-      topicWithRender('@connection.slack.response_formats.blocks')
-    );
-    const errors = diagnostics.filter(
-      d => d.code === 'render-rule-format-connection-mismatch'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain('blocks');
-    expect(errors[0].message).toContain('messaging');
-  });
-
-  it('built-in @response_formats.json bypasses ownership check', () => {
-    const diagnostics = runSecurityLint(
-      topicWithRender('@response_formats.json')
-    );
-    const errors = diagnostics.filter(
-      d =>
-        d.code === 'render-rule-format-not-in-connection' ||
-        d.code === 'render-rule-format-connection-mismatch' ||
-        d.code === 'render-rule-invalid-format-ref' ||
-        d.code === 'undefined-reference'
-    );
-    expect(errors).toHaveLength(0);
-  });
-
-  it('does not emit undefined-reference on @response_formats.<name> render targets', () => {
-    // Regression: `response_formats` is a scoped namespace on
-    // ResponseFormatBlock, so `@response_formats.choices` would trigger the
-    // `non-referenceable-scope` diagnostic under undefinedReferencePass.
-    // `renderTargetExemptionPass` must pre-mark render values so this
-    // spurious diagnostic never surfaces.
-    for (const expr of [
-      '@response_formats.choices',
-      '@response_formats.json',
-      '@connection.messaging.response_formats.choices',
-    ]) {
-      const diagnostics = runSecurityLint(topicWithRender(expr));
-      const undefRefs = diagnostics.filter(
-        d => d.code === 'undefined-reference'
-      );
-      expect(undefRefs, `expected no undefined-reference for ${expr}`).toEqual(
-        []
-      );
-    }
-  });
-
-  it('reports render-rule-format-not-in-connection when longform matches enclosing connection but names a format owned by a different connection', () => {
-    // `blocks` is declared on `slack`, not `messaging`. The longform ref
-    // targets `messaging`, so the connection-mismatch guard passes — the
-    // ownership check must catch it.
-    const diagnostics = runSecurityLint(
-      topicWithRender('@connection.messaging.response_formats.blocks')
-    );
-    const notInConn = diagnostics.filter(
-      d => d.code === 'render-rule-format-not-in-connection'
-    );
-    const mismatch = diagnostics.filter(
-      d => d.code === 'render-rule-format-connection-mismatch'
-    );
-    expect(notInConn).toHaveLength(1);
-    expect(notInConn[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(mismatch).toHaveLength(0);
-  });
-
-  it('names the concrete first-declared format in the empty-when hint', () => {
-    // Empty `when @connection.messaging` — the hint should call out the
-    // exact format the compiler will fall back to ('choices' is the first
-    // format declared in CONN_MESSAGING).
-    const source =
-      CONN_MESSAGING +
-      CONN_SLACK +
-      `
-subagent main:
-  description: "Main"
-  actions:
-    get_list:
-      description: "Get list"
-      target: "flow://get_list"
-  reasoning:
-    instructions: ->
-      |Do it
-    actions:
-      list_it: @actions.get_list
-        when @connection.messaging
-`;
-    const diagnostics = runSecurityLint(source);
-    const errors = diagnostics.filter(d => d.code === 'render-rule-empty-when');
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
-    expect(errors[0].message).toContain("requires a 'render:' clause");
   });
 });

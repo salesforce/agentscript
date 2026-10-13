@@ -26,12 +26,14 @@ import {
   TemplateInterpolation,
   Ellipsis,
   SpreadExpression,
+  KeywordArgument,
   NoneLiteral,
   decomposeAtMemberExpression,
   escapeStringValue,
 } from '@agentscript/language';
 import type { Range } from '@agentscript/types';
 import type { CompilerContext } from '../compiler-context.js';
+import { extractNumberValue } from '../ast-helpers.js';
 
 /**
  * Resolve a `@variables.X` reference to its runtime-namespaced string.
@@ -54,6 +56,19 @@ function resolveVariableRef(
     range
   );
   return `state.${varName}`;
+}
+
+/**
+ * Extract an *integer* literal value (including unary-minus negatives) from an
+ * AST expression node for file-reference slice/subscript bounds. Delegates the
+ * NumberLiteral + UnaryExpression('-') walk to the shared `extractNumberValue`
+ * and adds the integer guard those bounds require — a fractional bound (`[1.5]`)
+ * is not a valid index and returns undefined so the caller skips capture.
+ */
+function extractIntegerLiteral(expr: Expression): number | undefined {
+  const value = extractNumberValue(expr);
+  if (value === undefined || !Number.isInteger(value)) return undefined;
+  return value;
 }
 
 /**
@@ -155,6 +170,9 @@ function compileExprNode(
   if (expr instanceof SpreadExpression) {
     return `*${compileExprNode(expr.expression, ctx, opts)}`;
   }
+  if (expr instanceof KeywordArgument) {
+    return `${expr.name}=${compileExprNode(expr.value, ctx, opts)}`;
+  }
   if (expr instanceof NoneLiteral) {
     return 'None';
   }
@@ -248,6 +266,8 @@ function compileMemberExpression(
             // builder, yielding `system.last_reply.<member>`.
             return 'system.last_reply';
           case 'uploaded_files':
+            // Bare @system_variables.uploaded_files reference (or its .length consumer)
+            ctx.fileCapture.capture({ all: true }, expr.__cst?.range);
             return 'system.uploaded_files';
         }
         ctx.error(`Unknown system variable: ${property}`, expr.__cst?.range);
@@ -337,6 +357,8 @@ function compileSubscriptExpression(
         // subscript builder, yielding `system["last_reply"][...]`.
         return 'system["last_reply"]';
       case '"uploaded_files"':
+        // Bracket form @system_variables["uploaded_files"]
+        ctx.fileCapture.capture({ all: true }, expr.__cst?.range);
         return 'system["uploaded_files"]';
     }
     ctx.error(`Unknown system variable: ${index}`, expr.__cst?.range);
@@ -352,6 +374,66 @@ function compileSubscriptExpression(
     expr.object.object.name === 'system_variables' &&
     expr.object.property === 'uploaded_files'
   ) {
+    // Capture the subscript or slice
+    if (expr.index instanceof SliceExpression) {
+      // Slice: extract start/stop/step bounds if they are integer literals
+      const start = expr.index.start
+        ? extractIntegerLiteral(expr.index.start)
+        : null;
+      const stop = expr.index.stop
+        ? extractIntegerLiteral(expr.index.stop)
+        : null;
+      const step = expr.index.step
+        ? extractIntegerLiteral(expr.index.step)
+        : null;
+
+      // If any component is a non-literal (variable/expression), we cannot
+      // pre-resolve. Conservatively skip capture and emit a diagnostic.
+      if (
+        (expr.index.start && start === undefined) ||
+        (expr.index.stop && stop === undefined) ||
+        (expr.index.step && step === undefined)
+      ) {
+        ctx.warning(
+          'Slice bounds must be integer literals for file reference tracking; dynamic slices are not captured',
+          expr.__cst?.range
+        );
+      } else if (step === 0) {
+        // `[a:b:0]` is invalid Python (raises ValueError on apply). Skip capture
+        // and surface it rather than emit a descriptor the runtime would choke on.
+        ctx.warning(
+          'Slice step must not be 0; this file reference is not captured',
+          expr.__cst?.range
+        );
+      } else {
+        // The step (`[a:b:2]`) is carried through to the descriptor so the
+        // runtime applies the exact strided selection (fifo[start:stop:step])
+        // rather than over-selecting the whole start:stop range.
+        ctx.fileCapture.capture(
+          {
+            slice: {
+              start: start ?? null,
+              stop: stop ?? null,
+              step: step ?? null,
+            },
+          },
+          expr.__cst?.range
+        );
+      }
+    } else {
+      // Subscript: extract index if it's an integer literal
+      const index = extractIntegerLiteral(expr.index);
+      if (index !== undefined) {
+        ctx.fileCapture.capture({ index }, expr.__cst?.range);
+      } else {
+        // Dynamic subscript (variable/expression): cannot pre-resolve, skip capture + diagnostic
+        ctx.warning(
+          'Subscript index must be an integer literal for file reference tracking; dynamic subscripts are not captured',
+          expr.__cst?.range
+        );
+      }
+    }
+
     return `system.uploaded_files[${compileIndex()}]`;
   }
 

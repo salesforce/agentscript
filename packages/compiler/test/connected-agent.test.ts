@@ -22,6 +22,7 @@ import {
   STATE_UPDATE_ACTION,
   RUNTIME_CONDITION_VARIABLE,
 } from '../src/constants.js';
+import { isHandOffAction } from '../src/types.js';
 
 /** Slot 1 — used by plain `if`/`else` and chain heads. */
 const CONDITION_SLOT_1 = `${RUNTIME_CONDITION_VARIABLE}_1`;
@@ -337,6 +338,33 @@ connected_subagent Billing_Agent:
     expect(tool).toBeDefined();
     expect(tool!.target).toBe('Billing_Agent');
     expect(tool!.description).toBe('Invoke billing agent');
+  });
+
+  it('should default the tool description to the connected agent authored description when omitted', () => {
+    const source = `
+${baseConfig}
+    reasoning:
+        instructions: ->
+            | Route requests
+        actions:
+            call_support: @connected_subagent.Support_Agent
+
+connected_subagent Support_Agent:
+    target: "agent://Support_Agent"
+    label: "Support Agent"
+    description: "Handles support inquiries"
+`;
+    const { output } = compile(parseSource(source));
+    const mainNode = output.agent_version.nodes.find(
+      n => n.developer_name === 'Main'
+    )!;
+
+    const tool = mainNode.tools.find(t => t.name === 'call_support');
+    expect(tool).toBeDefined();
+    expect(tool!.target).toBe('Support_Agent');
+    // With no inline description the supervision tool inherits the connected
+    // agent's authored description instead of emitting no routing signal.
+    expect(tool!.description).toBe('Handles support inquiries');
   });
 
   it('should compile alongside regular @actions tools', () => {
@@ -845,7 +873,7 @@ connected_subagent Order_Agent:
     const actions = node.after_response as Record<string, unknown>[];
 
     const handoff = actions.find(
-      a => a.type === 'handoff' && a.target === 'Wrap_Up'
+      a => isHandOffAction(a) && a.target === 'Wrap_Up'
     ) as Record<string, unknown> | undefined;
     expect(handoff).toBeDefined();
     expect(handoff!.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="Wrap_Up"`);
@@ -945,7 +973,7 @@ connected_subagent Order_Agent:
       )
     ).toBe(true);
     expect(
-      actions.some(a => a.type === 'handoff' && a.target === 'Wrap_Up')
+      actions.some(a => isHandOffAction(a) && a.target === 'Wrap_Up')
     ).toBe(true);
   });
 });

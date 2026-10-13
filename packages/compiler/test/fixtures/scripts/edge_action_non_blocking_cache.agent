@@ -1,0 +1,21 @@
+config:
+    developer_name: "NonBlockingCacheAgent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test_user"
+
+start_agent main:
+    description: "Checks cached account information"
+    actions:
+        LookupAccount:
+            description: "Look up an account"
+            target: "flow://LookupAccount"
+            cache:
+                expiration: 60
+    reasoning:
+        instructions: ->
+            |Look up the account when asked.
+        actions:
+            lookup_async: @actions.LookupAccount
+                execution_mode: "fire_and_forget"
+            lookup_inline: @actions.LookupAccount
+                execution_mode: "blocking"

@@ -67,7 +67,8 @@ function extractModelAndParams(
 
 /**
  * Extract model_config from the global parsed structure (agent-wide defaults).
- * Global config requires a model field.
+ * Like topic-level config, model is optional: params-only global config applies
+ * its parameters as agent-wide defaults.
  */
 export function extractGlobalModelConfiguration(
   parsed: ParsedAgentforce,
@@ -84,16 +85,8 @@ export function extractGlobalModelConfiguration(
 
   if (!result) return undefined;
 
-  // Global config requires model field - warn if only params provided
-  if (!result.modelRef) {
-    if (result.params) {
-      ctx.warning(
-        'Global model_config has parameters but no model specified. Parameters will be ignored. ' +
-          'Global model_config requires a model field (e.g., model: "model://gpt-4"). ' +
-          'To apply parameters to specific topics, use topic-level model_config.',
-        parsed.model_config.__cst?.range
-      );
-    }
+  // Return undefined if neither model nor params were extracted
+  if (!result.modelRef && !result.params) {
     return undefined;
   }
 

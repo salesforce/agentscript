@@ -392,9 +392,10 @@ function resolveNamespace(
 
       for (const { level, info } of scopeChain) {
         const levelName = scope[level];
+        const parentScope = info.parentScopes?.find(parent => scope[parent]);
 
         let levelSym: DocumentSymbol | undefined;
-        if (!info.parentScope) {
+        if (!parentScope) {
           const keys = info.rootKeys.flatMap(k => resolveNamespaceKeys(k, ctx));
           levelSym = currentChildren.find(s =>
             keys.some(k => s.name === `${k} ${levelName}`)
@@ -479,8 +480,9 @@ function getScopeChain(
     let current: string | undefined = level;
     while (current) {
       const cur = nav.get(current);
-      if (!cur?.parentScope) break;
-      current = cur.parentScope;
+      const parent = cur?.parentScopes?.find(candidate => scope[candidate]);
+      if (!parent) break;
+      current = parent;
       depth++;
     }
     active.push({ level, info, depth });

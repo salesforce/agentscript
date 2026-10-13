@@ -36,6 +36,27 @@ system:
     expect(state.diagnostics).toBeInstanceOf(Array);
   });
 
+  test('processDocument accepts conditional system instructions', () => {
+    const source = `
+system:
+  instructions: ->
+    if @system_variables.current_modality == "voice":
+      | Keep responses concise.
+    else:
+      | Provide additional detail.
+`;
+    const state = processDocument(
+      'test://conditional.agent',
+      source,
+      testConfig
+    );
+
+    expect(state.ast).toBeDefined();
+    expect(
+      state.diagnostics.filter(diagnostic => diagnostic.severity === 1)
+    ).toEqual([]);
+  });
+
   test('processDocument handles invalid input gracefully', () => {
     const source = `{{{invalid: yaml/agentscript`;
     const state = processDocument('test://test.agent', source, testConfig);

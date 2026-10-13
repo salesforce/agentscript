@@ -25,10 +25,9 @@ import {
   init,
   getParser,
   executeQuery,
-  compile,
+  compileSource,
   serialize,
 } from '@agentscript/agentforce';
-import type { ParsedAgentforce } from '@agentscript/agentforce';
 import { setupServer, defaultDialects } from '@agentscript/lsp';
 import type { LspConfig } from '@agentscript/lsp';
 
@@ -65,16 +64,36 @@ const config: LspConfig = {
   compile(dialectName) {
     if (dialectName !== 'agentforce') return undefined;
     return {
-      compile(ast, source) {
-        const result = compile(ast as ParsedAgentforce);
+      compile(_ast, source) {
         // Serialize in the worker — ranges WeakMap can't cross postMessage.
-        const { json, sourceMap } = serialize(result.output, result.ranges, {
+        // Emit both snake_case (default) and camelCase variants via the same
+        // compileSource path so the UI can toggle between them instantly
+        // without a recompile round-trip.
+        const serializeOptions = {
           sourcePath: 'input.agent',
           sourceContent: source,
-        });
+        };
+        const snake = compileSource(source);
+        const { json, sourceMap } = serialize(
+          snake.output,
+          snake.ranges,
+          serializeOptions
+        );
+        const camel = compileSource(source, { camelCase: true });
+        const { json: camelJson, sourceMap: camelSourceMap } = serialize(
+          camel.output,
+          camel.ranges,
+          serializeOptions
+        );
+        // compileSource returns merged parse+lint+compile diagnostics; the
+        // language service already reports parse/lint, so surface only the
+        // compile-stage ones here to avoid duplicates.
+        const diagnostics = snake.diagnostics.filter(
+          d => d.source === 'compiler'
+        );
         return {
-          diagnostics: result.diagnostics,
-          output: { json, sourceMap },
+          diagnostics,
+          output: { json, sourceMap, camelJson, camelSourceMap },
         };
       },
     };

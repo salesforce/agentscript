@@ -37,6 +37,7 @@ import type {
 
 import {
   AGENTFABRIC_IDENTIFIER_PATTERN,
+  AGENTFABRIC_TARGET_PATTERN,
   ConnectionKind,
   Namespace,
   OUTPUT_JSON_SCHEMA_TYPES,
@@ -86,6 +87,9 @@ export const AFConfigBlock = Block('AFConfigBlock', {
   default_llm: ReferenceValue.describe(
     'Default LLM (@llm.<name>) used at compile time for orchestration, reasoning, and generate nodes that omit an explicit llm field. The linter reports an error if this is omitted while any such node also omits llm.'
   ).allowedNamespaces([Namespace.LLM]),
+  parallel_tool_execution: BooleanValue.describe(
+    'When True, the runtime may execute multiple tool calls in parallel. Defaults to False.'
+  ),
 })
   .describe('Agent-level configuration.')
   .example(
@@ -103,9 +107,9 @@ const GEMINI_KIND = 'Gemini';
 
 const llmBaseFields: Schema = {
   target: StringValue.describe(
-    'Connection URI (llm://connection_name) referencing an LLM connection.'
+    'Connection URI (llm://connection_name) referencing an LLM connection. Also accepts a same-group qualified reference (llm://<assetId>/<name>) or a fully-qualified cross-project reference (llm://<groupId>/<assetId>/<name>).'
   )
-    .pattern(new RegExp(`^llm://(${AGENTFABRIC_IDENTIFIER_PATTERN})$`))
+    .pattern(new RegExp(`^llm://(${AGENTFABRIC_TARGET_PATTERN})$`))
     .connectionRef([ConnectionKind.LLM])
     .example('llm://connection_name')
     .required(),
@@ -186,11 +190,9 @@ export const ActionDefBlock = AgentScriptActionBlock.pick([
   .extend(
     {
       target: StringValue.describe(
-        'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name.'
+        'Connection URI using protocol-specific schemes: a2a://connection_name or mcp://connection_name. Each also accepts a same-group qualified reference (e.g. mcp://<assetId>/<name>) or a fully-qualified cross-project reference (e.g. mcp://<groupId>/<assetId>/<name>).'
       )
-        .pattern(
-          new RegExp(`^(?:a2a|mcp)://(${AGENTFABRIC_IDENTIFIER_PATTERN})$`)
-        )
+        .pattern(new RegExp(`^(?:a2a|mcp)://(${AGENTFABRIC_TARGET_PATTERN})$`))
         .connectionRef([ConnectionKind.Agent, ConnectionKind.MCP])
         .example('a2a://connection_name')
         .required(),
@@ -378,6 +380,9 @@ export const NodeReasoningSectionBlock = AgentScriptReasoningBlock.pick([
     ).min(1),
     task_timeout_secs: NumberValue.describe(
       'Timeout in seconds for total node execution.'
+    ),
+    parallel_tool_execution: ExpressionValue.describe(
+      'Per-node override for parallel tool execution. Accepts True/False or a runtime expression (e.g. @variables.user_tier == "gold").'
     ),
   })
   .describe('Node reasoning section.');

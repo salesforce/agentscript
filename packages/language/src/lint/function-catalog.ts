@@ -37,6 +37,8 @@ export interface FunctionDefinition {
   readonly minArgs: number;
   /** Maximum number of arguments, or `null` for variadic (unbounded). */
   readonly maxArgs: number | null;
+  /** Allowed keywords; `[]` rejects all, while omission is permissive. */
+  readonly allowedKeywords?: readonly string[];
   /** Optional argument validators run after the arity check passes. */
   readonly validators?: ReadonlyArray<
     (args: readonly Expression[]) => CatalogFinding[]
@@ -54,6 +56,7 @@ export type FunctionCatalog = ReadonlyMap<string, FunctionDefinition>;
  * - `max`/`min` — at least 1 argument (variadic).
  * - `json_path(obj, path, default?)` — 2 or 3 arguments, with selector checks.
  * - `lower`/`upper`/`to_json`/`from_json` — exactly 1 argument.
+ * - `concat(parts, sep="")` — zero or more parts; optional `sep` keyword.
  *
  * The function *names* are the single source of truth in
  * `@agentscript/types` ({@link BUILTIN_FUNCTION_NAMES}), shared with the
@@ -63,22 +66,35 @@ export const BUILTIN_CATALOG: FunctionCatalog = new Map<
   string,
   FunctionDefinition
 >([
-  ['len', { name: 'len', minArgs: 1, maxArgs: 1 }],
-  ['max', { name: 'max', minArgs: 1, maxArgs: null }],
-  ['min', { name: 'min', minArgs: 1, maxArgs: null }],
+  ['len', { name: 'len', minArgs: 1, maxArgs: 1, allowedKeywords: [] }],
+  ['max', { name: 'max', minArgs: 1, maxArgs: null, allowedKeywords: [] }],
+  ['min', { name: 'min', minArgs: 1, maxArgs: null, allowedKeywords: [] }],
   [
     'json_path',
     {
       name: 'json_path',
       minArgs: 2,
       maxArgs: 3,
+      allowedKeywords: [],
       validators: [validateJsonPathCall],
     },
   ],
-  ['lower', { name: 'lower', minArgs: 1, maxArgs: 1 }],
-  ['upper', { name: 'upper', minArgs: 1, maxArgs: 1 }],
-  ['to_json', { name: 'to_json', minArgs: 1, maxArgs: 1 }],
-  ['from_json', { name: 'from_json', minArgs: 1, maxArgs: 1 }],
+  ['lower', { name: 'lower', minArgs: 1, maxArgs: 1, allowedKeywords: [] }],
+  ['upper', { name: 'upper', minArgs: 1, maxArgs: 1, allowedKeywords: [] }],
+  ['to_json', { name: 'to_json', minArgs: 1, maxArgs: 1, allowedKeywords: [] }],
+  [
+    'from_json',
+    { name: 'from_json', minArgs: 1, maxArgs: 1, allowedKeywords: [] },
+  ],
+  [
+    'concat',
+    {
+      name: 'concat',
+      minArgs: 0,
+      maxArgs: null,
+      allowedKeywords: ['sep'],
+    },
+  ],
 ]);
 
 // Fail fast at module load if the catalog and BUILTIN_FUNCTION_NAMES drift —

@@ -39,35 +39,43 @@ export function compileTemplate(
   ctx: CompilerContext,
   opts: CompileExpressionOptions = {}
 ): string {
-  return parts
-    .map(part => {
-      const kind = (part as { __kind?: string }).__kind;
-      if (part instanceof TemplateText || kind === 'TemplateText') {
-        return (part as TemplateText).value;
-      }
-      if (
-        part instanceof TemplateInterpolation ||
-        kind === 'TemplateInterpolation'
-      ) {
-        const compiled = compileExpression(
-          (part as TemplateInterpolation).expression,
-          ctx,
-          opts
-        );
-        if (opts.isSystemMessage && compiled.startsWith('$Context.')) {
-          return `{!${compiled}}`;
+  // Template interpolations are the LLM-visible prompt text: this is the only
+  // context where an @system_variables.uploaded_files reference should surface
+  // the file to the model (see FileReferenceCapture.capture). Mark it for the
+  // duration of this template; the scope is restored on exit so a nested
+  // template (ProcedureValue) or a sibling action binding compiled afterwards
+  // is unaffected.
+  return ctx.fileCapture.withPromptText(() =>
+    parts
+      .map(part => {
+        const kind = (part as { __kind?: string }).__kind;
+        if (part instanceof TemplateText || kind === 'TemplateText') {
+          return (part as TemplateText).value;
         }
-        if (compiled.startsWith('action.')) {
-          return compiled.slice('action.'.length);
+        if (
+          part instanceof TemplateInterpolation ||
+          kind === 'TemplateInterpolation'
+        ) {
+          const compiled = compileExpression(
+            (part as TemplateInterpolation).expression,
+            ctx,
+            opts
+          );
+          if (opts.isSystemMessage && compiled.startsWith('$Context.')) {
+            return `{!${compiled}}`;
+          }
+          if (compiled.startsWith('action.')) {
+            return compiled.slice('action.'.length);
+          }
+          if (compiled.startsWith('response_formats.')) {
+            return compiled.slice('response_formats.'.length);
+          }
+          return `{{${compiled}}}`;
         }
-        if (compiled.startsWith('response_formats.')) {
-          return compiled.slice('response_formats.'.length);
-        }
-        return `{{${compiled}}}`;
-      }
-      return '';
-    })
-    .join('');
+        return '';
+      })
+      .join('')
+  );
 }
 
 /**

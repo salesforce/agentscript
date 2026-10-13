@@ -49,7 +49,7 @@ export default [
             'packages/lsp/src/providers/*.test.ts',
             'packages/lsp-server/src/*.test.ts',
             'packages/parser-javascript/test/*.test.ts',
-            'scripts/scs/*.test.ts',
+            'packages/scs-asset-catalog/test/*.test.ts',
           ],
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
         },

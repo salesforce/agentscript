@@ -14,6 +14,7 @@
  */
 import type { FieldType, KeywordInfo, Schema } from '../types.js';
 import { keywordNames, resolveFieldType } from '../types.js';
+import type { NamedBlockFactory } from '../factory-types.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -38,10 +39,14 @@ export function generateFieldSnippet(
 
   // Only generate snippets for compound types
   if (isSequence(ft)) return undefined;
-  if (isPrimitive(ft) && !isTypedMap(ft)) return undefined;
 
   const tabSize = opts?.tabSize ?? 4;
   const counter = { value: 1 };
+
+  if (isPrimitive(ft) && !isTypedMap(ft)) {
+    if (!isProcedureValue(ft)) return undefined;
+    return primitiveSnippetLine(fieldName, ft, 0, counter, tabSize) + '$0';
+  }
 
   if (isTypedMap(ft)) {
     return snippetForTypedMap(fieldName, ft, 0, counter, tabSize);
@@ -114,6 +119,7 @@ function snippetForCollection(
 ): string {
   const basePad = generatePad(indent, tabSize);
   const entryBlock = getEntryBlock(ft);
+  const entrySeparator = entryBlock?.entrySeparator ?? ':';
 
   if (!entryBlock?.schema || Object.keys(entryBlock.schema).length === 0) {
     // Schema for entry block is not provided or empty. No collection content is provided
@@ -121,7 +127,7 @@ function snippetForCollection(
       // Named collection, field name and collection name inlined
       return (
         [
-          `${basePad}${name} \${${counter.value++}:Name}:`,
+          `${basePad}${name} \${${counter.value++}:Name}${entrySeparator}`,
           `${generatePad(indent + 1, tabSize)}\${${counter.value++}}`,
         ].join('\n') + '$0'
       );
@@ -131,7 +137,7 @@ function snippetForCollection(
     return (
       [
         `${basePad}${name}:`,
-        `${generatePad(indent + 1, tabSize)}\${${counter.value++}:Name}:`,
+        `${generatePad(indent + 1, tabSize)}\${${counter.value++}:Name}${entrySeparator}`,
         `${generatePad(indent + 2, tabSize)}\${${counter.value++}}`,
       ].join('\n') + '$0'
     );
@@ -141,12 +147,12 @@ function snippetForCollection(
   let lines: string[];
   if (ft.__isNamedCollection) {
     // Named collection, field name and collection name inlined
-    lines = [`${basePad}${name} \${${counter.value++}:Name}:`];
+    lines = [`${basePad}${name} \${${counter.value++}:Name}${entrySeparator}`];
   } else {
     // Regular CollectionBlock - Field name in first line and collection name indented in second line
     lines = [
       `${basePad}${name}:`,
-      `${generatePad(indent + 1, tabSize)}\${${counter.value++}:Name}:`,
+      `${generatePad(indent + 1, tabSize)}\${${counter.value++}:Name}${entrySeparator}`,
     ];
     indent += 1; // Required to indent children inside collection block
   }
@@ -407,16 +413,12 @@ function isCollection(ft: FieldType): boolean {
   return ft.__isCollection === true;
 }
 
-function getEntryBlock(ft: FieldType): FieldType | undefined {
-  const rec = ft as unknown as Record<string, unknown>;
-  if ('entryBlock' in rec && rec.entryBlock != null) {
-    const eb = rec.entryBlock;
-    // entryBlock can be a class (function) or object — both have .schema
-    if (typeof eb === 'function' || typeof eb === 'object') {
-      return eb as FieldType;
+function getEntryBlock(ft: FieldType): NamedBlockFactory<Schema> | undefined {
+  return (
+    ft as FieldType & {
+      entryBlock?: NamedBlockFactory<Schema>;
     }
-  }
-  return undefined;
+  ).entryBlock;
 }
 
 function getTypedMapModifiers(ft: FieldType): readonly KeywordInfo[] {

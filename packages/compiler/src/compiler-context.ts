@@ -11,12 +11,16 @@ import type { Diagnostic } from './diagnostics.js';
 import type { ContextVariable, StateVariable } from './types.js';
 import { Sourced } from './sourced.js';
 import type { Sourceable } from './sourced.js';
+import { FileReferenceCapture } from './file-reference-capture.js';
+import type { CompileOptions } from './compile.js';
 
 export interface ConnectedAgentInputSignature {
   /** Input names that have definition-time defaults (optional at invocation). */
   inputsWithDefaults: Set<string>;
   /** All input names (both required and optional). */
   allInputs: Set<string>;
+  /** Authored description, used as the default tool/routing signal. */
+  description?: string;
 }
 
 export interface ActionInputSignature {
@@ -33,6 +37,12 @@ export interface ActionInputSignature {
  */
 export class CompilerContext {
   readonly diagnostics: Diagnostic[] = [];
+
+  readonly optimize: boolean;
+
+  constructor(options?: CompileOptions) {
+    this.optimize = options?.optimize ?? true;
+  }
 
   /**
    * Script block paths: compiled output object → script-level path.
@@ -55,8 +65,13 @@ export class CompilerContext {
    */
   initialNode: string | undefined;
 
-  /** True once the one-time `collect` beta-services legal notice has been emitted. */
-  collectBetaServicesNoticeEmitted: boolean = false;
+  /**
+   * Diagnostic `code`s already emitted under the once-per-compile policy (see
+   * `addDiagnosticOnce`). Guards script-wide notices — e.g. the `ask for`
+   * beta-services legal notice — that must surface a single time regardless of
+   * how many nodes would independently raise them.
+   */
+  private readonly onceEmittedCodes = new Set<string>();
 
   /**
    * Highest chain-link condition slot index used during node compilation.
@@ -65,6 +80,18 @@ export class CompilerContext {
    * `AgentScriptInternal_condition_1 .. _N` in `state_variables`.
    */
   maxChainConditionSlot: number = 0;
+
+  /** True when at least one node compiles conditional system instructions. */
+  usesDynamicSystemInstructions: boolean = false;
+
+  /**
+   * Per-node base for condition-slot allocation. Sibling conditionals normally
+   * reuse low slots (fine for inline `enabled`, evaluated as each runs), but a
+   * file-reference gate is resolved against the node's final state, so its slot
+   * must not be reused by a later sibling. Advanced past a conditional's slots
+   * only when it captured a file reference; reset per node.
+   */
+  nodeConditionSlotBase: number = 0;
 
   /** Knowledge block field values for eager resolution. */
   knowledgeFields: Map<string, string | boolean> = new Map();
@@ -121,6 +148,14 @@ export class CompilerContext {
    */
   topLevelActionSignatures: Map<string, ActionInputSignature> = new Map();
 
+  /**
+   * All `@system_variables.uploaded_files` capture state and logic for this
+   * compile, grouped into one object rather than spread across loose flags. Owns
+   * the per-node accumulator, the prompt-text / node scopes, the managed-mode
+   * gate, and the enclosing-condition stack. See `FileReferenceCapture`.
+   */
+  readonly fileCapture = new FileReferenceCapture(this);
+
   addDiagnostic(
     severity: DiagnosticSeverity,
     message: string,
@@ -146,6 +181,44 @@ export class CompilerContext {
 
   info(message: string, range?: Range, code?: string): void {
     this.addDiagnostic(DiagnosticSeverity.Information, message, range, code);
+  }
+
+  /**
+   * Emit a diagnostic at most once per compile, keyed by `code`. The first call
+   * for a given `code` emits normally; later calls with the same `code` are
+   * no-ops. Use for script-wide notices that must appear a single time even when
+   * many nodes would independently raise them (e.g. beta-service legal notices).
+   *
+   * `code` is required here because it is the de-duplication key — unlike the
+   * range-based collapse in `dedupeDiagnostics`, this fires once regardless of
+   * where in the source each trigger sits.
+   */
+  addDiagnosticOnce(
+    severity: DiagnosticSeverity,
+    message: string,
+    code: string,
+    range?: Range
+  ): void {
+    if (this.onceEmittedCodes.has(code)) return;
+    this.onceEmittedCodes.add(code);
+    this.addDiagnostic(severity, message, range, code);
+  }
+
+  errorOnce(message: string, code: string, range?: Range): void {
+    this.addDiagnosticOnce(DiagnosticSeverity.Error, message, code, range);
+  }
+
+  warningOnce(message: string, code: string, range?: Range): void {
+    this.addDiagnosticOnce(DiagnosticSeverity.Warning, message, code, range);
+  }
+
+  infoOnce(message: string, code: string, range?: Range): void {
+    this.addDiagnosticOnce(
+      DiagnosticSeverity.Information,
+      message,
+      code,
+      range
+    );
   }
 
   /**

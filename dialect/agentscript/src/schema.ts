@@ -30,6 +30,7 @@ import {
   emitIndent,
   typeMismatchDiagnostic,
 } from '@agentscript/language';
+import { SystemInstructionValue } from './system-instruction-value.js';
 
 import type {
   Diagnostic,
@@ -77,8 +78,8 @@ export const MessagesBlock = Block('MessagesBlock', {
 export const SystemBlock = Block(
   'SystemBlock',
   {
-    instructions: StringValue.describe(
-      'System-level instructions for the agent. Supports {!<expression>} interpolation with context variables.'
+    instructions: SystemInstructionValue.describe(
+      'System-level instructions for the agent. Supports {!<expression>} interpolation and conditional instruction text.'
     ),
     messages: MessagesBlock.describe(
       'Default messages for certain situations (e.g., welcome, error).'
@@ -500,18 +501,58 @@ export const ConnectedSubagentBlock = NamedBlock(
         'Templates are for LLM instructions; connected agents have no reasoning loop.'
       ),
     delegate_escalation: BooleanValue.describe(
-      'When True (default), use the outbound flow of the connected subagent. ' +
-        'When False, use the outbound flow of the orchestrator agent.'
+      'When True (default), use the outbound flow and message of the connected subagent. ' +
+        'When False, use the outbound flow and message of the orchestrator agent.'
     ),
   },
   { capabilities: ['invocationTarget', 'transitionTarget'] }
 );
 
+/** A named group of directives within a steps workflow procedure. */
+export const WorkflowStepBlock = NamedBlock(
+  'WorkflowStepBlock',
+  {},
+  {
+    body: ProcedureValue,
+    capabilities: ['transitionTarget'],
+    symbol: { kind: SymbolKind.Method },
+  }
+).describe('A named, ordered group of workflow directives.');
+
+/**
+ * A named workflow containing an executable directive flow. Generic action
+ * definitions live here; platform dialects extend actions with their metadata.
+ */
+export const WorkflowProcedureBlock = NamedBlock(
+  'WorkflowProcedureBlock',
+  {
+    label: StringValue.describe('Display label shown in the UI.'),
+    description: StringValue.describe(
+      'Human-readable description of the workflow.'
+    ).required(),
+    actions: ActionsBlock.describe(
+      'Action definitions scoped to this workflow. A workflow can only run its own actions.'
+    ),
+    steps: ProcedureValue,
+    step: NamedCollectionBlock(WorkflowStepBlock).describe(
+      'Named, ordered groups of workflow directives.'
+    ),
+  },
+  {
+    scopeAlias: 'workflow',
+    capabilities: ['transitionTarget'],
+    symbol: { kind: SymbolKind.Method },
+  }
+).describe('A named workflow containing an executable directive flow.');
+
 /**
  * A workflow — a named, independently-executable unit defined in the scope of
- * the agent. Workflows are either routed deterministically to a specific
- * subagent (`agent`), executed with a free-form `prompt`, or both — when
- * `agent` is present, `prompt` is an optional instruction passed alongside.
+ * the agent. A workflow takes exactly one of three forms: routed
+ * deterministically to a specific subagent (`agent`, with an optional `prompt`
+ * instruction alongside), executed with a free-form `prompt`, or a reference to
+ * an externally-stored workflow via a `workflow://<name>` URI (`target`). The
+ * `target` form mirrors a bundle reference and is mutually exclusive with
+ * `agent`/`prompt`.
  */
 export const WorkflowBlock = NamedBlock(
   'WorkflowBlock',
@@ -522,6 +563,12 @@ export const WorkflowBlock = NamedBlock(
     prompt: StringValue.describe(
       'Instruction for this workflow. Required when no agent is set; optional additional context when agent is set.'
     ).accepts(['StringLiteral']),
+    target: StringValue.accepts(['StringLiteral'])
+      .describe(
+        'URI identifying an externally-stored workflow, e.g. "workflow://lead_generation". ' +
+          'Mutually exclusive with `agent` and `prompt`.'
+      )
+      .pattern(/^workflow:\/\/\S+$/),
   },
   {
     symbol: { kind: SymbolKind.Method },
@@ -538,7 +585,9 @@ export const WorkflowBlock = NamedBlock(
         agent: @subagent.outreach
         prompt: "Follow up on emails from last week that haven't received a reply."
     free_form:
-        prompt: "Summarise recent activity for this account."`
+        prompt: "Summarise recent activity for this account."
+    stored:
+        target: "workflow://account_summary"`
   );
 
 /**
@@ -652,6 +701,7 @@ export const AgentScriptSchema = {
   actions: ActionsBlock.describe(
     'Agent-level action definitions. Inherited by every subagent, which can reference them in reasoning actions.'
   ),
+  workflow: NamedCollectionBlock(WorkflowProcedureBlock),
   workflows: NamedCollectionBlock(WorkflowBlock),
   bundles: NamedCollectionBlock(BundleBlock),
   trigger: NamedCollectionBlock(TriggerBlock),

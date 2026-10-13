@@ -99,6 +99,7 @@ describe('type conformance', () => {
       | 'variables'
       | 'language'
       | 'actions'
+      | 'workflow'
       | 'workflows'
       | 'bundles'
       | 'trigger'

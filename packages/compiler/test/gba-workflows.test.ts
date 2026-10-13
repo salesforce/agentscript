@@ -159,4 +159,232 @@ subagent worker:
     expect(nurture?.invocation_target_type).toBe('prompt');
     expect(nurture?.prompt).toBe('Nurture leads');
   });
+
+  it('compiles a workflow reference to invocation_target_type "workflow" with the prefix stripped', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    stored:
+        target: "workflow://account_summary"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors).toHaveLength(0);
+
+    const workflow = result.output.agent_version.workflows?.find(
+      w => w.id === 'stored'
+    );
+    expect(workflow?.invocation_target_type).toBe('workflow');
+    expect(workflow?.invocation_target_name).toBe('account_summary');
+    expect(workflow?.prompt).toBeUndefined();
+  });
+
+  it('produces an error for a workflow target with an unsupported scheme', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    stored:
+        target: "bundle://account_summary"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.message.toLowerCase().includes('scheme'))).toBe(
+      true
+    );
+
+    const stored = result.output.agent_version.workflows?.find(
+      w => w.id === 'stored'
+    );
+    expect(stored).toBeUndefined();
+  });
+
+  it('produces an error for a workflow target with an empty name after the scheme', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    stored:
+        target: "workflow://"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors.length).toBeGreaterThan(0);
+
+    // The empty invocation_target_name must never be emitted.
+    const stored = result.output.agent_version.workflows?.find(
+      w => w.id === 'stored'
+    );
+    expect(stored).toBeUndefined();
+  });
+
+  it('produces an error for a workflow target with no URI scheme separator', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    stored:
+        target: "account_summary"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors.length).toBeGreaterThan(0);
+
+    const stored = result.output.agent_version.workflows?.find(
+      w => w.id === 'stored'
+    );
+    expect(stored).toBeUndefined();
+  });
+
+  it('produces an error when a workflow combines target with agent', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    conflicted:
+        target: "workflow://account_summary"
+        agent: @subagent.worker
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+
+subagent worker:
+    description: "Worker agent"
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors.length).toBeGreaterThan(0);
+
+    const conflicted = result.output.agent_version.workflows?.find(
+      w => w.id === 'conflicted'
+    );
+    expect(conflicted).toBeUndefined();
+  });
+
+  it('produces an error when a workflow combines target with prompt', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    conflicted:
+        target: "workflow://account_summary"
+        prompt: "Summarize the account"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors.length).toBeGreaterThan(0);
+
+    const conflicted = result.output.agent_version.workflows?.find(
+      w => w.id === 'conflicted'
+    );
+    expect(conflicted).toBeUndefined();
+  });
+
+  it('produces an error for a workflow that sets none of target, agent, or prompt', () => {
+    const source = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+    default_agent_user: "test_user"
+
+workflows:
+    empty:
+        description: "no invocation target"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route request.
+`;
+
+    const result = compile(parseSource(source));
+
+    const errors = result.diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors.length).toBeGreaterThan(0);
+
+    const empty = result.output.agent_version.workflows?.find(
+      w => w.id === 'empty'
+    );
+    expect(empty).toBeUndefined();
+  });
 });

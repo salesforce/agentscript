@@ -44,6 +44,7 @@ import { getSymbolNamespaceEntries, type DocumentSymbol } from './symbols.js';
 import type { PositionIndex } from './position-index.js';
 import { queryScopeAtPosition } from './position-index.js';
 import { decomposeAtMemberExpression } from '../expressions.js';
+import { RESERVED_BUILT_IN_RESPONSE_FORMATS } from '../response-format-constants.js';
 
 /** A completion candidate returned by the dialect layer. */
 export interface CompletionCandidate {
@@ -250,6 +251,9 @@ export function getCompletionCandidates(
     }
   }
 
+  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
+  const activeScope = activeScopeForNamespace(scopesRequired, effectiveScope);
+
   if (symbols) {
     // When a cursor position is available, use position-based bottom-up
     // resolution so the innermost-enclosing namespace map wins (shadowing).
@@ -266,16 +270,20 @@ export function getCompletionCandidates(
       position
     );
     if (entries) {
-      return entries.map(({ name, symbol }) => ({
+      const scopedCandidates = entries.map(({ name, symbol }) => ({
         name,
         kind: symbol.kind,
         detail: symbol.detail,
       }));
+      if (activeScope && ctx.invocationTargetNamespaces.has(namespace)) {
+        return mergeCandidates(
+          scopedCandidates,
+          getRootCandidates(ast, namespace, ctx)
+        );
+      }
+      return scopedCandidates;
     }
   }
-
-  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
-  const activeScope = activeScopeForNamespace(scopesRequired, effectiveScope);
 
   // Definition-vs-reference disambiguation. A namespace whose root block
   // declares the `invocationTarget` capability (e.g. `actions`) names a set
@@ -290,12 +298,14 @@ export function getCompletionCandidates(
   if (activeScope && effectiveScope) {
     if (ctx.invocationTargetNamespaces.has(namespace)) {
       const rootDefs = getRootCandidates(ast, namespace, ctx);
-      // When the document has root-level invocation-target definitions, prefer
-      // them (the reference resolves to definitions, not node-local bindings).
-      // When there are none, fall through to the scoped behavior below, which
-      // offers node-local binding names — graceful degradation matching the
-      // behavior that predates this disambiguation.
-      if (rootDefs.length > 0) return rootDefs;
+      const scopedDefs = getScopedChildCandidates(
+        ast,
+        namespace,
+        activeScope,
+        effectiveScope,
+        ctx
+      );
+      return mergeCandidates(scopedDefs, rootDefs);
     }
     return getScopedChildCandidates(
       ast,
@@ -321,6 +331,18 @@ export function getCompletionCandidates(
   }
 
   return [];
+}
+
+/** Merge fallback candidates without replacing same-named scoped entries. */
+function mergeCandidates(
+  primary: CompletionCandidate[],
+  fallback: CompletionCandidate[]
+): CompletionCandidate[] {
+  const names = new Set(primary.map(candidate => candidate.name));
+  return [
+    ...primary,
+    ...fallback.filter(candidate => !names.has(candidate.name)),
+  ];
 }
 
 /**
@@ -1369,6 +1391,8 @@ export function getNodeMemberAccessCompletions(
  * Supported contexts:
  * - Reasoning action binding: `binding_name: @ns.action` with `with` indented underneath.
  * - Run statement: `run @ns.action` with `with` indented underneath.
+ * - Render clause: `render: @…response_formats.<name>` with `with` indented
+ *   underneath — suggests the response format's top-level input names.
  *
  * Returns an empty array if the cursor is not on a `with` line or no action
  * definition with inputs can be resolved.
@@ -1389,6 +1413,12 @@ export function getWithCompletions(
   // Examples that don't: "        with order_number = value", "set x = 1"
   const withMatch = currentLine.match(/^\s+with\s+(\w*)$/);
   if (!withMatch) return [];
+
+  // A `with` nested under a `render:` clause binds the response format's
+  // inputs, not an action's. Resolve those first; a null result means the
+  // `with` isn't in a render body, so fall through to the action path below.
+  const renderInputs = renderWithInputCandidates(ast, line, ctx, lines);
+  if (renderInputs) return renderInputs;
 
   // Step 1: Walk up source lines by indentation to find the enclosing
   // action reference — either `run @actions.X` or `binding: @actions.X`.
@@ -1448,6 +1478,70 @@ export function getWithCompletions(
   }
 
   return candidates;
+}
+
+const RENDER_SHORTFORM_RE = /^render:\s*@response_formats\.([\w-]+)/;
+const RENDER_LONGFORM_RE =
+  /^render:\s*@connection\.([\w-]+)\.response_formats\.([\w-]+)/;
+
+/**
+ * Candidates for a `with` clause nested under a `render:` — the top-level
+ * input names of the referenced response format, minus those already bound.
+ *
+ * Returns null when the `with` line's immediate parent isn't a `render:`
+ * clause (so the caller falls back to action-binding resolution). Returns an
+ * empty array when it IS a render body but nothing resolves — an unknown or
+ * built-in primitive format (which has no inputs), or a connection that can't
+ * be resolved — so the caller does not misread it as an action `with`.
+ *
+ * The connection comes from the ref itself for the longform
+ * `@connection.X.response_formats.Y`, and from the enclosing
+ * `when @connection.X` block for the shortform `@response_formats.Y`.
+ */
+function renderWithInputCandidates(
+  ast: AstRoot,
+  line: number,
+  ctx: SchemaContext,
+  lines: string[]
+): CompletionCandidate[] | null {
+  const parents = walkParentsByIndent(lines, line);
+  const parent = parents.next().value;
+  if (!parent) return null;
+
+  const longform = parent.trimmed.match(RENDER_LONGFORM_RE);
+  const shortform = parent.trimmed.match(RENDER_SHORTFORM_RE);
+  if (!longform && !shortform) return null;
+
+  let connection: string | undefined;
+  let formatName: string;
+  if (longform) {
+    connection = longform[1];
+    formatName = longform[2];
+  } else {
+    formatName = shortform![1];
+    // Shortform inherits its connection from the enclosing `when @connection.X`
+    // — keep walking the same parent chain to find it.
+    for (const ancestor of parents) {
+      const when = ancestor.trimmed.match(WHEN_CONNECTION_RE);
+      if (when) {
+        connection = when[1];
+        break;
+      }
+    }
+  }
+  if (!connection) return [];
+
+  const entry = resolveEntryAtRoot(ast, 'connection', connection, ctx);
+  const formats = entry?.response_formats;
+  if (!isNamedMap(formats)) return [];
+  const formatNode = formats.get(formatName);
+  if (!isAstNodeLike(formatNode)) return [];
+
+  const candidates: CompletionCandidate[] = [];
+  collectMapCandidates(formatNode.inputs, candidates);
+
+  const bound = collectBoundWithParams(lines, line);
+  return candidates.filter(c => !bound.has(c.name));
 }
 
 /**
@@ -1527,6 +1621,239 @@ function collectBoundWithParams(
   }
 
   return bound;
+}
+
+const WHEN_CONNECTION_RE = /^when\s+@connection\.([\w-]+)\b/;
+const RENDER_RE = /^render\b/;
+const SHOW_AND_RETURN_RE = /^show_and_return\b/;
+
+/**
+ * Suggest a `render: @response_formats.<name>` snippet when the cursor is on
+ * an empty/partial-`render` line inside a `when @connection.X` block, which
+ * requires exactly one such clause. Empty when not in a when-block, the text
+ * isn't a prefix of `render`, or a `render:` sibling already exists.
+ *
+ * The snippet self-nests: `render:` must sit one indent step below the `when`.
+ * Since the `when` line has no trailing `:`, editors don't auto-indent after
+ * it, so the cursor is often still at the `when`'s own indent — we pad the
+ * snippet to reach the child indent in that case.
+ */
+export function getWhenRenderCompletions(
+  ast: AstRoot,
+  line: number,
+  _character: number,
+  _ctx: SchemaContext,
+  source: string
+): CompletionCandidate[] {
+  const lines = source.split('\n');
+  const typed = (lines[line] ?? '').trim();
+  if (typed !== '' && !'render'.startsWith(typed)) return [];
+
+  const enclosing = findEnclosingStatement(lines, line, WHEN_CONNECTION_RE);
+  if (!enclosing) return [];
+
+  if (hasSiblingStatement(lines, line, RENDER_RE)) return [];
+
+  const pad = selfNestPad(ast, source, lines, line, enclosing.indent);
+
+  return [
+    {
+      name: 'render',
+      kind: SymbolKind.Constant,
+      detail: `Render a response format for @connection.${enclosing.match[1]}`,
+      snippet: `${pad}render: @response_formats.\${1:format_name}`,
+    },
+  ];
+}
+
+/**
+ * Suggest a `show_and_return: True|False` snippet when the cursor is on an
+ * empty/partial-`show_and_return` line inside a `render:` body, which allows
+ * exactly one such clause.
+ */
+export function getShowAndReturnCompletions(
+  ast: AstRoot,
+  line: number,
+  _character: number,
+  _ctx: SchemaContext,
+  source: string
+): CompletionCandidate[] {
+  const lines = source.split('\n');
+  const typed = (lines[line] ?? '').trim();
+  if (typed !== '' && !'show_and_return'.startsWith(typed)) return [];
+
+  const enclosing = findEnclosingStatement(lines, line, RENDER_RE);
+  if (!enclosing) return [];
+
+  if (hasSiblingStatement(lines, line, SHOW_AND_RETURN_RE)) return [];
+
+  const pad = selfNestPad(ast, source, lines, line, enclosing.indent);
+
+  return [
+    {
+      name: 'show_and_return',
+      kind: SymbolKind.Constant,
+      detail: 'End the turn after rendering (True) or keep reasoning (False)',
+      snippet: `${pad}show_and_return: \${1|True,False|}`,
+    },
+  ];
+}
+
+/**
+ * Left-pad a self-nesting snippet so it lands one indent step below its parent
+ * statement. A colon-less parent line gets no editor auto-indent, so the cursor
+ * often sits at the parent's own indent — this makes up the difference.
+ */
+function selfNestPad(
+  ast: AstRoot,
+  source: string,
+  lines: string[],
+  line: number,
+  parentIndent: number
+): string {
+  const childIndent = parentIndent + inferIndentStep(ast, source);
+  const cursorIndent = getIndent(lines[line] ?? '');
+  return cursorIndent < childIndent
+    ? ' '.repeat(childIndent - cursorIndent)
+    : '';
+}
+
+/**
+ * Find the statement line enclosing the cursor that matches `pattern` — used to
+ * tell whether the cursor is placed to add a child clause under it. Returns the
+ * line's `match` (for capture groups) and `indent`, or null.
+ *
+ * Counts as enclosed both when the cursor is nested in the body (a strictly-
+ * shallower parent matches) and when it's on the line right after: a colon-less
+ * statement gets no editor auto-indent, so the cursor often stays level with it.
+ */
+function findEnclosingStatement(
+  lines: string[],
+  cursorLine: number,
+  pattern: RegExp
+): { match: RegExpMatchArray; indent: number } | null {
+  const cursorIndent = getIndent(lines[cursorLine] ?? '');
+
+  // Case 1: cursor directly after the statement (nearest non-blank line above).
+  for (let l = cursorLine - 1; l >= 0; l--) {
+    const ln = lines[l];
+    if (!ln || !ln.trim()) continue;
+    const indent = getIndent(ln);
+    const match = ln.trim().match(pattern);
+    if (match && cursorIndent >= indent) return { match, indent };
+    break; // only the nearest non-blank line qualifies as "adjacent"
+  }
+
+  // Case 2: cursor nested in the body — first strictly-shallower parent.
+  const parent = walkParentsByIndent(lines, cursorLine).next().value;
+  if (!parent) return null;
+  const match = parent.trimmed.match(pattern);
+  return match ? { match, indent: parent.indent } : null;
+}
+
+/**
+ * Whether a sibling line at the cursor's own indentation already matches
+ * `pattern`. Used to stop offering a clause that may appear only once per block
+ * once one already exists among the cursor's siblings (e.g. a `when` body takes
+ * a single `render:`; a `render:` body a single `show_and_return:`).
+ */
+function hasSiblingStatement(
+  lines: string[],
+  cursorLine: number,
+  pattern: RegExp
+): boolean {
+  const cursorIndent = getIndent(lines[cursorLine] ?? '');
+
+  const scan = (from: number, step: 1 | -1): boolean => {
+    for (let l = from; l >= 0 && l < lines.length; l += step) {
+      const ln = lines[l];
+      if (!ln || !ln.trim()) continue;
+      const indent = getIndent(ln);
+      if (indent < cursorIndent) return false; // hit the parent boundary
+      if (indent === cursorIndent && pattern.test(ln.trim())) return true;
+    }
+    return false;
+  };
+
+  return scan(cursorLine - 1, -1) || scan(cursorLine + 1, 1);
+}
+
+/**
+ * List the response-format names for a `render:` value reference, in both:
+ *   - shortform `@response_formats.<partial>` — connection taken from the
+ *     enclosing `when @connection.X` block
+ *   - longform `@connection.<surface>.response_formats.<partial>` — connection
+ *     taken from the chain itself
+ *
+ * Returns the connection's declared formats plus the built-in `json`. Empty
+ * when the cursor isn't on such a reference or no connection can be resolved.
+ */
+export function getResponseFormatCompletions(
+  ast: AstRoot,
+  line: number,
+  character: number,
+  ctx: SchemaContext,
+  source: string
+): CompletionCandidate[] {
+  const lines = source.split('\n');
+  const textBeforeCursor = (lines[line] ?? '').slice(0, character);
+
+  let connection: string | undefined;
+  const longform = textBeforeCursor.match(
+    /@connection\.([\w-]+)\.response_formats\.\w*$/
+  );
+  if (longform) {
+    connection = longform[1];
+  } else if (/@response_formats\.\w*$/.test(textBeforeCursor)) {
+    const parent = walkParentsByIndent(lines, line).next().value;
+    connection = parent?.trimmed.match(WHEN_CONNECTION_RE)?.[1];
+  }
+  if (!connection) return [];
+
+  const candidates: CompletionCandidate[] = [];
+  const entry = resolveEntryAtRoot(ast, 'connection', connection, ctx);
+  if (isNamedMap(entry?.response_formats)) {
+    collectMapCandidates(entry.response_formats, candidates);
+  }
+
+  const declared = new Set(candidates.map(c => c.name));
+  for (const builtin of RESERVED_BUILT_IN_RESPONSE_FORMATS) {
+    if (!declared.has(builtin)) {
+      candidates.push({
+        name: builtin,
+        kind: SymbolKind.Property,
+        detail: 'Built-in response format',
+      });
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Members reachable via a longform `@connection.X.<member>...` reference.
+ * Only `response_formats` resolves through the connection chain — connection
+ * `inputs` are referenced via the top-level `@inputs` namespace, and the
+ * connection's remaining fields aren't reference targets.
+ */
+const CONNECTION_REFERENCEABLE_MEMBERS = ['response_formats'];
+
+/**
+ * List the referenceable members at the intermediate `@connection.X.<partial>`
+ * position, before a member is chosen. Empty when the named connection isn't
+ * declared.
+ */
+export function getConnectionMemberCompletions(
+  ast: AstRoot,
+  ctx: SchemaContext,
+  connectionName: string
+): CompletionCandidate[] {
+  if (!resolveEntryAtRoot(ast, 'connection', connectionName, ctx)) return [];
+  return CONNECTION_REFERENCEABLE_MEMBERS.map(name => ({
+    name,
+    kind: SymbolKind.Property,
+    detail: `Response formats declared on @connection.${connectionName}`,
+  }));
 }
 
 /**

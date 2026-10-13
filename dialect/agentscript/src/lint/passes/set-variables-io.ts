@@ -19,6 +19,7 @@ import {
   attachDiagnostic,
   findSuggestion,
   lintDiagnostic,
+  diagnosticTarget,
 } from '@agentscript/language';
 import type { CstMeta, SyntaxNode } from '@agentscript/types';
 import { toRange, DiagnosticSeverity } from '@agentscript/types';
@@ -80,9 +81,9 @@ export function setVariablesIoRule(): LintPass {
             lintDiagnostic(
               range,
               msg,
-              DiagnosticSeverity.Warning,
+              DiagnosticSeverity.Error,
               'set-variables-unknown-variable',
-              { suggestion }
+              { suggestion, target: diagnosticTarget('variable', param) }
             )
           );
           continue;
@@ -103,7 +104,8 @@ export function setVariablesIoRule(): LintPass {
               range,
               msg,
               DiagnosticSeverity.Error,
-              'set-variables-immutable-target'
+              'set-variables-immutable-target',
+              { target: diagnosticTarget('variable', param) }
             )
           );
         }

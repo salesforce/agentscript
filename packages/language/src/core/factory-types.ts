@@ -75,6 +75,7 @@ export interface NamedBlockClass<T extends Schema> {
   readonly colinearType?: SingularFieldType;
   readonly hasColinear: boolean;
   readonly hasBody: boolean;
+  readonly entrySeparator: ':' | ': ->';
   new (name: string, fields: InferFields<T>): NamedBlockInstance<T>;
   parse(
     node: SyntaxNode,
@@ -360,6 +361,7 @@ export interface NamedBlockFactory<
   readonly colinearType?: SingularFieldType;
   readonly hasColinear: boolean;
   readonly hasBody: boolean;
+  readonly entrySeparator: ':' | ': ->';
   new (name: string, fields: InferFields<T>): NamedBlockInstance<T>;
   resolveSchemaForName(name: string): Record<string, FieldType>;
   // Structural methods — generics preserve schema types through chains

@@ -38,6 +38,14 @@ export interface Diagnostic {
     context?: string;
     expected?: string[];
     found?: string;
+    /**
+     * Identifies the named resource this diagnostic is about, so downstream
+     * tooling can read the name directly instead of parsing it out of `message`.
+     * `type` is the resource kind — currently `'variable'`, and extensible to
+     * other named resources (e.g. `'action'`, `'subagent'`, `'response-format'`,
+     * `'graph-node'`). `name` is the resource's name (e.g. `'EndUserId'`).
+     */
+    target?: { type: string; name: string };
     [key: string]: unknown;
   };
 }

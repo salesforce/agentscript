@@ -111,8 +111,17 @@ export function lintDiagnostic(
   message: string,
   severity: DiagnosticSeverity,
   code: string,
-  options?: { suggestion?: string; tags?: DiagnosticTag[] }
+  options?: {
+    suggestion?: string;
+    tags?: DiagnosticTag[];
+    /** Named resource this diagnostic is about — see `Diagnostic['data'].target`. */
+    target?: { type: string; name: string };
+  }
 ): Diagnostic {
+  const data = {
+    ...(options?.suggestion ? { suggestion: options.suggestion } : {}),
+    ...(options?.target ? { target: options.target } : {}),
+  };
   return {
     range,
     message,
@@ -120,9 +129,7 @@ export function lintDiagnostic(
     code,
     source: LINT_SOURCE,
     ...(options?.tags ? { tags: options.tags } : {}),
-    ...(options?.suggestion
-      ? { data: { suggestion: options.suggestion } }
-      : {}),
+    ...(Object.keys(data).length > 0 ? { data } : {}),
   };
 }
 

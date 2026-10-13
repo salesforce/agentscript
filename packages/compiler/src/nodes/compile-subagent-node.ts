@@ -53,24 +53,24 @@ import {
   iterateNamedMap,
   resolveAtReference,
 } from '../ast-helpers.js';
-import { compileTemplateValue } from '../expressions/compile-template.js';
 import type { Sourceable } from '../sourced.js';
 import {
   extractTopicModelConfiguration,
   mergeModelConfigurations,
 } from '../config/model-config.js';
-import { normalizeDeveloperName, dedent } from '../utils.js';
+import { normalizeDeveloperName } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
 import { extractNodeBundles } from './compile-node-bundles.js';
 import { extractNodeSkills } from './compile-node-skills.js';
+import { compileDeterministicDirectives } from './compile-directives.js';
 import {
-  compileDeterministicDirectives,
   createInstructionResetAction,
   createStateUpdateAction,
-  instructionAppendValue,
-} from './compile-directives.js';
+  instructionResetAppendValue,
+} from './optimize-actions.js';
 import { resolveActionType } from './resolve-action-type.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
+import { compileSystemInstructions } from './compile-system-instructions.js';
 import {
   collectStepsFromStatements,
   findAllCollectTargets,
@@ -141,7 +141,7 @@ export function compileSubAgentNode(
   // The gather prompts themselves are emitted via before_reasoning_iteration.
   // The resume handoff is emitted into AFTER_REASONING (collected below), not
   // after_all_tool_calls — see synthesizeCollectArtifacts for why.
-  const collectAfterReasoning: (Action | HandOffAction)[] = [];
+  const collectAfterReasoning: HandOffAction[] = [];
   synthesizeCollectArtifacts(
     topicName,
     proceduralStatements,
@@ -161,7 +161,7 @@ export function compileSubAgentNode(
   // Template-only instructions use focus_prompt + BRI to inject instructions.
   // Procedural instructions (if/run/transition) use BRI only — no focus_prompt.
   let focusPrompt: string;
-  let beforeReasoningIteration: Action[];
+  let beforeReasoningIteration: (Action | HandOffAction)[];
 
   if (instructionTemplate !== undefined) {
     if (isProcedural && proceduralStatements) {
@@ -200,6 +200,7 @@ export function compileSubAgentNode(
   // Compile before_reasoning directives
   const beforeReasoning = compileBeforeReasoning(
     extractStatements(topicBlock.before_reasoning),
+    topicName,
     ctx
   );
 
@@ -215,6 +216,7 @@ export function compileSubAgentNode(
   // which suspends the turn and resumes the same subagent next turn.
   const afterReasoningDirectives = compileAfterReasoning(
     extractStatements(topicBlock.after_reasoning),
+    topicName,
     ctx
   );
   const afterReasoning: (Action | HandOffAction)[] | null =
@@ -240,7 +242,7 @@ export function compileSubAgentNode(
   // the value a valid string. This mirrors the router node, which already
   // always emits `instructions`. Assigned here (rather than in the literal
   // above) to preserve key insertion order for existing serialized fixtures.
-  node.instructions = systemInstructions;
+  node.instructions = systemInstructions.instructions;
 
   // Only emit focus_prompt when non-empty
   if (focusPrompt) {
@@ -248,11 +250,15 @@ export function compileSubAgentNode(
   }
 
   // Add optional fields only when present
-  if (beforeReasoningIteration.length > 0) {
-    node.before_reasoning_iteration = beforeReasoningIteration;
+  const combinedBeforeReasoningIteration = [
+    ...systemInstructions.beforeReasoningIteration,
+    ...beforeReasoningIteration,
+  ];
+  if (combinedBeforeReasoningIteration.length > 0) {
+    node.before_reasoning_iteration = combinedBeforeReasoningIteration;
   }
   if (beforeReasoning) {
-    node.before_reasoning = beforeReasoning as Action[];
+    node.before_reasoning = beforeReasoning;
   }
   if (afterReasoning) {
     node.after_reasoning = afterReasoning;
@@ -303,7 +309,7 @@ export function compileSubAgentNode(
 interface ReasoningToolsResult {
   tools: (Tool | SupervisionTool)[];
   postToolCalls: PostToolCall[];
-  afterAllToolCalls: (Action | HandOffAction)[];
+  afterAllToolCalls: HandOffAction[];
   instructionTemplate: string | undefined;
   /** True if instructions contain procedural statements (if/run/transition) */
   isProcedural: boolean;
@@ -416,6 +422,16 @@ function compileReasoningTools(
 // ---------------------------------------------------------------------------
 
 /**
+ * The `ask for` beta-services notice applies to the whole script, not to any
+ * single `ask for`, so it is deliberately anchored at the top of the file
+ * rather than a specific collect statement.
+ */
+const START_OF_FILE_RANGE: Range = {
+  start: { line: 0, character: 0 },
+  end: { line: 0, character: 0 },
+};
+
+/**
  * Synthesize the capture tool and the end-turn-first self-resume handoff for
  * `collect` statements in a subagent's reasoning.instructions.
  *
@@ -441,17 +457,14 @@ function synthesizeCollectArtifacts(
 
   // `ask for` is a pilot/beta service governed by the Beta Services Terms.
   // Surface the standard legal notice as a single Information-severity
-  // diagnostic (once per script, gated by a flag on the per-compile context)
-  // pointed at the first `ask for` keyword, so authors are aware of the
-  // applicable terms. It does not fail compilation or alter output.
-  if (!ctx.collectBetaServicesNoticeEmitted) {
-    ctx.collectBetaServicesNoticeEmitted = true;
-    ctx.info(
-      "'ask for' is a pilot or beta service that is subject to the Beta Services Terms at Agreements - Salesforce.com (salesforce.com/company/legal/customer-agreements) or a written Unified Pilot Agreement if executed by Customer, and applicable terms in the Product Terms Directory (ptd.salesforce.com). Use of this pilot or beta service is at the Customer's sole discretion.",
-      firstCollectRange(proceduralStatements),
-      'ask-for-beta-services'
-    );
-  }
+  // diagnostic (once per script, keyed by code on the per-compile context)
+  // anchored at the start of the file, since it applies script-wide rather than
+  // to any single `ask for`. It does not fail compilation or alter output.
+  ctx.infoOnce(
+    "'ask for' is a pilot or beta service that is subject to the Beta Services Terms at Agreements - Salesforce.com (salesforce.com/company/legal/customer-agreements) or a written Unified Pilot Agreement if executed by Customer, and applicable terms in the Product Terms Directory (ptd.salesforce.com). Use of this pilot or beta service is at the Customer's sole discretion.",
+    'ask-for-beta-services',
+    START_OF_FILE_RANGE
+  );
 
   // `ask for` is only well-defined in a NON-initial subagent (W-23177847).
   // Its lowering assumes the gathering node is reached via a transition from the
@@ -462,11 +475,15 @@ function synthesizeCollectArtifacts(
   // router to fall back to: the user is trapped and cancel/change-of-intent has
   // nowhere to route. Reject it at author time rather than emit a trapping graph.
   if (ctx.initialNode && topicName === ctx.initialNode) {
-    const range = firstCollectRange(proceduralStatements);
-    ctx.error(
-      "'ask for' cannot be used in start_agent. Move it into a subagent.",
-      range
-    );
+    // Flag EACH offending `ask for` at the exact range of its target, so the
+    // error points at the precise line/char the author wrote it on rather than
+    // spanning the whole multi-line clause.
+    for (const clause of collectClauses(proceduralStatements)) {
+      ctx.error(
+        "'ask for' cannot be used in start_agent since it requires reasoning. Move it into a subagent.",
+        clause.target?.__cst?.range ?? clause.__cst?.range
+      );
+    }
     return;
   }
 
@@ -541,59 +558,20 @@ function synthesizeCollectArtifacts(
 }
 
 /**
- * Find the source range of the first `collect` statement (top-level or nested in
- * an if's then/else body) so the start_agent rejection diagnostic points at the
- * offending construct. Falls back to undefined (FALLBACK_RANGE) when no range is
- * recoverable.
+ * Yield every `collect` statement (top-level or nested in an if's then/else
+ * body), in source order, so diagnostics can point at each offending `ask for`.
  */
-function firstCollectRange(
+function* collectClauses(
   statements: Statement[] | undefined
-): Range | undefined {
-  if (!statements) return undefined;
+): Generator<CollectClause> {
+  if (!statements) return;
   for (const stmt of statements) {
     if (stmt instanceof CollectClause) {
-      return stmt.__cst?.range;
-    }
-    if (stmt instanceof IfStatement) {
-      const nested = firstCollectRange([...stmt.body, ...stmt.orelse]);
-      if (nested) return nested;
+      yield stmt;
+    } else if (stmt instanceof IfStatement) {
+      yield* collectClauses([...stmt.body, ...stmt.orelse]);
     }
   }
-  return undefined;
-}
-
-// ---------------------------------------------------------------------------
-// System Instructions
-// ---------------------------------------------------------------------------
-
-function compileSystemInstructions(
-  systemBlock: ParsedSystem | undefined,
-  topicBlock: ParsedTopicLike,
-  ctx: CompilerContext
-): string {
-  const opts = { allowActionReferences: true };
-
-  // Topic-level system.instructions take priority
-  if (topicBlock.system) {
-    const instructions = compileTemplateValue(
-      topicBlock.system.instructions,
-      ctx,
-      opts
-    );
-    if (instructions) return dedent(instructions);
-  }
-
-  // Fall back to global system.instructions
-  if (systemBlock) {
-    const instructions = compileTemplateValue(
-      systemBlock.instructions,
-      ctx,
-      opts
-    );
-    if (instructions) return dedent(instructions);
-  }
-
-  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -604,24 +582,21 @@ function compileBeforeReasoningIteration(
   statements: Statement[],
   topicName: string,
   ctx: CompilerContext
-): Action[] {
+): (Action | HandOffAction)[] {
   if (statements.length === 0) return [];
 
-  // Reset agent instructions
-  const result: Action[] = [createInstructionResetAction()];
-
-  // Compile each statement into before_reasoning_iteration actions. Adjacent
-  // same-gate instruction appends (e.g. consecutive top-level `| ...` lines) are
-  // fused inside compileDeterministicDirectives (keyed off
-  // agentInstructionsVariable) into a single state update.
-  const actions = compileDeterministicDirectives(statements, ctx, {
+  // Compile each statement into before_reasoning_iteration actions. The reset is
+  // prepended — and folded into the first unconditional append — inside
+  // compileDeterministicDirectives on the instruction path; adjacent same-gate
+  // appends (e.g. consecutive top-level `| ...` lines) are also fused there into
+  // a single state update. A `transition`/`escalate`/`end_session` in the
+  // instructions emits a handoff here, so the result is not Action-only.
+  const result = compileDeterministicDirectives(statements, ctx, {
     addNextTopicResetAction: false,
     gateOnNextTopicEmpty: false,
     agentInstructionsVariable: AGENT_INSTRUCTIONS_VARIABLE,
     topicName,
   });
-
-  result.push(...(actions as Action[]));
 
   // Terminal-turn STOP instruction (W-23142779).
   //
@@ -698,26 +673,27 @@ function compileBeforeReasoningIteration(
 
 /**
  * Create before_reasoning_iteration actions for simple template instructions.
- * Resets agent instructions then appends the whole template in a single action.
- * Consecutive `| ...` instruction lines are already joined with `\n` into one
- * template string, so N lines flatten to one append rather than N appends.
+ * The reset and the whole-template append are unconditional, so they fold into a
+ * single assignment. Consecutive `| ...` instruction lines are
+ * already joined with `\n` into one template string, so N lines flatten to one
+ * assignment. An empty template emits just the reset.
  */
 function compileSimpleInstructionIteration(
   instructionTemplate: string
 ): Action[] {
-  const resetAction = createInstructionResetAction();
-  if (!instructionTemplate) return [resetAction];
+  if (!instructionTemplate) return [createInstructionResetAction()];
 
-  const appendAction = createStateUpdateAction([
-    {
-      [AGENT_INSTRUCTIONS_VARIABLE]: instructionAppendValue(
-        AGENT_INSTRUCTIONS_VARIABLE,
-        instructionTemplate
-      ),
-    },
-  ]);
-
-  return [resetAction, appendAction];
+  return [
+    createStateUpdateAction(
+      [
+        {
+          [AGENT_INSTRUCTIONS_VARIABLE]:
+            instructionResetAppendValue(instructionTemplate),
+        },
+      ],
+      'True'
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -748,23 +724,27 @@ function compileFocusPrompt(
 
 function compileBeforeReasoning(
   directives: Statement[] | undefined,
+  topicName: string,
   ctx: CompilerContext
 ): (Action | HandOffAction)[] | null {
   if (!directives || directives.length === 0) return null;
   return compileDeterministicDirectives(directives, ctx, {
     addNextTopicResetAction: true,
     gateOnNextTopicEmpty: true,
+    topicName,
   });
 }
 
 function compileAfterReasoning(
   directives: Statement[] | undefined,
+  topicName: string,
   ctx: CompilerContext
 ): (Action | HandOffAction)[] | null {
   if (!directives || directives.length === 0) return null;
   return compileDeterministicDirectives(directives, ctx, {
     addNextTopicResetAction: true,
     gateOnNextTopicEmpty: true,
+    topicName,
   });
 }
 

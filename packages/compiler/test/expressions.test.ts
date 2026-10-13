@@ -25,6 +25,7 @@ import {
   TemplateInterpolation,
   CallExpression,
   SpreadExpression,
+  KeywordArgument,
 } from '@agentscript/language';
 import {
   compileExpression,
@@ -150,6 +151,26 @@ describe('compileExpression', () => {
       expect(compileExpression(expr, ctx, { isSystemMessage: true })).toBe(
         'state.name'
       );
+    });
+
+    // Pins the invariant that optimize-actions.ts's `referencesAnyKey`
+    // (4a read-after-write guard) depends on: a state read must emit as
+    // `state.<name>` dot form — including `state.<name>[i]` subscripts — so the
+    // guard's `\bstate\.<name>\b` match detects it. If this ever became a
+    // `state["<name>"]` bracket form, 4a would silently fuse a read-after-write.
+    it('emits state reads in dot form (read-after-write guard invariant)', () => {
+      ctx.mutableVariableNames.add('counter');
+      const read = new MemberExpression(
+        new AtIdentifier('variables'),
+        'counter'
+      );
+      expect(compileExpression(read, ctx)).toBe('state.counter');
+
+      const subscript = new SubscriptExpression(
+        new MemberExpression(new AtIdentifier('variables'), 'counter'),
+        new NumberLiteral(0)
+      );
+      expect(compileExpression(subscript, ctx)).toBe('state.counter[0]');
     });
   });
 
@@ -796,6 +817,55 @@ describe('compileExpression', () => {
       ]);
 
       expect(compileExpression(expr, ctx)).toBe('to_json("hello")');
+    });
+  });
+
+  describe('concat calls', () => {
+    it('should render positional parts and rewrite mutable variables to state', () => {
+      ctx.mutableVariableNames.add('name');
+      const expr = new CallExpression(new Identifier('concat'), [
+        new StringLiteral('Hi '),
+        new MemberExpression(new AtIdentifier('variables'), 'name'),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe('concat("Hi ", state.name)');
+    });
+
+    it('should compile the sep keyword argument', () => {
+      const expr = new CallExpression(new Identifier('concat'), [
+        new StringLiteral('a'),
+        new StringLiteral('b'),
+        new KeywordArgument('sep', new StringLiteral(', ')),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe('concat("a", "b", sep=", ")');
+    });
+
+    it('should emit a list variable bare', () => {
+      ctx.mutableVariableNames.add('fragments');
+      const expr = new CallExpression(new Identifier('concat'), [
+        new MemberExpression(new AtIdentifier('variables'), 'fragments'),
+        new KeywordArgument('sep', new StringLiteral(' ')),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        'concat(state.fragments, sep=" ")'
+      );
+    });
+
+    it('should rewrite a mutable variable inside the sep keyword value', () => {
+      ctx.mutableVariableNames.add('joiner');
+      const expr = new CallExpression(new Identifier('concat'), [
+        new StringLiteral('a'),
+        new KeywordArgument(
+          'sep',
+          new MemberExpression(new AtIdentifier('variables'), 'joiner')
+        ),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        'concat("a", sep=state.joiner)'
+      );
     });
   });
 

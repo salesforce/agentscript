@@ -15,7 +15,10 @@ import { Namespace } from '../../../constants.js';
  * All terminal branches in a graph MUST contain an echo node with
  * kind "a2a:status_update_event" that sets a terminal A2A state
  * ("completed", "failed", or "canceled"). The echo need not be the
- * leaf node — the graph may continue after it (e.g. for cleanup).
+ * leaf node — the graph may continue after it for cleanup. Artifact
+ * updates after a terminal status echo are warned separately
+ * (`artifact-after-terminal-status`); they are dropped from the A2A
+ * response once the task is closed.
  */
 export function checkTerminalStatusRules(root: Record<string, unknown>): void {
   const { nodes, edges } = extractGraph(root, AgentFabricSchemaInfo);

@@ -189,7 +189,13 @@ function compileOutboundRouteConfigs(
   ctx: CompilerContext
 ): OutboundRouteConfig[] {
   const routeType = extractSourcedString(def.outbound_route_type);
-  const routeName = extractSourcedString(def.outbound_route_name);
+  const routeNameRaw = extractSourcedString(def.outbound_route_name);
+  // Strip NAME from "flow://NAME"; empty/null or scheme-only "flow://" are dropped and treated as unset
+  const rawRouteName = routeNameRaw?.value ?? '';
+  const schemeSep = rawRouteName.indexOf('://');
+  const routePath =
+    schemeSep === -1 ? rawRouteName : rawRouteName.slice(schemeSep + 3);
+  const routeName = routePath.trim() === '' ? undefined : routeNameRaw;
   const escalationMessage = def.escalation_message
     ? compileTemplateValue(def.escalation_message, ctx) || undefined
     : undefined;

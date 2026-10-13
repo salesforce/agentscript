@@ -6,10 +6,20 @@
  */
 
 import type { CompilerContext } from '../compiler-context.js';
-import type { OrchestratorNode, Tool, SupervisionTool } from '../types.js';
+import type {
+  OrchestratorNode,
+  Tool,
+  SupervisionTool,
+  ModelConfiguration,
+} from '../types.js';
 import type { Sourceable } from '../sourced.js';
 import { compileActionDefinitions } from './compile-actions.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
+import {
+  extractTopicModelConfiguration,
+  mergeModelConfigurations,
+} from '../config/model-config.js';
+import type { ParsedTopicLike } from '../parsed-types.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- compiler handles raw AST shapes
 type RawBlock = Record<string, any>;
@@ -21,14 +31,33 @@ type RawBlock = Record<string, any>;
  * - `actions:` → action_definitions[]
  * - `reasoning.instructions` → instructions string
  * - `reasoning.actions` → tools[]
+ * - `model_config:` (block-level, falling back to the agent-wide default) →
+ *   `model_configuration`. Mirrors the subagent/router path in
+ *   compile-subagent-node.ts / compile-router-node.ts: `extractTopicModelConfiguration`
+ *   reads the orchestrator block's own `model_config`, then
+ *   `mergeModelConfigurations` layers it over `globalModelConfig`. Emitted
+ *   ONLY when a config actually resolves — no key is written when both the
+ *   block-level and agent-wide model_config are absent (no-regression).
  */
 export function compileOrchestratorNode(
   name: string,
   block: RawBlock,
+  globalModelConfig: ModelConfiguration | undefined,
   ctx: CompilerContext
 ): Sourceable<OrchestratorNode> {
   // Compile top-level action definitions
   const actionDefinitions = compileActionDefinitions(block.actions, ctx);
+
+  // Extract orchestrator-level model configuration and merge with the
+  // agent-wide default (block-level settings override the global default).
+  const blockModelConfig = extractTopicModelConfiguration(
+    block as ParsedTopicLike,
+    ctx
+  );
+  const modelConfig = mergeModelConfigurations(
+    globalModelConfig,
+    blockModelConfig
+  );
 
   // Compile reasoning block
   const reasoning = block.reasoning as RawBlock | null | undefined;
@@ -78,6 +107,10 @@ export function compileOrchestratorNode(
 
   if (tools.length > 0) {
     node.tools = tools as OrchestratorNode['tools'];
+  }
+
+  if (modelConfig) {
+    node.model_configuration = modelConfig;
   }
 
   return node;

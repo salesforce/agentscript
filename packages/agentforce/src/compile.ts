@@ -9,7 +9,7 @@
  * Compile pipeline — parse + lint + compile in one call.
  */
 
-import { parseAndLint } from '@agentscript/language';
+import { parseAndLint, dedupeDiagnostics } from '@agentscript/language';
 import type { Diagnostic } from '@agentscript/types';
 import { agentforceDialect } from '@agentscript/agentforce-dialect';
 import type { ParsedAgentforce } from '@agentscript/agentforce-dialect';
@@ -78,10 +78,14 @@ export function compileSource(
     parseResult.ast as ParsedAgentforce
   );
 
-  const diagnostics = [
+  // Parse, lint, and compile all run over the same source, so one problem can
+  // be reported by more than one step. Collapse repeats (keeping the highest
+  // severity, then the earliest step) before surfacing them. The parse+lint
+  // diagnostics come first so they win ties over the later compile step.
+  const diagnostics = dedupeDiagnostics([
     ...parseResult.diagnostics,
     ...compileResult.diagnostics,
-  ];
+  ]);
 
   // Sort diagnostics by severity (Error=1 first), then line, then column
   diagnostics.sort(

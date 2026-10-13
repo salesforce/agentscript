@@ -129,3 +129,23 @@ inputs:
     expect(refs).toEqual(['variables.n']);
   });
 });
+
+describe('walkAstExpressions — keyword argument values', () => {
+  it('visits a reference inside a keyword argument value', () => {
+    expect(
+      visitedReferences(`
+value v:
+    expr: concat("a", sep=@variables.separator)
+`)
+    ).toContain('variables.separator');
+  });
+
+  it('visits references nested deeper inside a keyword argument value', () => {
+    expect(
+      visitedReferences(`
+value v:
+    expr: concat("a", sep=lower(@variables.separator))
+`)
+    ).toContain('variables.separator');
+  });
+});

@@ -15,3 +15,5 @@ export type {
 
 export { getGraph } from './get-graph.js';
 export type { Graph, ProtocolNode, ProtocolEdge } from './get-graph.js';
+
+export { buildGraphAdjacency, reachableFrom } from './reachability.js';

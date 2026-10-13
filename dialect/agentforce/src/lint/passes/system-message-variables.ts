@@ -23,6 +23,7 @@ import {
   decomposeAtMemberExpression,
   attachDiagnostic,
   lintDiagnostic,
+  diagnosticTarget,
 } from '@agentscript/language';
 import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
@@ -81,7 +82,8 @@ function checkMessage(
         cst.range,
         `Variable '${name}' is ${info.modifier ?? 'unmodified'} and cannot be used in ${messageType} messages. Only linked variables and variables with visibility: External are available at runtime.`,
         DiagnosticSeverity.Error,
-        'system-message-mutable-variable'
+        'system-message-mutable-variable',
+        { target: diagnosticTarget('variable', name) }
       )
     );
   }
