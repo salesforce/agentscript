@@ -116,9 +116,16 @@ reasoning:
             available when @variables.needs_expert_help == True
 ```
 
+## Chaining Follow-up Work After a Tool Call
+
+To run deterministic follow-up logic after the LLM calls a tool, nest `run`, `set`, conditionals, or `transition` under that tool in `reasoning.actions`. The compiler turns that nested body into `post_tool_call` behavior in the generated IR — you do not author `post_tool_call` (or `pre_tool_call`) directly.
+
+See [Action Chaining](../patterns/ascript-patterns-action-chaining.md#pre_tool_call-and-post_tool_call) for examples and support status.
+
 ## Related Topics
 
 - [Flow of Control](../ascript-flow.md)
 - [Actions](ascript-ref-actions.md)
 - [Utils](ascript-ref-utils.md)
 - [Variables](ascript-ref-variables.md)
+- Pattern: [Action Chaining](../patterns/ascript-patterns-action-chaining.md)
