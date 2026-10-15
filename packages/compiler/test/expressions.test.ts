@@ -418,7 +418,9 @@ describe('compileExpression', () => {
       ['-(1 + 2) * 3', '-(1 + 2) * 3'],
       ['not (@variables.a == 1)', 'not state.a == 1'],
       ['not (not True)', 'not not True'],
-      ['-(-1)', '--1'],
+      ['-(-1)', '-(-1)'],
+      ['-(-@variables.a)', '-(-state.a)'],
+      ['(-@variables.a).x', '(-state.a).x'],
       ['not (1 if True else 2)', 'not (1 if True else 2)'],
       ['-(1 if True else 2)', '-(1 if True else 2)'],
       ['not True', 'not True'],
@@ -437,6 +439,9 @@ describe('compileExpression', () => {
       ['(1 if True else 2) == 1', '(1 if True else 2) == 1'],
       ['1  ==  1', '1 == 1'],
       ['1==1', '1 == 1'],
+      ['@variables.a is not None', 'state.a is not None'],
+      // An unparenthesized chain parses left-nested, so it is not chained.
+      ['3 > 2 > 1', '(3 > 2) > 1'],
       // Ternaries.
       [
         '(1 if True else 2) if False else 3',
@@ -459,6 +464,7 @@ describe('compileExpression', () => {
       ['(a + b)()', '(a + b)()'],
       ['(1 if True else 2).x', '(1 if True else 2).x'],
       ['(@variables.a).x', 'state.a.x'],
+      ['(1).real', '(1).real'],
       ['@variables.a[0]', 'state.a[0]'],
       ['(@variables.a + @variables.b).length', 'len(state.a + state.b)'],
       ['f((1 + 2) * 3)', 'f((1 + 2) * 3)'],
@@ -509,6 +515,16 @@ describe('compileExpression', () => {
           )
         ),
         'not (True or False)',
+      ],
+      [
+        'a negative literal as a member target',
+        new MemberExpression(new NumberLiteral(-1), 'real'),
+        '(-1).real',
+      ],
+      [
+        'a negative literal under unary minus',
+        new UnaryExpression('-', new NumberLiteral(-1)),
+        '-(-1)',
       ],
     ])('groups %s without any CST', (_name, expr, expected) => {
       expect(compileExpression(expr, ctx)).toBe(expected);

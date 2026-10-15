@@ -304,12 +304,16 @@ function compileMemberExpression(
     }
   }
 
-  const obj = compileExprNode(expr.object, ctx, opts);
   // Convert .length to len() function call for runtime compatibility
   if (expr.property === 'length') {
-    return `len(${obj})`;
+    return `len(${compileExprNode(expr.object, ctx, opts)})`;
   }
-  return `${compileAccessTarget(expr.object, ctx, opts)}.${expr.property}`;
+  // A number before `.` would lex as a float literal (`1.real`), so wrap it.
+  const obj =
+    expr.object instanceof NumberLiteral
+      ? `(${compileExprNode(expr.object, ctx, opts)})`
+      : compileAccessTarget(expr.object, ctx, opts);
+  return `${obj}.${expr.property}`;
 }
 
 function compileAtIdentifier(expr: AtIdentifier, ctx: CompilerContext): string {
@@ -499,6 +503,8 @@ function precedenceOf(expr: Expression): number {
     return expr.operator === 'not' ? PRECEDENCE.not : PRECEDENCE.unary;
   }
   if (expr instanceof BinaryExpression) return binaryPrecedence(expr.operator);
+  // A negative literal (only constructible in code) prints with a leading `-`.
+  if (expr instanceof NumberLiteral && expr.value < 0) return PRECEDENCE.unary;
   return PRECEDENCE.primary;
 }
 
@@ -537,7 +543,8 @@ function compileUnaryExpression(
   if (expr.operator === 'not') {
     return `not ${compileOperand(expr.operand, PRECEDENCE.not, ctx, opts)}`;
   }
-  const operand = compileOperand(expr.operand, PRECEDENCE.unary, ctx, opts);
+  // Wrap a nested sign too, so `-(-1)` never prints as `--1`.
+  const operand = compileOperand(expr.operand, PRECEDENCE.primary, ctx, opts);
   return `${expr.operator}${operand}`;
 }
 
