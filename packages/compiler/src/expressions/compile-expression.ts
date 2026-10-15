@@ -7,6 +7,7 @@
 
 import {
   type Expression,
+  type BinaryOperator,
   type TemplatePart,
   MemberExpression,
   AtIdentifier,
@@ -31,7 +32,7 @@ import {
   decomposeAtMemberExpression,
   escapeStringValue,
 } from '@agentscript/language';
-import type { Range, SyntaxNode } from '@agentscript/types';
+import type { Range } from '@agentscript/types';
 import type { CompilerContext } from '../compiler-context.js';
 import { extractNumberValue } from '../ast-helpers.js';
 
@@ -297,7 +298,7 @@ function compileMemberExpression(
       }
 
       default: {
-        const obj = compileExprNode(expr.object, ctx, opts);
+        const obj = compileAccessTarget(expr.object, ctx, opts);
         return `${obj}.${property}`;
       }
     }
@@ -308,7 +309,7 @@ function compileMemberExpression(
   if (expr.property === 'length') {
     return `len(${obj})`;
   }
-  return `${obj}.${expr.property}`;
+  return `${compileAccessTarget(expr.object, ctx, opts)}.${expr.property}`;
 }
 
 function compileAtIdentifier(expr: AtIdentifier, ctx: CompilerContext): string {
@@ -437,7 +438,7 @@ function compileSubscriptExpression(
     return `system.uploaded_files[${compileIndex()}]`;
   }
 
-  const obj = compileExprNode(expr.object, ctx, opts);
+  const obj = compileAccessTarget(expr.object, ctx, opts);
   return `${obj}[${compileIndex()}]`;
 }
 
@@ -458,33 +459,62 @@ function compileSlice(
   return `${start}:${stop}`;
 }
 
-function getParenthesizedCst(expr: Expression): SyntaxNode | undefined {
-  let node = expr.__cst?.node;
-  let parenthesized: SyntaxNode | undefined;
-  // The dialect unwraps grouping and expression/atom nodes from the AST.
-  // Retain the outermost grouping node for comparison source-text boundaries.
-  while (node) {
-    if (node.type === 'parenthesized_expression') parenthesized = node;
-    const parent = node.parent;
-    if (
-      parent?.type !== 'parenthesized_expression' &&
-      parent?.type !== 'expression' &&
-      parent?.type !== 'atom'
-    ) {
-      break;
-    }
-    node = parent;
+/**
+ * Operator binding strength, following Python's precedence because compiled
+ * expressions are evaluated as Python. Higher binds tighter; everything that
+ * is not an operator expression (literals, references, calls, subscripts,
+ * member accesses) is primary.
+ */
+const PRECEDENCE = {
+  ternary: 1,
+  or: 2,
+  and: 3,
+  not: 4,
+  comparison: 5,
+  additive: 6,
+  multiplicative: 7,
+  unary: 8,
+  primary: 9,
+} as const;
+
+function binaryPrecedence(operator: BinaryOperator): number {
+  switch (operator) {
+    case 'or':
+      return PRECEDENCE.or;
+    case 'and':
+      return PRECEDENCE.and;
+    case '+':
+    case '-':
+      return PRECEDENCE.additive;
+    case '*':
+    case '/':
+      return PRECEDENCE.multiplicative;
   }
-  return parenthesized;
 }
 
+function precedenceOf(expr: Expression): number {
+  if (expr instanceof TernaryExpression) return PRECEDENCE.ternary;
+  if (expr instanceof ComparisonExpression) return PRECEDENCE.comparison;
+  if (expr instanceof UnaryExpression) {
+    return expr.operator === 'not' ? PRECEDENCE.not : PRECEDENCE.unary;
+  }
+  if (expr instanceof BinaryExpression) return binaryPrecedence(expr.operator);
+  return PRECEDENCE.primary;
+}
+
+/**
+ * Compile an operand, adding parentheses when it binds more loosely than
+ * `minPrecedence`. Grouping comes from the shape of the tree, not from the
+ * source text, so the output is correct for hand-built ASTs too.
+ */
 function compileOperand(
   expr: Expression,
+  minPrecedence: number,
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
   const compiled = compileExprNode(expr, ctx, opts);
-  return getParenthesizedCst(expr) ? `(${compiled})` : compiled;
+  return precedenceOf(expr) < minPrecedence ? `(${compiled})` : compiled;
 }
 
 function compileBinaryExpression(
@@ -492,8 +522,10 @@ function compileBinaryExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
-  const left = compileOperand(expr.left, ctx, opts);
-  const right = compileOperand(expr.right, ctx, opts);
+  // Left-associative: an equal-precedence right operand needs parentheses.
+  const precedence = binaryPrecedence(expr.operator);
+  const left = compileOperand(expr.left, precedence, ctx, opts);
+  const right = compileOperand(expr.right, precedence + 1, ctx, opts);
   return `${left} ${expr.operator} ${right}`;
 }
 
@@ -502,10 +534,10 @@ function compileUnaryExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
-  const operand = compileOperand(expr.operand, ctx, opts);
   if (expr.operator === 'not') {
-    return `not ${operand}`;
+    return `not ${compileOperand(expr.operand, PRECEDENCE.not, ctx, opts)}`;
   }
+  const operand = compileOperand(expr.operand, PRECEDENCE.unary, ctx, opts);
   return `${expr.operator}${operand}`;
 }
 
@@ -514,28 +546,11 @@ function compileComparisonExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
-  const left = compileOperand(expr.left, ctx, opts);
-  const right = compileOperand(expr.right, ctx, opts);
-
-  // Preserve original whitespace around the operator from the source text
-  const cstText = expr.__cst?.node?.text;
-  if (cstText) {
-    const leftCst = (getParenthesizedCst(expr.left) ?? expr.left.__cst?.node)
-      ?.text;
-    const rightCst = (getParenthesizedCst(expr.right) ?? expr.right.__cst?.node)
-      ?.text;
-    if (leftCst && rightCst) {
-      // Extract the operator with surrounding whitespace from the CST
-      const leftStart = cstText.indexOf(leftCst);
-      const leftEnd = leftStart + leftCst.length;
-      const rightStart = cstText.lastIndexOf(rightCst);
-      if (leftStart >= 0 && rightStart > leftEnd) {
-        const operatorWithSpace = cstText.slice(leftEnd, rightStart);
-        return `${left}${operatorWithSpace}${right}`;
-      }
-    }
-  }
-
+  // Python chains comparisons (`a < b < c` is `a < b and b < c`), so a
+  // comparison operand of a comparison is always parenthesized.
+  const minPrecedence = PRECEDENCE.comparison + 1;
+  const left = compileOperand(expr.left, minPrecedence, ctx, opts);
+  const right = compileOperand(expr.right, minPrecedence, ctx, opts);
   return `${left} ${expr.operator} ${right}`;
 }
 
@@ -544,10 +559,26 @@ function compileTernaryExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
-  const consequence = compileExprNode(expr.consequence, ctx, opts);
-  const condition = compileExprNode(expr.condition, ctx, opts);
-  const alternative = compileExprNode(expr.alternative, ctx, opts);
+  // Right-associative: only the alternative may be an unparenthesized ternary.
+  const operandMin = PRECEDENCE.ternary + 1;
+  const consequence = compileOperand(expr.consequence, operandMin, ctx, opts);
+  const condition = compileOperand(expr.condition, operandMin, ctx, opts);
+  const alternative = compileOperand(
+    expr.alternative,
+    PRECEDENCE.ternary,
+    ctx,
+    opts
+  );
   return `${consequence} if ${condition} else ${alternative}`;
+}
+
+/** The target of `.x`, `[i]` or `(...)` must be primary. */
+function compileAccessTarget(
+  expr: Expression,
+  ctx: CompilerContext,
+  opts: CompileExpressionOptions
+): string {
+  return compileOperand(expr, PRECEDENCE.primary, ctx, opts);
 }
 
 function compileCallExpression(
@@ -555,7 +586,7 @@ function compileCallExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
-  const func = compileExprNode(expr.func, ctx, opts);
+  const func = compileAccessTarget(expr.func, ctx, opts);
   const args = expr.args
     .map((a: Expression) => compileExprNode(a, ctx, opts))
     .join(', ');

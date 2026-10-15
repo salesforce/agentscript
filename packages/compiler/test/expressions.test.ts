@@ -20,6 +20,7 @@ import {
   AtIdentifier,
   BinaryExpression,
   UnaryExpression,
+  TernaryExpression,
   ComparisonExpression,
   SubscriptExpression,
   SliceExpression,
@@ -370,8 +371,23 @@ describe('compileExpression', () => {
     });
   });
 
-  describe('binary expressions', () => {
+  describe('operator grouping', () => {
+    function compileSource(source: string): string {
+      for (const name of ['a', 'b', 'c']) ctx.mutableVariableNames.add(name);
+      const { rootNode } = parse(`value: ${source}\n`);
+      const mapping =
+        rootNode.namedChildren.find(node => node.type === 'mapping') ??
+        rootNode;
+      const result = new Dialect().parse(mapping, { value: ExpressionValue });
+
+      expect(result.diagnostics).toEqual([]);
+      const compiled = compileExpression(result.value.value, ctx);
+      expect(ctx.diagnostics).toEqual([]);
+      return compiled;
+    }
+
     it.each([
+      // Binary operands keep the grouping they need.
       ['(1 + 2) * (3 + 4)', '(1 + 2) * (3 + 4)'],
       ['(1 + 2) * 3', '(1 + 2) * 3'],
       ['1 * (2 + 3)', '1 * (2 + 3)'],
@@ -380,18 +396,126 @@ describe('compileExpression', () => {
         '(True or False) and (False or False)',
         '(True or False) and (False or False)',
       ],
-    ])('preserves operand grouping in %s', (source, expected) => {
-      const { rootNode } = parse(`value: ${source}\n`);
-      const mapping =
-        rootNode.namedChildren.find(node => node.type === 'mapping') ??
-        rootNode;
-      const result = new Dialect().parse(mapping, { value: ExpressionValue });
-
-      expect(result.diagnostics).toEqual([]);
-      expect(result.value.value).toBeInstanceOf(BinaryExpression);
-      expect(compileExpression(result.value.value, ctx)).toBe(expected);
+      // Redundant parentheses are dropped.
+      ['(1 + 2)', '1 + 2'],
+      ['((1 + 2)) * 3', '(1 + 2) * 3'],
+      ['(1 * 2) + 3', '1 * 2 + 3'],
+      ['(1 * 2 + 3)', '1 * 2 + 3'],
+      ['(True and False) or True', 'True and False or True'],
+      // Associativity.
+      ['1 - (2 - 3)', '1 - (2 - 3)'],
+      ['(1 - 2) - 3', '1 - 2 - 3'],
+      ['1 - 2 - 3', '1 - 2 - 3'],
+      ['1 / (2 * 3)', '1 / (2 * 3)'],
+      ['1 - (2 + 3)', '1 - (2 + 3)'],
+      // Unary operators.
+      ['not (True and False)', 'not (True and False)'],
+      [
+        '@variables.a and not (@variables.b or @variables.c)',
+        'state.a and not (state.b or state.c)',
+      ],
+      ['-(1 + 2)', '-(1 + 2)'],
+      ['-(1 + 2) * 3', '-(1 + 2) * 3'],
+      ['not (@variables.a == 1)', 'not state.a == 1'],
+      ['not (not True)', 'not not True'],
+      ['-(-1)', '--1'],
+      ['not (1 if True else 2)', 'not (1 if True else 2)'],
+      ['-(1 if True else 2)', '-(1 if True else 2)'],
+      ['not True', 'not True'],
+      ['-1', '-1'],
+      // Comparisons chain in Python, so nested comparisons stay grouped.
+      ['(True or False) == False', '(True or False) == False'],
+      ['True == (False or True)', 'True == (False or True)'],
+      ['(1 + 2) < (3 + 4)', '1 + 2 < 3 + 4'],
+      ['(@variables.a) == (@variables.a)', 'state.a == state.a'],
+      ['@variables.a == @variables.a', 'state.a == state.a'],
+      ['((1)) == ((2))', '1 == 2'],
+      ['(1 == 2) == False', '(1 == 2) == False'],
+      ['1 == (2 == 3)', '1 == (2 == 3)'],
+      ['(1 < 2) < 3', '(1 < 2) < 3'],
+      ['(1 + 2) == (3)', '1 + 2 == 3'],
+      ['(1 if True else 2) == 1', '(1 if True else 2) == 1'],
+      ['1  ==  1', '1 == 1'],
+      ['1==1', '1 == 1'],
+      // Ternaries.
+      [
+        '(1 if True else 2) if False else 3',
+        '(1 if True else 2) if False else 3',
+      ],
+      ['1 if (2 if True else 3) else 4', '1 if (2 if True else 3) else 4'],
+      [
+        '1 if True else (2 if False else 3)',
+        '1 if True else 2 if False else 3',
+      ],
+      ['1 if (True or False) else 2', '1 if True or False else 2'],
+      ['(1 + 2) if True else (3 + 4)', '1 + 2 if True else 3 + 4'],
+      ['1 if True else 2 if False else 3', '1 if True else 2 if False else 3'],
+      ['1 + (2 if True else 3)', '1 + (2 if True else 3)'],
+      // Access targets.
+      ['(1 + 2)[0]', '(1 + 2)[0]'],
+      ['(@variables.a + @variables.b)[0]', '(state.a + state.b)[0]'],
+      ['(@variables.a or @variables.b)[0]', '(state.a or state.b)[0]'],
+      ['(@variables.a or @variables.b).x', '(state.a or state.b).x'],
+      ['(a + b)()', '(a + b)()'],
+      ['(1 if True else 2).x', '(1 if True else 2).x'],
+      ['(@variables.a).x', 'state.a.x'],
+      ['@variables.a[0]', 'state.a[0]'],
+      ['(@variables.a + @variables.b).length', 'len(state.a + state.b)'],
+      ['f((1 + 2) * 3)', 'f((1 + 2) * 3)'],
+    ])('compiles %s as %s', (source, expected) => {
+      expect(compileSource(source)).toBe(expected);
     });
 
+    it.each([
+      [
+        'a nested binary on the left',
+        new BinaryExpression(
+          new BinaryExpression(new NumberLiteral(1), '+', new NumberLiteral(2)),
+          '*',
+          new NumberLiteral(3)
+        ),
+        '(1 + 2) * 3',
+      ],
+      [
+        'a nested binary on the right of a left-associative operator',
+        new BinaryExpression(
+          new NumberLiteral(1),
+          '-',
+          new BinaryExpression(new NumberLiteral(2), '-', new NumberLiteral(3))
+        ),
+        '1 - (2 - 3)',
+      ],
+      [
+        'a ternary used as a condition',
+        new TernaryExpression(
+          new NumberLiteral(1),
+          new TernaryExpression(
+            new NumberLiteral(2),
+            new BooleanLiteral(true),
+            new NumberLiteral(3)
+          ),
+          new NumberLiteral(4)
+        ),
+        '1 if (2 if True else 3) else 4',
+      ],
+      [
+        'not applied to or',
+        new UnaryExpression(
+          'not',
+          new BinaryExpression(
+            new BooleanLiteral(true),
+            'or',
+            new BooleanLiteral(false)
+          )
+        ),
+        'not (True or False)',
+      ],
+    ])('groups %s without any CST', (_name, expr, expected) => {
+      expect(compileExpression(expr, ctx)).toBe(expected);
+    });
+  });
+
+  describe('binary expressions', () => {
     it('should compile binary addition', () => {
       const expr = new BinaryExpression(
         new NumberLiteral(1),
@@ -412,30 +536,6 @@ describe('compileExpression', () => {
   });
 
   describe('unary expressions', () => {
-    it.each([
-      ['not (True and False)', 'not (True and False)'],
-      [
-        '@variables.a and not (@variables.b or @variables.c)',
-        'state.a and not (state.b or state.c)',
-      ],
-      ['-(1 + 2)', '-(1 + 2)'],
-      ['not True', 'not True'],
-      ['-1', '-1'],
-    ])('preserves operand grouping in %s', (source, expected) => {
-      ctx.mutableVariableNames.add('a');
-      ctx.mutableVariableNames.add('b');
-      ctx.mutableVariableNames.add('c');
-      const { rootNode } = parse(`value: ${source}\n`);
-      const mapping =
-        rootNode.namedChildren.find(node => node.type === 'mapping') ??
-        rootNode;
-      const result = new Dialect().parse(mapping, { value: ExpressionValue });
-
-      expect(result.diagnostics).toEqual([]);
-      expect(compileExpression(result.value.value, ctx)).toBe(expected);
-      expect(ctx.diagnostics).toEqual([]);
-    });
-
     it('should compile not operator', () => {
       const expr = new UnaryExpression('not', new BooleanLiteral(true));
       expect(compileExpression(expr, ctx)).toBe('not True');
@@ -448,27 +548,6 @@ describe('compileExpression', () => {
   });
 
   describe('comparison expressions', () => {
-    it.each([
-      ['(True or False) == False', '(True or False) == False'],
-      ['True == (False or True)', 'True == (False or True)'],
-      ['(1 + 2) < (3 + 4)', '(1 + 2) < (3 + 4)'],
-      ['((1 + 2))  ==  ((3 + 4))', '(1 + 2)  ==  (3 + 4)'],
-      ['(1 + 2)==(1 + 2)', '(1 + 2)==(1 + 2)'],
-      ['1  ==  1', '1  ==  1'],
-      ['1==1', '1==1'],
-    ])('preserves operand grouping and spacing in %s', (source, expected) => {
-      const { rootNode } = parse(`value: ${source}\n`);
-      const mapping =
-        rootNode.namedChildren.find(node => node.type === 'mapping') ??
-        rootNode;
-      const result = new Dialect().parse(mapping, { value: ExpressionValue });
-
-      expect(result.diagnostics).toEqual([]);
-      expect(result.value.value).toBeInstanceOf(ComparisonExpression);
-      expect(compileExpression(result.value.value, ctx)).toBe(expected);
-      expect(ctx.diagnostics).toEqual([]);
-    });
-
     it('should compile == comparison', () => {
       ctx.mutableVariableNames.add('x');
       const expr = new ComparisonExpression(
