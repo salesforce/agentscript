@@ -79,16 +79,7 @@ export function compileExpression(
   ctx: CompilerContext,
   options: CompileExpressionOptions = {}
 ): string {
-  let compiled = compileExprNode(expr, ctx, options);
-
-  // Post-process: Replace any remaining @variables references that weren't
-  // properly compiled (e.g., inside function calls like len(@variables.x))
-  // This matches agent-dsl's regex-based approach for comprehensive coverage.
-  compiled = compiled.replace(/@variables\.(\w+)/g, (_, varName) =>
-    resolveVariableRef(varName, ctx, expr.__cst?.range)
-  );
-
-  return compiled;
+  return compileExprNode(expr, ctx, options);
 }
 
 export interface CompileExpressionOptions {

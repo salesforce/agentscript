@@ -107,6 +107,46 @@ describe('compileExpression', () => {
   });
 
   describe('@variables references', () => {
+    it.each([
+      ['"@variables.missing"', '"@variables.missing"'],
+      ['@variables.x == "@variables.x"', 'state.x == "@variables.x"'],
+      [
+        'concat("@variables.x", @variables.x, @variables.linked)',
+        'concat("@variables.x", state.x, variables.linked)',
+      ],
+      [
+        'concat("say \\"@variables.missing\\"", @variables.x)',
+        'concat("say \\"@variables.missing\\"", state.x)',
+      ],
+    ])('preserves literal reference text in %s', (source, expected) => {
+      ctx.mutableVariableNames.add('x');
+      ctx.linkedVariableNames.add('linked');
+      const { rootNode } = parse(`value: ${source}\n`);
+      const mapping =
+        rootNode.namedChildren.find(node => node.type === 'mapping') ??
+        rootNode;
+      const result = new Dialect().parse(mapping, { value: ExpressionValue });
+
+      expect(result.diagnostics).toEqual([]);
+      expect(compileExpression(result.value.value, ctx)).toBe(expected);
+      expect(ctx.diagnostics).toEqual([]);
+    });
+
+    it('preserves template text while resolving interpolated references', () => {
+      ctx.mutableVariableNames.add('x');
+      const expr = new TemplateExpression([
+        new TemplateText('Use @variables.missing: '),
+        new TemplateInterpolation(
+          new MemberExpression(new AtIdentifier('variables'), 'x')
+        ),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        'Use @variables.missing: {{state.x}}'
+      );
+      expect(ctx.diagnostics).toEqual([]);
+    });
+
     it('should compile mutable @variables.x as state.x', () => {
       ctx.mutableVariableNames.add('user_name');
       const expr = new MemberExpression(
