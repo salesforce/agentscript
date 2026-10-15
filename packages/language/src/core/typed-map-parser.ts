@@ -775,6 +775,15 @@ export class TypedMapParser<T extends TypedDeclarationBase> {
       } else {
         this.emitDeprecatedTypeDiagnostic(elemType, idx as Parsed<object>);
       }
+    } else {
+      this.dc.add(
+        createDiagnostic(
+          idx as Parsed<object>,
+          `Invalid list element type for ${this.blockLabel} ${element.name}. Expected a primitive type (e.g., list[string]).`,
+          DiagnosticSeverity.Error,
+          'invalid-type-parameter'
+        )
+      );
     }
   }
 }
