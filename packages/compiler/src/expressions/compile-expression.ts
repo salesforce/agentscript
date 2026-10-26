@@ -585,7 +585,7 @@ function isSourceChainLink(
   return node !== undefined && isSameNode(node, outer);
 }
 
-/** Compare by position, since a parser backend may wrap a node more than once. */
+/** Compare by position; `SyntaxNode` does not promise stable object identity. */
 function isSameNode(a: SyntaxNode, b: SyntaxNode): boolean {
   return (
     a.type === b.type &&
