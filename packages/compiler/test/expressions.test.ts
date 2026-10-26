@@ -425,7 +425,7 @@ describe('compileExpression', () => {
       ['-(1 if True else 2)', '-(1 if True else 2)'],
       ['not True', 'not True'],
       ['-1', '-1'],
-      // Comparisons chain in Python, so nested comparisons stay grouped.
+      // Comparisons chain in Python, so grouped comparisons stay grouped.
       ['(True or False) == False', '(True or False) == False'],
       ['True == (False or True)', 'True == (False or True)'],
       ['(1 + 2) < (3 + 4)', '1 + 2 < 3 + 4'],
@@ -440,8 +440,18 @@ describe('compileExpression', () => {
       ['1  ==  1', '1 == 1'],
       ['1==1', '1 == 1'],
       ['@variables.a is not None', 'state.a is not None'],
-      // An unparenthesized chain parses left-nested, so it is not chained.
-      ['3 > 2 > 1', '(3 > 2) > 1'],
+      // An unparenthesized chain stays a Python chain.
+      ['3 > 2 > 1', '3 > 2 > 1'],
+      ['0 < @variables.a < 10', '0 < state.a < 10'],
+      ['"a" < "b" < "c"', '"a" < "b" < "c"'],
+      ['1 < 2 <= 3 == 3', '1 < 2 <= 3 == 3'],
+      ['0 < @variables.a + 1 < 10', '0 < state.a + 1 < 10'],
+      ['(0 < @variables.a < 10)', '0 < state.a < 10'],
+      ['not 0 < @variables.a < 10', 'not 0 < state.a < 10'],
+      ['((1 < 2) < 3) < 4', '((1 < 2) < 3) < 4'],
+      ['(1 < 2 < 3) < 4', '(1 < 2 < 3) < 4'],
+      ['(1 < 2) < 3 < 4', '(1 < 2) < 3 < 4'],
+      ['1 < (2 < 3 < 4)', '1 < (2 < 3 < 4)'],
       // Ternaries.
       [
         '(1 if True else 2) if False else 3',
@@ -515,6 +525,19 @@ describe('compileExpression', () => {
           )
         ),
         'not (True or False)',
+      ],
+      [
+        'a comparison on the left of a comparison',
+        new ComparisonExpression(
+          new ComparisonExpression(
+            new NumberLiteral(3),
+            '>',
+            new NumberLiteral(2)
+          ),
+          '>',
+          new NumberLiteral(1)
+        ),
+        '(3 > 2) > 1',
       ],
       [
         'a negative literal as a member target',

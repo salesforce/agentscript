@@ -32,7 +32,7 @@ import {
   decomposeAtMemberExpression,
   escapeStringValue,
 } from '@agentscript/language';
-import type { Range } from '@agentscript/types';
+import type { Range, SyntaxNode } from '@agentscript/types';
 import type { CompilerContext } from '../compiler-context.js';
 import { extractNumberValue } from '../ast-helpers.js';
 
@@ -553,12 +553,47 @@ function compileComparisonExpression(
   ctx: CompilerContext,
   opts: CompileExpressionOptions
 ): string {
-  // Python chains comparisons (`a < b < c` is `a < b and b < c`), so a
-  // comparison operand of a comparison is always parenthesized.
-  const minPrecedence = PRECEDENCE.comparison + 1;
-  const left = compileOperand(expr.left, minPrecedence, ctx, opts);
-  const right = compileOperand(expr.right, minPrecedence, ctx, opts);
-  return `${left} ${expr.operator} ${right}`;
+  // Python chains comparisons (`a < b < c` is `a < b and b < c`). A chain
+  // written in the source stays a chain; any other comparison operand of a
+  // comparison, such as `(a < b) < c` or one built in code, is parenthesized.
+  const compileSide = (side: Expression) =>
+    isSourceChainLink(side, expr)
+      ? compileExprNode(side, ctx, opts)
+      : compileOperand(side, PRECEDENCE.comparison + 1, ctx, opts);
+  return `${compileSide(expr.left)} ${expr.operator} ${compileSide(expr.right)}`;
+}
+
+/**
+ * Whether `operand` is a link of a comparison chain written without
+ * parentheses, like `a < b` in `a < b < c`. The AST nests a chain the same
+ * way as `(a < b) < c`, so only the source CST can tell them apart.
+ */
+function isSourceChainLink(
+  operand: Expression,
+  comparison: ComparisonExpression
+): boolean {
+  const outer = comparison.__cst?.node;
+  let node = operand.__cst?.node;
+  if (!(operand instanceof ComparisonExpression) || !outer || !node) {
+    return false;
+  }
+  // Climb past `expression` wrappers. A `parenthesized_expression` stops the
+  // climb, so an explicitly grouped operand never matches.
+  do {
+    node = node.parent ?? undefined;
+  } while (node?.type === 'expression');
+  return node !== undefined && isSameNode(node, outer);
+}
+
+/** Compare by position, since a parser backend may wrap a node more than once. */
+function isSameNode(a: SyntaxNode, b: SyntaxNode): boolean {
+  return (
+    a.type === b.type &&
+    a.startRow === b.startRow &&
+    a.startCol === b.startCol &&
+    a.endRow === b.endRow &&
+    a.endCol === b.endCol
+  );
 }
 
 function compileTernaryExpression(
