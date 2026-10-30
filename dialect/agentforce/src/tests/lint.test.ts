@@ -1882,6 +1882,68 @@ variables:
 });
 
 // ============================================================================
+// Config agent name rules
+// ============================================================================
+
+describe('config agent name rules', () => {
+  it('reports error when neither developer_name nor agent_name is set', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  description: "No name"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'config-missing-agent-name'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports error when developer_name is blank', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  developer_name: "  "
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'config-missing-agent-name'
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('reports error when both developer_name and agent_name are set', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  developer_name: "MyAgent"
+  agent_name: "MyAgent"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'config-duplicate-agent-name'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it.each(['developer_name', 'agent_name'])(
+    'allows config with only %s',
+    field => {
+      const diagnostics = runSecurityLint(`
+config:
+  ${field}: "MyAgent"
+`);
+
+      const errors = diagnostics.filter(
+        d =>
+          d.code === 'config-missing-agent-name' ||
+          d.code === 'config-duplicate-agent-name'
+      );
+      expect(errors).toHaveLength(0);
+    }
+  );
+});
+
+// ============================================================================
 // Variable source validation rules
 // ============================================================================
 
@@ -2013,6 +2075,109 @@ variables:
         d.code === 'linked-variable-missing-source'
     );
     expect(sourceErrors).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Variable name and linked variable type rules
+// ============================================================================
+
+describe('variable name validation rules', () => {
+  function nameErrors(name: string): Diagnostic[] {
+    const diagnostics = runSecurityLint(`
+variables:
+  ${name}: mutable string
+    description: "Test variable"
+`);
+    return diagnostics.filter(d => d.code === 'invalid-variable-name');
+  }
+
+  it('reports error when name starts with an underscore', () => {
+    const errors = nameErrors('_session');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('cannot start with an underscore');
+    expect(errors[0].data?.target).toEqual({
+      type: 'variable',
+      name: '_session',
+    });
+  });
+
+  it('reports error when name ends with an underscore', () => {
+    const errors = nameErrors('session_');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('cannot end with an underscore');
+  });
+
+  it('reports error when name contains consecutive underscores', () => {
+    const errors = nameErrors('order__count');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('consecutive underscores');
+  });
+
+  it('allows a __c suffix', () => {
+    expect(nameErrors('Account__c')).toHaveLength(0);
+  });
+
+  it('reports consecutive underscores before a __c suffix', () => {
+    const errors = nameErrors('Account__Number__c');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('consecutive underscores');
+  });
+
+  it('allows a name with single underscores', () => {
+    expect(nameErrors('order_count')).toHaveLength(0);
+  });
+});
+
+describe('linked variable type rules', () => {
+  it('reports error when linked variable is an object', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  payload: linked object
+    source: @MessagingSession.Id
+    description: "Session payload"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'linked-variable-cannot-be-object'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'payload'");
+    expect(errors[0].data?.target).toEqual({
+      type: 'variable',
+      name: 'payload',
+    });
+  });
+
+  it('reports error when linked variable has a default value', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  session_id: linked string = "abc"
+    source: @MessagingSession.Id
+    description: "Session ID"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'linked-variable-cannot-have-default'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'session_id'");
+  });
+
+  it('allows a default value on a mutable variable', () => {
+    const diagnostics = runSecurityLint(`
+variables:
+  greeting: mutable string = "Hello"
+    description: "Greeting"
+`);
+
+    const errors = diagnostics.filter(
+      d => d.code === 'linked-variable-cannot-have-default'
+    );
+    expect(errors).toHaveLength(0);
   });
 });
 
