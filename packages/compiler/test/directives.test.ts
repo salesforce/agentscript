@@ -22,12 +22,21 @@ import {
 import { compile } from '../src/compile.js';
 import { compileDeterministicDirectives } from '../src/nodes/compile-directives.js';
 import { CompilerContext } from '../src/compiler-context.js';
-import type { HandOffAction } from '../src/types.js';
+import {
+  isHandOffAction,
+  type Action,
+  type HandOffAction,
+} from '../src/types.js';
+import {
+  createStateUpdateAction,
+  optimizeDirectiveActions,
+} from '../src/nodes/optimize-actions.js';
 import { parseSource } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
   EMPTY_TOPIC_VALUE,
   STATE_UPDATE_ACTION,
+  AGENT_INSTRUCTIONS_VARIABLE,
 } from '../src/constants.js';
 
 describe('after_reasoning directives', () => {
@@ -153,9 +162,7 @@ describe('end_turn_first in transition directives', () => {
   function handoffsFrom(
     actions: ReturnType<typeof compileDeterministicDirectives>
   ): HandOffAction[] {
-    return actions.filter(
-      (a): a is HandOffAction => (a as HandOffAction).type === 'handoff'
-    );
+    return actions.filter(isHandOffAction);
   }
 
   it('should not emit end_turn_first by default', () => {
@@ -197,5 +204,268 @@ describe('end_turn_first in transition directives', () => {
     const handoffs = handoffsFrom(actions);
     expect(handoffs.length).toBe(1);
     expect(handoffs[0].end_turn_first).toBeUndefined();
+  });
+});
+
+// Optimization 4a: adjacent __state_update_action__ envelopes that share the
+// same `enabled` gate fuse into one envelope carrying the concatenated
+// state_updates. Fewer runtime steps, identical resulting state.
+describe('4a: merge adjacent same-gate state updates', () => {
+  const HEAD = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    a: mutable boolean
+        description: "a"
+    b: mutable boolean
+        description: "b"
+    counter: mutable number = 0
+        description: "counter"
+    x: mutable number = 0
+        description: "x"
+    y: mutable number = 0
+        description: "y"
+`;
+
+  /** state-update envelopes on main's before_reasoning_iteration */
+  function stateUpdates(source: string): {
+    enabled: unknown;
+    entries: Record<string, string>[];
+  }[] {
+    const { output, diagnostics } = compile(parseSource(source));
+    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )!;
+    return (node.before_reasoning_iteration ?? [])
+      .filter(a => a.target === STATE_UPDATE_ACTION)
+      .map(a => ({
+        enabled: a.enabled,
+        entries: (a.state_updates ?? []) as Record<string, string>[],
+      }));
+  }
+
+  it('fuses two independent same-gate sets into one envelope', () => {
+    const envelopes = stateUpdates(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            set @variables.a = True
+            set @variables.b = False
+            | keep going
+`);
+    // All three updates (both sets and the ungated `| keep going` append) share
+    // the next_topic-empty gate, so they land in ONE envelope as ordered
+    // entries rather than three separate envelopes.
+    const setEnvelope = envelopes.find(e => e.entries.some(su => 'a' in su))!;
+    // The two sets fuse, in source order, ahead of the fused instruction append.
+    expect(setEnvelope.entries.slice(0, 2)).toEqual([
+      { a: 'True' },
+      { b: 'False' },
+    ]);
+    expect(setEnvelope.entries.length).toBeGreaterThan(2);
+    // Exactly one envelope writes `a`, and exactly one writes `b` — proving no
+    // duplicate/dropped writes across the merge.
+    expect(envelopes.filter(e => e.entries.some(su => 'a' in su))).toHaveLength(
+      1
+    );
+    expect(envelopes.filter(e => e.entries.some(su => 'b' in su))).toHaveLength(
+      1
+    );
+  });
+
+  it('does not fuse sets that sit under different gates', () => {
+    const envelopes = stateUpdates(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            if @variables.a
+                set @variables.b = True
+            set @variables.a = False
+`);
+    // The gated set (inside the if) and the ungated set carry different
+    // `enabled` values, so they must remain separate envelopes.
+    const bEnvelope = envelopes.find(e => e.entries.some(su => 'b' in su))!;
+    const aEnvelope = envelopes.find(e =>
+      e.entries.some(su => su.a === 'False')
+    )!;
+    expect(bEnvelope.enabled).not.toBe(aEnvelope.enabled);
+    expect(bEnvelope).not.toBe(aEnvelope);
+  });
+
+  it('does not fuse a self-referencing set across an intra-envelope read-after-write', () => {
+    const envelopes = stateUpdates(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            set @variables.counter = 1
+            set @variables.counter = @variables.counter + 1
+`);
+    // Both sets write `counter` under the same (absent) gate, so fusing them
+    // naively would put "state.counter + 1" in the same envelope as the write
+    // it depends on. The guard must keep them as two separate envelopes, in
+    // source order, so the second entry's read still sees committed state
+    // from a prior runtime step rather than depending on live-state ordering
+    // within one envelope.
+    const counterEnvelopes = envelopes.filter(e =>
+      e.entries.some(su => 'counter' in su)
+    );
+    expect(counterEnvelopes).toHaveLength(2);
+    expect(counterEnvelopes[0].entries).toEqual([{ counter: '1' }]);
+    expect(counterEnvelopes[1].entries).toEqual([
+      { counter: 'state.counter + 1' },
+    ]);
+  });
+
+  it('does not fuse a cross-variable dependent set (b reads a)', () => {
+    const envelopes = stateUpdates(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            set @variables.x = 1
+            set @variables.y = @variables.x + 1
+`);
+    // `y`'s RHS reads `state.x`, which the immediately preceding entry writes.
+    // Fusing would create the same intra-envelope read-after-write hazard as
+    // the self-referencing case, just across two different variable names.
+    const xEnvelope = envelopes.find(e => e.entries.some(su => 'x' in su))!;
+    const yEnvelope = envelopes.find(e => e.entries.some(su => 'y' in su))!;
+    expect(xEnvelope).not.toBe(yEnvelope);
+    expect(xEnvelope.entries.some(su => 'y' in su)).toBe(false);
+    expect(yEnvelope.entries.some(su => 'x' in su)).toBe(false);
+  });
+
+  it('never fuses a set after a transition across the handoff in before_reasoning', () => {
+    const { output, diagnostics } = compile(
+      parseSource(`${HEAD}
+start_agent main:
+    description: "m"
+    before_reasoning:
+        set @variables.a = True
+        transition to @topic.dest
+        set @variables.b = True
+    reasoning:
+        instructions: ->
+            | hi
+
+topic dest:
+    description: "d"
+    reasoning:
+        instructions: ->
+            | dest
+`)
+    );
+    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )!;
+    const actions = node.before_reasoning ?? [];
+    const writes = (action: Action, key: string) =>
+      (action.state_updates ?? []).some(su => key in su);
+
+    const handoffIndex = actions.findIndex(a => a.target === 'dest');
+    const bIndex = actions.findIndex(a => writes(a, 'b'));
+    expect(handoffIndex).toBeGreaterThan(-1);
+    expect(bIndex).toBeGreaterThan(handoffIndex);
+    expect(actions[bIndex].target).toBe(STATE_UPDATE_ACTION);
+    // No envelope carries both the next_topic write and the `b` write.
+    expect(
+      actions.some(a => writes(a, NEXT_TOPIC_VARIABLE) && writes(a, 'b'))
+    ).toBe(false);
+  });
+
+  describe('shared gate read-after-write guard', () => {
+    const fuse = (gate: string) =>
+      optimizeDirectiveActions(
+        [
+          createStateUpdateAction([{ x: '"done"' }], gate),
+          createStateUpdateAction([{ y: '1' }], gate),
+        ],
+        {}
+      );
+
+    it('does not fuse when the shared gate reads a key the earlier envelope writes', () => {
+      const actions = fuse('state.x == "pending"');
+      expect(actions).toHaveLength(2);
+    });
+
+    it('fuses when the shared gate reads only unrelated variables', () => {
+      const actions = fuse('state.counter == 0');
+      expect(actions).toHaveLength(1);
+      expect(actions[0].state_updates).toEqual([{ x: '"done"' }, { y: '1' }]);
+    });
+  });
+});
+
+// `optimize` compile flag: proves optimize: false actually disables the
+// directive-action fusions above (more, smaller envelopes) while the
+// per-turn instruction reset — required lowering, not an optimization — is
+// still emitted.
+describe('optimize compile flag', () => {
+  const SOURCE = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    a: mutable boolean
+        description: "a"
+
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            set @variables.a = True
+            | keep going
+`;
+
+  function beforeReasoningIteration(actions: unknown): Action[] {
+    return (actions ?? []) as Action[];
+  }
+
+  it('optimize: false yields more unfused actions than the optimize: true default, and keeps the per-turn reset', () => {
+    const optimized = compile(parseSource(SOURCE));
+    const unoptimized = compile(parseSource(SOURCE), { optimize: false });
+
+    const optimizedNode = optimized.output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )!;
+    const unoptimizedNode = unoptimized.output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )!;
+
+    const optimizedActions = beforeReasoningIteration(
+      optimizedNode.before_reasoning_iteration
+    );
+    const unoptimizedActions = beforeReasoningIteration(
+      unoptimizedNode.before_reasoning_iteration
+    );
+
+    // The head directive is a `set`, not an append, so there is no reset-fold:
+    // the 'True'-gated reset stays its own envelope. The `set` and the
+    // `| keep going` append share the (absent) gate and fuse into a second
+    // envelope, so optimize: true yields two envelopes; optimize: false leaves
+    // the reset, set, and append as three.
+    expect(unoptimizedActions.length).toBeGreaterThan(optimizedActions.length);
+
+    // The per-turn reset must still be present — as its own standalone
+    // envelope, unfolded — even though optimization is off.
+    const reset = unoptimizedActions.find(
+      action =>
+        action.target === STATE_UPDATE_ACTION &&
+        action.enabled === 'True' &&
+        (action.state_updates ?? []).some(
+          update => update[AGENT_INSTRUCTIONS_VARIABLE] === "''"
+        )
+    );
+    expect(reset).toBeDefined();
   });
 });

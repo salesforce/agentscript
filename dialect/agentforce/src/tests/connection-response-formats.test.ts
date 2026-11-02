@@ -494,6 +494,46 @@ connection customer_web_client:
       );
       expect(missingInputs.length).toBeGreaterThan(0);
     });
+
+    it('does not require inputs on a telephony connection response format', () => {
+      const source = `
+connection telephony:
+    response_formats:
+        voice_format:
+            description: "No inputs needed on telephony"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const missingInputs = diagnostics.filter(
+        d =>
+          d.code === 'missing-required-field' && d.message.includes("'inputs'")
+      );
+      expect(missingInputs).toHaveLength(0);
+    });
+
+    it('allows telephony response format inputs without an "inputs ignored" warning', () => {
+      // Unlike system targets that ignore inputs, telephony merely makes inputs
+      // optional — authored inputs are still meaningful and must not warn.
+      const source = `
+connection telephony:
+    response_formats:
+        voice_format:
+            description: "Inputs are allowed here"
+            inputs:
+                phrase: string
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const missingInputs = diagnostics.filter(
+        d =>
+          d.code === 'missing-required-field' && d.message.includes("'inputs'")
+      );
+      const ignoredWarnings = diagnostics.filter(
+        d => d.code === 'response-format-inputs-ignored-for-target'
+      );
+      expect(missingInputs).toHaveLength(0);
+      expect(ignoredWarnings).toHaveLength(0);
+    });
   });
 
   describe('multiple formats validation', () => {

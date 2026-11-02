@@ -1052,6 +1052,26 @@ subagent main:
     ).toBe(true);
   });
 
+  it('reports an undefined reference inside a keyword argument value', () => {
+    const diagnostics = runLint(`
+variables:
+  name: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.name, sep=@variables.missing_separator) == "":
+      transition to @subagent.main
+`);
+
+    const refErrors = diagnostics.filter(d => d.code === 'undefined-reference');
+    expect(refErrors).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("'missing_separator' is not defined"),
+      }),
+    ]);
+  });
+
   it('reports undefined @variables reference with suggestion in data', () => {
     const diagnostics = runLint(`
 variables:
@@ -3095,8 +3115,12 @@ subagent main:
   });
 
   it('reports missing required input on @actions.X as informational (LLM auto-fill)', () => {
+    const required = BASE.replace(
+      '        member_number: string\n',
+      '        member_number: string\n          is_required: True\n'
+    );
     const diagnostics = runLint(
-      BASE +
+      required +
         `      check: @actions.send_code
         with email=@variables.member_email
 `
@@ -3171,11 +3195,11 @@ subagent main:
     expect(missing).toHaveLength(0);
   });
 
-  it('treats inputs without is_required as required by default', () => {
+  it('treats only is_required: True inputs as required', () => {
     // Mix of three inputs: explicit is_required: True, explicit is_required:
-    // False, and no is_required property at all. Omitting the explicit-True
-    // one and the unspecified one should both produce diagnostics; omitting
-    // the explicit-False one should not.
+    // False, and no is_required property at all. Only omitting the
+    // explicit-True one produces a diagnostic, matching the compiled
+    // `required` flag (unspecified compiles to not required).
     const source = `
 variables:
   city: mutable string
@@ -3203,10 +3227,9 @@ subagent main:
 
     const diagnostics = runLint(source);
     const missing = diagnostics.filter(d => d.code === 'action-missing-input');
-    const names = missing.map(d => d.message).sort();
-    expect(names).toHaveLength(2);
+    const names = missing.map(d => d.message);
+    expect(names).toHaveLength(1);
     expect(names[0]).toContain("'city'");
-    expect(names[1]).toContain("'country'");
     // @actions.X diagnostics are informational — the compiler auto-fills.
     expect(
       missing.every(d => d.severity === DiagnosticSeverity.Information)
@@ -3602,6 +3625,7 @@ subagent main:
     expect(warnings).toHaveLength(1);
     expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
     expect(warnings[0].code).toBe('variable-default-type-mismatch');
+    expect(warnings[0].data?.target).toEqual({ type: 'variable', name: 'x' });
   });
 
   it('flags number declared with string default', () => {
@@ -3734,6 +3758,25 @@ subagent main:
 
   it('flags list literal into a non-list scalar type', () => {
     const diagnostics = runLint(wrap(`  s: string = []`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
+  // Signed numbers (`-1`) parse as a unary `-` on a number literal; the type
+  // check still recognizes them as `number`.
+  it('passes matching signed number default', () => {
+    const diagnostics = runLint(wrap(`  n: number = -1`));
+    const warnings = diagnostics.filter(
+      d => d.code === 'variable-default-type-mismatch'
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('flags string declared with signed number default', () => {
+    const diagnostics = runLint(wrap(`  s: string = -1`));
     const warnings = diagnostics.filter(
       d => d.code === 'variable-default-type-mismatch'
     );
@@ -5810,6 +5853,256 @@ subagent main:
         diagnostics.filter(d => d.code === 'function-argument-type')
       ).toHaveLength(0);
     });
+
+    it('accepts concat() with string variables', () => {
+      const diagnostics = runLint(`
+variables:
+  first: mutable string = ""
+  last: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.first, @variables.last) == "":
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('errors when concat() receives a non-string (number) argument', () => {
+      const diagnostics = runLint(`
+variables:
+  text: mutable string = ""
+  count: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.text, @variables.count) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain("'concat'");
+      expect(typeFindings[0].message).toContain('string arguments');
+    });
+
+    it('accepts a list[string] variable and a string sep keyword', () => {
+      const diagnostics = runLint(`
+variables:
+  fragments: mutable list[string] = []
+  separator: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.fragments, sep=@variables.separator) == "":
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('errors when concat() receives a non-string sep keyword', () => {
+      const diagnostics = runLint(`
+variables:
+  separator: mutable number = 0
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat("a", sep=@variables.separator) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain('sep must be a string');
+    });
+
+    it('errors when concat() receives a list[number] variable', () => {
+      const diagnostics = runLint(`
+variables:
+  fragments: mutable list[number] = []
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.fragments) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain('string arguments');
+      expect(typeFindings[0].message).toContain("'list[number]'");
+    });
+
+    it('warns when concat() receives an unparameterized list variable', () => {
+      const diagnostics = runLint(`
+variables:
+  fragments: mutable list
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.fragments) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(typeFindings[0].message).toContain('elements are strings');
+    });
+
+    it('accepts a list[string] variable directly (no diagnostic)', () => {
+      const diagnostics = runLint(`
+variables:
+  fragments: mutable list[string] = []
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.fragments) == "":
+      transition to @subagent.main
+`);
+      expect(
+        diagnostics.filter(d => d.code === 'function-argument-type')
+      ).toHaveLength(0);
+    });
+
+    it('warns when concat() receives a list literal', () => {
+      const diagnostics = runLint(`
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(["a", "b"]) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(typeFindings[0].message).toContain('elements are strings');
+    });
+
+    it('errors when concat() receives a literal None part', () => {
+      const diagnostics = runLint(`
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(None) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain('None');
+    });
+
+    it('errors when concat() receives None after a string part', () => {
+      const diagnostics = runLint(`
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat("a", None) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain('None');
+    });
+
+    it('errors when concat() receives a literal None sep keyword', () => {
+      const diagnostics = runLint(`
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat("a", sep=None) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain('sep must be a string');
+    });
+
+    it('errors when concat() receives a dict variable', () => {
+      const diagnostics = runLint(`
+variables:
+  data: mutable dict = {}
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(@variables.data) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Error);
+      expect(typeFindings[0].message).toContain('string arguments');
+    });
+
+    it('warns when concat() receives an un-inferable json_path() call', () => {
+      const diagnostics = runLint(`
+variables:
+  payload: mutable dict = {}
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(json_path(@variables.payload, "$.x")) == "":
+      transition to @subagent.main
+`);
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(1);
+      expect(typeFindings[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(typeFindings[0].message).toContain('string or list of strings');
+    });
+
+    it('accepts a lower() call part (provably returns a string)', () => {
+      const diagnostics = runLint(`
+variables:
+  text: mutable string = ""
+
+subagent main:
+  description: "test"
+  before_reasoning:
+    if concat(lower(@variables.text)) == "":
+      transition to @subagent.main
+`);
+      // lower()/upper() always return a string, so a nested call is a valid
+      // part with no diagnostic — unlike data-dependent calls (json_path).
+      const typeFindings = diagnostics.filter(
+        d => d.code === 'function-argument-type'
+      );
+      expect(typeFindings).toHaveLength(0);
+    });
   });
 });
 
@@ -5991,6 +6284,22 @@ subagent main:
     expect(errors[0].message).toContain('a number');
   });
 
+  it('reports arithmetic with an unresolved operand in available when', () => {
+    // `@outputs.some_flag` does not resolve to a type, but `+` is never boolean,
+    // so it defaults to number and is still flagged as non-boolean.
+    const diagnostics = runLint(
+      BASE +
+        `      do_check: @actions.check
+        available when @outputs.some_flag + 1
+`
+    );
+    const errors = diagnostics.filter(
+      d => d.code === 'available-when-non-boolean'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('a number');
+  });
+
   it('reports list variable in available when (dialect-specific type)', () => {
     const diagnostics = runLint(
       BASE +
@@ -6047,22 +6356,22 @@ describe('setVariablesIoRule', () => {
     return diagnostics;
   }
 
-  function expectUnknownVariableWarnings(
+  function expectUnknownVariableErrors(
     diagnostics: Diagnostic[],
     count: number
   ): Diagnostic[] {
-    const warnings = diagnostics.filter(
+    const errors = diagnostics.filter(
       d => d.code === 'set-variables-unknown-variable'
     );
-    expect(warnings).toHaveLength(count);
-    for (const warning of warnings) {
-      expect(warning.severity).toBe(DiagnosticSeverity.Warning);
-      expect(warning.severity).toBe(2);
+    expect(errors).toHaveLength(count);
+    for (const error of errors) {
+      expect(error.severity).toBe(DiagnosticSeverity.Error);
+      expect(error.severity).toBe(1);
     }
-    return warnings;
+    return errors;
   }
 
-  it('reports warning when with clause param is not a defined variable', () => {
+  it('reports error when with clause param is not a defined variable', () => {
     const diagnostics = runLint(`
 variables:
   name: mutable string
@@ -6078,12 +6387,16 @@ subagent main:
         with ProductName=...
 `);
 
-    const warnings = expectUnknownVariableWarnings(diagnostics, 1);
-    expect(warnings[0].message).toContain("'ProductName'");
-    expect(warnings[0].message).toContain('not a defined variable');
+    const errors = expectUnknownVariableErrors(diagnostics, 1);
+    expect(errors[0].message).toContain("'ProductName'");
+    expect(errors[0].message).toContain('not a defined variable');
+    expect(errors[0].data?.target).toEqual({
+      type: 'variable',
+      name: 'ProductName',
+    });
   });
 
-  it('reports warning with suggestion for typo in variable name', () => {
+  it('reports error with suggestion for typo in variable name', () => {
     const diagnostics = runLint(`
 variables:
   account_name: mutable string
@@ -6100,9 +6413,9 @@ subagent main:
         with prodcut_name=...
 `);
 
-    const warnings = expectUnknownVariableWarnings(diagnostics, 1);
-    expect(warnings[0].message).toContain("'prodcut_name'");
-    expect(warnings[0].data?.suggestion).toBe('product_name');
+    const errors = expectUnknownVariableErrors(diagnostics, 1);
+    expect(errors[0].message).toContain("'prodcut_name'");
+    expect(errors[0].data?.suggestion).toBe('product_name');
   });
 
   it('does not report diagnostics for multiple mutable variables', () => {
@@ -6122,7 +6435,7 @@ subagent main:
         with email=...
 `);
 
-    expectUnknownVariableWarnings(diagnostics, 0);
+    expectUnknownVariableErrors(diagnostics, 0);
 
     const immutableErrors = diagnostics.filter(
       d => d.code === 'set-variables-immutable-target'
@@ -6147,7 +6460,7 @@ subagent main:
         with context_val="test"
 `);
 
-    expectUnknownVariableWarnings(diagnostics, 0);
+    expectUnknownVariableErrors(diagnostics, 0);
 
     const immutableErrors = diagnostics.filter(
       d => d.code === 'set-variables-immutable-target'
@@ -6203,9 +6516,9 @@ subagent main:
         with another_fake=...
 `);
 
-    const warnings = expectUnknownVariableWarnings(diagnostics, 2);
-    expect(warnings[0].message).toContain("'fake_var'");
-    expect(warnings[1].message).toContain("'another_fake'");
+    const errors = expectUnknownVariableErrors(diagnostics, 2);
+    expect(errors[0].message).toContain("'fake_var'");
+    expect(errors[1].message).toContain("'another_fake'");
   });
 
   it('reports only unknown-variable for undefined params, not immutable-target', () => {
@@ -6226,8 +6539,8 @@ subagent main:
         with nonexistent=...
 `);
 
-    const unknownWarnings = expectUnknownVariableWarnings(diagnostics, 1);
-    expect(unknownWarnings[0].message).toContain("'nonexistent'");
+    const unknownErrors = expectUnknownVariableErrors(diagnostics, 1);
+    expect(unknownErrors[0].message).toContain("'nonexistent'");
 
     const immutableErrors = diagnostics.filter(
       d => d.code === 'set-variables-immutable-target'
@@ -6253,10 +6566,10 @@ subagent main:
         with name=...
 `);
 
-    expectUnknownVariableWarnings(diagnostics, 2);
+    expectUnknownVariableErrors(diagnostics, 2);
   });
 
-  it('reports warning for direct assignment to undefined variable', () => {
+  it('reports error for direct assignment to undefined variable', () => {
     const diagnostics = runLint(`
 variables:
   name: mutable string
@@ -6272,8 +6585,8 @@ subagent main:
         with status="active"
 `);
 
-    const warnings = expectUnknownVariableWarnings(diagnostics, 1);
-    expect(warnings[0].message).toContain("'status'");
+    const errors = expectUnknownVariableErrors(diagnostics, 1);
+    expect(errors[0].message).toContain("'status'");
   });
 });
 
@@ -6358,6 +6671,29 @@ subagent main:
         render: @response_formats.choices
 `
     );
+
+    const errors = diagnostics.filter(d => d.code === 'render-outside-when');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain('render');
+    expect(errors[0].message).toContain('when @connection');
+  });
+
+  it('reports render-outside-when even when the action target is an unresolved @connected_subagent.X', () => {
+    // Regression: placement is validated by walking the tree, not by the
+    // reasoning-action entries, so a stray render: is still caught even though
+    // the connected subagent is never declared (its signature never resolves,
+    // dropping it from the reasoning-action entry list).
+    const diagnostics = runLint(`
+start_agent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |do it
+    actions:
+      call_support: @connected_subagent.Undeclared_Agent
+        render: @response_formats.choices
+`);
 
     const errors = diagnostics.filter(d => d.code === 'render-outside-when');
     expect(errors).toHaveLength(1);
@@ -6473,6 +6809,162 @@ subagent main:
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('accepts with bindings and show_and_return: together in a render body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            with items = "x"
+            show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-statement'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('reports render-rule-unsupported-statement for an if inside a render body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            if @variables.location:
+              show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-statement'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'if'");
+    expect(errors[0].message).toContain('render');
+  });
+
+  it('reports render-rule-unsupported-statement for a set inside a render body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            set @variables.location = "x"
+            show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-statement'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'set'");
+  });
+
+  it('flags every unsupported statement in a render body', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            escalate
+            set @variables.location = "x"
+            show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-statement'
+    );
+    expect(errors).toHaveLength(2);
+  });
+
+  it('reports render-rule-unsupported-when-statement for a set sibling of render:', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+          set @variables.location = "x"
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-when-statement'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'set'");
+    expect(errors[0].message).toContain('when @connection');
+  });
+
+  it('reports render-rule-unsupported-when-statement for a mis-indented with under when', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+          with items = "x"
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-when-statement'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'with'");
+  });
+
+  it('does not report render-rule-unsupported-when-statement for a valid render:/show_and_return: block', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+            with items = "x"
+            show_and_return: True
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'render-rule-unsupported-when-statement'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('does not double-report a stray show_and_return: under when (only show-and-return-outside-render)', () => {
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          render: @response_formats.choices
+          show_and_return: True
+`
+    );
+
+    expect(
+      diagnostics.filter(
+        d => d.code === 'render-rule-unsupported-when-statement'
+      )
+    ).toHaveLength(0);
+    expect(
+      diagnostics.filter(d => d.code === 'show-and-return-outside-render')
+    ).toHaveLength(1);
   });
 
   it('reports when-non-connection-ref when when block references @actions', () => {
@@ -6803,7 +7295,7 @@ subagent main:
     );
 
     const errors = diagnostics.filter(d => d.code === 'render-outside-when');
-    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
   });
 
@@ -6822,7 +7314,7 @@ subagent main:
     const errors = diagnostics.filter(
       d => d.code === 'show-and-return-outside-render'
     );
-    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
   });
 
@@ -6840,7 +7332,342 @@ subagent main:
     const errors = diagnostics.filter(
       d => d.code === 'when-connection-outside-action'
     );
-    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('reports when-connection-outside-action for a when nested inside another when', () => {
+    // A when must sit directly in the reasoning action body — nesting one when
+    // inside another is not a valid location for the inner when.
+    const diagnostics = runLint(
+      BASE +
+        `      list_it: @actions.get_list
+        with location=@variables.location
+        when @connection.messaging
+          when @connection.messaging
+            render: @response_formats.choices
+`
+    );
+
+    const errors = diagnostics.filter(
+      d => d.code === 'when-connection-outside-action'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+});
+
+describe('when-non-action-binding', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  const RENDER_BODY = `        when @connection.messaging
+          render: @response_formats.choices
+            show_and_return: True
+`;
+
+  it('accepts render rules on an @actions.X binding', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  actions:
+    get_list:
+      description: "Get list"
+      target: "flow://get_list"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      list_it: @actions.get_list
+${RENDER_BODY}`);
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-action-binding'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('does not flag render rules on an undefined @actions.X binding', () => {
+    // The binding is still an @actions reference (the missing action is
+    // reported elsewhere), so render rules remain valid here.
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      list_it: @actions.does_not_exist
+${RENDER_BODY}`);
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-action-binding'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects render rules on an @utils.transition binding', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      go: @utils.transition to @subagent.main
+${RENDER_BODY}`);
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-action-binding'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(errors[0].message).toContain("'@actions.<name>'");
+    // Anchored to the `when @connection.X` header line: a single-line range
+    // covering the clause, not the whole multi-line block (so the editor
+    // squiggle lands on the disallowed `when`, not its body).
+    expect(errors[0].range.start.line).toBe(errors[0].range.end.line);
+  });
+
+  it('rejects render rules on an @utils.setVariables binding', () => {
+    const diagnostics = runLint(`
+variables:
+  done: mutable boolean
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      cap: @utils.setVariables
+${RENDER_BODY}`);
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-action-binding'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+
+  it('rejects render rules on an @connected_subagent.X binding', () => {
+    const diagnostics = runLint(`
+start_agent main:
+  description: "test"
+  reasoning:
+    instructions: ->
+      |Do it
+    actions:
+      call_support: @connected_subagent.Support_Agent
+${RENDER_BODY}connected_subagent Support_Agent:
+  target: "agent://Support_Agent"
+  label: "Support"
+  description: "Support agent"
+`);
+    const errors = diagnostics.filter(
+      d => d.code === 'when-non-action-binding'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe(DiagnosticSeverity.Error);
+  });
+});
+
+describe('setVariablesChainingRule', () => {
+  function runLint(source: string): Diagnostic[] {
+    const ast = parseDocument(source);
+    const engine = createLintEngine();
+    const { diagnostics } = engine.run(ast, testSchemaCtx);
+    return diagnostics;
+  }
+
+  it('errors when @utils.setVariables has a transition to clause', () => {
+    const diagnostics = runLint(`
+variables:
+  user_name: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      capture_name: @utils.setVariables
+        with user_name=...
+        transition to done
+subagent done:
+  label: "Done"
+  reasoning:
+    instructions: ->
+      |Done
+`);
+
+    const chained = diagnostics.filter(
+      d => d.code === 'set-variables-chained-action'
+    );
+    expect(chained).toHaveLength(1);
+    expect(chained[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(chained[0].message).toContain("'transition to'");
+    expect(chained[0].message).toContain('will be ignored at runtime');
+  });
+
+  it('errors when @utils.setVariables has a run clause with a child action', () => {
+    const diagnostics = runLint(`
+variables:
+  user_name: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    some_action:
+      description: "Some action"
+      target: "flow://SomeAction"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      capture_name: @utils.setVariables
+        with user_name=...
+        run @actions.some_action
+`);
+
+    const chained = diagnostics.filter(
+      d => d.code === 'set-variables-chained-action'
+    );
+    expect(chained).toHaveLength(1);
+    expect(chained[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(chained[0].message).toContain("'run'");
+    expect(chained[0].message).toContain('will be ignored at runtime');
+  });
+
+  it('errors on run and transition to clauses nested in if/else', () => {
+    const diagnostics = runLint(`
+variables:
+  user_name: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    some_action:
+      description: "Some action"
+      target: "flow://SomeAction"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      capture_name: @utils.setVariables
+        with user_name=...
+        if @variables.user_name:
+          run @actions.some_action
+        else:
+          transition to done
+subagent done:
+  label: "Done"
+  reasoning:
+    instructions: ->
+      |Done
+`);
+
+    const chained = diagnostics.filter(
+      d => d.code === 'set-variables-chained-action'
+    );
+    expect(chained.map(d => d.message.match(/'([^']+)'/)?.[1])).toEqual([
+      'run',
+      'transition to',
+    ]);
+    expect(chained.every(d => d.severity === DiagnosticSeverity.Error)).toBe(
+      true
+    );
+  });
+
+  it('errors on clauses in every branch of an else if chain', () => {
+    const diagnostics = runLint(`
+variables:
+  user_name: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    some_action:
+      description: "Some action"
+      target: "flow://SomeAction"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      capture_name: @utils.setVariables
+        with user_name=...
+        if @variables.user_name == "a":
+          run @actions.some_action
+        else if @variables.user_name == "b":
+          transition to done
+        else if @variables.user_name == "c":
+          run @actions.some_action
+        else:
+          transition to done
+subagent done:
+  label: "Done"
+  reasoning:
+    instructions: ->
+      |Done
+`);
+
+    const chained = diagnostics.filter(
+      d => d.code === 'set-variables-chained-action'
+    );
+    expect(chained.map(d => d.message.match(/'([^']+)'/)?.[1])).toEqual([
+      'run',
+      'transition to',
+      'run',
+      'transition to',
+    ]);
+  });
+
+  it('does not report chaining when @utils.setVariables has only with clauses', () => {
+    const diagnostics = runLint(`
+variables:
+  user_name: mutable string
+  user_email: mutable string
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      capture_info: @utils.setVariables
+        with user_name=...
+        with user_email=...
+`);
+
+    const chained = diagnostics.filter(
+      d => d.code === 'set-variables-chained-action'
+    );
+    expect(chained).toHaveLength(0);
+  });
+
+  it('does not report chaining when a regular @actions.* has a transition to clause', () => {
+    const diagnostics = runLint(`
+variables:
+  data: mutable string
+subagent main:
+  label: "Main"
+  actions:
+    some_action:
+      description: "Some action"
+      target: "flow://SomeAction"
+      inputs:
+        param1: string
+  reasoning:
+    instructions: ->
+      |Do something
+    actions:
+      do_something: @actions.some_action
+        with param1=@variables.data
+        transition to done
+subagent done:
+  label: "Done"
+  reasoning:
+    instructions: ->
+      |Done
+`);
+
+    const chained = diagnostics.filter(
+      d => d.code === 'set-variables-chained-action'
+    );
+    expect(chained).toHaveLength(0);
   });
 });

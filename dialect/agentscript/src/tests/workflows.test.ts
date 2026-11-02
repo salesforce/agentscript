@@ -7,8 +7,9 @@
 
 /**
  * Tests for the `workflows:` block — named, independently-executable
- * workflows scoped to the agent. Each routes either to a subagent (`agent`)
- * or runs a free-form `prompt`.
+ * workflows scoped to the agent. Each routes to a subagent (`agent`), runs a
+ * free-form `prompt`, or references an externally-stored workflow (`target`,
+ * mutually exclusive with `agent`/`prompt`).
  */
 
 import { describe, expect, test } from 'vitest';
@@ -122,6 +123,58 @@ describe('workflows block', () => {
     expect(
       diagnostics.filter(d => d.code === 'invalid-workflow-agent')
     ).toEqual([]);
+  });
+
+  test('a target-only workflow reference is valid (no exactly-one-target error)', () => {
+    const ast = toAstRoot(
+      parseDocument(
+        [
+          'workflows:',
+          '    stored:',
+          '        target: "workflow://account_summary"',
+        ].join('\n')
+      )
+    );
+    const { diagnostics } = createLintEngine().run(ast, testSchemaCtx);
+    expect(
+      diagnostics.some(d => d.code === 'workflow-exactly-one-target')
+    ).toBe(false);
+  });
+
+  test('target combined with agent is a mutual-exclusivity error', () => {
+    const ast = toAstRoot(
+      parseDocument(
+        [
+          'workflows:',
+          '    conflicted:',
+          '        target: "workflow://account_summary"',
+          '        agent: @subagent.lg',
+          'subagent lg:',
+          '    description: "lg"',
+        ].join('\n')
+      )
+    );
+    const { diagnostics } = createLintEngine().run(ast, testSchemaCtx);
+    expect(
+      diagnostics.some(d => d.code === 'workflow-exactly-one-target')
+    ).toBe(true);
+  });
+
+  test('target combined with prompt is a mutual-exclusivity error', () => {
+    const ast = toAstRoot(
+      parseDocument(
+        [
+          'workflows:',
+          '    conflicted:',
+          '        target: "workflow://account_summary"',
+          '        prompt: "Summarize the account"',
+        ].join('\n')
+      )
+    );
+    const { diagnostics } = createLintEngine().run(ast, testSchemaCtx);
+    expect(
+      diagnostics.some(d => d.code === 'workflow-exactly-one-target')
+    ).toBe(true);
   });
 
   test('@workflows namespace resolves a defined workflow', () => {

@@ -21,6 +21,8 @@ export {
   ConfigBlock,
   LanguageBlock,
   WorkflowBlock,
+  WorkflowProcedureBlock,
+  WorkflowStepBlock,
   BundleBlock,
   TriggerBlock,
   OrchestratorBlock,
@@ -49,8 +51,20 @@ export {
   defaultSubagentFields,
   customSubagentFields,
 } from './schema.js';
+export {
+  SystemInstructionValue,
+  type SystemInstructionValue as SystemInstructionValueType,
+} from './system-instruction-value.js';
 
 export type { AgentScriptSchema as AgentScriptSchemaType } from './schema.js';
+export {
+  workflowValidationPass,
+  validateStepsWorkflow,
+  resolveWorkflowAction,
+  workflowUnknownActionMessage,
+  workflowNameCollisions,
+} from './workflow/index.js';
+export type { WorkflowNameCollision } from './workflow/index.js';
 
 // Parsed types derived from schema via InferFields (replaces codegen)
 import type {
@@ -59,6 +73,8 @@ import type {
   ConfigBlock,
   LanguageBlock,
   WorkflowBlock,
+  WorkflowProcedureBlock,
+  WorkflowStepBlock,
   BundleBlock,
   TriggerBlock,
   OrchestratorBlock,
@@ -76,6 +92,10 @@ export type ParsedSystem = InferFieldType<typeof SystemBlock>;
 export type ParsedConfig = InferFieldType<typeof ConfigBlock>;
 export type ParsedLanguage = InferFieldType<typeof LanguageBlock>;
 export type ParsedWorkflow = InferFieldType<typeof WorkflowBlock>;
+export type ParsedWorkflowProcedure = InferFieldType<
+  typeof WorkflowProcedureBlock
+>;
+export type ParsedWorkflowStep = InferFieldType<typeof WorkflowStepBlock>;
 export type ParsedBundle = InferFieldType<typeof BundleBlock>;
 export type ParsedTrigger = InferFieldType<typeof TriggerBlock>;
 export type ParsedOrchestrator = InferFieldType<typeof OrchestratorBlock>;
@@ -100,10 +120,15 @@ export {
   connectionFormatsAnalyzer,
   connectionFormatsIndexKey,
   actionIoRule,
+  analyzeActionIo,
+  isRequiredInput,
+  extractActionSignature,
   actionTypeCheckRule,
+  parseFormatRef,
 } from './lint/passes/index.js';
 
 export type {
+  ParsedFormatRef,
   TypeMap,
   VariableTypeInfo,
   ParamInfo,
@@ -114,6 +139,8 @@ export type {
   ConnectedAgentInfo,
   ConnectedAgentInputInfo,
   ReasoningActionEntry,
+  ActionInvocation,
+  ActionIoIssue,
 } from './lint/passes/index.js';
 
 export { createLintEngine } from './lint/index.js';

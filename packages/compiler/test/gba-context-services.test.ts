@@ -20,6 +20,8 @@ config:
 context:
     memory:
         enabled: True
+    search:
+        enabled: True
     salesforce:
         enabled: True
     data_cloud:
@@ -40,6 +42,7 @@ start_agent main:
     expect(output.agent_version.context.salesforce).toEqual({ enabled: true });
     expect(output.agent_version.context.data_cloud).toEqual({ enabled: false });
     expect(output.agent_version.context.memory).toEqual({ enabled: true });
+    expect(output.agent_version.context.search).toEqual({ enabled: true });
   });
 
   it('produces schema-conformant output', () => {
@@ -77,6 +80,33 @@ start_agent main:
     expect(salesforceError).toBeDefined();
   });
 
+  it('reports error when context search is missing enabled', () => {
+    const invalidSource = `
+config:
+    developer_name: "TestAgent"
+    agent_type: "GoalBasedAgent"
+
+context:
+    search: {}
+
+start_agent main:
+    description: "Entry"
+`;
+
+    const { diagnostics } = compile(parseSource(invalidSource));
+    const errors = diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+
+    expect(
+      errors.some(
+        error =>
+          error.message.toLowerCase().includes('search') &&
+          error.message.toLowerCase().includes('enabled')
+      )
+    ).toBe(true);
+  });
+
   it('handles mixed context service configurations', () => {
     const mixedSource = `
 config:
@@ -86,6 +116,8 @@ config:
 
 context:
     memory:
+        enabled: False
+    search:
         enabled: False
     data_cloud:
         enabled: True
@@ -101,6 +133,7 @@ start_agent main:
     expect(errors).toHaveLength(0);
 
     expect(output.agent_version.context.memory).toEqual({ enabled: false });
+    expect(output.agent_version.context.search).toEqual({ enabled: false });
     expect(output.agent_version.context.data_cloud).toEqual({ enabled: true });
     expect(output.agent_version.context.salesforce).toBeUndefined();
   });

@@ -28,7 +28,12 @@ import {
 
 /** Slot 1 — used by plain `if`/`else` and chain heads. */
 const CONDITION_SLOT_1 = `${RUNTIME_CONDITION_VARIABLE}_1`;
-import type { Action, HandOffAction, SubAgentNode } from '../src/types.js';
+import {
+  isHandOffAction,
+  type Action,
+  type HandOffAction,
+  type SubAgentNode,
+} from '../src/types.js';
 
 /**
  * Helper: extract the before_reasoning_iteration actions from a compiled node.
@@ -598,15 +603,14 @@ topic login:
     expect(thenStateUpdate.enabled).not.toContain('not');
 
     // Then block: handoff to dashboard
-    const thenHandoff = afterReasoning.find(
-      (a: Record<string, unknown>) =>
-        a.target === 'dashboard' && a.type === 'handoff'
-    ) as HandOffAction;
+    const thenHandoff = afterReasoning
+      .filter(isHandOffAction)
+      .find(h => h.target === 'dashboard');
     expect(thenHandoff).toBeDefined();
-    expect(thenHandoff.enabled).toBe(
+    expect(thenHandoff?.enabled).toBe(
       `state.${NEXT_TOPIC_VARIABLE}=="dashboard"`
     );
-    expect(thenHandoff.state_updates).toEqual([
+    expect(thenHandoff?.state_updates).toEqual([
       { [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE },
     ]);
 
@@ -626,12 +630,11 @@ topic login:
     );
 
     // Else block: handoff to login
-    const elseHandoff = afterReasoning.find(
-      (a: Record<string, unknown>) =>
-        a.target === 'login' && a.type === 'handoff'
-    ) as HandOffAction;
+    const elseHandoff = afterReasoning
+      .filter(isHandOffAction)
+      .find(h => h.target === 'login');
     expect(elseHandoff).toBeDefined();
-    expect(elseHandoff.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="login"`);
+    expect(elseHandoff?.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="login"`);
   });
 });
 

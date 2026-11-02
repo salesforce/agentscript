@@ -12,6 +12,7 @@ import type {
   RouterTool,
   ModelConfiguration,
   Action,
+  HandOffAction,
 } from '../types.js';
 import type { ParsedTopicLike, ParsedSystem } from '../parsed-types.js';
 
@@ -19,7 +20,6 @@ import type { ParsedTopicLike, ParsedSystem } from '../parsed-types.js';
 type ParsedReasoningLike = Record<string, any> | null | undefined;
 import { AGENT_INSTRUCTIONS_VARIABLE } from '../constants.js';
 import {
-  extractStringValue,
   extractSourcedString,
   extractSourcedDescription,
   getCstRange,
@@ -30,15 +30,15 @@ import {
   mergeModelConfigurations,
 } from '../config/model-config.js';
 import type { Sourceable } from '../sourced.js';
-import { normalizeDeveloperName, dedent } from '../utils.js';
+import { normalizeDeveloperName } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
+import { compileDeterministicDirectives } from './compile-directives.js';
 import {
-  compileDeterministicDirectives,
-  createInstructionResetAction,
   createStateUpdateAction,
-  instructionAppendValue,
-} from './compile-directives.js';
+  instructionResetAppendValue,
+} from './optimize-actions.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
+import { compileSystemInstructions } from './compile-system-instructions.js';
 
 /**
  * Compile a topic block with hyperclassifier model into a RouterNode.
@@ -77,7 +77,7 @@ export function compileRouterNode(
   );
 
   // Compile system instructions
-  const systemInstructions = compileRouterSystemInstructions(
+  const systemInstructions = compileSystemInstructions(
     systemBlock,
     topicBlock,
     ctx
@@ -103,8 +103,8 @@ export function compileRouterNode(
     isProcedural ||
     (instructionTemplate !== undefined && instructionTemplate !== '');
   const instructions = hasInstructions
-    ? `${systemInstructions}\n\n{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`
-    : systemInstructions;
+    ? `${systemInstructions.instructions}\n\n{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`
+    : systemInstructions.instructions;
 
   const node: Sourceable<RouterNode> = {
     model_configuration: modelConfig!,
@@ -117,8 +117,12 @@ export function compileRouterNode(
     action_definitions: actionDefinitions,
   };
 
-  if (beforeReasoningIteration.length > 0) {
-    node.before_reasoning_iteration = beforeReasoningIteration;
+  const combinedBeforeReasoningIteration = [
+    ...systemInstructions.beforeReasoningIteration,
+    ...beforeReasoningIteration,
+  ];
+  if (combinedBeforeReasoningIteration.length > 0) {
+    node.before_reasoning_iteration = combinedBeforeReasoningIteration;
   }
   if (source !== undefined) {
     (node as Record<string, unknown>).source = source;
@@ -127,28 +131,6 @@ export function compileRouterNode(
   ctx.setScriptPath(node, topicName);
 
   return node as RouterNode;
-}
-
-// ---------------------------------------------------------------------------
-// Router System Instructions
-// ---------------------------------------------------------------------------
-
-function compileRouterSystemInstructions(
-  systemBlock: ParsedSystem | undefined,
-  topicBlock: ParsedTopicLike,
-  _ctx: CompilerContext
-): string {
-  if (topicBlock.system) {
-    const instructions = extractStringValue(topicBlock.system.instructions);
-    if (instructions) return dedent(instructions);
-  }
-
-  if (systemBlock) {
-    const instructions = extractStringValue(systemBlock.instructions);
-    if (instructions) return dedent(instructions);
-  }
-
-  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -206,31 +188,34 @@ function compileRouterBeforeReasoningIteration(
   isProcedural: boolean,
   proceduralStatements: Statement[] | undefined,
   _ctx: CompilerContext
-): Action[] {
+): (Action | HandOffAction)[] {
   // Procedural instructions: use deterministic directives. Adjacent same-gate
   // instruction appends are fused inside compileDeterministicDirectives (keyed
-  // off agentInstructionsVariable).
+  // off agentInstructionsVariable). A `transition`/`escalate`/`end_session` in
+  // the instructions emits a handoff here, so the result is not Action-only.
   if (isProcedural && proceduralStatements) {
-    const actions = compileDeterministicDirectives(proceduralStatements, _ctx, {
+    // The reset is prepended (and folded into the first unconditional append)
+    // inside compileDeterministicDirectives on the instruction path.
+    return compileDeterministicDirectives(proceduralStatements, _ctx, {
       addNextTopicResetAction: false,
       gateOnNextTopicEmpty: false,
       agentInstructionsVariable: AGENT_INSTRUCTIONS_VARIABLE,
     });
-
-    return [createInstructionResetAction(), ...(actions as Action[])];
   }
 
-  // Simple template: reset + append
+  // Simple template: the reset + single unconditional append fold into one
+  // assignment.
   if (!instructionTemplate) return [];
 
-  const appendAction = createStateUpdateAction([
-    {
-      [AGENT_INSTRUCTIONS_VARIABLE]: instructionAppendValue(
-        AGENT_INSTRUCTIONS_VARIABLE,
-        instructionTemplate
-      ),
-    },
-  ]);
-
-  return [createInstructionResetAction(), appendAction];
+  return [
+    createStateUpdateAction(
+      [
+        {
+          [AGENT_INSTRUCTIONS_VARIABLE]:
+            instructionResetAppendValue(instructionTemplate),
+        },
+      ],
+      'True'
+    ),
+  ];
 }

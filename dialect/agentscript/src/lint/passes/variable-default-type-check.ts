@@ -25,12 +25,21 @@ import {
   storeKey,
   typeMismatchDiagnostic,
   attachDiagnostic,
+  diagnosticTarget,
   LINT_SOURCE,
   DiagnosticSeverity,
 } from '@agentscript/language';
 import { typeMapKey } from './type-map.js';
 
-function inferDefaultValueType(value: unknown): string | null {
+/**
+ * Infer the type of a literal default value. Returns `null` for anything that
+ * is not a literal (refs, calls, `None`, ...), so a non-null result also means
+ * "this is a concrete literal value".
+ *
+ * A signed number such as `-1`/`+1` parses as a `+`/`-` applied to a
+ * `NumberLiteral`, so it is recognized here as a `number` too.
+ */
+export function inferDefaultValueType(value: unknown): string | null {
   if (!value || typeof value !== 'object') return null;
   const obj = value as Record<string, unknown>;
   switch (obj.__kind) {
@@ -45,6 +54,19 @@ function inferDefaultValueType(value: unknown): string | null {
       return 'list';
     case 'DictLiteral':
       return 'object';
+    case 'UnaryExpression': {
+      // `+`/`-` on a number literal is a signed number like `-1`; `not` is not.
+      const operand = obj.operand;
+      if (
+        obj.operator !== 'not' &&
+        operand &&
+        typeof operand === 'object' &&
+        (operand as Record<string, unknown>).__kind === 'NumberLiteral'
+      ) {
+        return 'number';
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -112,6 +134,7 @@ class VariableDefaultTypeCheckPass implements LintPass {
       );
       diag.severity = DiagnosticSeverity.Warning;
       diag.code = 'variable-default-type-mismatch';
+      diag.data = { ...diag.data, target: diagnosticTarget('variable', name) };
       attachDiagnostic(declObj, diag);
     }
   }

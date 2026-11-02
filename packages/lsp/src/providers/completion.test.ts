@@ -13,10 +13,22 @@ import { describe, test, expect } from 'vitest';
 import { provideCompletion } from './completion.js';
 import { processDocument } from '../pipeline.js';
 import { testConfig } from '../test-utils.js';
+import { parse } from '@agentscript/parser';
+import { agentforceDialect } from '@agentscript/agentforce-dialect';
+import type { LspConfig } from '../lsp-config.js';
 
 /** Helper: create a DocumentState from source text. */
 function createState(source: string) {
   return processDocument('test://test.agent', source, testConfig);
+}
+
+/** Agentforce config — needed for `connection`/`response_formats` schema. */
+const agentforceConfig: LspConfig = {
+  dialects: [agentforceDialect],
+  parser: { parse },
+};
+function createAgentforceState(source: string) {
+  return processDocument('test://test.agent', source, agentforceConfig);
 }
 
 const dialects = testConfig.dialects;
@@ -655,6 +667,445 @@ describe('Completion Provider', () => {
       // set lines should NOT trigger with-param completions
       const labels = result!.items.map(i => i.label);
       expect(labels).not.toContain('order_number');
+    });
+  });
+
+  // ── when-render scaffold completions ──────────────────────────
+  //
+  // A `when @connection.X` block requires a `render:` clause. When the
+  // cursor is on an empty (or partial-`render`) line directly inside such
+  // a block, the provider offers a single preselected snippet scaffolding
+  // `render: @response_formats.<name>`.
+  describe('when-render scaffold completions', () => {
+    const whenBlockSource = (bodyLines: string[]): string =>
+      [
+        'subagent find_restaurants:',
+        '  description: "restaurants"',
+        '  actions:',
+        '    Get_List:',
+        '      description: "Fetch"',
+        '      target: "flow://GetList"',
+        '      inputs:',
+        '        location: string',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      Get_List: @actions.Get_List',
+        '        when @connection.messaging',
+        ...bodyLines,
+      ].join('\n');
+
+    test('offers a preselected render snippet on an empty when-block line', () => {
+      const source = whenBlockSource(['          ']);
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const item = result!.items.find(i => i.label === 'render');
+      expect(item).toBeDefined();
+      expect(item!.insertTextFormat).toBe(2); // InsertTextFormat.Snippet
+      expect(item!.preselect).toBe(true);
+      const textEdit = item!.textEdit as {
+        range: { start: { character: number } };
+        newText: string;
+      };
+      expect(textEdit.newText).toContain('render: @response_formats.');
+      expect(textEdit.newText).toContain('${1:');
+      // Replaces from the start of the indentation.
+      expect(textEdit.range.start.character).toBe(10);
+    });
+
+    test('offers a self-nesting render snippet when cursor is at the when indent', () => {
+      // Editors do not auto-indent after a `when @connection.X` line (no
+      // trailing `:`), so the cursor lands at the when's own indent (8). The
+      // snippet must pad itself to the child indent (10) to nest correctly.
+      const source = whenBlockSource(['        ']); // 8 spaces == `when` indent
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const item = result!.items.find(i => i.label === 'render');
+      expect(item).toBeDefined();
+      const textEdit = item!.textEdit as { newText: string };
+      // Padded to sit one indent step (2) below the `when` at column 8.
+      expect(textEdit.newText).toBe(
+        '  render: @response_formats.${1:format_name}'
+      );
+    });
+
+    test('offers the render snippet for a partial `r`', () => {
+      const source = whenBlockSource(['          r']);
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('render');
+    });
+
+    test('suppresses the snippet when a render sibling already exists', () => {
+      const source = whenBlockSource([
+        '          render: @response_formats.choices',
+        '          ',
+      ]);
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).not.toContain('render');
+    });
+
+    test('does not offer the render snippet outside a when block', () => {
+      const source = [
+        'subagent find_restaurants:',
+        '  description: "restaurants"',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      Get_List: @actions.Get_List',
+        '        ',
+      ].join('\n');
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      const result = provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).not.toContain('render');
+    });
+  });
+
+  describe('show-and-return scaffold completions', () => {
+    // Same doc as when-render, but with a `render:` clause already present
+    // (indent 10); `show_and_return:` nests one step below it (indent 12).
+    const renderBodySource = (bodyLines: string[]): string =>
+      [
+        'subagent find_restaurants:',
+        '  description: "restaurants"',
+        '  actions:',
+        '    Get_List:',
+        '      description: "Fetch"',
+        '      target: "flow://GetList"',
+        '      inputs:',
+        '        location: string',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      Get_List: @actions.Get_List',
+        '        when @connection.messaging',
+        '          render: @response_formats.choices',
+        ...bodyLines,
+      ].join('\n');
+
+    const completeAt = (source: string) => {
+      const state = createState(source);
+      const lastLine = source.split('\n').length - 1;
+      return provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        dialects
+      );
+    };
+
+    test('offers a preselected show_and_return snippet inside a render body', () => {
+      const result = completeAt(renderBodySource(['            '])); // 12 spaces
+      expect(result).not.toBeNull();
+      const item = result!.items.find(i => i.label === 'show_and_return');
+      expect(item).toBeDefined();
+      expect(item!.insertTextFormat).toBe(2); // InsertTextFormat.Snippet
+      expect(item!.preselect).toBe(true);
+      const textEdit = item!.textEdit as { newText: string };
+      expect(textEdit.newText).toBe('show_and_return: ${1|True,False|}');
+    });
+
+    test('self-nests when the cursor is at the render indent', () => {
+      // Editors do not auto-indent after `render: <value>` (no trailing `:`),
+      // so the cursor lands at the render's own indent (10). The snippet must
+      // pad itself to the child indent (12) to nest correctly.
+      const result = completeAt(renderBodySource(['          '])); // 10 spaces
+      expect(result).not.toBeNull();
+      const item = result!.items.find(i => i.label === 'show_and_return');
+      expect(item).toBeDefined();
+      const textEdit = item!.textEdit as { newText: string };
+      expect(textEdit.newText).toBe('  show_and_return: ${1|True,False|}');
+    });
+
+    test('offers the snippet for a partial `show`', () => {
+      const result = completeAt(renderBodySource(['            show']));
+      expect(result).not.toBeNull();
+      expect(result!.items.map(i => i.label)).toContain('show_and_return');
+    });
+
+    test('suppresses the snippet when a show_and_return sibling already exists', () => {
+      const result = completeAt(
+        renderBodySource(['            show_and_return: True', '            '])
+      );
+      expect(result).not.toBeNull();
+      expect(result!.items.map(i => i.label)).not.toContain('show_and_return');
+    });
+
+    test('does not offer show_and_return directly under a when block', () => {
+      // Under `when` with no enclosing `render:` body, the render snippet is
+      // offered instead — show_and_return must not appear here.
+      const source = [
+        'subagent find_restaurants:',
+        '  description: "restaurants"',
+        '  reasoning:',
+        '    instructions: "test"',
+        '    actions:',
+        '      Get_List: @actions.Get_List',
+        '        when @connection.messaging',
+        '          ',
+      ].join('\n');
+      const result = completeAt(source);
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).not.toContain('show_and_return');
+      expect(labels).toContain('render');
+    });
+  });
+
+  // ── response_format value completions ─────────────────────────
+  //
+  // Inside a `when @connection.X` render clause, `@response_formats.` (short)
+  // and `@connection.X.response_formats.` (long) autocomplete to the format
+  // names declared on that connection, plus the built-in `json`.
+  describe('response_format value completions', () => {
+    // Agentforce doc: connection `messaging` declares two formats; a reasoning
+    // action holds a `when @connection.messaging` block whose `render:` value
+    // is `renderValue`, with the cursor at the end of that line.
+    const formatSource = (renderValue: string): string =>
+      [
+        'config:',
+        '    agent_name: "Test"',
+        '    agent_type: "AgentforceServiceAgent"',
+        '    default_agent_user: "test@example.com"',
+        '',
+        'connection messaging:',
+        '    response_formats:',
+        '        choices:',
+        '            description: "Choice format"',
+        '            inputs:',
+        '                items: string',
+        '        LWC_Test1:',
+        '            description: "LWC format"',
+        '',
+        'start_agent main:',
+        '    description: "root"',
+        '',
+        'subagent find_restaurants:',
+        '    description: "restaurants"',
+        '    actions:',
+        '        Get_List:',
+        '            description: "Fetch"',
+        '            target: "flow://GetList"',
+        '            inputs:',
+        '                location: string',
+        '    reasoning:',
+        '        instructions: ->',
+        '            | test',
+        '        actions:',
+        '            Get_List: @actions.Get_List',
+        '                when @connection.messaging',
+        `                    render: ${renderValue}`,
+      ].join('\n');
+
+    const completeAt = (source: string) => {
+      const state = createAgentforceState(source);
+      const lastLine = source.split('\n').length - 1;
+      return provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        agentforceConfig.dialects
+      );
+    };
+
+    test('shortform lists the connection formats plus json', () => {
+      const result = completeAt(formatSource('@response_formats.'));
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('choices');
+      expect(labels).toContain('LWC_Test1');
+      expect(labels).toContain('json');
+    });
+
+    test('longform lists the same connection formats plus json', () => {
+      const result = completeAt(
+        formatSource('@connection.messaging.response_formats.')
+      );
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('choices');
+      expect(labels).toContain('LWC_Test1');
+      expect(labels).toContain('json');
+    });
+
+    test('replaces only the partial after the final dot', () => {
+      const result = completeAt(formatSource('@response_formats.cho'));
+      expect(result).not.toBeNull();
+      const item = result!.items.find(i => i.label === 'choices');
+      expect(item).toBeDefined();
+      const textEdit = item!.textEdit as {
+        range: { start: { character: number }; end: { character: number } };
+        newText: string;
+      };
+      expect(textEdit.newText).toBe('choices');
+      // Replacement starts right after the dot (before `cho`).
+      const line = formatSource('@response_formats.cho').split('\n').pop()!;
+      expect(textEdit.range.start.character).toBe(line.length - 'cho'.length);
+    });
+
+    test('offers json even when the connection declares no formats', () => {
+      const source = [
+        'config:',
+        '    agent_name: "Test"',
+        '    agent_type: "AgentforceServiceAgent"',
+        '    default_agent_user: "test@example.com"',
+        '',
+        'connection messaging:',
+        '    label: "Messaging"',
+        '',
+        'start_agent main:',
+        '    description: "root"',
+        '',
+        'subagent find_restaurants:',
+        '    description: "restaurants"',
+        '    actions:',
+        '        Get_List:',
+        '            description: "Fetch"',
+        '            target: "flow://GetList"',
+        '            inputs:',
+        '                location: string',
+        '    reasoning:',
+        '        instructions: ->',
+        '            | test',
+        '        actions:',
+        '            Get_List: @actions.Get_List',
+        '                when @connection.messaging',
+        '                    render: @response_formats.',
+      ].join('\n');
+      const result = completeAt(source);
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toContain('json');
+    });
+  });
+
+  // ── connection member completions ─────────────────────────────
+  //
+  // At the intermediate `@connection.X.` position (before a member is
+  // chosen), only `response_formats` is offered — it's the sole member that
+  // forms a resolvable longform reference. `inputs` is reached via the
+  // top-level `@inputs` namespace, so it is intentionally NOT offered here.
+  describe('connection member completions', () => {
+    const memberSource = (chain: string): string =>
+      [
+        'config:',
+        '    agent_name: "Test"',
+        '    agent_type: "AgentforceServiceAgent"',
+        '    default_agent_user: "test@example.com"',
+        '',
+        'connection messaging:',
+        '    inputs:',
+        '        disclosure: string',
+        '    response_formats:',
+        '        choices:',
+        '            description: "Choice format"',
+        '',
+        'subagent find_restaurants:',
+        '    description: "restaurants"',
+        '    actions:',
+        '        Get_List:',
+        '            description: "Fetch"',
+        '            target: "flow://GetList"',
+        '    reasoning:',
+        '        instructions: ->',
+        '            | test',
+        '        actions:',
+        '            Get_List: @actions.Get_List',
+        '                when @connection.messaging',
+        `                    render: ${chain}`,
+      ].join('\n');
+
+    const completeAt = (source: string) => {
+      const state = createAgentforceState(source);
+      const lastLine = source.split('\n').length - 1;
+      return provideCompletion(
+        state,
+        lastLine,
+        source.split('\n')[lastLine].length,
+        undefined,
+        agentforceConfig.dialects
+      );
+    };
+
+    test('offers only response_formats, not inputs or other fields', () => {
+      const result = completeAt(memberSource('@connection.messaging.'));
+      expect(result).not.toBeNull();
+      const labels = result!.items.map(i => i.label);
+      expect(labels).toEqual(['response_formats']);
+    });
+
+    test('completes a partial member name', () => {
+      const result = completeAt(memberSource('@connection.messaging.resp'));
+      expect(result).not.toBeNull();
+      const item = result!.items.find(i => i.label === 'response_formats');
+      expect(item).toBeDefined();
+      const textEdit = item!.textEdit as {
+        range: { start: { character: number } };
+        newText: string;
+      };
+      expect(textEdit.newText).toBe('response_formats');
+      const line = memberSource('@connection.messaging.resp')
+        .split('\n')
+        .pop()!;
+      expect(textEdit.range.start.character).toBe(line.length - 'resp'.length);
+    });
+
+    test('offers nothing for an unknown connection', () => {
+      const result = completeAt(memberSource('@connection.nonexistent.'));
+      // Falls through to the generic handlers, which yield no member here.
+      const labels = result?.items.map(i => i.label) ?? [];
+      expect(labels).not.toContain('response_formats');
     });
   });
 

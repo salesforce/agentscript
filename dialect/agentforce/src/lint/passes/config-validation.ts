@@ -12,9 +12,12 @@
  * - developer_name / agent_name mutual exclusivity (must have exactly one)
  * - default_agent_user required for AgentforceServiceAgent
  * - default_agent_user may be `None` only for AgentforceEmployeeAgent
+ * - runtime.user_skills not allowed for AgentforceServiceAgent
+ * - billing only allowed for AgentforceServiceAgent
  *
  * Diagnostics: config-missing-agent-name, config-duplicate-agent-name,
- *              config-missing-default-agent-user, config-invalid-default-agent-user-none
+ *              config-missing-default-agent-user, config-invalid-default-agent-user-none,
+ *              runtime-user-skills-agent-type, billing-agent-type
  */
 
 import type {
@@ -117,7 +120,11 @@ class ConfigValidationPass implements LintPass {
     }
 
     const agentTypeValue = getStringValue(config.agent_type);
-    const agentTypeLower = agentTypeValue?.toLowerCase();
+    // Normalize for alias comparisons below. `isAllowedAgentType` already trims,
+    // so a padded value like " AgentforceServiceAgent " passes that check —
+    // trim here too or the service/employee-agent comparisons would silently
+    // miss it and skip their agent-type-specific diagnostics.
+    const agentTypeLower = agentTypeValue?.trim().toLowerCase();
 
     // agent_type must be a recognized agent type. An unknown value is rejected
     // so typos and unsupported types surface before deploy.
@@ -137,6 +144,10 @@ class ConfigValidationPass implements LintPass {
     const isEmployeeAgent =
       agentTypeLower === 'agentforceemployeeagent' ||
       agentTypeLower === 'agentforce employee agent';
+
+    const isServiceAgent =
+      agentTypeLower === 'agentforceserviceagent' ||
+      agentTypeLower === 'agentforce service agent';
 
     // None is only valid for employee agents. Flag it everywhere else,
     // including when agent_type is unset (we can't infer the intent).
@@ -186,6 +197,22 @@ class ConfigValidationPass implements LintPass {
       );
     }
 
+    // billing (i.e. billing mode) may only be customized for the Agentforce
+    // Service Agent (ASA). An omitted agent_type defaults to the service-agent
+    // type, so only an explicit non-ASA agent_type is rejected here.
+    const billing = config.billing;
+    if (isAstNodeLike(billing) && agentTypeValue && !isServiceAgent) {
+      attachDiagnostic(
+        billing,
+        lintDiagnostic(
+          getBlockRange(billing),
+          `'billing' is only supported for AgentforceServiceAgent (got ${agentTypeValue}).`,
+          DiagnosticSeverity.Error,
+          'billing-agent-type'
+        )
+      );
+    }
+
     // Employee agents may not configure sharing_policy or
     // verified_customer_record_access — those entitlements only apply to
     // service agents.
@@ -231,6 +258,24 @@ class ConfigValidationPass implements LintPass {
             `'default_agent_user' is required for ${agentTypeValue} type agents.`,
             DiagnosticSeverity.Error,
             'config-missing-default-agent-user'
+          )
+        );
+      }
+
+      // user_skills is a runtime feature for Goal-Based/Employee agents; it has
+      // no effect for service agents, so reject it (either value) here.
+      const runtime = isAstNodeLike(config.runtime)
+        ? config.runtime
+        : undefined;
+      const userSkills = runtime?.user_skills;
+      if (isAstNodeLike(userSkills)) {
+        attachDiagnostic(
+          userSkills,
+          lintDiagnostic(
+            getBlockRange(userSkills),
+            `'user_skills' is not supported for ${agentTypeValue}.`,
+            DiagnosticSeverity.Error,
+            'runtime-user-skills-agent-type'
           )
         );
       }

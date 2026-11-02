@@ -549,6 +549,104 @@ start_agent test:
   });
 });
 
+// async_mode is only valid for standard invocable actions. The primary
+// enforcement is the agentforce dialect's actionTargetSchemeRule lint pass
+// (diagnostic invalid-async-action-target), but compile() is a public API
+// that callers can invoke without ever running that linter. These tests
+// mirror the lint rule's cases to guard against invalid async_mode: true
+// values reaching compiled AgentJSON when the linter is bypassed.
+describe('action async_mode target-scheme validation (compiler-side)', () => {
+  function compileAsyncAction(targetUri: string, asyncModeLiteral: string) {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        my_action:
+            description: "Action"
+            target: "${targetUri}"
+            async_mode: ${asyncModeLiteral}
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            my_action: @actions.my_action
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    const actionDef = (node.action_definitions ?? []).find(
+      a => a.developer_name === 'my_action'
+    );
+    return { actionDef, diagnostics };
+  }
+
+  it('compiles cleanly when async_mode: True is paired with a standardInvocableAction:// target', () => {
+    const { actionDef, diagnostics } = compileAsyncAction(
+      'standardInvocableAction://Lookup_Order',
+      'True'
+    );
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(0);
+    expect(actionDef?.async_mode).toBe(true);
+  });
+
+  it('reports a compiler diagnostic and omits async_mode when True is paired with a flow:// target', () => {
+    const { actionDef, diagnostics } = compileAsyncAction(
+      'flow://Check_Business_Hours',
+      'True'
+    );
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(1);
+    expect(asyncErrors[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(asyncErrors[0].message).toContain('my_action');
+    expect(asyncErrors[0].message).toContain('async_mode: True');
+    expect(asyncErrors[0].message).toContain('flow://');
+    expect(asyncErrors[0].message).toContain('standardInvocableAction');
+
+    // The invalid value must not be forwarded into AgentJSON.
+    expect(actionDef?.async_mode).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(actionDef, 'async_mode')).toBe(
+      false
+    );
+  });
+
+  it('reports a compiler diagnostic when True is paired with an apex:// target', () => {
+    const { actionDef, diagnostics } = compileAsyncAction(
+      'apex://MyApexClass',
+      'True'
+    );
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(1);
+    expect(actionDef?.async_mode).toBeUndefined();
+  });
+
+  it('allows async_mode: False on a non-standard-invocable target (no diagnostic, value preserved)', () => {
+    const { actionDef, diagnostics } = compileAsyncAction(
+      'flow://Get_Account',
+      'False'
+    );
+
+    const asyncErrors = diagnostics.filter(
+      d => d.code === 'invalid-async-action-target'
+    );
+    expect(asyncErrors).toHaveLength(0);
+    expect(actionDef?.async_mode).toBe(false);
+  });
+});
+
 describe('mixed actions and transitions', () => {
   // Python: test_action_aliases.test_mixed_actions_and_transitions
   it('should compile actions alongside transitions', () => {
@@ -989,6 +1087,70 @@ start_agent test:
   });
 });
 
+// Tristate require_user_confirmation (W-23309645): the compiler must preserve
+// the author's intent across three states. An unset value is NOT coerced to
+// `false` — the key is omitted entirely so downstream can distinguish "unset"
+// (entity-detection decides) from an explicit `false` opt-out. This is a
+// regression guard against re-introducing the old `?? false` coercion; the
+// golden fixtures cover `true`/`false` but never exercise the unset case.
+describe('action require_user_confirmation (tristate)', () => {
+  const source = `
+config:
+    agent_name: "TestBot"
+
+start_agent test:
+    description: "Test"
+    actions:
+        always_confirm:
+            description: "Always confirm"
+            target: "flow://AlwaysConfirm"
+            require_user_confirmation: True
+        never_confirm:
+            description: "Explicit opt-out"
+            target: "flow://NeverConfirm"
+            require_user_confirmation: False
+        unset_confirm:
+            description: "Author did not set it"
+            target: "flow://UnsetConfirm"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            always_confirm: @actions.always_confirm
+            never_confirm: @actions.never_confirm
+            unset_confirm: @actions.unset_confirm
+`;
+
+  const getActionDef = (name: string) => {
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+    return node.action_definitions!.find(a => a.developer_name === name)!;
+  };
+
+  it('emits `true` when the author sets require_user_confirmation: True', () => {
+    expect(getActionDef('always_confirm').require_user_confirmation).toBe(true);
+  });
+
+  it('preserves an explicit `false` opt-out (must not be dropped)', () => {
+    expect(getActionDef('never_confirm').require_user_confirmation).toBe(false);
+  });
+
+  it('omits the field entirely when unset (no `?? false` coercion)', () => {
+    const actionDef = getActionDef('unset_confirm');
+    expect(actionDef.require_user_confirmation).toBeUndefined();
+    // Stronger than undefined: the key must be absent, not present-and-undefined,
+    // so JSON serialization drops it and the reader falls back to its own default.
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        actionDef,
+        'require_user_confirmation'
+      )
+    ).toBe(false);
+  });
+});
+
 describe('action default slot-fill', () => {
   function findActionTool(source: string, toolTarget: string) {
     const { output } = compile(parseSource(source));
@@ -1171,7 +1333,7 @@ start_agent test:
     expect(tool?.llm_inputs).toEqual([]);
   });
 
-  it('auto-fills required inputs on nested run @actions.X post-tool-call statements', () => {
+  it('does not fill llm_inputs on a nested run post-tool-call; warns on the missing required input', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1202,7 +1364,7 @@ start_agent test:
                 with input1=@variables.data
                 run @actions.followup
 `;
-    const { output } = compile(parseSource(source));
+    const { output, diagnostics } = compile(parseSource(source));
     const node = output.agent_version.nodes.find(
       n => n.developer_name === 'test'
     )!;
@@ -1214,7 +1376,21 @@ start_agent test:
     );
     expect(followupAction).toBeDefined();
     expect(followupAction?.bound_inputs).toEqual({});
-    expect(followupAction?.llm_inputs).toEqual(['slot_a']);
+    // Post-tool runs execute deterministically — the runtime drops llm_inputs
+    // on hook actions, so the compiler must NOT auto-fill them (doing so just
+    // hid the fact that the input is never sent). It warns instead.
+    expect(followupAction?.llm_inputs).toEqual([]);
+    expect(
+      diagnostics.some(
+        d =>
+          d.severity === DiagnosticSeverity.Warning &&
+          d.message.includes('Required input "slot_a"')
+      )
+    ).toBe(true);
+    // The warning is advisory — compilation still succeeds (no errors).
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toHaveLength(0);
   });
 });
 
@@ -1286,8 +1462,8 @@ start_agent test:
   });
 });
 
-describe('setVariables validation warnings', () => {
-  it('should warn when @utils.setVariables has transition to statement', () => {
+describe('setVariables validation errors', () => {
+  it('should error when @utils.setVariables has transition to statement', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1315,10 +1491,8 @@ agent done:
       d.message.includes('cannot have transitions or follow-up actions')
     );
     expect(chainedActionDiagnostics).toHaveLength(1);
-    expect(chainedActionDiagnostics[0].severity).toBe(
-      DiagnosticSeverity.Warning
-    );
-    expect(chainedActionDiagnostics[0].severity).toBe(2);
+    expect(chainedActionDiagnostics[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(chainedActionDiagnostics[0].severity).toBe(1);
     expect(chainedActionDiagnostics[0].message).toContain("'transition to'");
     expect(chainedActionDiagnostics[0].message).toContain(
       'will be ignored at runtime'
@@ -1332,7 +1506,7 @@ agent done:
     expect(setVariablesTool?.target).toBe(STATE_UPDATE_ACTION);
   });
 
-  it('should warn when @utils.setVariables has run statement', () => {
+  it('should error when @utils.setVariables has run statement', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -1359,10 +1533,8 @@ start_agent test:
       d.message.includes('cannot have transitions or follow-up actions')
     );
     expect(chainedActionDiagnostics).toHaveLength(1);
-    expect(chainedActionDiagnostics[0].severity).toBe(
-      DiagnosticSeverity.Warning
-    );
-    expect(chainedActionDiagnostics[0].severity).toBe(2);
+    expect(chainedActionDiagnostics[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(chainedActionDiagnostics[0].severity).toBe(1);
     expect(chainedActionDiagnostics[0].message).toContain("'run'");
     expect(chainedActionDiagnostics[0].message).toContain(
       'will be ignored at runtime'

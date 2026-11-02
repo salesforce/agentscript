@@ -442,14 +442,26 @@ class InstructionTemplateSyntaxPass implements LintPass {
     const procedureNode = node as { statements?: AstNodeLike[] };
     if (!Array.isArray(procedureNode.statements)) return;
 
-    // Only scan Template statements (pipe/plain text) - procedural
-    // directives (IfStatement, WithClause, RunStatement, etc.) are code,
-    // not LLM-facing text, so they're not subject to template syntax rules.
-    for (const statement of procedureNode.statements) {
-      if (statement.__kind === 'Template') {
-        this.scanTemplateExpression(statement, variableNames, actionNames);
+    const scanStatements = (statements: AstNodeLike[]): void => {
+      for (const statement of statements) {
+        if (statement.__kind === 'Template') {
+          this.scanTemplateExpression(statement, variableNames, actionNames);
+          continue;
+        }
+        if (statement.__kind === 'IfStatement') {
+          const conditional = statement as {
+            body?: AstNodeLike[];
+            orelse?: AstNodeLike[];
+          };
+          if (Array.isArray(conditional.body)) scanStatements(conditional.body);
+          if (Array.isArray(conditional.orelse)) {
+            scanStatements(conditional.orelse);
+          }
+        }
       }
-    }
+    };
+
+    scanStatements(procedureNode.statements);
   }
 
   private scanTextAndAttach(

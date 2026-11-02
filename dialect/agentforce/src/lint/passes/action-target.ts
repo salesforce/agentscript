@@ -34,7 +34,8 @@
  *   - retriever://               — Knowledge Retriever
  *   - placeholder://             — Placeholder stub action (emits warning)
  *
- * Diagnostics: invalid-action-target, placeholder-action-target
+ * Diagnostics: invalid-action-target, placeholder-action-target,
+ * invalid-async-action-target
  */
 
 import type { LintPass } from '@agentscript/language';
@@ -103,25 +104,40 @@ export function actionTargetSchemeRule(): LintPass {
     run({ action }) {
       const { actionName, sig } = action;
       const target = sig.target!;
-      let parsed: URL;
+      let parsed: URL | undefined;
+      let scheme: string | undefined;
       try {
         parsed = new URL(target.value);
+        // URL.protocol includes the trailing ":" (e.g. "flow:")
+        scheme = parsed.protocol.slice(0, -1).toLowerCase() || undefined;
       } catch {
-        attachDiagnostic(
-          target.node,
-          lintDiagnostic(
-            target.keyRange,
-            `Action '${actionName}' has an invalid target "${target.value}". ` +
-              `Expected a URI with a supported scheme: ${VALID_SCHEMES.join(', ')}.`,
-            DiagnosticSeverity.Error,
-            'invalid-action-target'
-          )
-        );
-        return;
+        // scheme stays undefined; handled by the invalid-target check below.
       }
 
-      // URL.protocol includes the trailing ":" (e.g. "flow:")
-      const scheme = parsed.protocol.slice(0, -1).toLowerCase();
+      // async_mode is only supported for standard invocable actions — mirrors the
+      // hard validation error enforced upstream in agent-dsl's ActionConfiguration
+      // model_validator (@W-23852778). Checked unconditionally, before any of the
+      // target-validity early returns below, so it fires regardless of whether the
+      // target is malformed, schemeless, or a syntactically valid but unrecognized
+      // scheme (e.g. custom://) — not just recognized non-standard ones.
+      if (
+        sig.asyncMode?.value === true &&
+        scheme !== 'standardinvocableaction'
+      ) {
+        attachDiagnostic(
+          sig.asyncMode.node,
+          lintDiagnostic(
+            sig.asyncMode.keyRange,
+            `Action '${actionName}' sets 'async_mode: True' but its target uses the ` +
+              `"${scheme ?? 'unknown'}://" scheme. 'async_mode' is only supported for standard ` +
+              `invocable actions (target: "standardInvocableAction://..."); set ` +
+              `'async_mode: False' or change the target scheme.`,
+            DiagnosticSeverity.Error,
+            'invalid-async-action-target'
+          )
+        );
+      }
+
       if (!scheme) {
         attachDiagnostic(
           target.node,

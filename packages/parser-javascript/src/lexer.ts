@@ -346,7 +346,12 @@ export class Lexer {
     // because it's consumed atomically as TEMPLATE_CONTENT in tokenizeLine,
     // so no onTemplateLine guard is needed here.
     if (c === CH_DQUOTE) {
-      this.tokenizeString();
+      const previous = this.tokens[this.tokens.length - 1];
+      const isSayPayload =
+        previous?.kind === TokenKind.ID &&
+        previous.text === 'say' &&
+        previous.end.row === this.row;
+      this.tokenizeString(isSayPayload);
       return;
     }
 
@@ -501,7 +506,7 @@ export class Lexer {
     return true;
   }
 
-  private tokenizeString(): void {
+  private tokenizeString(allowRawNewlines = false): void {
     const start = this.position;
     const startOffset = this.offset;
     const quoteCode = this.peekCharCode(); // " or '
@@ -533,6 +538,10 @@ export class Lexer {
       }
 
       if (this.atNewline()) {
+        if (allowRawNewlines) {
+          this.advance(this.atNewline());
+          continue;
+        }
         // Unclosed string — stop at newline for error recovery
         break;
       }

@@ -62,8 +62,11 @@ export type {
 import type { ReasoningBlock } from '@agentscript/agentscript-dialect';
 export type ParsedTopicReasoning = InferFieldType<typeof ReasoningBlock>;
 
-// Re-export ParsedConnectedAgent from base dialect
-export type { ParsedConnectedAgent } from '@agentscript/agentscript-dialect';
+// Re-export block types that agentforce uses unchanged from the base dialect
+export type {
+  ParsedConnectedAgent,
+  ParsedWorkflowStep,
+} from '@agentscript/agentscript-dialect';
 
 // Agentforce-specific block types derived from schema
 import type {
@@ -71,6 +74,7 @@ import type {
   AFTopicBlock,
   AFSubagentBlock,
   AFStartAgentBlock,
+  AFWorkflowProcedureBlock,
   ConnectionBlock,
   AccessBlock,
   ModalityBlock,
@@ -87,6 +91,9 @@ export type ParsedConfig = InferFieldType<typeof AgentforceSchema.config>;
 export type ParsedTopic = InferFieldType<typeof AFTopicBlock>;
 export type ParsedSubagent = InferFieldType<typeof AFSubagentBlock>;
 export type ParsedStartAgent = InferFieldType<typeof AFStartAgentBlock>;
+export type ParsedWorkflowProcedure = InferFieldType<
+  typeof AFWorkflowProcedureBlock
+>;
 export type ParsedKnowledge = InferFieldType<typeof KnowledgeBlock>;
 export type ParsedConnection = InferFieldType<typeof ConnectionBlock>;
 export type ParsedAccess = InferFieldType<typeof AccessBlock>;
@@ -106,6 +113,21 @@ export type ParsedRecommendedPrompts = InferFieldType<
 >;
 
 export { defaultRules } from './lint/passes/index.js';
+
+export { buildSerializedSchema } from './schema-serialize.js';
+export type {
+  SerializedSchema,
+  SerializedField,
+  SerializedBlockField,
+  SerializedTypedMapField,
+  SerializedPrimitiveField,
+  SerializedSequenceField,
+  SerializedCollectionField,
+  SerializedGlobalScopeMember,
+  SerializedGlobalScope,
+  SerializedLintRule,
+  SerializedDiagnosticCode,
+} from './schema-serialize.js';
 
 export const agentforceDialect: DialectConfig = {
   name: DIALECT_NAME,

@@ -28,7 +28,37 @@ describe('inferExpressionType', () => {
     ).toBe('boolean');
   });
 
-  it('returns "number" for arithmetic BinaryExpression', () => {
+  it('returns "number" for non-overloaded arithmetic BinaryExpression', () => {
+    for (const operator of ['-', '*', '/']) {
+      expect(
+        inferExpressionType({ __kind: 'BinaryExpression', operator })
+      ).toBe('number');
+    }
+  });
+
+  it('infers `+` from its operands (concatenation vs arithmetic default)', () => {
+    const num = { __kind: 'NumberLiteral' };
+    const str = { __kind: 'StringLiteral' };
+    // two numbers → numeric addition
+    expect(
+      inferExpressionType({
+        __kind: 'BinaryExpression',
+        operator: '+',
+        left: num,
+        right: num,
+      })
+    ).toBe('number');
+    // either operand a string → concatenation
+    expect(
+      inferExpressionType({
+        __kind: 'BinaryExpression',
+        operator: '+',
+        left: num,
+        right: str,
+      })
+    ).toBe('string');
+    // no string operand (untyped/unresolved) → default to arithmetic (number),
+    // since `+` is never boolean and callers expect a determinable non-boolean
     expect(
       inferExpressionType({ __kind: 'BinaryExpression', operator: '+' })
     ).toBe('number');
@@ -57,12 +87,35 @@ describe('inferExpressionType', () => {
     expect(inferExpressionType({ __kind: 'NumberLiteral' })).toBe('number');
   });
 
-  it('returns null for None, list/dict literals, calls, ternaries', () => {
+  it('returns null for None, list/dict literals, ternaries', () => {
     expect(inferExpressionType({ __kind: 'NoneLiteral' })).toBeNull();
     expect(inferExpressionType({ __kind: 'ListLiteral' })).toBeNull();
     expect(inferExpressionType({ __kind: 'DictLiteral' })).toBeNull();
-    expect(inferExpressionType({ __kind: 'CallExpression' })).toBeNull();
     expect(inferExpressionType({ __kind: 'TernaryExpression' })).toBeNull();
+  });
+
+  it('returns the fixed return type of a built-in call', () => {
+    const call = (name: string) => ({
+      __kind: 'CallExpression',
+      func: { __kind: 'Identifier', name },
+    });
+    expect(inferExpressionType(call('lower'))).toBe('string');
+    expect(inferExpressionType(call('upper'))).toBe('string');
+    expect(inferExpressionType(call('concat'))).toBe('string');
+    expect(inferExpressionType(call('to_json'))).toBe('string');
+    expect(inferExpressionType(call('len'))).toBe('number');
+  });
+
+  it('returns null for data-dependent or unidentifiable calls', () => {
+    const call = (name: string) => ({
+      __kind: 'CallExpression',
+      func: { __kind: 'Identifier', name },
+    });
+    expect(inferExpressionType(call('json_path'))).toBeNull();
+    expect(inferExpressionType(call('from_json'))).toBeNull();
+    expect(inferExpressionType(call('min'))).toBeNull();
+    // No identifiable function (e.g. member-expression callee) → null.
+    expect(inferExpressionType({ __kind: 'CallExpression' })).toBeNull();
   });
 
   it('returns null for non-object input', () => {

@@ -322,6 +322,8 @@ config:
     agent_name: "SpeakUpBot"
 
 modality voice:
+    voice_id: "v1Voice"
+
     additional_configs:
         speak_up_config:
             speak_up_first_wait_time_ms: 10000
@@ -349,6 +351,8 @@ config:
     agent_name: "EndpointingBot"
 
 modality voice:
+    voice_id: "v1Voice"
+
     additional_configs:
         endpointing_config:
             max_wait_time_ms: 1500
@@ -397,6 +401,8 @@ config:
     agent_name: "AllConfigsBot"
 
 modality voice:
+    voice_id: "v1Voice"
+
     additional_configs:
         speak_up_config:
             speak_up_first_wait_time_ms: 10000
@@ -436,6 +442,8 @@ config:
     agent_name: "PartialSpeakUpBot"
 
 modality voice:
+    voice_id: "v1Voice"
+
     additional_configs:
         speak_up_config:
             speak_up_message: "Hello?"

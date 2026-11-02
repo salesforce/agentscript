@@ -87,6 +87,8 @@ describe('connection-target identifier pattern', () => {
       'llm://a.b',
       'llm://A1_b.c-d2',
       'llm://xx',
+      'llm://projectA/myConnection',
+      'llm://cocacola/projectA/myConnection',
     ])('accepts %s', target => {
       const result = parseAndLintSource(llmSource(target));
       expect(patternDiagnostics(result.diagnostics)).toHaveLength(0);
@@ -101,6 +103,8 @@ describe('connection-target identifier pattern', () => {
       ['llm://café', 'unicode letter'],
       ['llm://my conn', 'whitespace in identifier'],
       ['llm://', 'empty identifier'],
+      ['llm://a/b/c/d', 'four-segment qualified reference'],
+      ['llm://cocacola/projectA/', 'empty element segment'],
     ])('rejects %s (%s)', target => {
       const result = parseAndLintSource(llmSource(target));
       const found = patternDiagnostics(result.diagnostics);
@@ -121,6 +125,11 @@ describe('connection-target identifier pattern', () => {
       ['mcp://knowledge', 'mcp:tool'],
       ['mcp://search_mcp', 'mcp:tool'],
       ['a2a://agent-1.name_x', 'a2a:send_message'],
+      ['mcp://myConnection', 'mcp:tool'],
+      ['mcp://projectA/myConnection', 'mcp:tool'],
+      ['mcp://cocacola/projectA/myConnection', 'mcp:tool'],
+      ['a2a://projectA/myAgent', 'a2a:send_message'],
+      ['a2a://cocacola/projectA/myAgent', 'a2a:send_message'],
     ])('accepts %s', (target, kind) => {
       const result = parseAndLintSource(actionSource(target, kind));
       expect(patternDiagnostics(result.diagnostics)).toHaveLength(0);
@@ -131,6 +140,8 @@ describe('connection-target identifier pattern', () => {
       ['a2a://1abc', 'a2a:send_message', 'digit prefix'],
       ['mcp://abc.', 'mcp:tool', 'trailing dot'],
       ['a2a://', 'a2a:send_message', 'empty identifier'],
+      ['mcp://a/b/c/d', 'mcp:tool', 'four-segment qualified reference'],
+      ['mcp://cocacola/projectA/', 'mcp:tool', 'empty element segment'],
     ])('rejects %s (%s / %s)', (target, kind) => {
       const result = parseAndLintSource(actionSource(target, kind));
       expect(patternDiagnostics(result.diagnostics).length).toBeGreaterThan(0);

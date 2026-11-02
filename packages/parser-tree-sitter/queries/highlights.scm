@@ -20,6 +20,7 @@
 "run" @keyword
 "with" @keyword
 "set" @keyword
+"say" @keyword
 "to" @keyword
 "transition" @keyword
 "ask for" @keyword
@@ -55,6 +56,8 @@
 ; ============================================
 (string) @string
 (string_content) @string
+(say_string) @string
+(say_string_content) @string
 "\"" @string
 
 ; Escape sequences
@@ -107,6 +110,10 @@
 (template_expression
   "{!" @punctuation.template)
 (template_expression
+  "}" @punctuation.template)
+(say_interpolation
+  "{!" @punctuation.template)
+(say_interpolation
   "}" @punctuation.template)
 
 ; ============================================
@@ -164,7 +171,7 @@
 ; directly, so this is the only hand-mirrored copy.
 ((call_expression
   function: (expression (atom (id) @function.builtin)))
- (#any-of? @function.builtin "len" "max" "min" "json_path" "lower" "upper" "to_json" "from_json"))
+ (#any-of? @function.builtin "len" "max" "min" "json_path" "lower" "upper" "to_json" "from_json" "concat"))
 
 ; ============================================
 ; TOP-LEVEL BLOCK KEYWORDS (highest priority)

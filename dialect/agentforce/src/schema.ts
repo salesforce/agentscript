@@ -38,6 +38,7 @@ import type {
 
 import {
   ActionBlock,
+  ReasoningActionBlock,
   ReasoningBlock,
   VariablesBlock,
   InputsBlock,
@@ -46,6 +47,8 @@ import {
   ConnectedSubagentBlock,
   StartAgentBlock,
   SystemBlock,
+  OrchestratorBlock,
+  WorkflowProcedureBlock,
   AgentScriptSchema,
   AgentScriptSchemaAliases,
   AgentScriptSchemaInfo,
@@ -138,7 +141,13 @@ const AFOutputsBlock = OutputsBlock.extendProperties({
   ),
 });
 
-const ModelConfigParamsBlock = Block('ModelConfigParamsBlock', {}).describe(
+const ModelConfigParamsBlock = Block(
+  'ModelConfigParamsBlock',
+  {},
+  {
+    wildcardPrefixes: [{ prefix: '', fieldType: ExpressionValue }],
+  }
+).describe(
   'Model parameters as key-value pairs. Accepts arbitrary parameters that vary by model (e.g., temperature, max_tokens, top_p). Values can be strings, numbers, booleans, or arrays. Parameters are dynamically extracted at compile time.'
 );
 
@@ -150,8 +159,16 @@ export const ModelConfigBlock = Block('ModelConfigBlock', {
 }).describe('Model selection and parameter configuration.');
 
 const ContextMemoryBlock = Block('ContextMemoryBlock', {
-  enabled: BooleanValue.describe('Whether memory is enabled for the agent.'),
+  enabled: BooleanValue.describe(
+    "Indicates whether the agent can use memories from the end user's conversation."
+  ),
 }).describe('Memory configuration for the agent.');
+
+const ContextSearchBlock = Block('ContextSearchBlock', {
+  enabled: BooleanValue.describe(
+    'Whether Enterprise Search grounding is enabled for the agent.'
+  ),
+}).describe('Enterprise Search context configuration for the agent.');
 
 const ContextUserProfileBlock = Block('ContextUserProfileBlock', {
   enabled: BooleanValue.describe(
@@ -184,7 +201,12 @@ const ContextProviderBlock = Block('ContextProviderBlock', {
 }).describe('Configuration for a single external context provider.');
 
 export const ContextBlock = Block('ContextBlock', {
-  memory: ContextMemoryBlock.describe('Memory configuration.'),
+  memory: ContextMemoryBlock.describe(
+    "Select and retrieve memories from the end user's conversation."
+  ),
+  search: ContextSearchBlock.describe(
+    'Gather Enterprise Search evidence before the agent responds.'
+  ),
   user_profile: ContextUserProfileBlock.describe(
     "The configuration for user profile capabilities that allow the agent to use the end user's profile attributes as context."
   ),
@@ -321,6 +343,15 @@ const AFConfigBlock = ConfigBlock.extend(
           'If not provided, a default message will be used.'
       ),
     }).describe('Configuration for how the agent handles user-uploaded files.'),
+    billing: Block('BillingConfig', {
+      mode: StringValue.describe(
+        'How usage of the agent is billed. "ACTION_BASED" (default) bills per ' +
+          'action and matches legacy behavior; "OUTCOME_BASED" bills per outcome ' +
+          'rather than per action. When omitted, the agent behaves as ACTION_BASED.'
+      ).enum(['ACTION_BASED', 'OUTCOME_BASED']),
+    }).describe(
+      'Billing configuration for the agent. Only supported for AgentforceServiceAgent.'
+    ),
   },
   {
     wildcardPrefixes: [
@@ -340,6 +371,15 @@ const AFConfigBlock = ConfigBlock.extend(
     additional_parameter__reset_to_initial_node: True`
 );
 
+const ActionCacheBlock = Block('ActionCacheBlock', {
+  expiration: NumberValue.min(0.001)
+    .max(Number.MAX_SAFE_INTEGER / 1000)
+    .required()
+    .describe(
+      'Cache expiration in seconds, including fractional seconds. Minimum 0.001 seconds.'
+    ),
+}).describe('Cache action results for the specified expiration duration.');
+
 const AFActionBlock = ActionBlock.extend({
   source: StringValue.describe(
     'Source URI for the action (e.g., "custom://weather_api").'
@@ -353,6 +393,12 @@ const AFActionBlock = ActionBlock.extend({
   progress_indicator_message: StringValue.describe(
     'Message shown during execution. Only used if include_in_progress_indicator is True.'
   ),
+  async_mode: BooleanValue.describe(
+    'When true, the action is invoked asynchronously and its result is not awaited ' +
+      'inline during tool selection. Only supported for standard invocable actions ' +
+      '(target: "standardInvocableAction://..."); other target schemes must leave this false.'
+  ),
+  cache: ActionCacheBlock.describe('Cache results for this action definition.'),
   inputs: AFInputsBlock,
   outputs: AFOutputsBlock,
 }).example(
@@ -363,6 +409,8 @@ const AFActionBlock = ActionBlock.extend({
             require_user_confirmation: False
             include_in_progress_indicator: True
             progress_indicator_message: "Looking up your order..."
+            cache:
+                expiration: 60
             inputs:
                 order_number: string
                     description: "The order number to look up"
@@ -454,6 +502,15 @@ export const AFReasoningSkillsBlock = CollectionBlock(
     'definition name compiles to target.'
 );
 
+const AFReasoningActionBlock = ReasoningActionBlock.extend(
+  {
+    execution_mode: StringValue.enum(['blocking', 'fire_and_forget']).describe(
+      'Execution mode for this tool call. Defaults to blocking, which waits for the action result. Fire-and-forget returns dispatch success, not the action result.'
+    ),
+  },
+  { colinear: ExpressionValue.resolvedType('invocationTarget') }
+);
+
 /**
  * Agentforce reasoning block: the shared agentscript `ReasoningBlock`
  * (instructions + actions) plus `skills` — a map of node-level references to
@@ -463,6 +520,7 @@ export const AFReasoningSkillsBlock = CollectionBlock(
  * must reference a skill declared in the top-level `skill_definitions` block.
  */
 export const AFReasoningBlock = ReasoningBlock.extend({
+  actions: CollectionBlock(AFReasoningActionBlock),
   skills: AFReasoningSkillsBlock,
 }).describe(
   'Reasoning block containing instructions, actions, and skill references for the agent reasoning loop.'
@@ -475,6 +533,7 @@ export const AFReasoningBlock = ReasoningBlock.extend({
 
 const sharedBlockFields = {
   ...defaultSubagentFields,
+  reasoning: AFReasoningBlock,
   // Agentforce-specific fields
   model_config: ModelConfigBlock.describe(
     'Model configuration for this block.'
@@ -516,6 +575,7 @@ export const AFTopicBlock = NamedBlock(
 const afCustomSubagentFields = {
   ...customSubagentFields,
   actions: AFActionsBlock,
+  reasoning: AFReasoningBlock,
   model_config: ModelConfigBlock.describe(
     'Model configuration for this block.'
   ),
@@ -532,7 +592,7 @@ const afCustomSubagentFields = {
 export const commerceShopperVariant = {
   ...afCustomSubagentFields,
   ...commerceShopperVariantFields,
-  reasoning: ReasoningBlock.omit('instructions').describe(
+  reasoning: AFReasoningBlock.omit('instructions').describe(
     'Reasoning block containing actions available to the agent. ' +
       'Note: `instructions` is not supported on the commerce shopper variant.'
   ),
@@ -549,7 +609,7 @@ export const commerceShopperVariant = {
 export const tableauAnalyzeDataVariant = {
   ...afCustomSubagentFields,
   ...tableauAnalyzeDataVariantFields,
-  reasoning: ReasoningBlock.omit('instructions').describe(
+  reasoning: AFReasoningBlock.omit('instructions').describe(
     'Reasoning block containing actions available to the agent. ' +
       'Note: `instructions` is not supported on the Tableau Analyze Data variant.'
   ),
@@ -607,6 +667,20 @@ export const AFStartAgentBlock = StartAgentBlock.extend(
     (value: string) => value.startsWith(BYON_SCHEMA_PREFIX),
     byonSubagentVariant
   );
+
+export const AFOrchestratorBlock = OrchestratorBlock.extend({
+  actions: AFActionsBlock,
+  reasoning: AFReasoningBlock,
+  model_config: ModelConfigBlock.describe(
+    'Model configuration for the orchestrator. Falls back to the agent-wide model_config default when omitted.'
+  ),
+});
+
+export const AFWorkflowProcedureBlock = WorkflowProcedureBlock.extend({
+  actions: AFActionsBlock.describe(
+    'Action definitions scoped to this workflow. A workflow can only run its own actions.'
+  ),
+}).describe('A named workflow containing an executable directive flow.');
 
 export const KnowledgeBlock = Block('KnowledgeBlock', {
   citations_url: StringValue.describe('URL prefix for citation links.'),
@@ -921,6 +995,7 @@ const ModalitiesBlock = NamedCollectionBlock(ModalityBlock);
 
 export const AgentforceSchema = {
   ...AgentScriptSchema,
+  actions: AFActionsBlock,
   system: AFSystemBlock,
   config: AFConfigBlock,
   variables: AFVariablesBlock,
@@ -1037,6 +1112,8 @@ export const AgentforceSchema = {
                 with order_number=...`
     )
   ).deprecated('Replace topic with subagent.', { replacement: 'subagent' }),
+  orchestrator: NamedCollectionBlock(AFOrchestratorBlock).singular(),
+  workflow: NamedCollectionBlock(AFWorkflowProcedureBlock),
 } satisfies Record<string, FieldType>;
 
 export type AgentforceSchema = typeof AgentforceSchema;

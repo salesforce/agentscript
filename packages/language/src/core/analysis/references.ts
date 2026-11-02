@@ -189,7 +189,9 @@ export function resolveReference(
   const activeScope = activeScopeForNamespace(scopesRequired, scope);
 
   if (activeScope && scope) {
-    return resolveFromScopedChild(ast, namespace, name, scope, ctx);
+    const scoped = resolveFromScopedChild(ast, namespace, name, scope, ctx);
+    if (scoped) return scoped;
+    return resolveFromRoot(ast, namespace, name, ctx);
   }
 
   return resolveFromRoot(ast, namespace, name, ctx);

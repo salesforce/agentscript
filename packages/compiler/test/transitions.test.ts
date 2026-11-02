@@ -27,6 +27,7 @@ import { compile } from '../src/compile.js';
 import { compileTransition } from '../src/nodes/compile-transition.js';
 import { CompilerContext } from '../src/compiler-context.js';
 import type { ParsedTool } from '../src/parsed-types.js';
+import { isHandOffAction } from '../src/types.js';
 import * as schema from '../src/generated/agent-dsl.js';
 import { parseSource } from './test-utils.js';
 import {
@@ -353,6 +354,74 @@ topic destination:
     );
     expect(stateUpdateTools.length).toBe(1);
     expect(stateUpdateTools[0].description).toBe('Inherited description');
+  });
+
+  it('should inherit description from target connected_subagent when not explicitly set', () => {
+    const source = `
+config:
+    agent_name: "test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+start_agent test:
+    description: "test"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            my_transition: @utils.transition to @connected_subagent.Support_Agent
+
+connected_subagent Support_Agent:
+    target: "agent://Support_Agent"
+    label: "Support Agent"
+    description: "Handles support inquiries"
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+
+    const stateUpdateTools = node.tools.filter(
+      t => t.target === STATE_UPDATE_ACTION
+    );
+    expect(stateUpdateTools.length).toBe(1);
+    // Without this inheritance the tool description falls back to the bare
+    // developer name ("Support Agent"), stripping the routing classifier of the
+    // authored topical signal.
+    expect(stateUpdateTools[0].description).toBe('Handles support inquiries');
+  });
+
+  it('should use explicit transition description over the connected_subagent one', () => {
+    const source = `
+config:
+    agent_name: "test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+start_agent test:
+    description: "test"
+    reasoning:
+        instructions: ->
+            | test
+        actions:
+            my_transition: @utils.transition to @connected_subagent.Support_Agent
+                description: "Explicit description"
+
+connected_subagent Support_Agent:
+    target: "agent://Support_Agent"
+    label: "Support Agent"
+    description: "Handles support inquiries"
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'test'
+    )!;
+
+    const stateUpdateTools = node.tools.filter(
+      t => t.target === STATE_UPDATE_ACTION
+    );
+    expect(stateUpdateTools.length).toBe(1);
+    expect(stateUpdateTools[0].description).toBe('Explicit description');
   });
 });
 
@@ -704,7 +773,7 @@ topic other:
     const handoffs = [
       ...(node.after_all_tool_calls ?? []),
       ...(node.after_reasoning ?? []),
-    ].filter((a: Record<string, unknown>) => a.type === 'handoff');
+    ].filter(isHandOffAction);
 
     expect(handoffs.length).toBeGreaterThanOrEqual(2);
     for (const handoff of handoffs) {

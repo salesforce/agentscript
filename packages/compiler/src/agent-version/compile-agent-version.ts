@@ -18,19 +18,21 @@ import type {
   ParsedAgentforce,
   ParsedTopicLike,
   ParsedConnectedAgent,
+  ParsedWorkflowProcedure,
 } from '../parsed-types.js';
 import {
   DEFAULT_PLANNER_TYPE,
   chainConditionStateVariable,
+  SYSTEM_INSTRUCTION_STATE_VARIABLE,
 } from '../constants.js';
 import { ParameterDeclarationNode } from '@agentscript/language';
+import { workflowNameCollisions } from '@agentscript/agentscript-dialect';
 import {
   extractStringValue,
   extractDescriptionValue,
   iterateNamedMap,
 } from '../ast-helpers.js';
 import { compileRecommendedPrompts } from '../recommendations/compile-recommendations.js';
-import { recommendedPromptsConfigurationSchema } from '../types.js';
 import { compileStateVariables } from '../variables/state-variables.js';
 import {
   compileSystemMessages,
@@ -44,6 +46,7 @@ import {
   mergeTopLevelActionsIntoSubagent,
 } from '../nodes/compile-top-level-actions.js';
 import { compileOrchestratorNode } from '../nodes/compile-orchestrator-node.js';
+import { compileWorkflowNode } from '../nodes/compile-workflow-node.js';
 import { compileBundles } from './compile-bundles.js';
 import { compileSkillDefinitions } from './compile-skill-definitions.js';
 import { compileWorkflows } from './compile-workflows.js';
@@ -62,32 +65,41 @@ import {
 } from '@agentscript/agentforce-dialect';
 import { compileSurfaces } from '../surfaces/compile-surfaces.js';
 import type { FileUploadConfiguration } from '../config/compile-file-upload.js';
+import type { BillingConfiguration } from '../config/compile-billing.js';
 import { extractCompanyAndRole } from '../config/agent-configuration.js';
 import { extractGlobalModelConfiguration } from '../config/model-config.js';
-import type { z } from 'zod';
 
 /**
- * Translate a Zod issue from `recommendedPromptsConfigurationSchema` into an
- * author-facing message. The max-items (20) and per-string-length (1-50)
- * limits live on the OpenAPI-generated base schema and only surface as
- * generic Zod text ("Too big: expected array to have <=20 items"), so we map
- * those specific issues to friendly wording here rather than duplicating the
- * constraints. Refinement messages (welcome_screen, >=3 entries) are already
- * human-readable and pass through unchanged.
+ * Drain the per-node uploaded_files accumulator onto the node as a
+ * `file_references` array and close the capture window (so post-loop surfaces
+ * are flagged, not silently dropped).
+ *
+ * Only router/subagent nodes carry `file_references` (the agent-dsl
+ * `SubAgentRouterMixin`, which the reasoner reads only for subagent nodes) —
+ * related-agent/BYON nodes have no such field, so a capture there would be
+ * dead data the runtime never consumes. We narrow to those two node types
+ * before attaching. `enabled` is dropped when absent (never emitted as
+ * `enabled: undefined`).
  */
-function friendlyRecommendedPromptsMessage(issue: z.core.$ZodIssue): string {
-  if (issue.code === 'too_big') {
-    if (issue.origin === 'array') {
-      return 'starter_prompts can have at most 20 entries';
-    }
-    if (issue.origin === 'string') {
-      return 'Each starter prompt must be between 1 and 50 characters';
-    }
+function attachFileReferences(node: AgentNode, ctx: CompilerContext): void {
+  // Close the node capture window and take what was captured. Draining always
+  // clears node scope, so post-loop surfaces are flagged rather than silently
+  // attached.
+  const fileReferences = ctx.fileCapture.drainNode();
+
+  // Narrow on `type` — `'file_references' in node` would not work here: the key
+  // isn't present on a freshly-built node, so the check would always be false.
+  if (
+    fileReferences.length > 0 &&
+    (node.type === 'router' || node.type === 'subagent')
+  ) {
+    node.file_references = fileReferences.map(entry => {
+      if (entry.enabled) return entry;
+      // Drop the enabled key entirely when absent.
+      const { enabled: _enabled, ...rest } = entry;
+      return rest;
+    });
   }
-  if (issue.code === 'too_small' && issue.origin === 'string') {
-    return 'Each starter prompt must be between 1 and 50 characters';
-  }
-  return issue.message;
 }
 
 /**
@@ -99,8 +111,18 @@ export function compileAgentVersion(
   additionalParameters: AdditionalParameters | undefined,
   runtime: RuntimeConfiguration | undefined,
   fileUpload: FileUploadConfiguration | undefined,
+  billing: BillingConfiguration | undefined,
   ctx: CompilerContext
 ): AgentVersion {
+  // Decide whether uploaded_files references are captured for this agent. Only
+  // `file_upload.mode: managed` consumes per-node `file_references`: the reasoner
+  // reads them solely in its managed branch (`_apply_managed_mode`) to filter the
+  // LLM request's attachments. Every other mode — `auto`/`error`/`disabled` and
+  // an absent block (which defaults to `auto`) — never reads them, so emitting
+  // there is dead data. Capture only under managed. Set before the node loop
+  // opens any capture window.
+  ctx.fileCapture.enabled = fileUpload?.mode === 'managed';
+
   // Collect all topic/start_agent blocks
   const blocks = collectTopicBlocks(parsed);
 
@@ -130,7 +152,11 @@ export function compileAgentVersion(
   ctx.initialNode = initialNode;
 
   // Build topic descriptions for transition inheritance
-  const topicDescriptions = createTopicDescriptions(blocks);
+  const topicDescriptions = createTopicDescriptions(
+    blocks,
+    parsed.connected_subagent,
+    parsed.workflow
+  );
 
   // Extract global model_config (agent-wide defaults)
   const globalModelConfig = extractGlobalModelConfiguration(parsed, ctx);
@@ -162,6 +188,10 @@ export function compileAgentVersion(
   // requires an agent-wide additional parameter (see merge step below).
   let hasTableauAnalyzeDataNode = false;
   for (const { name, block, isStartAgent } of blocks) {
+    // Open a fresh file-reference capture window for this node.
+    ctx.fileCapture.enterNode();
+    ctx.nodeConditionSlotBase = 0;
+
     const schemaValue = extractStringValue(block.schema);
     if (schemaValue === TABLEAU_ANALYZE_DATA_SCHEMA) {
       hasTableauAnalyzeDataNode = true;
@@ -193,6 +223,8 @@ export function compileAgentVersion(
     if (node.type === 'subagent' && !isStartAgent) {
       mergeTopLevelActionsIntoSubagent(node, topLevelActions);
     }
+
+    attachFileReferences(node, ctx);
     nodes.push(node);
   }
 
@@ -214,20 +246,55 @@ export function compileAgentVersion(
       const node = compileOrchestratorNode(
         name,
         block as Record<string, unknown>,
+        globalModelConfig,
         ctx
       );
       nodes.push(node as unknown as AgentNode);
     }
   }
 
+  // Compile workflow nodes (`workflow <name>:` blocks). A workflow named like
+  // another node would emit a second node with the same `developer_name`.
+  const nameCollisions = new Map(
+    workflowNameCollisions(parsed).map(c => [c.name, c])
+  );
+  for (const [name, block] of iterateNamedMap(parsed.workflow)) {
+    const collision = nameCollisions.get(name);
+    if (collision) {
+      ctx.error(
+        collision.message,
+        collision.workflow.__cst?.range,
+        'workflow-duplicate-node-name'
+      );
+      continue;
+    }
+    // Workflow nodes cannot represent file_references. Keep capture closed and
+    // diagnose prompt references rather than silently discarding attachments.
+    const node = ctx.fileCapture.withUnsupportedNode('workflow', () =>
+      compileWorkflowNode(
+        name,
+        block as ParsedWorkflowProcedure,
+        globalModelConfig,
+        ctx
+      )
+    );
+    nodes.push(node as unknown as AgentNode);
+  }
+
   // Compile connected agent nodes
   if (parsed.connected_subagent) {
     for (const [name, block] of iterateNamedMap(parsed.connected_subagent)) {
+      // Open a fresh file-reference capture window for this node.
+      ctx.fileCapture.enterNode();
+      ctx.nodeConditionSlotBase = 0;
+
       const node = compileConnectedAgentNode(
         name,
         block as ParsedConnectedAgent,
         ctx
       );
+
+      attachFileReferences(node, ctx);
       nodes.push(node);
     }
   }
@@ -239,6 +306,29 @@ export function compileAgentVersion(
   // shallower chain doesn't allocate fresh indices.
   for (let i = 1; i <= ctx.maxChainConditionSlot; i++) {
     stateVariables.push(chainConditionStateVariable(i));
+  }
+
+  if (ctx.usesDynamicSystemInstructions) {
+    const collisionIndex = stateVariables.findIndex(
+      variable =>
+        variable.developer_name ===
+        SYSTEM_INSTRUCTION_STATE_VARIABLE.developer_name
+    );
+    if (collisionIndex >= 0) {
+      const declaration = parsed.variables?.get(
+        SYSTEM_INSTRUCTION_STATE_VARIABLE.developer_name
+      );
+      ctx.error(
+        `Variable '${SYSTEM_INSTRUCTION_STATE_VARIABLE.developer_name}' is reserved when conditional system instructions are used. Rename the user-defined variable.`,
+        declaration?.__cst?.range,
+        'dynamic-system-instructions-variable-conflict'
+      );
+      stateVariables.splice(collisionIndex, 1, {
+        ...SYSTEM_INSTRUCTION_STATE_VARIABLE,
+      });
+    } else {
+      stateVariables.push({ ...SYSTEM_INSTRUCTION_STATE_VARIABLE });
+    }
   }
 
   // Compile surfaces
@@ -303,19 +393,12 @@ export function compileAgentVersion(
     ctx
   );
   if (recommendedPrompts) {
-    const recsValidation =
-      recommendedPromptsConfigurationSchema.safeParse(recommendedPrompts);
-    if (recsValidation.success) {
-      (version as Record<string, unknown>).recommended_prompts =
-        recommendedPrompts;
-    } else {
-      const messages = recsValidation.error.issues.map(
-        friendlyRecommendedPromptsMessage
-      );
-      ctx.error(
-        `Recommended prompts validation failed: ${messages.join('; ')}`
-      );
-    }
+    // Value validation (welcome_screen gating, min-3 / max-20 entries,
+    // per-string length) runs at lint time in the dialect pass
+    // `recommended-prompts-validation.ts`, so authors see live diagnostics.
+    // The compiler only extracts and serializes the block here.
+    (version as Record<string, unknown>).recommended_prompts =
+      recommendedPrompts;
   }
 
   // Attach runtime configuration (rc110: moved from global_configuration to agent_version).
@@ -328,6 +411,12 @@ export function compileAgentVersion(
   // global_configuration.
   if (fileUpload) {
     version.file_upload = fileUpload;
+  }
+
+  // Attach billing configuration. Billing mode is version-specific (the DSL
+  // places `billing` on agent_version, not global_configuration).
+  if (billing) {
+    version.billing = billing;
   }
 
   // Attach GBA version-level arrays (bundles / workflows / triggers), only when
@@ -447,9 +536,33 @@ function getInitialNodeName(
 // Topic Descriptions
 // ---------------------------------------------------------------------------
 
-function createTopicDescriptions(blocks: TopicEntry[]): Record<string, string> {
+function createTopicDescriptions(
+  blocks: TopicEntry[],
+  connectedAgents?: Map<string, ParsedConnectedAgent>,
+  workflows?: Map<string, ParsedWorkflowProcedure>
+): Record<string, string> {
   const descriptions: Record<string, string> = {};
   for (const { name, block } of blocks) {
+    const desc = extractDescriptionValue(block.description);
+    if (desc) {
+      descriptions[name] = desc;
+    }
+  }
+  // Connected subagents compile through a separate node path and are not in
+  // `blocks`, so their authored description is gathered here as well. A
+  // `@utils.transition to @connected_subagent.X` inherits its tool description
+  // from this map (see compile-transition.ts).
+  for (const [name, block] of iterateNamedMap(connectedAgents)) {
+    if (descriptions[name]) continue;
+    const desc = extractDescriptionValue(block.description);
+    if (desc) {
+      descriptions[name] = desc;
+    }
+  }
+  // Workflows are likewise compiled outside `blocks`; a
+  // `@utils.transition to @workflow.X` inherits the workflow's description.
+  for (const [name, block] of iterateNamedMap(workflows)) {
+    if (descriptions[name]) continue;
     const desc = extractDescriptionValue(block.description);
     if (desc) {
       descriptions[name] = desc;
@@ -500,7 +613,11 @@ function populateConnectedAgentInputSignature(
     }
   }
 
-  ctx.connectedAgentInputs.set(name, { allInputs, inputsWithDefaults });
+  ctx.connectedAgentInputs.set(name, {
+    allInputs,
+    inputsWithDefaults,
+    description: extractDescriptionValue(block.description),
+  });
 }
 
 function mergeSystemMessagesIntoAdditionalParams(

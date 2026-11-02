@@ -346,8 +346,8 @@ export function resolveNamespaceKeys(
 export interface ScopeNavInfo {
   /** Root-level schema keys for this scope (e.g., ['topic'] for 'topic' scope). */
   rootKeys: string[];
-  /** For nested scopes, the parent scope name. */
-  parentScope?: string;
+  /** Parent scope names for a scope hosted under multiple node kinds. */
+  parentScopes?: string[];
 }
 
 /** Maps namespace field names to the set of scope levels that host them. */
@@ -665,10 +665,13 @@ function walkSchemaForNavigation(
       if (!existing) {
         registry.set(fieldType.scopeAlias, {
           rootKeys: [],
-          parentScope,
+          parentScopes: [parentScope],
         });
-      } else if (existing.parentScope === undefined) {
-        existing.parentScope = parentScope;
+      } else {
+        existing.parentScopes ??= [];
+        if (!existing.parentScopes.includes(parentScope)) {
+          existing.parentScopes.push(parentScope);
+        }
       }
       if (fieldType.schema) {
         walkSchemaForNavigation(
@@ -745,8 +748,9 @@ export function findScopeBlock(
   // document root — e.g. `actions` inside a `subagent` and at the agent
   // level. Prefer nested navigation when the parent scope is active in the
   // current context, then fall back to root-level definitions.
-  if (info.parentScope && scope[info.parentScope]) {
-    const parentBlock = findScopeBlock(ast, info.parentScope, scope, ctx);
+  for (const parentScope of info.parentScopes ?? []) {
+    if (!scope[parentScope]) continue;
+    const parentBlock = findScopeBlock(ast, parentScope, scope, ctx);
     if (parentBlock) {
       const nested = findNamedBlockInDescendants(parentBlock, targetName);
       if (nested) return nested;

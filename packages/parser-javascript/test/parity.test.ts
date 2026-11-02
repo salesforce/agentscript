@@ -139,6 +139,24 @@ describe.runIf(treeSitterAvailable)(
       });
     }
 
+    it('both parsers reject an escaped final quote without a closing quote', () => {
+      const source = 'say "hello\\"';
+      expect(parseJavascript(source).rootNode.hasError).toBe(true);
+      expect(treeSitterParser!.parse(source).rootNode.hasError).toBe(true);
+    });
+
+    it('both parsers accept a raw newline with matching structure', () => {
+      const source = 'say "hello\nworld"';
+      const javascriptResult = parseJavascript(source).rootNode;
+      const treeSitterResult = treeSitterParser!.parse(source).rootNode;
+
+      expect(javascriptResult.hasError).toBe(false);
+      expect(treeSitterResult.hasError).toBe(false);
+      expect(normalizeSExp(javascriptResult.toSExp())).toBe(
+        normalizeSExp(treeSitterResult.toString())
+      );
+    });
+
     if (existsSync(SOT_FILE)) {
       it('sot/source.agent', () => {
         assertParity(readFileSync(SOT_FILE, 'utf-8'));

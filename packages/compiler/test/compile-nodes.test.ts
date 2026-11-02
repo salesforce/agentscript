@@ -218,9 +218,10 @@ start_agent TopicNode:
     expect(node.focus_prompt).toBe(`{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`);
     // BRI should exist to inject the topic instructions
     expect(node.before_reasoning_iteration).toBeDefined();
-    expect(node.before_reasoning_iteration!.length).toBeGreaterThanOrEqual(2);
+    expect(node.before_reasoning_iteration!.length).toBeGreaterThanOrEqual(1);
 
-    // The second BRI action should contain the topic instructions
+    // A BRI action should contain the topic instructions (the reset folds into
+    // the first unconditional append)
     const briActions = node.before_reasoning_iteration!;
     const instructionAppend = briActions.find(
       (a: Record<string, unknown>) =>
@@ -488,27 +489,25 @@ topic other_topic_3:
       `{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`
     );
 
-    // Before reasoning iteration should reset and append instructions
+    // Before reasoning iteration: the unconditional reset + single append fold
+    // into one assignment.
     expect(routerNode.before_reasoning_iteration).toBeDefined();
-    expect(routerNode.before_reasoning_iteration!.length).toBe(2);
+    expect(routerNode.before_reasoning_iteration!.length).toBe(1);
 
-    // First action: reset agent instructions
-    const resetAction = routerNode.before_reasoning_iteration![0] as Action;
-    expect(resetAction.target).toBe(STATE_UPDATE_ACTION);
-    expect(resetAction.enabled).toBe('True');
-    expect(resetAction.state_updates).toEqual([
-      { [AGENT_INSTRUCTIONS_VARIABLE]: "''" },
-    ]);
-
-    // Second action: append instructions
-    const appendAction = routerNode.before_reasoning_iteration![1] as Action;
-    expect(appendAction.target).toBe(STATE_UPDATE_ACTION);
-    const stateUpdate = appendAction.state_updates![0] as Record<
+    // Single folded action: assign instructions (self-reference resolved away).
+    const instructionAction = routerNode
+      .before_reasoning_iteration![0] as Action;
+    expect(instructionAction.target).toBe(STATE_UPDATE_ACTION);
+    expect(instructionAction.enabled).toBe('True');
+    const stateUpdate = instructionAction.state_updates![0] as Record<
       string,
       string
     >;
     expect(stateUpdate[AGENT_INSTRUCTIONS_VARIABLE]).toContain(
       'Start agent instructions'
+    );
+    expect(stateUpdate[AGENT_INSTRUCTIONS_VARIABLE]).not.toContain(
+      `{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`
     );
   });
 
@@ -636,23 +635,19 @@ start_agent TemplateInstructionsTopic:
     // Focus prompt uses state variable for dynamic instructions
     expect(node.focus_prompt).toBe(`{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`);
 
-    // BRI should reset and append the template
+    // BRI folds the unconditional reset + single append into one assignment.
     expect(node.before_reasoning_iteration).toBeDefined();
-    expect(node.before_reasoning_iteration!.length).toBe(2);
+    expect(node.before_reasoning_iteration!.length).toBe(1);
 
-    // First: reset action
-    const resetAction = node.before_reasoning_iteration![0] as Action;
-    expect(resetAction.target).toBe(STATE_UPDATE_ACTION);
-    expect(resetAction.state_updates).toEqual([
-      { [AGENT_INSTRUCTIONS_VARIABLE]: "''" },
-    ]);
-
-    // Second: append the template text
-    const appendAction = node.before_reasoning_iteration![1] as Action;
-    expect(appendAction.target).toBe(STATE_UPDATE_ACTION);
-    const update = appendAction.state_updates![0] as Record<string, string>;
-    expect(update[AGENT_INSTRUCTIONS_VARIABLE]).toContain(
-      'Direct template instructions without Procedure wrapper.'
+    const instructionAction = node.before_reasoning_iteration![0] as Action;
+    expect(instructionAction.target).toBe(STATE_UPDATE_ACTION);
+    expect(instructionAction.enabled).toBe('True');
+    const update = instructionAction.state_updates![0] as Record<
+      string,
+      string
+    >;
+    expect(update[AGENT_INSTRUCTIONS_VARIABLE]).toBe(
+      'template::\nDirect template instructions without Procedure wrapper.'
     );
   });
 
@@ -674,20 +669,21 @@ start_agent MultiLineTopic:
       n => n.developer_name === 'MultiLineTopic'
     )!;
 
-    // Reset + a single append action, regardless of the number of | lines.
+    // A single folded action, regardless of the number of | lines: the
+    // unconditional reset + append collapse into one assignment.
     expect(node.before_reasoning_iteration).toBeDefined();
-    expect(node.before_reasoning_iteration!.length).toBe(2);
+    expect(node.before_reasoning_iteration!.length).toBe(1);
 
-    const resetAction = node.before_reasoning_iteration![0] as Action;
-    expect(resetAction.state_updates).toEqual([
-      { [AGENT_INSTRUCTIONS_VARIABLE]: "''" },
-    ]);
-
-    // The lines are newline-joined into one state update.
-    const appendAction = node.before_reasoning_iteration![1] as Action;
-    const update = appendAction.state_updates![0] as Record<string, string>;
+    // The lines are newline-joined into one state update, with the reset folded
+    // in (self-reference resolved away).
+    const instructionAction = node.before_reasoning_iteration![0] as Action;
+    expect(instructionAction.enabled).toBe('True');
+    const update = instructionAction.state_updates![0] as Record<
+      string,
+      string
+    >;
     expect(update[AGENT_INSTRUCTIONS_VARIABLE]).toBe(
-      `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}\nfirst line\nsecond line\nthird line`
+      'template::\nfirst line\nsecond line\nthird line'
     );
   });
 
@@ -725,17 +721,19 @@ start_agent ProceduralTopic:
     const bri = node.before_reasoning_iteration!;
 
     const PREFIX = `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
-    const appends = bri
-      .map(a => (a as Action).state_updates?.[0] as Record<string, string>)
+    const values = bri
+      .map(a => a.state_updates?.[0] as Record<string, string>)
       .map(su => su?.[AGENT_INSTRUCTIONS_VARIABLE])
-      .filter(
-        (v): v is string => typeof v === 'string' && v.startsWith(PREFIX)
-      );
+      .filter((v): v is string => typeof v === 'string');
 
-    // The two intro lines fuse; the two outro lines fuse; the vip/else bodies
-    // stay separate (opposite gates) → 4 instruction appends, not 6.
-    expect(appends.length).toBe(4);
-    expect(appends).toContain(`${PREFIX}\nintro line one\nintro line two`);
+    // The two intro lines fuse; being the first unconditional run they also fold
+    // with the reset, so their value drops the self-reference prefix.
+    expect(values).toContain('template::\nintro line one\nintro line two');
+
+    // The remaining appends keep the self-reference prefix: the two outro lines
+    // fuse; the vip/else bodies stay separate (opposite gates).
+    const appends = values.filter(v => v.startsWith(PREFIX));
+    expect(appends.length).toBe(3);
     expect(appends).toContain(`${PREFIX}\noutro line one\noutro line two`);
     expect(appends).toContain(`${PREFIX}\nvip branch`);
     expect(appends).toContain(`${PREFIX}\nstandard branch`);
@@ -751,13 +749,28 @@ start_agent ProceduralTopic:
 describe('instruction append merging across procedural directives', () => {
   const PREFIX = `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
 
-  /** All instruction-append values on the node's before_reasoning_iteration. */
+  // The first unconditional append folds with the reset, so its value loses the
+  // `{{state.X}}` self-reference and reads `template::\n...`.
+  const FOLDED_PREFIX = 'template::\n';
+
+  /**
+   * All instruction values on the node's before_reasoning_iteration — both the
+   * self-referencing appends (`template::{{state.X}}\n...`) and the folded head
+   * assignment (`template::\n...`). Flattens across every `state_updates` entry,
+   * not just index 0, because 4a (mergeAdjacentStateUpdates) fuses same-gate
+   * envelopes: distinct appends can now live as sibling entries inside one merged
+   * envelope. Instruction-append string fusion still keeps a `set`/`transition`
+   * from concatenating the runs on either side into one string — this helper
+   * verifies that stays true.
+   */
   function instructionAppends(node: SubAgentNode): string[] {
     return (node.before_reasoning_iteration ?? [])
-      .map(a => (a as Action).state_updates?.[0] as Record<string, string>)
+      .flatMap(a => (a.state_updates ?? []) as Record<string, string>[])
       .map(su => su?.[AGENT_INSTRUCTIONS_VARIABLE])
       .filter(
-        (v): v is string => typeof v === 'string' && v.startsWith(PREFIX)
+        (v): v is string =>
+          typeof v === 'string' &&
+          (v.startsWith(PREFIX) || v.startsWith(FOLDED_PREFIX))
       );
   }
 
@@ -780,7 +793,7 @@ variables:
         description: "A flag."
 `;
 
-  it('set: a set statement is a merge boundary between instruction runs', () => {
+  it('set: a set statement is a string-fusion boundary between instruction runs', () => {
     const node = compileMain(`${HEAD}
 start_agent main:
     description: "m"
@@ -793,23 +806,24 @@ start_agent main:
             | after two
 `);
     const appends = instructionAppends(node);
-    // Two fused runs, split by the set — not four separate lines.
+    // Two string-fused runs, split by the set — not four separate lines. The
+    // set does not concatenate into either run's template string; the first run
+    // additionally folds with the reset (self-reference dropped).
     expect(appends).toEqual([
-      `${PREFIX}\nbefore one\nbefore two`,
+      `${FOLDED_PREFIX}before one\nbefore two`,
       `${PREFIX}\nafter one\nafter two`,
     ]);
 
-    // The set itself is still its own action targeting the variable.
-    const setAction = (node.before_reasoning_iteration ?? []).find(
-      a =>
-        (a as Action).state_updates?.[0] &&
-        'flag' in ((a as Action).state_updates![0] as Record<string, unknown>)
-    ) as Action | undefined;
-    expect(setAction).toBeDefined();
-    expect(setAction!.state_updates![0]).toEqual({ flag: 'True' });
+    // The set write still exists as its own `{ flag: 'True' }` entry. 4a may
+    // fuse it into a same-gate envelope alongside the appends, so look across
+    // every state_updates entry rather than assuming its own envelope.
+    const flagEntries = (node.before_reasoning_iteration ?? [])
+      .flatMap(a => (a.state_updates ?? []) as Record<string, unknown>[])
+      .filter(su => 'flag' in su);
+    expect(flagEntries).toEqual([{ flag: 'True' }]);
   });
 
-  it('transition to: a transition is a merge boundary between instruction runs', () => {
+  it('transition to: a transition is a string-fusion boundary between instruction runs', () => {
     const node = compileMain(`${HEAD}
 start_agent main:
     description: "m"
@@ -829,17 +843,20 @@ topic dest:
 `);
     const appends = instructionAppends(node);
     expect(appends).toEqual([
-      `${PREFIX}\nbefore one\nbefore two`,
+      `${FOLDED_PREFIX}before one\nbefore two`,
       `${PREFIX}\nafter one\nafter two`,
     ]);
 
-    // The transition still emits its next_topic set + handoff, untouched.
+    // The transition still emits its next_topic set + handoff. The set may be
+    // fused into a same-gate envelope by 4a, so search across all entries.
     const bri = node.before_reasoning_iteration ?? [];
-    const nextTopicSet = bri.find(
-      a => (a as Action).state_updates?.[0]?.[NEXT_TOPIC_VARIABLE] === '"dest"'
+    const nextTopicSet = bri.find(a =>
+      ((a.state_updates ?? []) as Record<string, string>[]).some(
+        su => su[NEXT_TOPIC_VARIABLE] === '"dest"'
+      )
     );
     expect(nextTopicSet).toBeDefined();
-    const handoff = bri.find(a => (a as Action).target === 'dest');
+    const handoff = bri.find(a => a.target === 'dest');
     expect(handoff).toBeDefined();
   });
 
@@ -862,7 +879,7 @@ start_agent main:
     // Ungated outer/trailer runs each fuse; the if-body fuses under its gate.
     const appends = instructionAppends(node);
     expect(appends).toEqual([
-      `${PREFIX}\nouter one\nouter two`,
+      `${FOLDED_PREFIX}outer one\nouter two`,
       `${PREFIX}\ninner one\ninner two`,
       `${PREFIX}\ntrailer one\ntrailer two`,
     ]);
@@ -870,7 +887,7 @@ start_agent main:
     // The fused if-body append is gated on the synthesized condition variable.
     const gatedInner = bri.find(
       a =>
-        (a as Action).state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] ===
+        a.state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] ===
         `${PREFIX}\ninner one\ninner two`
     ) as Action;
     expect(gatedInner.enabled).toMatch(
@@ -878,7 +895,7 @@ start_agent main:
     );
   });
 
-  it('combo: set + if/else + transition all act as boundaries while runs fuse', () => {
+  it('combo: set + if/else + transition are string-fusion boundaries while runs fuse', () => {
     const node = compileMain(`${HEAD}
 start_agent main:
     description: "m"
@@ -907,9 +924,10 @@ topic dest:
 `);
     const appends = instructionAppends(node);
 
-    // Each run fuses; if and else bodies stay separate (opposite gates).
+    // Each run fuses; if and else bodies stay separate (opposite gates). The
+    // first run additionally folds with the reset (self-reference dropped).
     expect(appends).toEqual([
-      `${PREFIX}\npre one\npre two`,
+      `${FOLDED_PREFIX}pre one\npre two`,
       `${PREFIX}\nmid one\nmid two`,
       `${PREFIX}\nif body one\nif body two`,
       `${PREFIX}\nelse body one\nelse body two`,
@@ -921,13 +939,104 @@ topic dest:
     const gateOf = (text: string) =>
       (
         bri.find(
-          a =>
-            (a as Action).state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] ===
-            text
+          a => a.state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] === text
         ) as Action
       ).enabled;
     const ifGate = gateOf(`${PREFIX}\nif body one\nif body two`)!;
     const elseGate = gateOf(`${PREFIX}\nelse body one\nelse body two`)!;
     expect(elseGate).toBe(`not (${ifGate})`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fold the unconditional instruction reset into the first unconditional append.
+// The fold must NOT fire when the first append is gated — a gated append needs
+// the standalone reset to keep the variable empty on the false branch.
+// ---------------------------------------------------------------------------
+
+describe('instruction reset+append fold', () => {
+  const PREFIX = `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
+
+  const HEAD = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    flag: mutable boolean
+        description: "A flag."
+`;
+
+  function mainBri(source: string): Action[] {
+    const { output, diagnostics } = compile(parseSource(source));
+    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )!;
+    return (node.before_reasoning_iteration ?? []) as Action[];
+  }
+
+  const instructionValue = (a: Action): string | undefined =>
+    a.state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE];
+
+  it('folds an unconditional reset + first unconditional append into one assignment', () => {
+    const bri = mainBri(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            | only line
+`);
+    // Single folded assignment: no standalone reset, self-reference dropped, but
+    // the leading newline (and hence the rendered instruction) is preserved.
+    expect(bri.length).toBe(1);
+    expect(bri[0].enabled).toBe('True');
+    expect(bri[0].state_updates![0]).toEqual({
+      [AGENT_INSTRUCTIONS_VARIABLE]: 'template::\nonly line',
+    });
+  });
+
+  it('does NOT fold when the first append is gated — the standalone reset survives', () => {
+    const bri = mainBri(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            if @variables.flag
+                | gated line
+`);
+    // The leading content is gated, so the reset cannot fold: it survives as a
+    // standalone `''` assignment (keeping the variable empty when the gate is
+    // false).
+    const reset = bri.find(a => instructionValue(a) === "''");
+    expect(reset).toBeDefined();
+    expect(reset!.enabled).toBe('True');
+
+    // The gated append is present and unchanged (still self-referencing).
+    const gated = bri.find(a => instructionValue(a)?.includes('gated line'))!;
+    expect(instructionValue(gated)).toBe(`${PREFIX}\ngated line`);
+    expect(gated.enabled).toMatch(/^state\.AgentScriptInternal_condition_/);
+  });
+
+  it('folds the unconditional head only when it precedes a gated append', () => {
+    const bri = mainBri(`${HEAD}
+start_agent main:
+    description: "m"
+    reasoning:
+        instructions: ->
+            | intro
+            if @variables.flag
+                | gated line
+`);
+    // Head folds → no standalone reset remains.
+    expect(bri.some(a => instructionValue(a) === "''")).toBe(false);
+    expect(instructionValue(bri[0])).toBe('template::\nintro');
+    expect(bri[0].enabled).toBe('True');
+
+    // The gated append still keeps its self-reference and its gate.
+    const gated = bri.find(a => instructionValue(a)?.includes('gated line'))!;
+    expect(instructionValue(gated)).toBe(`${PREFIX}\ngated line`);
+    expect(gated.enabled).toMatch(/^state\.AgentScriptInternal_condition_/);
   });
 });

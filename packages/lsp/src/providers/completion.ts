@@ -20,6 +20,10 @@ import {
   getNodeMemberAccessCompletions,
   getValueCompletions,
   getWithCompletions,
+  getWhenRenderCompletions,
+  getShowAndReturnCompletions,
+  getResponseFormatCompletions,
+  getConnectionMemberCompletions,
   positionIndexKey,
   SymbolKind,
   symbolTableKey,
@@ -122,6 +126,63 @@ export function provideCompletion(
       },
       sortText: String(idx).padStart(4, '0'),
     });
+
+    // ── response_format value completions ─────────────────────────
+    //
+    // `@response_formats.<partial>` (shortform) and
+    // `@connection.X.response_formats.<partial>` (longform) response-format
+    // values. `getResponseFormatCompletions` owns the resolution; this is
+    // tried before the generic chain handlers below (which don't know a
+    // connection's formats) and falls through on empty.
+    const responseFormatMatch = textBeforeCursor.match(
+      /@(?:response_formats|connection\.[\w-]+\.response_formats)\.(\w*)$/
+    );
+    if (responseFormatMatch) {
+      const candidates = getResponseFormatCompletions(
+        ast,
+        line,
+        character,
+        schemaContext,
+        state.source
+      );
+      if (candidates.length > 0) {
+        const replaceStartChar = character - responseFormatMatch[1].length;
+        return {
+          isIncomplete: false,
+          items: candidates.map((candidate, idx) =>
+            toItem(candidate, idx, replaceStartChar, candidate.documentation)
+          ),
+        };
+      }
+    }
+
+    // ── connection member access ──────────────────────────────────
+    //
+    // `@connection.<name>.<partial>` — the intermediate position after the
+    // connection name, before a member is chosen. `getConnectionMemberCompletions`
+    // owns which members are referenceable here. Tried after the leaf
+    // `@connection.X.response_formats.Y` handler above and before the generic
+    // chain handlers; falls through on empty (e.g. unknown connection).
+    const connectionMemberMatch = textBeforeCursor.match(
+      /@connection\.([\w-]+)\.(\w*)$/
+    );
+    if (connectionMemberMatch) {
+      const candidates = getConnectionMemberCompletions(
+        ast,
+        schemaContext,
+        connectionMemberMatch[1]
+      );
+      if (candidates.length > 0) {
+        const partial = connectionMemberMatch[2];
+        const replaceStartChar = character - partial.length;
+        return {
+          isIncomplete: false,
+          items: candidates.map((candidate, idx) =>
+            toItem(candidate, idx, replaceStartChar, candidate.documentation)
+          ),
+        };
+      }
+    }
 
     // ── Node-result member access ─────────────────────────────────
     //
@@ -262,6 +323,53 @@ export function provideCompletion(
         schemaContext,
         state.source
       );
+      // Preselected self-nesting snippets scaffolding the `when @connection`
+      // → `render:` → `show_and_return:` clause chain. Each is offered on an
+      // empty/partial line at the appropriate nesting level and is mutually
+      // exclusive with the others (they key off different enclosing parents).
+      const whenRenderCandidates = getWhenRenderCompletions(
+        ast,
+        line,
+        character,
+        schemaContext,
+        state.source
+      );
+      const showAndReturnCandidates = getShowAndReturnCompletions(
+        ast,
+        line,
+        character,
+        schemaContext,
+        state.source
+      );
+
+      // Build a preselected snippet item from a scaffold candidate, replacing
+      // the line's leading whitespace so the snippet's own indent takes over.
+      const snippetItem = (candidate: {
+        name: string;
+        detail?: string;
+        documentation?: string;
+        snippet?: string;
+      }): CompletionItem => {
+        const indentLength =
+          textBeforeCursor.length - textBeforeCursor.trim().length;
+        return {
+          label: candidate.name,
+          kind: CompletionItemKind.Snippet,
+          detail: candidate.detail,
+          documentation: candidate.documentation,
+          insertText: candidate.snippet,
+          insertTextFormat: InsertTextFormat.Snippet,
+          preselect: true,
+          textEdit: {
+            range: {
+              start: { line, character: indentLength },
+              end: { line, character },
+            },
+            newText: candidate.snippet!,
+          },
+          sortText: '0000',
+        };
+      };
 
       if (withCandidates.length > 0) {
         // Extract the partial parameter name the user has already typed
@@ -293,6 +401,10 @@ export function provideCompletion(
           },
           sortText: String(idx).padStart(4, '0'),
         }));
+      } else if (whenRenderCandidates.length > 0) {
+        items = [snippetItem(whenRenderCandidates[0])];
+      } else if (showAndReturnCandidates.length > 0) {
+        items = [snippetItem(showAndReturnCandidates[0])];
       } else {
         // Field/block keyword completions
         const partial = textBeforeCursor.trim();

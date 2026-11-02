@@ -103,3 +103,16 @@ export const OUTPUT_JSON_SCHEMA_TYPES = [
 // Anchor-free identifier fragment for connection-target URIs; embed inside `^…$`.
 export const AGENTFABRIC_IDENTIFIER_PATTERN =
   '[a-zA-Z][a-zA-Z0-9_.-]*[a-zA-Z0-9]';
+
+// Anchor-free path fragment for the connection-target portion after the scheme
+// (e.g. the `…` in `mcp://…`). Accepts one, two, or three `/`-separated
+// identifier segments so that all three connection-reference shapes resolve:
+//   - bare connection name — `myConnection`
+//   - same-group qualified reference — `<assetId>/<name>`
+//     (e.g. `projectA/myConnection`)
+//   - fully-qualified cross-project reference — `<groupId>/<assetId>/<name>`
+//     (e.g. `cocacola/projectA/myConnection`)
+// Same-group deps accept both the two-segment and three-segment forms. Each
+// segment is a standard identifier; `/` is only a separator, so the leading one
+// or two qualifier segments are optional. Embed inside `^…$`.
+export const AGENTFABRIC_TARGET_PATTERN = `(?:${AGENTFABRIC_IDENTIFIER_PATTERN}/){0,2}${AGENTFABRIC_IDENTIFIER_PATTERN}`;

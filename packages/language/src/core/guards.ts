@@ -24,7 +24,12 @@ import {
   AtIdentifier,
 } from './expressions.js';
 
-import { IfStatement, TransitionStatement, ToClause } from './statements.js';
+import {
+  IfStatement,
+  SayStatement,
+  TransitionStatement,
+  ToClause,
+} from './statements.js';
 import type { SetClause, WithClause } from './statements.js';
 
 // ── Expression guards ────────────────────────────────────────────────
@@ -87,4 +92,8 @@ export function isSetClause(node: unknown): node is SetClause {
 
 export function isWithClause(node: unknown): node is WithClause {
   return isAstNodeLike(node) && node.__kind === 'WithClause';
+}
+
+export function isSayStatement(node: unknown): node is SayStatement {
+  return node instanceof SayStatement;
 }

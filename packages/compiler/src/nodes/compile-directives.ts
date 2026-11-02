@@ -7,21 +7,20 @@
 
 import type { Statement } from '@agentscript/language';
 import {
-  WithClause,
   SetClause,
   ToClause,
   RunStatement,
   IfStatement,
   TransitionStatement,
   EscalateStatement,
+  EndSessionStatement,
   CollectClause,
   Template,
   UnknownStatement,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
-import type { Action, HandOffAction, StateUpdate } from '../types.js';
+import type { Action, HandOffAction } from '../types.js';
 import {
-  STATE_UPDATE_ACTION,
   NEXT_TOPIC_VARIABLE,
   EMPTY_TOPIC_VALUE,
   NEXT_TOPIC_EMPTY_CONDITION,
@@ -30,6 +29,7 @@ import {
   chainConditionVariableName,
   EMPTY_ESCALATION_NODE_VALUE,
   ESCALATION_TARGET,
+  END_SESSION_TARGET,
 } from '../constants.js';
 import { compileExpression } from '../expressions/compile-expression.js';
 import { compileTemplateValue } from '../expressions/compile-template.js';
@@ -42,11 +42,24 @@ import {
   collectStepsFromStatements,
   buildPriorGuardByTarget,
 } from './compile-collect.js';
-import { isElseIfChainHead, walkElseIfChain } from './else-if-chain.js';
+import {
+  isElseIfChainHead,
+  walkElseIfChain,
+  advanceConditionSlotBaseIfFileGated,
+} from './else-if-chain.js';
+import {
+  optimizeDirectiveActions,
+  instructionAppendValue,
+  createStateUpdateAction,
+  createInstructionResetAction,
+} from './optimize-actions.js';
+import { compileDeterministicRunInputs } from './compile-run-inputs.js';
 
 /**
- * Compile a list of deterministic directives (before_reasoning, after_reasoning)
- * into Action[] and HandOffAction[].
+ * Compile a list of deterministic directives (before_reasoning, after_reasoning,
+ * procedural instructions) into one ordered list. Most directives emit only
+ * Actions; `transition`, `escalate`, and `end_session` also emit a HandOffAction,
+ * so the result genuinely mixes both kinds in source order.
  */
 export function compileDeterministicDirectives(
   directives: Statement[],
@@ -99,18 +112,24 @@ export function compileDeterministicDirectives(
     result.push(...actions);
   }
 
-  // On the instruction-injection path, fuse adjacent same-gate instruction
-  // appends (e.g. consecutive top-level `| ...` lines) into one state update.
-  // The presence of `agentInstructionsVariable` is exactly the signal that
-  // directives are appending to the agent-instructions template.
-  if (agentInstructionsVariable) {
-    return mergeAdjacentInstructionAppends(result, agentInstructionsVariable);
+  // When optimization is disabled, emit the pre-optimization graph: one action
+  // per directive. The per-turn instruction reset is still REQUIRED lowering —
+  // without it the agent-instructions template accumulates text across turns
+  // instead of rebuilding each turn — so a standalone reset is still prepended
+  // when directives append to the template.
+  if (!ctx.optimize) {
+    return agentInstructionsVariable
+      ? [createInstructionResetAction(agentInstructionsVariable), ...result]
+      : result;
   }
 
-  return result;
+  // Otherwise fuse instruction appends, fold the per-turn reset into the first
+  // unconditional append, and fuse adjacent same-gate state-update envelopes
+  // (optimization 4a). See optimize-actions.ts for the full ordering contract.
+  return optimizeDirectiveActions(result, { agentInstructionsVariable });
 }
 
-interface DirectiveOptions {
+export interface DirectiveOptions {
   addNextTopicResetAction?: boolean;
   gateOnNextTopicEmpty?: boolean;
   agentInstructionsVariable?: string;
@@ -161,6 +180,9 @@ function compileDirective(
   if (stmt instanceof EscalateStatement) {
     return compileEscalateDirective(dctx);
   }
+  if (stmt instanceof EndSessionStatement) {
+    return compileEndSessionDirective(ctx, dctx);
+  }
   if (stmt instanceof CollectClause) {
     return compileCollectDirective(stmt, ctx, dctx);
   }
@@ -187,7 +209,7 @@ function compileRunDirective(
   stmt: RunStatement,
   ctx: CompilerContext,
   dctx: DirectiveContext
-): (Action | HandOffAction)[] {
+): Action[] {
   const target = resolveAtReference(
     stmt.target,
     'actions',
@@ -196,30 +218,15 @@ function compileRunDirective(
   );
   if (!target) return [];
 
-  const boundInputs: Record<string, string> = {};
-  const stateUpdates: StateUpdate[] = [];
-
-  for (const child of stmt.body) {
-    if (child instanceof WithClause) {
-      const compiledValue = compileExpression(child.value, ctx, {
-        expressionContext: "'with' clause",
-      });
-      boundInputs[child.param] = compiledValue;
-    } else if (child instanceof SetClause) {
-      const varName = resolveAtReference(
-        child.target,
-        'variables',
-        ctx,
-        'variable name'
-      );
-      if (varName) {
-        const compiledValue = compileExpression(child.value, ctx, {
-          expressionContext: "'set' clause",
-        });
-        stateUpdates.push({ [varName]: compiledValue });
-      }
-    }
-  }
+  // Deterministic run: reject LLM-filled inputs (they would land as a literal
+  // `...` in bound_inputs and fail at runtime) and warn on missing required
+  // inputs. `llm_inputs` stays empty — these runs never call the LLM.
+  const { boundInputs, stateUpdates } = compileDeterministicRunInputs(
+    stmt,
+    target,
+    ctx,
+    'variables'
+  );
 
   const enabled = buildEnabledCondition(dctx);
 
@@ -245,7 +252,7 @@ function compileSetDirective(
   stmt: SetClause,
   ctx: CompilerContext,
   dctx: DirectiveContext
-): (Action | HandOffAction)[] {
+): Action[] {
   const varName = resolveAtReference(
     stmt.target,
     'variables',
@@ -319,7 +326,7 @@ function compileTransitionDirective(
 
 function compileEscalateDirective(
   dctx: DirectiveContext
-): (Action | HandOffAction)[] {
+): [Action, HandOffAction] {
   const enabled = buildEnabledCondition(dctx);
   return [
     createStateUpdateAction(
@@ -336,6 +343,54 @@ function compileEscalateDirective(
 }
 
 // ---------------------------------------------------------------------------
+// End session statement
+// ---------------------------------------------------------------------------
+
+/**
+ * Compile a deterministic `end_session` statement.
+ *
+ * Emits two actions, mirroring the shape agreed with the runtime team:
+ *
+ *   1. An action targeting `__end_session_action__` — shaped like a state update
+ *      but carrying only the synthetic target (no state_updates). This ends the
+ *      session. `end_turn_first` is NOT a field on `action` in the agent-dsl
+ *      schema, so it is not set here.
+ *   2. A handoff with `end_turn_first: true` so a deterministic hook finishes the
+ *      current turn and the session "just ends". The handoff target must be a
+ *      valid node but is otherwise irrelevant (the session ends before the
+ *      handoff resolves), so we use the current node, falling back to the start
+ *      agent.
+ *
+ * When inside an `if` (or gated on next_topic being empty) the surrounding
+ * condition is applied to both via `enabled`.
+ */
+function compileEndSessionDirective(
+  ctx: CompilerContext,
+  dctx: DirectiveContext
+): [Action, HandOffAction] {
+  const enabled = buildEnabledCondition(dctx);
+
+  const action: Action = {
+    type: 'action',
+    target: END_SESSION_TARGET,
+  };
+  if (enabled) {
+    action.enabled = enabled;
+  }
+
+  const handoff: HandOffAction = {
+    type: 'handoff',
+    target: dctx.topicName || ctx.initialNode || '',
+    end_turn_first: true,
+  };
+  if (enabled) {
+    handoff.enabled = enabled;
+  }
+
+  return [action, handoff];
+}
+
+// ---------------------------------------------------------------------------
 // Collect statement (gather one field at a time)
 // ---------------------------------------------------------------------------
 
@@ -343,7 +398,7 @@ function compileCollectDirective(
   stmt: CollectClause,
   ctx: CompilerContext,
   dctx: DirectiveContext
-): (Action | HandOffAction)[] {
+): Action[] {
   const varName = resolveCollectTarget(stmt, ctx);
   if (!varName) return [];
 
@@ -417,11 +472,10 @@ function compileIfDirective(
 }
 
 /**
- * Compile a non-chain `if [/ else]`. Writes the compiled condition into
- * `AgentScriptInternal_condition_1` and gates the body / else off it.
- *
- * Sequential plain ifs reuse slot 1: each one writes before its body
- * executes and no later read crosses the boundary.
+ * Compile a non-chain `if [/ else]`. Writes the compiled condition into slot
+ * `ctx.nodeConditionSlotBase + 1` and gates the body / else off it. Sequential
+ * plain ifs reuse the same slot (each writes before its body runs); the base is
+ * bumped only to reserve slots a captured file reference gates on.
  */
 function compilePlainIfDirective(
   stmt: IfStatement,
@@ -429,13 +483,18 @@ function compilePlainIfDirective(
   dctx: DirectiveContext
 ): (Action | HandOffAction)[] {
   const result: (Action | HandOffAction)[] = [];
+  const fileRefCountBefore = ctx.fileCapture.count;
 
   const condition = compileExpression(stmt.condition, ctx, {
     expressionContext: "'if' condition",
   });
 
-  const slotName = chainConditionVariableName(1);
-  ctx.maxChainConditionSlot = Math.max(ctx.maxChainConditionSlot ?? 0, 1);
+  const slotIndex = ctx.nodeConditionSlotBase + 1;
+  const slotName = chainConditionVariableName(slotIndex);
+  ctx.maxChainConditionSlot = Math.max(
+    ctx.maxChainConditionSlot ?? 0,
+    slotIndex
+  );
 
   const condEnabled =
     buildEnabledCondition(dctx) ??
@@ -471,6 +530,8 @@ function compilePlainIfDirective(
     dctx.conditionStack.pop();
   }
 
+  advanceConditionSlotBaseIfFileGated(ctx, fileRefCountBefore, slotIndex);
+
   return result;
 }
 
@@ -492,7 +553,12 @@ function compileChainIfDirective(
   dctx: DirectiveContext
 ): (Action | HandOffAction)[] {
   const result: (Action | HandOffAction)[] = [];
-  const { branches, elseBody } = walkElseIfChain(head, ctx, "'if' condition");
+  const fileRefCountBefore = ctx.fileCapture.count;
+  const { branches, elseBody, maxSlotIndex } = walkElseIfChain(
+    head,
+    ctx,
+    "'if' condition"
+  );
 
   // For each branch: emit the condition-write action, then compile the body
   // with prior branches' slots negated and this branch's slot positive.
@@ -538,6 +604,8 @@ function compileChainIfDirective(
     }
   }
 
+  advanceConditionSlotBaseIfFileGated(ctx, fileRefCountBefore, maxSlotIndex);
+
   return result;
 }
 
@@ -549,14 +617,16 @@ function compileTemplateDirective(
   stmt: Template,
   ctx: CompilerContext,
   dctx: DirectiveContext
-): (Action | HandOffAction)[] {
+): Action[] {
+  const enabled = buildEnabledCondition(dctx);
+  ctx.fileCapture.pushCondition(enabled ?? undefined);
   const content = compileTemplateValue(stmt, ctx, {
     allowActionReferences: true,
   });
+  ctx.fileCapture.popCondition();
   if (!content) return [];
 
   const varName = dctx.agentInstructionsVariable ?? AGENT_INSTRUCTIONS_VARIABLE;
-  const enabled = buildEnabledCondition(dctx);
 
   const action = createStateUpdateAction(
     [{ [varName]: instructionAppendValue(varName, content) }],
@@ -615,103 +685,6 @@ class ConditionStack {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * The value written by an instruction-append state update: the running template
- * variable followed by the newline-prefixed appended `text`. Because each append
- * concatenates onto the previous value, this is the one place the wire format is
- * defined — both the directive constructors and the merge post-pass derive from
- * it so they cannot drift.
- */
-function instructionAppendPrefix(varName: string): string {
-  return `template::{{state.${varName}}}\n`;
-}
-
-export function instructionAppendValue(varName: string, text: string): string {
-  return `${instructionAppendPrefix(varName)}${text}`;
-}
-
-/**
- * Merge adjacent instruction-append actions that share the same `enabled` gate
- * into a single append, so N consecutive ungated (or identically-gated) `| ...`
- * lines produce ONE state update instead of N.
- *
- * Only actions that append to `varName` (value shaped
- * `template::{{state.<var>}}\n<text>`) with an equal gate are fused; anything
- * else — the reset, condition sets, transitions, and oppositely-gated if/else
- * bodies — is a merge boundary and passes through untouched. Because each append
- * concatenates onto the running state value, fusing `\n<textA>` and `\n<textB>`
- * under one prefix yields byte-identical final state.
- */
-function mergeAdjacentInstructionAppends(
-  actions: (Action | HandOffAction)[],
-  varName: string
-): (Action | HandOffAction)[] {
-  const prefix = instructionAppendPrefix(varName);
-
-  // Returns the appended text (portion after the prefix) if `action` is a plain
-  // single-key append to `varName`, else null (making it a merge boundary).
-  const appendText = (action: Action | HandOffAction): string | null => {
-    if (action.target !== STATE_UPDATE_ACTION) return null;
-    const updates = (action as Action).state_updates;
-    if (!updates || updates.length !== 1) return null;
-    const update = updates[0];
-    const keys = Object.keys(update);
-    if (keys.length !== 1 || keys[0] !== varName) return null;
-    const value = update[varName];
-    if (typeof value !== 'string' || !value.startsWith(prefix)) return null;
-    return value.slice(prefix.length);
-  };
-
-  const merged: (Action | HandOffAction)[] = [];
-  let prevText: string | null = null;
-  for (const action of actions) {
-    const prev = merged[merged.length - 1];
-    const text = appendText(action);
-    // Same gate? (both ungated, or identical condition string)
-    if (
-      prev &&
-      text !== null &&
-      prevText !== null &&
-      ((prev as Action).enabled ?? undefined) === (action.enabled ?? undefined)
-    ) {
-      prevText = `${prevText}\n${text}`;
-      (prev as Action).state_updates = [
-        { [varName]: instructionAppendValue(varName, prevText) },
-      ];
-      continue;
-    }
-    merged.push(action);
-    prevText = text;
-  }
-  return merged;
-}
-
-/**
- * The per-turn reset that clears the agent-instructions template variable back
- * to `''` before appends re-accumulate it. Always enabled.
- */
-export function createInstructionResetAction(
-  varName: string = AGENT_INSTRUCTIONS_VARIABLE
-): Action {
-  return createStateUpdateAction([{ [varName]: "''" }], 'True');
-}
-
-export function createStateUpdateAction(
-  stateUpdates: StateUpdate[],
-  enabled?: string | null
-): Action {
-  const action: Action = {
-    type: 'action',
-    target: STATE_UPDATE_ACTION,
-    enabled: enabled ?? undefined,
-    state_updates: stateUpdates,
-  };
-  if (action.enabled === undefined) {
-    delete action.enabled;
-  }
-  return action;
-}
 
 function buildEnabledCondition(dctx: DirectiveContext): string | null {
   const parts: string[] = [];

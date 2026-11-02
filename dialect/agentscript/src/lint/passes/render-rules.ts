@@ -11,10 +11,16 @@
  * - Error when a `when @connection.X` block has no `render:` clause.
  * - Error when a `render:` clause appears outside a `when` block.
  * - Error when a `show_and_return:` clause appears outside a `render:` body.
+ * - Error when a `when @connection` clause appears outside a reasoning action
+ *   body (e.g. at the top level, or nested in an `if`/`run`/another `when`).
  * - Error when a `when` body has more than one `render:` clause.
  * - Error when two `when @connection.X` blocks under the same action target the
  *   same connection (a connection may have at most one render rule per action).
  * - Error when a `render:` body has more than one `show_and_return:` clause.
+ * - Error when a `render:` body contains anything other than `with` bindings
+ *   and `show_and_return:` (e.g. `if`/`set`/`run`/`escalate`).
+ * - Error when a `when @connection` body contains anything other than a
+ *   `render:` clause.
  * - Error when `render:` value is not `@response_formats.<name>` or
  *   `@connection.<X>.response_formats.<name>`.
  * - Error when a longform format ref names a different connection than the
@@ -30,9 +36,12 @@
  *   render-rule-empty-when (Error)
  *   render-outside-when (Error)
  *   show-and-return-outside-render (Error)
+ *   when-connection-outside-action (Error)
  *   render-rule-multiple-render (Error)
  *   render-rule-duplicate-connection (Error)
  *   render-rule-multiple-show-and-return (Error)
+ *   render-rule-unsupported-statement (Error)
+ *   render-rule-unsupported-when-statement (Error)
  *   when-non-connection-ref (Error)
  *   render-rule-invalid-format-ref (Error)
  *   render-rule-format-not-in-connection (Error)
@@ -40,14 +49,6 @@
  *   render-rule-show-and-return-not-bool (Error)
  *   response-format-reserved-name (Error)
  */
-
-/**
- * Reserved built-in response-format names — always resolvable under
- * `@response_formats.<name>` regardless of what the enclosing connection
- * declares, and forbidden as user-declared `response_formats:` entry names.
- * Kept in sync with the compiler's `BUILT_IN_RESPONSE_FORMATS`.
- */
-const RESERVED_RESPONSE_FORMAT_NAMES = new Set(['json']);
 
 import type {
   AstNodeLike,
@@ -70,6 +71,7 @@ import {
   resolveNamespaceKeys,
   schemaContextKey,
   storeKey,
+  RESERVED_BUILT_IN_RESPONSE_FORMATS,
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { reasoningActionsKey } from './reasoning-actions.js';
@@ -119,7 +121,7 @@ class ConnectionFormatsAnalyzer implements LintPass {
             formatBlock,
           ] of formats as NamedMap<unknown>) {
             names.push(formatName);
-            if (RESERVED_RESPONSE_FORMAT_NAMES.has(formatName)) {
+            if (RESERVED_BUILT_IN_RESPONSE_FORMATS.includes(formatName)) {
               const range = rangeOf(formatBlock);
               if (range) {
                 attachDiagnostic(
@@ -155,6 +157,32 @@ function isKind(stmt: unknown, kind: string): stmt is StmtNode {
   );
 }
 
+const RENDER_BODY_ALLOWED_KINDS = new Set([
+  'ShowAndReturnStatement',
+  'WithClause',
+]);
+
+/**
+ * Emit `render-rule-unsupported-*` for one statement, naming its verbatim
+ * leading keyword (the first CST token — `if`, `set`, `with`, …) in the message.
+ */
+function flagUnsupportedStatement(
+  stmt: unknown,
+  message: (what: string) => string,
+  code: string
+): void {
+  const range = rangeOf(stmt);
+  if (!range) return;
+  const keyword = (
+    stmt as { __cst?: CstMeta }
+  ).__cst?.node?.children?.[0]?.text?.trim();
+  const what = keyword ? `'${keyword}'` : 'this statement';
+  attachDiagnostic(
+    stmt as AstNodeLike,
+    lintDiagnostic(range, message(what), DiagnosticSeverity.Error, code)
+  );
+}
+
 function rangeOf(stmt: unknown): CstMeta['range'] | undefined {
   const cst = (stmt as { __cst?: CstMeta } | null)?.__cst;
   return cst?.range;
@@ -166,12 +194,12 @@ function rangeOf(stmt: unknown): CstMeta['range'] | undefined {
  * shortform refs (`@response_formats.Y`) leave it undefined and rely on the
  * enclosing `when @connection.X:` for scope.
  */
-interface ParsedFormatRef {
+export interface ParsedFormatRef {
   connection: string | undefined;
   name: string;
 }
 
-function parseFormatRef(expr: unknown): ParsedFormatRef | null {
+export function parseFormatRef(expr: unknown): ParsedFormatRef | null {
   const chain = decomposeAtMemberChain(expr);
   if (!chain) return null;
   const { namespace, path } = chain;
@@ -204,42 +232,20 @@ export function renderRulesRule(): LintPass {
       const { statements } = entry;
       if (!statements) return;
 
+      // A non-`actions` target (e.g. a connected_subagent) can't carry render
+      // rules — the reasoning-actions pass already flags it with
+      // `when-non-action-binding`. Skip content validation here so we don't pile
+      // redundant diagnostics onto an already-rejected block.
+      if (entry.namespace !== 'actions') return;
+
       // Track which connections already have a `when @connection.X` block
       const seenConnections = new Set<string>();
 
       for (const stmt of statements) {
-        if (isKind(stmt, 'RenderStatement')) {
-          const range = rangeOf(stmt);
-          if (range) {
-            attachDiagnostic(
-              stmt,
-              lintDiagnostic(
-                range,
-                "render can only be used within a 'when @connection.<surface>' block",
-                DiagnosticSeverity.Error,
-                'render-outside-when'
-              )
-            );
-          }
-          continue;
-        }
-
-        if (isKind(stmt, 'ShowAndReturnStatement')) {
-          const range = rangeOf(stmt);
-          if (range) {
-            attachDiagnostic(
-              stmt,
-              lintDiagnostic(
-                range,
-                "'show_and_return:' must appear nested inside a 'render:' clause",
-                DiagnosticSeverity.Error,
-                'show-and-return-outside-render'
-              )
-            );
-          }
-          continue;
-        }
-
+        // Placement of misplaced render:/show_and_return: (siblings of the
+        // action, not nested in a when/render) is owned by RenderRuleScopePass,
+        // which walks every node regardless of target resolution. Here we only
+        // validate the content of well-placed `when @connection` blocks.
         if (!isKind(stmt, 'WhenStatement')) continue;
 
         // Enforce that the `when` block's subject is `@connection.<surface>`.
@@ -297,24 +303,18 @@ export function renderRulesRule(): LintPass {
         const body = (stmt as { body?: unknown[] }).body ?? [];
         const renderStmts = body.filter(s => isKind(s, 'RenderStatement'));
 
-        // Any `show_and_return:` sibling directly under `when` (i.e. not nested
-        // inside a `render:`) is invalid — flag every such statement.
-        const strayShowAndReturns = body.filter(s =>
-          isKind(s, 'ShowAndReturnStatement')
-        );
-        for (const stray of strayShowAndReturns) {
-          const range = rangeOf(stray);
-          if (range) {
-            attachDiagnostic(
-              stray,
-              lintDiagnostic(
-                range,
-                "'show_and_return:' must appear nested inside a 'render:' clause",
-                DiagnosticSeverity.Error,
-                'show-and-return-outside-render'
-              )
-            );
-          }
+        // Only `render:` may sit directly under `when`. A `show_and_return:`
+        // sibling here is a misplacement owned by RenderRuleScopePass; any other
+        // statement is flagged as unsupported.
+        for (const child of body) {
+          if (isKind(child, 'RenderStatement')) continue;
+          if (isKind(child, 'ShowAndReturnStatement')) continue;
+          flagUnsupportedStatement(
+            child,
+            what =>
+              `Invalid ${what} under 'when @connection:' — only 'render:' is allowed`,
+            'render-rule-unsupported-when-statement'
+          );
         }
 
         if (renderStmts.length === 0) {
@@ -348,9 +348,7 @@ export function renderRulesRule(): LintPass {
         }
 
         // Validate every `render:` body — each may contain at most one
-        // `show_and_return:` clause. Sibling `show_and_return:` directly under
-        // `when` is now caught by the top-level ShowAndReturnStatement branch
-        // above.
+        // `show_and_return:` clause.
         for (const render of renderStmts) {
           // Validate the render: value is a supported format reference.
           const renderValue = (render as { value?: unknown }).value;
@@ -386,7 +384,9 @@ export function renderRulesRule(): LintPass {
                   )
                 );
               }
-            } else if (!RESERVED_RESPONSE_FORMAT_NAMES.has(parsed.name)) {
+            } else if (
+              !RESERVED_BUILT_IN_RESPONSE_FORMATS.includes(parsed.name)
+            ) {
               // Ownership check: non-reserved names must live in this
               // connection's response_formats sub-map. Skipped when the index
               // has no entry for the connection (unknown/undefined connection
@@ -410,6 +410,23 @@ export function renderRulesRule(): LintPass {
 
           const renderBody =
             (render as { body?: unknown[] }).body ?? ([] as unknown[]);
+
+          // Only `with` bindings and `show_and_return:` may sit directly under
+          // `render:`; anything else is unsupported.
+          for (const child of renderBody) {
+            const kind =
+              isAstNodeLike(child) && typeof child.__kind === 'string'
+                ? child.__kind
+                : undefined;
+            if (!kind || RENDER_BODY_ALLOWED_KINDS.has(kind)) continue;
+            flagUnsupportedStatement(
+              child,
+              what =>
+                `Invalid ${what} under 'render:' — only 'with' and 'show_and_return:' are allowed`,
+              'render-rule-unsupported-statement'
+            );
+          }
+
           const showAndReturnStmts = renderBody.filter(s =>
             isKind(s, 'ShowAndReturnStatement')
           );
@@ -469,6 +486,9 @@ export function renderRulesRule(): LintPass {
  * `renderRulesRule` (which only inspects the top-level statement list of each
  * reasoning action).
  *
+ * (Whether the action's target may carry render rules at all is a separate
+ * concern owned by the reasoning-actions pass's `when-non-action-binding`.)
+ *
  * Diagnostic codes:
  *   render-outside-when (Error) — for RenderStatement outside reasoning action
  *   show-and-return-outside-render (Error) — for ShowAndReturnStatement outside reasoning action
@@ -479,7 +499,7 @@ class RenderRuleScopePass implements LintPass {
   readonly description =
     'Detects render/show_and_return/when-connection statements outside a reasoning action body';
 
-  private stack: string[] = [];
+  private stack: AstNodeLike[] = [];
 
   init(): void {
     this.stack = [];
@@ -494,7 +514,10 @@ class RenderRuleScopePass implements LintPass {
       kind === 'ShowAndReturnStatement' ||
       kind === 'WhenStatement'
     ) {
-      if (!this.isInsideReasoningAction()) {
+      // Placement is validated by the direct parent, so it fires regardless of
+      // whether the enclosing action's target resolves — a stray render: is
+      // still caught under an unresolved @connected_subagent.X target.
+      if (!this.isWellPlaced(kind)) {
         const range = (value.__cst as CstMeta | undefined)?.range;
         if (range) {
           const { message, code } = misplacedMessage(kind);
@@ -506,7 +529,7 @@ class RenderRuleScopePass implements LintPass {
       }
     }
 
-    this.stack.push(typeof kind === 'string' ? kind : '');
+    this.stack.push(value);
   }
 
   exitNode(_key: string, value: unknown, _parent: unknown): void {
@@ -519,28 +542,26 @@ class RenderRuleScopePass implements LintPass {
   }
 
   /**
-   * A statement is "inside a reasoning action" when we can walk up the ancestor
-   * chain and reach a ReasoningActionBlock without crossing another
-   * statement-scope boundary. WhenStatement and RenderStatement are
-   * transparent — legitimate nested render/show_and_return statements live
-   * inside them. Crossing an if/else/run/collect body means we're in a nested
-   * conditional/action scope, which is not a valid location.
+   * A render:/show_and_return:/when statement is well-placed when its direct
+   * structural parent is the one construct that may contain it:
+   *   render:          → a `when` block
+   *   show_and_return: → a `render:` clause
+   *   when @connection → a reasoning action body
+   * Any other parent (top level, if/run body, sibling of the action, a `when`
+   * nested in another `when`) is a misplacement.
    */
-  private isInsideReasoningAction(): boolean {
-    for (let i = this.stack.length - 1; i >= 0; i--) {
-      const kind = this.stack[i];
-      if (kind === 'ReasoningActionBlock') return true;
-      if (
-        kind === 'IfStatement' ||
-        kind === 'RunStatement' ||
-        kind === 'CollectClause'
-      ) {
-        return false;
-      }
-      // WhenStatement and RenderStatement are transparent —
-      // nested render:/show_and_return: statements inside them are legitimate.
-    }
-    return false;
+  private isWellPlaced(kind: string): boolean {
+    const parent = this.nearestAncestorKind();
+    if (kind === 'RenderStatement') return parent === 'WhenStatement';
+    if (kind === 'ShowAndReturnStatement') return parent === 'RenderStatement';
+    return parent === 'ReasoningActionBlock';
+  }
+
+  /** `__kind` of the nearest enclosing AST node, or undefined at the root. */
+  private nearestAncestorKind(): string | undefined {
+    return this.stack.length
+      ? this.stack[this.stack.length - 1].__kind
+      : undefined;
   }
 }
 
@@ -621,6 +642,15 @@ function walkForRenderTargets(
     if (isAstNodeLike(value)) {
       collectMemberChainNodes(value, validatedRefs);
     }
+    // Short-form `@inputs.Y` values inside `with` bindings can't be resolved by
+    // undefined-reference here — the enclosing connection is named by the
+    // `when @connection.X`, not lexically. The render-with binding pass
+    // validates them against that connection instead, so exempt them.
+    const body = (node as { body?: unknown[] }).body ?? [];
+    for (const stmt of body) {
+      if (!isAstNodeLike(stmt) || stmt.__kind !== 'WithClause') continue;
+      collectShortInputRefs((stmt as { value?: unknown }).value, validatedRefs);
+    }
     return;
   }
 
@@ -649,6 +679,29 @@ function collectMemberChainNodes(
     if (current.__kind !== 'MemberExpression') break;
     current = (current as { object?: unknown }).object;
   }
+}
+
+/**
+ * Register every short-form `@inputs.X` member chain reachable from a `with`
+ * binding value — including inside inline dict/list literals — so
+ * undefined-reference skips them. Long-form `@connection.X.inputs.Y` chains
+ * resolve normally and are left alone.
+ */
+function collectShortInputRefs(
+  node: unknown,
+  validatedRefs: Set<AstNodeLike>
+): void {
+  if (!node || typeof node !== 'object') return;
+  if (isAstNodeLike(node)) {
+    const chain = decomposeAtMemberChain(node);
+    if (chain && chain.namespace === 'inputs') {
+      collectMemberChainNodes(node, validatedRefs);
+      return;
+    }
+  }
+  recurseAstChildren(node as AstNodeLike, (_key, child) =>
+    collectShortInputRefs(child, validatedRefs)
+  );
 }
 
 export function renderTargetExemptionPass(): LintPass {

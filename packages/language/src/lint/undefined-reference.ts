@@ -201,7 +201,9 @@ function findReferencedBlock(
     if (!isAstNodeLike(parent) || isNamedMap(parent)) continue;
 
     if (scopesRequired) {
-      if (!parent.__scope || !scopesRequired.has(parent.__scope)) continue;
+      const isRoot = j === 0;
+      if (!isRoot && (!parent.__scope || !scopesRequired.has(parent.__scope)))
+        continue;
     }
 
     const refMap = parent[ref.namespace];
@@ -607,9 +609,9 @@ function formatResolutionDiagnostic(
         range,
         `'${property}' is not defined in ${namespace}`,
         referenceName,
-        property,
         suggestion,
-        result.members
+        result.members,
+        property
       );
     }
 
@@ -619,9 +621,9 @@ function formatResolutionDiagnostic(
         range,
         `'@${namespace}' is not a recognized namespace`,
         referenceName,
-        namespace,
         suggestion,
-        result.knownNamespaces
+        result.knownNamespaces,
+        namespace
       );
     }
 
@@ -631,6 +633,8 @@ function formatResolutionDiagnostic(
         `'@${namespace}' cannot be used as a reference. ` +
           `This namespace is scoped to its parent block and is not directly referenceable`,
         referenceName,
+        undefined,
+        undefined,
         namespace
       );
 
@@ -640,9 +644,9 @@ function formatResolutionDiagnostic(
         range,
         `'${property}' is not defined in ${namespace}`,
         referenceName,
-        property,
         suggestion,
-        result.members
+        result.members,
+        property
       );
     }
 
@@ -652,9 +656,9 @@ function formatResolutionDiagnostic(
         range,
         `'${property}' is not defined in ${namespace}`,
         referenceName,
-        property,
         suggestion,
-        result.candidates
+        result.candidates,
+        property
       );
     }
   }
@@ -807,9 +811,9 @@ function resolveNestedGlobalCheck(
     cst.range,
     `'${check.member}' is not defined in ${namespaceLabel}`,
     referenceName,
-    check.member,
     suggestion,
-    members
+    members,
+    check.member
   );
 }
 
@@ -846,9 +850,9 @@ function resolveListElementAttrCheck(
     cst.range,
     `'${check.attr}' is not defined on ${namespaceLabel} elements`,
     referenceName,
-    check.attr,
     suggestion,
-    members
+    members,
+    check.attr
   );
 }
 

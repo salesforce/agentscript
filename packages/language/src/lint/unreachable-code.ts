@@ -21,6 +21,8 @@ import {
   IfStatement,
   RunStatement,
   TransitionStatement,
+  EscalateStatement,
+  EndSessionStatement,
 } from '../core/statements.js';
 
 /**
@@ -29,6 +31,10 @@ import {
  */
 function isTerminal(stmt: Statement): boolean {
   if (stmt instanceof TransitionStatement) return true;
+  // `escalate` hands off to a human and `end_session` ends the session; in
+  // both cases control flow never continues past the statement.
+  if (stmt instanceof EscalateStatement) return true;
+  if (stmt instanceof EndSessionStatement) return true;
 
   if (stmt instanceof IfStatement) {
     if (stmt.orelse.length === 0) return false;
@@ -56,6 +62,20 @@ function unreachableMessage(terminalStmt: Statement): string {
     return (
       "Code will never execute after 'transition'. " +
       'Move this code before the transition, or wrap the transition in a conditional block.'
+    );
+  }
+
+  if (terminalStmt instanceof EscalateStatement) {
+    return (
+      "Code will never execute after 'escalate'. " +
+      'Move this code before the escalate, or wrap the escalate in a conditional block.'
+    );
+  }
+
+  if (terminalStmt instanceof EndSessionStatement) {
+    return (
+      "Code will never execute after 'end_session'. " +
+      'Move this code before the end_session, or wrap the end_session in a conditional block.'
     );
   }
 

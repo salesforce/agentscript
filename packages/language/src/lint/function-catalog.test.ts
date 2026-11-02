@@ -79,9 +79,19 @@ describe('function catalog', () => {
         name,
         minArgs: 1,
         maxArgs: 1,
+        allowedKeywords: [],
       });
     }
   );
+
+  it('defines concat as zero-or-more variadic with only sep allowed', () => {
+    expect(BUILTIN_CATALOG.get('concat')).toMatchObject({
+      name: 'concat',
+      minArgs: 0,
+      maxArgs: null,
+      allowedKeywords: ['sep'],
+    });
+  });
 
   it('creates permissive definitions from legacy names', () => {
     const catalog = catalogFromNames(new Set(['custom']));
@@ -113,6 +123,75 @@ describe('function catalog', () => {
     expect(getDiagnostics('custom(1)', { catalog })).toEqual([]);
     expect(receivedArgumentCount).toBe(1);
     expect(receivedExpressionCount).toBe(1);
+  });
+});
+
+describe('concat call validation', () => {
+  it('accepts positional string parts', () => {
+    expect(getDiagnostics('concat("a", "b", "c")')).toEqual([]);
+  });
+
+  it('accepts a list-of-strings variable part with a sep keyword', () => {
+    expect(getDiagnostics('concat(@variables.parts, sep=", ")')).toEqual([]);
+  });
+
+  it('accepts concat with no arguments', () => {
+    expect(getDiagnostics('concat()')).toEqual([]);
+  });
+
+  it('accepts a lone sep keyword with no parts to concatenate', () => {
+    expect(getDiagnostics('concat(sep=", ")')).toEqual([]);
+  });
+
+  it('rejects a positional argument after sep', () => {
+    expect(getDiagnostics('concat(sep=", ", "a")')).toEqual([
+      expect.objectContaining({
+        code: 'invalid-function-argument-order',
+        message: expect.stringContaining(
+          'Positional arguments cannot follow keyword arguments'
+        ),
+      }),
+    ]);
+  });
+
+  it('rejects keyword arguments other than sep', () => {
+    expect(getDiagnostics('concat("a", joiner=", ")')).toEqual([
+      expect.objectContaining({
+        code: 'invalid-function-keyword',
+        message: expect.stringContaining(
+          "only accepts the keyword argument 'sep'"
+        ),
+      }),
+    ]);
+  });
+
+  it('rejects a duplicated sep keyword', () => {
+    expect(getDiagnostics('concat("a", sep="-", sep="_")')).toEqual([
+      expect.objectContaining({
+        code: 'duplicate-function-keyword',
+        message: expect.stringContaining('more than once'),
+      }),
+    ]);
+  });
+
+  it('rejects keyword arguments for strict non-concat builtins', () => {
+    expect(getDiagnostics('lower(value="A")')).toEqual([
+      expect.objectContaining({
+        code: 'invalid-function-keyword',
+        message: expect.stringContaining(
+          "does not accept keyword arguments, but got 'value'"
+        ),
+      }),
+    ]);
+  });
+
+  it('reports an unknown nested function inside sep', () => {
+    expect(getDiagnostics('concat("a", sep=unknown())')).toEqual([
+      expect.objectContaining({
+        code: 'unknown-function',
+        message: expect.stringContaining("'unknown'"),
+      }),
+    ]);
   });
 });
 
@@ -154,6 +233,34 @@ describe('function catalog compatibility', () => {
     ).toEqual([]);
   });
 
+  it('keeps keyword names permissive for legacy direct functions', () => {
+    expect(
+      getDiagnostics('custom(value=1)', {
+        functions: new Set(['custom']),
+      })
+    ).toEqual([]);
+  });
+
+  it('still rejects duplicate keywords for legacy direct functions', () => {
+    expect(
+      getDiagnostics('custom(value=1, value=2)', {
+        functions: new Set(['custom']),
+      })
+    ).toEqual([
+      expect.objectContaining({ code: 'duplicate-function-keyword' }),
+    ]);
+  });
+
+  it('still rejects invalid argument order for legacy direct functions', () => {
+    expect(
+      getDiagnostics('custom(value=1, 2)', {
+        functions: new Set(['custom']),
+      })
+    ).toEqual([
+      expect.objectContaining({ code: 'invalid-function-argument-order' }),
+    ]);
+  });
+
   it('keeps namespaced member calls independent from direct functions', () => {
     expect(
       getDiagnostics('tools.run(1, 2, 3)', {
@@ -161,5 +268,25 @@ describe('function catalog compatibility', () => {
         namespacedFunctions: { tools: new Set(['run']) },
       })
     ).toEqual([]);
+  });
+
+  it('keeps keyword names permissive for namespaced functions', () => {
+    expect(
+      getDiagnostics('tools.run(value=1)', {
+        functions: new Set(['custom']),
+        namespacedFunctions: { tools: new Set(['run']) },
+      })
+    ).toEqual([]);
+  });
+
+  it('still checks keyword structure for namespaced functions', () => {
+    expect(
+      getDiagnostics('tools.run(value=1, 2)', {
+        functions: new Set(['custom']),
+        namespacedFunctions: { tools: new Set(['run']) },
+      })
+    ).toEqual([
+      expect.objectContaining({ code: 'invalid-function-argument-order' }),
+    ]);
   });
 });

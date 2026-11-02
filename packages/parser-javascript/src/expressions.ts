@@ -35,6 +35,7 @@ const KEY_STOP_KEYWORDS = new Set([
   'else',
   'run',
   'set',
+  'say',
   'with',
   'to',
   'transition',
@@ -183,6 +184,24 @@ function parseSpread(ctx: ParserContext): CSTNode | null {
   if (operand) {
     node.appendChild(wrapExpression(ctx, operand), 'expression');
   }
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
+function parseKeywordArgument(ctx: ParserContext): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('keyword_argument');
+  node.appendChild(ctx.consumeNamed('id'), 'name'); // keyword name
+  ctx.addAnonymousChild(node, ctx.consume()); // =
+
+  skipVirtualTokens(ctx);
+  const value = parseExpression(ctx, 0);
+  if (value) {
+    node.appendChild(wrapExpression(ctx, value), 'value');
+  } else {
+    node.appendChild(makeEmptyError(ctx));
+  }
+
   ctx.finishNode(node, startTok);
   return node;
 }
@@ -649,11 +668,19 @@ function parseCall(ctx: ParserContext, func: CSTNode): CSTNode {
     ) {
       break;
     }
-    const arg = parseExpression(ctx, 0);
-    if (arg) {
-      node.appendChild(wrapExpression(ctx, arg), 'argument');
+    // Parse `id=expr` as a keyword argument.
+    if (
+      ctx.peekKind() === TokenKind.ID &&
+      ctx.peekAt(1).kind === TokenKind.EQ
+    ) {
+      node.appendChild(parseKeywordArgument(ctx), 'argument');
     } else {
-      break;
+      const arg = parseExpression(ctx, 0);
+      if (arg) {
+        node.appendChild(wrapExpression(ctx, arg), 'argument');
+      } else {
+        break;
+      }
     }
     skipVirtualTokens(ctx);
     if (ctx.peekKind() === TokenKind.COMMA) {

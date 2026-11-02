@@ -683,7 +683,6 @@ function compileVoiceV1(
       }
       if (Object.keys(speakUpConfig).length > 0) {
         additionalConfigs.speak_up_config = speakUpConfig;
-        hasProperty = true;
       }
     }
 
@@ -700,7 +699,6 @@ function compileVoiceV1(
       }
       if (Object.keys(endpointingConfig).length > 0) {
         additionalConfigs.endpointing_config = endpointingConfig;
-        hasProperty = true;
       }
     }
 

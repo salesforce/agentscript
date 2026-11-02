@@ -6,7 +6,8 @@
  */
 
 /**
- * Tests for GBA-only enforcement of context.salesforce and context.data_cloud.
+ * Tests for GBA-only enforcement of context.search, context.salesforce, and
+ * context.data_cloud.
  *
  * These sub-fields are defined in the Agentforce schema (not the base AgentScript
  * schema), so the validation tests live here where AgentforceSchema is available.
@@ -34,6 +35,26 @@ const SERVICE_CONFIG = `config:
     agent_type: "AgentforceServiceAgent"`;
 
 describe('gba-only context provider blocks', () => {
+  test('errors on context.search for non-GBA agent', () => {
+    const source = [
+      SERVICE_CONFIG,
+      'context:',
+      '    search:',
+      '        enabled: True',
+    ].join('\n');
+
+    const errs = gbaErrors(source);
+    expect(errs.some(d => d.code === 'gba-only-context-search')).toBe(true);
+  });
+
+  test('errors on context.search when agent_type is absent', () => {
+    const errs = gbaErrors(
+      ['context:', '    search:', '        enabled: True'].join('\n')
+    );
+
+    expect(errs.some(d => d.code === 'gba-only-context-search')).toBe(true);
+  });
+
   test('errors on context.salesforce for non-GBA agent', () => {
     const source = [
       SERVICE_CONFIG,
@@ -69,10 +90,12 @@ describe('gba-only context provider blocks', () => {
     expect(gbaErrors(source)).toHaveLength(0);
   });
 
-  test('no gba-only errors for context.salesforce on GBA agent', () => {
+  test('no gba-only errors for context providers on GBA agent', () => {
     const source = [
       GBA_CONFIG,
       'context:',
+      '    search:',
+      '        enabled: True',
       '    salesforce:',
       '        enabled: True',
       '    data_cloud:',

@@ -98,7 +98,7 @@ export function compileSetVariables(
             : undefined;
 
     if (prohibitedType) {
-      ctx.warning(
+      ctx.error(
         `Actions using @utils.setVariables cannot have transitions or follow-up actions. The '${prohibitedType}' after this utils action will be ignored at runtime.`,
         stmt.__cst?.range
       );

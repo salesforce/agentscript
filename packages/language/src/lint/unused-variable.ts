@@ -11,6 +11,7 @@ import {
   DiagnosticSeverity,
   DiagnosticTag,
   attachDiagnostic,
+  diagnosticTarget,
 } from '../core/diagnostics.js';
 import {
   storeKey,
@@ -102,7 +103,10 @@ class UnusedVariablePass implements LintPass {
         code: 'unused-variable',
         source: LINT_SOURCE,
         tags: [DiagnosticTag.Unnecessary],
-        data: { removalRange: fullRange },
+        data: {
+          removalRange: fullRange,
+          target: diagnosticTarget('variable', name),
+        },
       });
     }
   }

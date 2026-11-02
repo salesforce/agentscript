@@ -621,3 +621,94 @@ access:
     expect(restricted).toHaveLength(0);
   });
 });
+
+// ============================================================================
+// AgentforceServiceAgent runtime.user_skills restriction
+// ============================================================================
+
+describe('AgentforceServiceAgent runtime.user_skills restriction', () => {
+  it('errors when user_skills is True for AgentforceServiceAgent', () => {
+    const source = `
+config:
+    developer_name: "agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "support@example.com"
+    runtime:
+        user_skills: True
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'runtime-user-skills-agent-type'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('AgentforceServiceAgent');
+  });
+
+  it('errors when user_skills is False for AgentforceServiceAgent', () => {
+    const source = `
+config:
+    developer_name: "agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "support@example.com"
+    runtime:
+        user_skills: False
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'runtime-user-skills-agent-type'
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('does not error when user_skills is omitted for AgentforceServiceAgent', () => {
+    const source = `
+config:
+    developer_name: "agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "support@example.com"
+    runtime:
+        streaming: True
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'runtime-user-skills-agent-type'
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('errors when user_skills is set for a padded AgentforceServiceAgent value', () => {
+    const source = `
+config:
+    developer_name: "agent"
+    agent_type: " AgentforceServiceAgent "
+    default_agent_user: "support@example.com"
+    runtime:
+        user_skills: True
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'runtime-user-skills-agent-type'
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('does not error when user_skills is used for a non-service agent', () => {
+    const source = `
+config:
+    developer_name: "agent"
+    agent_type: "AgentforceEmployeeAgent"
+    runtime:
+        user_skills: True
+`.trimStart();
+
+    const diagnostics = runLint(source);
+    const errors = diagnostics.filter(
+      d => d.code === 'runtime-user-skills-agent-type'
+    );
+    expect(errors).toHaveLength(0);
+  });
+});

@@ -112,7 +112,6 @@ export function compileReasoningActions(
     const actionType = resolveActionType(actionName, def);
 
     validateNoUnknownFields(actionName, def, ctx);
-
     // Filter based on node type
     if (!isActionTypeAllowed(actionType, nodeType)) {
       // Emit diagnostic for disallowed action types
@@ -539,7 +538,11 @@ function compileAction(
 // Unknown Field Validation
 // ---------------------------------------------------------------------------
 
-const KNOWN_REASONING_ACTION_FIELDS = new Set(['description', 'label']);
+const KNOWN_REASONING_ACTION_FIELDS = new Set([
+  'description',
+  'label',
+  'execution_mode',
+]);
 
 function validateNoUnknownFields(
   actionName: string,

@@ -150,6 +150,11 @@ modality voice:
                   - "emergency_it"
                   - "help_it"
 
+    additional_configs:
+        speak_up_config:
+            speak_up_first_wait_time_ms: 10000
+            speak_up_follow_up_wait_time_ms: 10000
+            speak_up_message: "Are you still there2?"
 `.trimStart();
 
   it.each([
@@ -206,10 +211,10 @@ modality voice:
       expectedStability: undefined,
       expectedSimilarityKind: undefined,
       expectedSimilarity: undefined,
-      expectedAdditionalConfigsKind: undefined,
-      expectedSpeakUpConfigKind: undefined,
-      expectedSpeakUpFirstWait: undefined,
-      expectedSpeakUpMessage: undefined,
+      expectedAdditionalConfigsKind: 'AdditionalConfigsBlock',
+      expectedSpeakUpConfigKind: 'SpeakUpConfigBlock',
+      expectedSpeakUpFirstWait: 10000,
+      expectedSpeakUpMessage: 'Are you still there2?',
       expectedEndpointingMaxWait: undefined,
       expectedBeepboopMaxWait: undefined,
       expectedAllLanguagesKind: 'BooleanValue',
@@ -266,13 +271,14 @@ modality voice:
       expectedLanguageDefaultLocale,
       expectedLanguageSettingsLength,
     }) => {
-      const ast = parseDocument(source);
+      const { value: ast, diagnostics } = parseWithDiagnostics(source);
       const modality = ast.modality!;
       expect(isNamedMap(modality)).toBe(true);
       expect(modality.has('voice')).toBe(true);
 
       const voice = modality.get('voice')!;
       expect(voice.__kind).toBe('ModalityBlock');
+      expect(diagnostics).toEqual([]);
 
       // Inbound keywords
       // handles different paths for V1/V2 dynamically
@@ -579,8 +585,8 @@ ${members}`;
       expectedVoiceId: undefined,
       expectedOutboundSpeed: undefined,
       expectedDictCount: 2,
-      expectedAdditionalConfigsDefined: undefined,
-      expectedSpeakUpConfigDefined: undefined,
+      expectedAdditionalConfigsDefined: true,
+      expectedSpeakUpConfigDefined: true,
       expectedModelId: 'SalesforceInternal',
       expectedPersonaId: '0VPx123456789ab',
       expectedLanguageDefaultLocale: 'fr_CA',

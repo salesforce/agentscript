@@ -2293,6 +2293,148 @@ echo done:
   });
 });
 
+describe('artifact-after-terminal-status rule', () => {
+  const CODE = 'artifact-after-terminal-status';
+
+  function afterTerminalWarnings(diagnostics: Diagnostic[]): Diagnostic[] {
+    return diagnostics.filter(d => d.code === CODE);
+  }
+
+  it('warns when an artifact echo runs after a terminal status echo', () => {
+    const source = `
+config:
+  agent_name: "artifact-after-done"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://artifact-after-done/a2a"
+  on_message: ->
+    transition to @echo.responseOut
+
+echo responseOut:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "done"
+  on_exit: ->
+    transition to @echo.artifactFinalize
+
+echo artifactFinalize:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({artifactId: "analysis-report", name: "Analysis Report", parts: [a2a.textPart("report")]})
+  append: False
+  lastChunk: True
+`;
+    const result = parseAndLintSource(source);
+    const warnings = afterTerminalWarnings(result.diagnostics);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(2);
+    expect(warnings[0].message).toContain("echo 'artifactFinalize'");
+    expect(warnings[0].message).toContain("echo 'responseOut'");
+  });
+
+  // Direct on_exit (previous test) is one hop. This path is
+  // terminal echo → executor → artifact echo, so the warning still
+  // fires when the artifact is not an immediate successor.
+  it('warns when an artifact echo follows a terminal status echo through an intermediate node', () => {
+    const source = `
+config:
+  agent_name: "artifact-after-cleanup"
+
+variables:
+  x: mutable string = ""
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://artifact-after-cleanup/a2a"
+  on_message: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+  on_exit: ->
+    transition to @executor.cleanup
+
+executor cleanup:
+  do: ->
+    set @variables.x = ""
+  on_exit: ->
+    transition to @echo.lateArtifact
+
+echo lateArtifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({name: "late", parts: [a2a.textPart("too late")]})
+`;
+    const result = parseAndLintSource(source);
+    expect(afterTerminalWarnings(result.diagnostics)).toHaveLength(1);
+  });
+
+  it('does not warn when an artifact echo follows a non-terminal status echo', () => {
+    const source = `
+config:
+  agent_name: "artifact-after-working"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://artifact-after-working/a2a"
+  on_message: ->
+    transition to @echo.working
+
+echo working:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_WORKING"
+  message: "working"
+  on_exit: ->
+    transition to @echo.addArtifact
+
+echo addArtifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({name: "doc", parts: [a2a.textPart("hi")]})
+  on_exit: ->
+    transition to @echo.done
+
+echo done:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+`;
+    const result = parseAndLintSource(source);
+    expect(afterTerminalWarnings(result.diagnostics)).toHaveLength(0);
+  });
+
+  it('does not warn for an orphan artifact echo after an unused terminal echo', () => {
+    const source = `
+config:
+  agent_name: "orphan-after-terminal"
+
+trigger t:
+  kind: "a2a"
+  target: "brokers://orphan-after-terminal/a2a"
+  on_message: ->
+    transition to @echo.liveDone
+
+echo liveDone:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "ok"
+
+echo unusedDone:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: "unused"
+  on_exit: ->
+    transition to @echo.orphanArtifact
+
+echo orphanArtifact:
+  kind: "a2a:artifact_update_event"
+  artifact: a2a.artifact({name: "orphan", parts: [a2a.textPart("no")]})
+`;
+    const result = parseAndLintSource(source);
+    expect(afterTerminalWarnings(result.diagnostics)).toHaveLength(0);
+  });
+});
+
 describe('echo-first-artifact-append rule', () => {
   const CODE = 'echo-first-artifact-append';
 
@@ -2610,7 +2752,7 @@ echo other:
 
   // ── Interaction / no-regression ──────────────────────────────────────
 
-  it('produces no echo-first-artifact-append diagnostics for a valid artifact flow', () => {
+  it('produces no echo-first-artifact-append or artifact-after-terminal-status diagnostics for a valid artifact flow', () => {
     const source = `
 config:
   agent_name: "valid-artifact-flow"
@@ -2635,6 +2777,11 @@ echo done:
 `;
     const result = parseAndLintSource(source);
     expect(firstAppendDiagnostics(result.diagnostics)).toHaveLength(0);
+    expect(
+      result.diagnostics.filter(
+        d => d.code === 'artifact-after-terminal-status'
+      )
+    ).toHaveLength(0);
   });
 
   it('does not flag the customer-support fixture (first artifact uses append:False)', () => {

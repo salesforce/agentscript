@@ -14,6 +14,6 @@
  * `scripts/generate-zod-schema.sh` to update.
  */
 
-export const DSL_VERSION = '0.0.3.rc115';
-export const DSL_GIT_SHA = '517f9206e24fd750597bb9c9d802cc59b62522e8';
-export const DSL_GIT_DATE = '2026-08-18 17:48:51 +0000';
+export const DSL_VERSION = '0.0.3.rc131';
+export const DSL_GIT_SHA = 'd94468b6b9ed1a313398ab60f368d7b69cf940d0';
+export const DSL_GIT_DATE = '2026-10-07 12:02:37 -0700';

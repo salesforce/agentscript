@@ -7,8 +7,11 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DiagnosticSeverity } from '@agentscript/types';
+import { parse } from '@agentscript/parser';
 import {
   type Expression,
+  Dialect,
+  ExpressionValue,
   StringLiteral,
   NumberLiteral,
   BooleanLiteral,
@@ -25,6 +28,7 @@ import {
   TemplateInterpolation,
   CallExpression,
   SpreadExpression,
+  KeywordArgument,
 } from '@agentscript/language';
 import {
   compileExpression,
@@ -150,6 +154,26 @@ describe('compileExpression', () => {
       expect(compileExpression(expr, ctx, { isSystemMessage: true })).toBe(
         'state.name'
       );
+    });
+
+    // Pins the invariant that optimize-actions.ts's `referencesAnyKey`
+    // (4a read-after-write guard) depends on: a state read must emit as
+    // `state.<name>` dot form — including `state.<name>[i]` subscripts — so the
+    // guard's `\bstate\.<name>\b` match detects it. If this ever became a
+    // `state["<name>"]` bracket form, 4a would silently fuse a read-after-write.
+    it('emits state reads in dot form (read-after-write guard invariant)', () => {
+      ctx.mutableVariableNames.add('counter');
+      const read = new MemberExpression(
+        new AtIdentifier('variables'),
+        'counter'
+      );
+      expect(compileExpression(read, ctx)).toBe('state.counter');
+
+      const subscript = new SubscriptExpression(
+        new MemberExpression(new AtIdentifier('variables'), 'counter'),
+        new NumberLiteral(0)
+      );
+      expect(compileExpression(subscript, ctx)).toBe('state.counter[0]');
     });
   });
 
@@ -347,6 +371,27 @@ describe('compileExpression', () => {
   });
 
   describe('binary expressions', () => {
+    it.each([
+      ['(1 + 2) * (3 + 4)', '(1 + 2) * (3 + 4)'],
+      ['(1 + 2) * 3', '(1 + 2) * 3'],
+      ['1 * (2 + 3)', '1 * (2 + 3)'],
+      ['1 * 2', '1 * 2'],
+      [
+        '(True or False) and (False or False)',
+        '(True or False) and (False or False)',
+      ],
+    ])('preserves operand grouping in %s', (source, expected) => {
+      const { rootNode } = parse(`value: ${source}\n`);
+      const mapping =
+        rootNode.namedChildren.find(node => node.type === 'mapping') ??
+        rootNode;
+      const result = new Dialect().parse(mapping, { value: ExpressionValue });
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.value.value).toBeInstanceOf(BinaryExpression);
+      expect(compileExpression(result.value.value, ctx)).toBe(expected);
+    });
+
     it('should compile binary addition', () => {
       const expr = new BinaryExpression(
         new NumberLiteral(1),
@@ -367,6 +412,30 @@ describe('compileExpression', () => {
   });
 
   describe('unary expressions', () => {
+    it.each([
+      ['not (True and False)', 'not (True and False)'],
+      [
+        '@variables.a and not (@variables.b or @variables.c)',
+        'state.a and not (state.b or state.c)',
+      ],
+      ['-(1 + 2)', '-(1 + 2)'],
+      ['not True', 'not True'],
+      ['-1', '-1'],
+    ])('preserves operand grouping in %s', (source, expected) => {
+      ctx.mutableVariableNames.add('a');
+      ctx.mutableVariableNames.add('b');
+      ctx.mutableVariableNames.add('c');
+      const { rootNode } = parse(`value: ${source}\n`);
+      const mapping =
+        rootNode.namedChildren.find(node => node.type === 'mapping') ??
+        rootNode;
+      const result = new Dialect().parse(mapping, { value: ExpressionValue });
+
+      expect(result.diagnostics).toEqual([]);
+      expect(compileExpression(result.value.value, ctx)).toBe(expected);
+      expect(ctx.diagnostics).toEqual([]);
+    });
+
     it('should compile not operator', () => {
       const expr = new UnaryExpression('not', new BooleanLiteral(true));
       expect(compileExpression(expr, ctx)).toBe('not True');
@@ -379,6 +448,27 @@ describe('compileExpression', () => {
   });
 
   describe('comparison expressions', () => {
+    it.each([
+      ['(True or False) == False', '(True or False) == False'],
+      ['True == (False or True)', 'True == (False or True)'],
+      ['(1 + 2) < (3 + 4)', '(1 + 2) < (3 + 4)'],
+      ['((1 + 2))  ==  ((3 + 4))', '(1 + 2)  ==  (3 + 4)'],
+      ['(1 + 2)==(1 + 2)', '(1 + 2)==(1 + 2)'],
+      ['1  ==  1', '1  ==  1'],
+      ['1==1', '1==1'],
+    ])('preserves operand grouping and spacing in %s', (source, expected) => {
+      const { rootNode } = parse(`value: ${source}\n`);
+      const mapping =
+        rootNode.namedChildren.find(node => node.type === 'mapping') ??
+        rootNode;
+      const result = new Dialect().parse(mapping, { value: ExpressionValue });
+
+      expect(result.diagnostics).toEqual([]);
+      expect(result.value.value).toBeInstanceOf(ComparisonExpression);
+      expect(compileExpression(result.value.value, ctx)).toBe(expected);
+      expect(ctx.diagnostics).toEqual([]);
+    });
+
     it('should compile == comparison', () => {
       ctx.mutableVariableNames.add('x');
       const expr = new ComparisonExpression(
@@ -796,6 +886,55 @@ describe('compileExpression', () => {
       ]);
 
       expect(compileExpression(expr, ctx)).toBe('to_json("hello")');
+    });
+  });
+
+  describe('concat calls', () => {
+    it('should render positional parts and rewrite mutable variables to state', () => {
+      ctx.mutableVariableNames.add('name');
+      const expr = new CallExpression(new Identifier('concat'), [
+        new StringLiteral('Hi '),
+        new MemberExpression(new AtIdentifier('variables'), 'name'),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe('concat("Hi ", state.name)');
+    });
+
+    it('should compile the sep keyword argument', () => {
+      const expr = new CallExpression(new Identifier('concat'), [
+        new StringLiteral('a'),
+        new StringLiteral('b'),
+        new KeywordArgument('sep', new StringLiteral(', ')),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe('concat("a", "b", sep=", ")');
+    });
+
+    it('should emit a list variable bare', () => {
+      ctx.mutableVariableNames.add('fragments');
+      const expr = new CallExpression(new Identifier('concat'), [
+        new MemberExpression(new AtIdentifier('variables'), 'fragments'),
+        new KeywordArgument('sep', new StringLiteral(' ')),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        'concat(state.fragments, sep=" ")'
+      );
+    });
+
+    it('should rewrite a mutable variable inside the sep keyword value', () => {
+      ctx.mutableVariableNames.add('joiner');
+      const expr = new CallExpression(new Identifier('concat'), [
+        new StringLiteral('a'),
+        new KeywordArgument(
+          'sep',
+          new MemberExpression(new AtIdentifier('variables'), 'joiner')
+        ),
+      ]);
+
+      expect(compileExpression(expr, ctx)).toBe(
+        'concat("a", sep=state.joiner)'
+      );
     });
   });
 

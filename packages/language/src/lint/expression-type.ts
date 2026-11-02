@@ -9,9 +9,10 @@
  * Lightweight expression type inference shared across lint passes.
  *
  * Returns an AgentScript type string when one can be statically determined,
- * or null when it can't (lists, dicts, None, function calls, ternaries, and
- * unresolved references all return null — callers should treat them as
- * "skip type check").
+ * or null when it can't (lists, dicts, None, data-dependent calls, ternaries,
+ * and unresolved references all return null — callers should treat them as
+ * "skip type check"). Built-in calls with a fixed return type (e.g.
+ * lower/upper → string) resolve to that type.
  *
  * For `@variables.X` references, callers may supply a {@link VariableTypeResolver}
  * to look up dialect-specific variable types (e.g. 'list[string]'). Resolved
@@ -24,6 +25,18 @@ import { extractVariableRef } from './lint-utils.js';
 
 /** Resolve `@variables.X` to a dialect-specific type string. */
 export type VariableTypeResolver = (varName: string) => string | null;
+
+/**
+ * Built-in calls whose return type is fixed regardless of arguments. Others
+ * (from_json, json_path, min, max) depend on runtime data and stay un-inferable.
+ */
+const BUILTIN_RETURN_TYPES: Record<string, string> = {
+  lower: 'string',
+  upper: 'string',
+  concat: 'string',
+  to_json: 'string',
+  len: 'number',
+};
 
 /**
  * Resolve a global-scope member reference (e.g. `@system_variables.last_reply.interrupted`)
@@ -40,11 +53,16 @@ export type GlobalMemberTypeResolver = (
  *
  * Returns:
  * - 'boolean' for BooleanLiteral, ComparisonExpression, and `and`/`or`/`not`
- * - 'string' for StringLiteral, TemplateExpression
- * - 'number' for NumberLiteral, arithmetic BinaryExpression, unary +/-
+ * - 'string' for StringLiteral, TemplateExpression, and `+` with a string operand
+ *   (concatenation)
+ * - 'number' for NumberLiteral, unary +/-, and arithmetic BinaryExpression
+ *   (`-`/`*`/`/`, or any `+` without a string operand — `+` defaults to
+ *   arithmetic since it is never boolean)
  * - For `@variables.X`: the resolver's return value (e.g. 'list[string]'),
  *   with 'boolean' normalized to lowercase
- * - null otherwise (None, list/dict literals, function calls, ternaries,
+ * - For a built-in call with a fixed return type: that type (e.g. 'string' for
+ *   lower/upper/concat/to_json, 'number' for len)
+ * - null otherwise (None, list/dict literals, data-dependent calls, ternaries,
  *   unresolved references) — callers should skip type checks on null
  */
 export function inferExpressionType(
@@ -63,6 +81,25 @@ export function inferExpressionType(
     case 'BinaryExpression': {
       const op = obj.operator as string | undefined;
       if (op === 'and' || op === 'or') return 'boolean';
+      // `+` is overloaded: string concatenation when either operand is a known
+      // string, otherwise numeric addition. When neither operand resolves we
+      // assume arithmetic — `+` is never boolean, so defaulting to number keeps
+      // it flagged where a boolean is expected (e.g. `available when @x + 1`).
+      if (op === '+') {
+        const left = inferExpressionType(
+          obj.left,
+          resolveVariable,
+          resolveGlobalMember
+        );
+        const right = inferExpressionType(
+          obj.right,
+          resolveVariable,
+          resolveGlobalMember
+        );
+        if (left === 'string' || right === 'string') return 'string';
+        return 'number';
+      }
+
       return 'number';
     }
 
@@ -77,6 +114,23 @@ export function inferExpressionType(
       return 'string';
     case 'NumberLiteral':
       return 'number';
+
+    // Built-in calls with a fixed return type (e.g. lower/upper → string).
+    case 'CallExpression': {
+      const func = (obj as { func?: { __kind?: string; name?: string } }).func;
+      if (func?.__kind === 'Identifier' && func.name) {
+        return BUILTIN_RETURN_TYPES[func.name] ?? null;
+      }
+      return null;
+    }
+
+    // A keyword argument has its value's type.
+    case 'KeywordArgument':
+      return inferExpressionType(
+        (obj as { value: unknown }).value,
+        resolveVariable,
+        resolveGlobalMember
+      );
 
     case 'MemberExpression':
     case 'AtIdentifier': {

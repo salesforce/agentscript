@@ -52,6 +52,8 @@ import {
   buildChainBranchGate,
   buildChainElseGate,
 } from './else-if-chain.js';
+import { compileDeterministicRunInputs } from './compile-run-inputs.js';
+import { compileExecutionMode } from './compile-execution-mode.js';
 
 /**
  * Compile a single reasoning action (tool) from a topic's reasoning block.
@@ -81,10 +83,17 @@ export function compileTool(
   }
 
   // Tool.description is an explicit *override* of the underlying
-  // ActionConfiguration.description (per DSL schema). Only emit it when the
-  // user supplied `description:` on the reasoning action — otherwise leave
-  // it unset so the runtime falls back to ActionConfiguration.description.
-  const description = extractSourcedDescription(actionDef.description);
+  // ActionConfiguration.description (per DSL schema). For regular actions, only
+  // emit it when the author supplied `description:` — otherwise leave it unset
+  // so the runtime falls back to ActionConfiguration.description. A connected
+  // agent has no ActionConfiguration to fall back to, so default its supervision
+  // tool's description to the connected agent's authored description (populated
+  // onto the input signature in compile-agent-version).
+  const description =
+    extractSourcedDescription(actionDef.description) ??
+    (isConnectedAgent
+      ? ctx.connectedAgentInputs.get(target)?.description
+      : undefined);
   const alias = extractSourcedString(actionDef.label);
   const displayName = alias ?? name;
 
@@ -97,6 +106,8 @@ export function compileTool(
   const handOffActions: HandOffAction[] = [];
   const renderRules: RenderRule[] = [];
   let enabledCondition: string | undefined;
+  const nonBlockingBehavior = compileExecutionMode(actionDef.execution_mode);
+  const fireAndForget = nonBlockingBehavior?.value === 'fire_and_forget';
   for (const stmt of body) {
     if (stmt instanceof WithClause) {
       const compiledValue = compileExpression(stmt.value, ctx, {
@@ -140,7 +151,7 @@ export function compileTool(
       handOffActions.push(...result.handOffs);
     } else if (stmt instanceof WhenStatement) {
       const rule = compileWhenConnection(stmt, ctx);
-      if (rule) renderRules.push(rule);
+      if (rule && !fireAndForget) renderRules.push(rule);
     }
   }
 
@@ -217,6 +228,10 @@ export function compileTool(
     ...(renderRules.length > 0 ? { render_rules: renderRules } : {}),
   };
 
+  if (nonBlockingBehavior) {
+    tool.non_blocking_behavior = nonBlockingBehavior;
+  }
+
   if (enabledCondition) {
     tool.enabled = enabledCondition;
   }
@@ -253,43 +268,23 @@ function compilePostToolAction(
   );
   if (!targetName) return undefined;
 
-  const boundInputs: Record<string, string> = {};
-  const llmInputs: string[] = [];
-  const stateUpdates: StateUpdate[] = [];
-
-  for (const child of stmt.body) {
-    if (child instanceof WithClause) {
-      if (child.value instanceof Ellipsis) {
-        llmInputs.push(child.param);
-      } else {
-        boundInputs[child.param] = compileExpression(child.value, ctx, {
-          expressionContext: "'with' clause",
-        });
-      }
-    } else if (child instanceof SetClause) {
-      const varName = resolveAtReference(
-        child.target,
-        ['variables', 'outputs'],
-        ctx,
-        'variable name'
-      );
-      if (varName) {
-        stateUpdates.push({
-          [varName]: compileExpression(child.value, ctx, {
-            expressionContext: "'set' clause",
-          }),
-        });
-      }
-    }
-  }
-
-  setDefaultLlmInputs(targetName, boundInputs, llmInputs, ctx);
+  // A nested `run` lowers into a post_tool_call action, which the runtime
+  // executes deterministically (no LLM call). LLM-filled inputs therefore are
+  // not supported here — only on the reasoning action itself. Reject them and
+  // warn on missing required inputs; `llm_inputs` stays empty (the runtime
+  // drops it on hook actions anyway, so auto-filling it just hid the problem).
+  const { boundInputs, stateUpdates } = compileDeterministicRunInputs(
+    stmt,
+    targetName,
+    ctx,
+    ['variables', 'outputs']
+  );
 
   const action: Action = {
     type: 'action',
     target: targetName,
     bound_inputs: Object.keys(boundInputs).length > 0 ? boundInputs : {},
-    llm_inputs: llmInputs,
+    llm_inputs: [],
     state_updates: stateUpdates,
   };
   return action;

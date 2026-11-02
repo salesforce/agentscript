@@ -321,6 +321,37 @@ describe('robustness: real-world error patterns', () => {
     assertParses(source, 'pipe line with {! after whitespace gap');
   });
 
+  it('does not crash on an indented `to`-continuation followed by a non-DEDENT token', () => {
+    // An indented `to` clause on an expression_with_to colinear value used to
+    // assume the next token after the with-to list was a DEDENT, and asserted
+    // it via a strict consumeKind(DEDENT). On malformed input the next token
+    // can instead be a deeper INDENT or an ERROR_TOKEN, tripping the invariant
+    // ("Expected token kind DEDENT but got ...") and crashing the parser.
+    // Discovered by the fuzz test (SEED=1788995438896,
+    // parser-javascript/sequence_edge_cases.txt iteration 58).
+    const ciExact = 'items:a\n     to\'pic name: "gree|ing"';
+    assertParses(ciExact, 'to-continuation followed by ERROR_TOKEN');
+
+    // Minimal readable variant: indented `to` clause followed by a
+    // deeper-indented line (yields INDENT, not DEDENT, after the to-list).
+    const deeperIndent = [
+      'topic test:',
+      '  actions:',
+      '    go_next: @utils.transition',
+      '      to @topic.next',
+      '        available when @variable.is_complete',
+    ].join('\n');
+    const root = assertParses(
+      deeperIndent,
+      'to-continuation followed by INDENT'
+    );
+    assertSourcePreserved(
+      deeperIndent,
+      root,
+      'to-continuation followed by INDENT'
+    );
+  });
+
   it('handles incomplete document being typed', () => {
     // Simulate someone typing a document character by character
     const fullDoc = `topic test:

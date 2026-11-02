@@ -14,6 +14,7 @@ import { extractBooleanValue } from '../ast-helpers.js';
  *
  * The context block contains:
  * - memory: memory configuration with enabled flag (boolean)
+ * - search: Enterprise Search configuration with enabled flag (boolean)
  * - user_profile: user profile configuration with enabled flag (boolean)
  * - past_conversations: conversation history configuration with enabled flag (boolean)
  * - salesforce: Salesforce context provider configuration with enabled flag (boolean)
@@ -27,6 +28,7 @@ export function compileContext(
   contextBlock:
     | {
         memory?: { enabled?: { value?: boolean } };
+        search?: { enabled?: { value?: boolean } };
         user_profile?: { enabled?: { value?: boolean } };
         past_conversations?: { enabled?: { value?: boolean } };
         salesforce?: {
@@ -58,6 +60,18 @@ export function compileContext(
       );
     } else {
       result.memory = { enabled };
+    }
+  }
+
+  if (contextBlock.search) {
+    const enabled = extractBooleanValue(contextBlock.search.enabled);
+
+    if (enabled === null || enabled === undefined) {
+      ctx.error(
+        'Context search block requires an "enabled" field with a boolean value'
+      );
+    } else {
+      result.search = { enabled };
     }
   }
 

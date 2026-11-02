@@ -54,13 +54,30 @@ export function createDiagnostic(
   };
 }
 
+/**
+ * Build the structured `data.target` payload identifying the named resource a
+ * diagnostic is about (see `Diagnostic['data'].target`). Lets downstream tooling
+ * read the resource name directly instead of parsing it out of the message.
+ *
+ * `type` is the resource kind (currently `'variable'`, extensible to `'action'`,
+ * `'subagent'`, etc.); `name` is the resource's name.
+ */
+export function diagnosticTarget(
+  type: string,
+  name: string
+): { type: string; name: string } {
+  return { type, name };
+}
+
 export function undefinedReferenceDiagnostic(
   range: Range,
   message: string,
   referenceName: string,
-  found: string,
   suggestion?: string,
-  expected?: string[]
+  expected?: string[],
+  // Last and optional so callers pinned to an older @agentscript/language
+  // keep compiling; without it the quick fix is simply not offered.
+  found?: string
 ): Diagnostic {
   const fullMessage = formatSuggestionHint(message, suggestion);
   return {
@@ -71,7 +88,7 @@ export function undefinedReferenceDiagnostic(
     source: 'agentscript-lint',
     data: {
       referenceName,
-      found,
+      ...(found ? { found } : {}),
       ...(suggestion ? { suggestion } : {}),
       ...(expected && expected.length > 0 ? { expected } : {}),
     },

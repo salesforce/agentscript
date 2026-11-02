@@ -40,8 +40,8 @@
  */
 
 import type { CompilerContext } from '../compiler-context.js';
-import { extractStringValue } from '../ast-helpers.js';
-import type { Range } from '@agentscript/types';
+import { readStringSequence } from '@agentscript/language';
+import type { Range, SyntaxNode } from '@agentscript/types';
 
 /**
  * Minimal interface for sequence-like AST nodes.
@@ -51,18 +51,9 @@ interface SequenceLike {
   items?: unknown[];
   __children?: unknown[];
   __cst?: {
-    node?: CSTNode;
+    node?: SyntaxNode;
     range?: Range;
   };
-}
-
-/**
- * Minimal interface for CST nodes used in inline list extraction.
- */
-interface CSTNode {
-  type?: string;
-  text?: string;
-  namedChildren?: CSTNode[];
 }
 
 /**
@@ -109,12 +100,29 @@ export function extractSequenceBlocks<T = unknown>(
 }
 
 /**
+ * Navigate a value CST node down to its inline `list` node, if any.
+ * Mirrors the `expression_with_to → expression → atom → list` path used by the
+ * shared reader. Returns the `list` node when the value is an inline list
+ * (empty or not), or `undefined` for scalars (`""`, bare ids, numbers, …).
+ */
+function findInlineListNode(cstNode: SyntaxNode): SyntaxNode | undefined {
+  let node: SyntaxNode | undefined = cstNode;
+  if (node.type === 'expression_with_to') node = node.namedChildren[0];
+  if (node?.type === 'expression') node = node.namedChildren[0];
+  if (node?.type === 'atom') node = node.namedChildren[0];
+  return node?.type === 'list' ? node : undefined;
+}
+
+/**
  * Extract string array from a SequenceNode that may be:
  * 1. YAML sequence syntax: - "item1"\n- "item2"  (populated __children/items)
  * 2. Inline list syntax: ["item1", "item2"]       (CST-only, empty __children)
  *
- * This helper provides deterministic extraction with diagnostic feedback
- * instead of silent failures.
+ * Thin wrapper over the shared `readStringSequence` reader in
+ * `@agentscript/language` (which both the compiler and the dialect lint layer
+ * consume, so the dual-syntax navigation lives in one place). This wrapper
+ * preserves the compiler's `ctx.warning` behavior for inline lists whose CST
+ * exists but yields no extractable strings.
  */
 export function extractStringSequence(
   sequenceNode: SequenceLike | undefined,
@@ -125,125 +133,23 @@ export function extractStringSequence(
     return [];
   }
 
-  const result: string[] = [];
-
-  // Strategy 1: Extract from typed AST (YAML sequence syntax)
-  // SequenceNode with populated __children or items property
-  const children = sequenceNode.__children || [];
-  const items = sequenceNode.items || [];
-
-  if (children.length > 0 || items.length > 0) {
-    // Use items first (it's the public API), fall back to __children
-    const source = items.length > 0 ? items : children;
-
-    for (const item of source) {
-      // Handle SequenceItemChild wrapper
-      const itemObj = item as Record<string, unknown>;
-      const value = itemObj._value || item;
-      const str =
-        extractStringValue(value) ??
-        (value != null &&
-        typeof value === 'object' &&
-        typeof (value as { name?: unknown }).name === 'string'
-          ? (value as { name: string }).name
-          : undefined);
-      if (str) {
-        result.push(str);
-      }
-    }
-
-    if (result.length > 0) {
-      return result;
-    }
+  const result = readStringSequence(sequenceNode).map(entry => entry.value);
+  if (result.length > 0) {
+    return result;
   }
 
-  // Strategy 2: Extract from CST (inline list syntax)
-  // Handle: keywords: ["item1", "item2"]
+  // If a *non-empty* inline list exists but extraction produced nothing, warn —
+  // this usually means the CST structure drifted from what the reader expects.
+  // An empty list (`[]`) or a non-list scalar (e.g. `""`) legitimately yields no
+  // entries, so those must NOT warn.
   const cstNode = sequenceNode.__cst?.node;
-  if (cstNode) {
-    const extracted = extractFromInlineList(cstNode);
-    if (extracted.length > 0) {
-      return extracted;
-    }
-
-    // If CST exists but extraction failed, emit diagnostic
-    if (cstNode.type === 'expression_with_to' || cstNode.type === 'list') {
-      ctx.warning(
-        `Unable to extract ${fieldName} from inline list syntax. CST structure may have changed.`,
-        sequenceNode.__cst?.range
-      );
-    }
-  }
-
-  // Strategy 3: Empty sequence is valid (return empty array, no diagnostic)
-  return result;
-}
-
-/**
- * Extract strings from inline list CST structure.
- * Handles: ["string1", "string2"]
- *
- * CST structure:
- *   expression_with_to -> expression -> atom -> list -> expression* -> atom -> string -> string_content
- */
-function extractFromInlineList(cstNode: CSTNode): string[] {
-  const result: string[] = [];
-
-  // Navigate to list node
-  let listNode = cstNode;
-
-  // expression_with_to -> expression
-  if (cstNode.type === 'expression_with_to' && cstNode.namedChildren?.[0]) {
-    listNode = cstNode.namedChildren[0];
-  }
-
-  // expression -> atom
-  if (listNode.type === 'expression' && listNode.namedChildren?.[0]) {
-    listNode = listNode.namedChildren[0];
-  }
-
-  // atom -> list
-  if (listNode.type === 'atom' && listNode.namedChildren?.[0]) {
-    listNode = listNode.namedChildren[0];
-  }
-
-  // Extract from list items
-  if (listNode.type === 'list' && listNode.namedChildren) {
-    for (const listItem of listNode.namedChildren) {
-      if (listItem.type === 'expression') {
-        const str = extractStringFromExpression(listItem);
-        if (str) {
-          result.push(str);
-        }
-      }
-    }
+  const listNode = cstNode && findInlineListNode(cstNode);
+  if (listNode && listNode.namedChildren.length > 0) {
+    ctx.warning(
+      `Unable to extract ${fieldName} from inline list syntax. CST structure may have changed.`,
+      sequenceNode.__cst?.range
+    );
   }
 
   return result;
-}
-
-/**
- * Extract string from expression CST node.
- * Handles: expression -> atom -> string -> string_content
- */
-function extractStringFromExpression(expressionNode: CSTNode): string | null {
-  // expression -> atom
-  let node = expressionNode.namedChildren?.[0];
-  if (!node || node.type !== 'atom') {
-    return null;
-  }
-
-  // atom -> string
-  node = node.namedChildren?.[0];
-  if (!node || node.type !== 'string') {
-    return null;
-  }
-
-  // string -> string_content
-  node = node.namedChildren?.[0];
-  if (!node || node.type !== 'string_content') {
-    return null;
-  }
-
-  return node.text || null;
 }

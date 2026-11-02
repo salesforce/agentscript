@@ -39,12 +39,26 @@ function readSourceBinding(decl: AstNodeLike): string | undefined {
 }
 
 export { actionTargetSchemeRule } from './action-target.js';
+export { executionModeRule } from './execution-mode.js';
 export { skillTargetSchemeRule } from './skill-target.js';
 export {
   hyperclassifierExtractor,
   hyperclassifierConstraintsRule,
 } from './hyperclassifier.js';
 export { connectionValidationRule } from './connection-validation.js';
+export {
+  responseFormatShapeAnalyzer,
+  responseFormatShapeIndexKey,
+  connectionInputsIndexKey,
+} from './response-format-shape.js';
+export { renderWithBindingsRule } from './render-with-bindings.js';
+export type {
+  RenderInputInfo,
+  RenderInputConstraints,
+  ResponseFormatInfo,
+  ResponseFormatShapeIndex,
+  ConnectionInputsIndex,
+} from './response-format-shape.js';
 export { systemMessageVariablesRule } from './system-message-variables.js';
 export {
   boundInputsRule,
@@ -63,14 +77,18 @@ export {
   voiceVersionMixingRule,
 } from './voice-language-validation.js';
 export { emptyBlockRule } from './empty-block.js';
+export { recommendedPromptsValidationRule } from './recommended-prompts-validation.js';
 
 import { actionTargetSchemeRule } from './action-target.js';
+import { executionModeRule } from './execution-mode.js';
 import { skillTargetSchemeRule } from './skill-target.js';
 import {
   hyperclassifierExtractor,
   hyperclassifierConstraintsRule,
 } from './hyperclassifier.js';
 import { connectionValidationRule } from './connection-validation.js';
+import { responseFormatShapeAnalyzer } from './response-format-shape.js';
+import { renderWithBindingsRule } from './render-with-bindings.js';
 import { systemMessageVariablesRule } from './system-message-variables.js';
 import {
   boundInputsRule,
@@ -88,6 +106,7 @@ import {
   voiceVersionMixingRule,
 } from './voice-language-validation.js';
 import { emptyBlockRule } from './empty-block.js';
+import { recommendedPromptsValidationRule } from './recommended-prompts-validation.js';
 
 /** All Agentforce lint rules — extends AgentScript rules with security checks. */
 export function defaultRules(): LintPass[] {
@@ -106,10 +125,13 @@ export function defaultRules(): LintPass[] {
   return [
     ...baseRules,
     actionTargetSchemeRule(),
+    executionModeRule(),
     skillTargetSchemeRule(),
     hyperclassifierExtractor(),
     hyperclassifierConstraintsRule(),
     connectionValidationRule(),
+    responseFormatShapeAnalyzer(),
+    renderWithBindingsRule(),
     systemMessageVariablesRule(),
     boundInputsRule(),
     connectedAgentTargetPass(),
@@ -123,5 +145,6 @@ export function defaultRules(): LintPass[] {
     voiceLanguageValidationRule(),
     voiceVersionMixingRule(),
     emptyBlockRule(),
+    recommendedPromptsValidationRule(),
   ];
 }

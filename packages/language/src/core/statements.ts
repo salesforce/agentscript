@@ -26,7 +26,15 @@ import {
 } from './types.js';
 import { CommentAttacher, attach } from './comment-attacher.js';
 import type { Expression, TemplatePart } from './expressions.js';
-import { Ellipsis, parseTemplateParts } from './expressions.js';
+import {
+  AtIdentifier,
+  Ellipsis,
+  MemberExpression,
+  TemplateInterpolation,
+  TemplateText,
+  parseTemplateParts,
+} from './expressions.js';
+import { escapeStringValue, interpretEscape } from './string-escapes.js';
 import {
   type Diagnostic,
   createDiagnostic,
@@ -127,6 +135,67 @@ export class Template extends AstNodeBase implements Statement {
     }
     stmt.__diagnostics.push(...diagnostics);
     return stmt;
+  }
+}
+
+/** A verbatim workflow response with optional direct reference interpolation. */
+export class SayStatement extends AstNodeBase implements Statement {
+  readonly __kind = 'SayStatement';
+
+  constructor(public parts: TemplatePart[]) {
+    super();
+  }
+
+  get content(): string {
+    return this.parts.map(part => part.__emit({ indent: 0 })).join('');
+  }
+
+  __emit(ctx: EmitContext): string {
+    const indent = emitIndent(ctx);
+    const sourceValue = this.__cst?.node?.childForFieldName('value')?.text;
+    if (sourceValue) return `${indent}say ${sourceValue}`;
+
+    const value = this.parts
+      .map(part =>
+        part instanceof TemplateText
+          ? escapeStringValue(part.value)
+          : part.__emit({ ...ctx, indent: 0 })
+      )
+      .join('');
+    return `${indent}say "${value}"`;
+  }
+
+  static parse(node: SyntaxNode): Parsed<SayStatement> {
+    const parts: TemplatePart[] = [];
+    const valueNode = node.childForFieldName('value');
+
+    for (const child of valueNode?.namedChildren ?? []) {
+      if (child.type === 'say_string_content') {
+        parts.push(withCst(new TemplateText(child.text), child));
+        continue;
+      }
+
+      if (child.type === 'escape_sequence') {
+        const interpreted = interpretEscape(child.text[1] ?? '');
+        parts.push(withCst(new TemplateText(interpreted ?? child.text), child));
+        continue;
+      }
+
+      if (child.type !== 'say_interpolation') continue;
+      const referenceNode = child.childForFieldName('reference');
+      const namespaceNode = referenceNode?.childForFieldName('namespace');
+      const propertyNode = referenceNode?.childForFieldName('property');
+      if (!referenceNode || !namespaceNode || !propertyNode) continue;
+
+      const namespace = AtIdentifier.parse(namespaceNode);
+      const reference = withCst(
+        new MemberExpression(namespace, propertyNode.text),
+        referenceNode
+      );
+      parts.push(withCst(new TemplateInterpolation(reference), child));
+    }
+
+    return withCst(new SayStatement(parts), node);
   }
 }
 
@@ -865,6 +934,18 @@ export class EscalateStatement extends AstNodeBase implements Statement {
   }
 }
 
+export class EndSessionStatement extends AstNodeBase implements Statement {
+  readonly __kind = 'EndSessionStatement';
+
+  __emit(ctx: EmitContext): string {
+    return `${emitIndent(ctx)}end_session`;
+  }
+
+  static parse(node: SyntaxNode): Parsed<EndSessionStatement> {
+    return withCst(new EndSessionStatement(), node);
+  }
+}
+
 /**
  * Represents an unrecognized CST node found in a statement context.
  * Preserves the original text so round-trip emit doesn't silently lose content,
@@ -890,12 +971,14 @@ export const statementParsers: Record<string, StatementParser> = {
 
   with_statement: (node, parseExpr) => WithClause.parseAll(node, parseExpr),
   set_statement: (node, parseExpr) => SetClause.parse(node, parseExpr),
+  say_statement: node => SayStatement.parse(node),
   to_statement: (node, parseExpr) => ToClause.parse(node, parseExpr),
   available_when_statement: (node, parseExpr) =>
     AvailableWhen.parse(node, parseExpr),
   transition_statement: (node, parseExpr) =>
     TransitionStatement.parse(node, parseExpr),
   escalate_statement: node => EscalateStatement.parse(node),
+  end_session_statement: node => EndSessionStatement.parse(node),
   collect_statement: (node, parseExpr) => CollectClause.parse(node, parseExpr),
 
   run_statement: (node, parseExpr, _parseProcedure, parseStmt) =>

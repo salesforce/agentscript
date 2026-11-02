@@ -24,12 +24,8 @@ import {
   STATE_UPDATE_ACTION,
 } from '../src/constants.js';
 import { DiagnosticSeverity } from '../src/diagnostics.js';
-import type {
-  SubAgentNode,
-  HandOffAction,
-  Tool,
-  Action,
-} from '../src/types.js';
+import { isHandOffAction } from '../src/types.js';
+import type { SubAgentNode, Tool, Action } from '../src/types.js';
 
 const SCRIPT = `
 config:
@@ -459,9 +455,7 @@ subagent patient_intake:
 
   it('emits a self-targeted end-turn-first handoff gated while incomplete', () => {
     const node = intakeNode();
-    const handoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff'
-    );
+    const handoffs = (node.after_reasoning ?? []).filter(isHandOffAction);
     const resume = handoffs.find(h => h.target === 'patient_intake');
     expect(resume).toBeDefined();
     expect(resume!.end_turn_first).toBe(true);
@@ -488,17 +482,13 @@ subagent patient_intake:
     // the turn does not suspend, and the runtime resets to the router.
     const node = intakeNode();
     const afterReasoningSelfHandoffs = (node.after_reasoning ?? []).filter(
-      a =>
-        a.type === 'handoff' && (a as HandOffAction).target === 'patient_intake'
+      a => isHandOffAction(a) && a.target === 'patient_intake'
     );
     expect(afterReasoningSelfHandoffs.length).toBe(1);
 
     const afterAllToolCallsSelfHandoffs = (
       node.after_all_tool_calls ?? []
-    ).filter(
-      a =>
-        a.type === 'handoff' && (a as HandOffAction).target === 'patient_intake'
-    );
+    ).filter(a => isHandOffAction(a) && a.target === 'patient_intake');
     expect(afterAllToolCallsSelfHandoffs).toEqual([]);
   });
 
@@ -514,16 +504,14 @@ subagent patient_intake:
     // node emits is the same-node resume.
     const node = intakeNode();
     const routerHandoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff' && a.target === 'router'
+      a => isHandOffAction(a) && a.target === 'router'
     );
     expect(routerHandoffs).toEqual([]);
   });
 
   it('emits ONLY the incomplete->self resume handoff in after_reasoning', () => {
     const node = intakeNode();
-    const handoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff'
-    );
+    const handoffs = (node.after_reasoning ?? []).filter(isHandOffAction);
     // Exactly one handoff: the same-node resume (suspends, end_turn_first). No
     // cancel handoff (W-23142782) — the cancel tool's next_topic write gates the
     // resume off so the cancel turn ends on the collecting node with a single
@@ -559,9 +547,7 @@ subagent patient_intake:
 
   it('right-associates the resume handoff condition for 3+ fields', () => {
     const node = intakeNodeThreeFields();
-    const handoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff'
-    );
+    const handoffs = (node.after_reasoning ?? []).filter(isHandOffAction);
     const resume = handoffs.find(h => h.target === 'patient_intake');
     expect(resume).toBeDefined();
     // Right-associated incomplete condition `A or (B or C)` — explicit parens
@@ -654,9 +640,7 @@ subagent patient_intake:
 
   it('resume gate OR-converges branch siblings into one branch step', () => {
     const { node } = commsIntakeNode();
-    const handoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff'
-    );
+    const handoffs = (node.after_reasoning ?? []).filter(isHandOffAction);
     const resume = handoffs.find(h => h.target === 'comms_intake');
     expect(resume).toBeDefined();
     // Incomplete while: the preference step is unfilled OR the branch step is
@@ -728,9 +712,7 @@ subagent patient_intake:
 
   it('does NOT emit ANY router handoff for branching collects (no double goodbye)', () => {
     const { node } = commsIntakeNode();
-    const handoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff'
-    );
+    const handoffs = (node.after_reasoning ?? []).filter(isHandOffAction);
     // Exactly one handoff: the incomplete->self resume. No router handoff on
     // either the completion path (W-22865019) or the change-of-intent path
     // (W-23142782) — the cancel tool's next_topic write gates the resume off and
@@ -752,9 +734,7 @@ subagent patient_intake:
         n => n.developer_name === 'patient_intake'
       ) as SubAgentNode;
     })();
-    const handoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff'
-    );
+    const handoffs = (node.after_reasoning ?? []).filter(isHandOffAction);
     // Resume handoff (incomplete->self) still present...
     expect(handoffs.some(h => h.target === 'patient_intake')).toBe(true);
     // ...and there is NO router handoff at all. Trailing content suppresses the
@@ -770,7 +750,7 @@ subagent patient_intake:
       n => n.developer_name === 'router'
     ) as SubAgentNode;
     const completionHandoffs = (router.after_reasoning ?? []).filter(
-      a => a.type === 'handoff' && (a as HandOffAction).target === 'router'
+      a => isHandOffAction(a) && a.target === 'router'
     );
     expect(completionHandoffs).toEqual([]);
     expect(completionActions(router)).toEqual([]);
@@ -814,8 +794,7 @@ subagent patient_intake:
     // incomplete gate.
     const node = intakeNode();
     const resume = (node.after_reasoning ?? []).find(
-      (a): a is HandOffAction =>
-        a.type === 'handoff' && a.target === 'patient_intake'
+      a => isHandOffAction(a) && a.target === 'patient_intake'
     );
     const stops = stopInstructionActions(node);
     expect(resume).toBeDefined();
@@ -883,9 +862,7 @@ subagent patient_intake:
     const selfHandoffs = [
       ...(router.after_all_tool_calls ?? []),
       ...(router.after_reasoning ?? []),
-    ].filter(
-      a => a.type === 'handoff' && (a as HandOffAction).target === 'router'
-    );
+    ].filter(a => isHandOffAction(a) && a.target === 'router');
     expect(selfHandoffs).toEqual([]);
   });
 
@@ -947,7 +924,7 @@ subagent patient_intake:
     // and reset_to_initial_node routes the user's next message back to the router.
     const node = intakeNode();
     const cancelHandoffs = (node.after_reasoning ?? []).filter(
-      (a): a is HandOffAction => a.type === 'handoff' && a.target === 'router'
+      a => isHandOffAction(a) && a.target === 'router'
     );
     expect(cancelHandoffs).toEqual([]);
   });
@@ -959,8 +936,7 @@ subagent patient_intake:
     // re-arms — otherwise the still-incomplete gather would trap the user again.
     const node = intakeNode();
     const resume = (node.after_reasoning ?? []).find(
-      (a): a is HandOffAction =>
-        a.type === 'handoff' && a.target === 'patient_intake'
+      a => isHandOffAction(a) && a.target === 'patient_intake'
     );
     expect(resume).toBeDefined();
     expect(resume!.enabled).toContain(
@@ -1025,11 +1001,7 @@ subagent patient_intake:
     const cancelHandoffs = [
       ...(router.after_all_tool_calls ?? []),
       ...(router.after_reasoning ?? []),
-    ].filter(
-      a =>
-        a.type === 'handoff' &&
-        (a as HandOffAction).enabled?.includes('=="router"')
-    );
+    ].filter(a => isHandOffAction(a) && a.enabled?.includes('=="router"'));
     expect(cancelHandoffs).toEqual([]);
   });
 });
@@ -1057,6 +1029,30 @@ start_agent router:
                 instructions: "Please provide your town or city."
 `;
 
+// Two `ask for`s directly in the start_agent — each must be flagged at its own
+// exact position (one error per occurrence, not just the first).
+const SCRIPT_TWO_COLLECTS_IN_START_AGENT = `
+config:
+    agent_name: "CollectBot"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+variables:
+    patient_city: mutable string
+        description: "Town or city."
+    patient_zip: mutable string
+        description: "ZIP code."
+
+start_agent router:
+    description: "Router"
+    reasoning:
+        instructions: ->
+            ask for @variables.patient_city
+                instructions: "Please provide your town or city."
+            ask for @variables.patient_zip
+                instructions: "Please provide your ZIP code."
+`;
+
 describe('collect placement validation (W-23177847)', () => {
   it('rejects a collect inside start_agent with a clear, actionable error', () => {
     const { diagnostics } = compile(parseSource(SCRIPT_COLLECT_IN_START_AGENT));
@@ -1069,6 +1065,35 @@ describe('collect placement validation (W-23177847)', () => {
         d.message.includes("'ask for' cannot be used in start_agent")
       )
     ).toBe(true);
+  });
+
+  it('anchors the error at the exact target range, not the whole clause', () => {
+    const { diagnostics } = compile(parseSource(SCRIPT_COLLECT_IN_START_AGENT));
+    const error = diagnostics.find(d =>
+      d.message.includes("'ask for' cannot be used in start_agent")
+    );
+    expect(error).toBeDefined();
+    const { start, end } = error!.range;
+    // Precise: the target sits on a single line (the whole clause would span
+    // the `ask for` line through the `instructions:` body), and it is not the
+    // (0,0) fallback.
+    expect(start.line).toBe(end.line);
+    expect(start.line === 0 && start.character === 0).toBe(false);
+    // Points at the `@variables.patient_city` target on the `ask for` line.
+    expect(start.line).toBe(14);
+    expect(start.character).toBe(20);
+  });
+
+  it('emits one error per `ask for`, each at its own line', () => {
+    const { diagnostics } = compile(
+      parseSource(SCRIPT_TWO_COLLECTS_IN_START_AGENT)
+    );
+    const errors = diagnostics.filter(d =>
+      d.message.includes("'ask for' cannot be used in start_agent")
+    );
+    expect(errors).toHaveLength(2);
+    const lines = errors.map(d => d.range.start.line).sort((a, b) => a - b);
+    expect(lines[0]).not.toBe(lines[1]);
   });
 
   it('does not synthesize collect artifacts on the rejected start_agent node', () => {
@@ -1097,7 +1122,7 @@ describe('collect placement validation (W-23177847)', () => {
 });
 
 // Two subagents each using `collect` — the beta-services notice must still fire
-// only ONCE per script (guarded by a flag on the per-compile context).
+// only ONCE per script (keyed by diagnostic code via ctx.infoOnce).
 const SCRIPT_TWO_COLLECT_SUBAGENTS = `
 config:
     agent_name: "CollectBot"
@@ -1161,11 +1186,13 @@ describe('collect beta-services legal notice', () => {
     expect(notices).toHaveLength(0);
   });
 
-  it('points the notice at the first collect, not the (0,0) fallback', () => {
+  it('anchors the notice at the start of the file (script-wide notice)', () => {
     const { diagnostics } = compile(parseSource(SCRIPT));
     const notice = diagnostics.find(d => d.code === 'ask-for-beta-services');
     expect(notice).toBeDefined();
-    const { start } = notice!.range;
-    expect(start.line === 0 && start.character === 0).toBe(false);
+    expect(notice!.range).toEqual({
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 },
+    });
   });
 });

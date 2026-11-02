@@ -17,7 +17,7 @@ docker run --rm --platform linux/amd64 \
   node:22 \
   bash -c '
     set -e
-    npm install -g pnpm@10.28.0 >/dev/null 2>&1
+    npm install -g pnpm@10.34.6 >/dev/null 2>&1
     # Install tree-sitter CLI (required by "generate" step in prebuild).
     curl -fsSL -o /tmp/tree-sitter.gz \
       "https://github.com/tree-sitter/tree-sitter/releases/download/v0.25.10/tree-sitter-linux-x64.gz"

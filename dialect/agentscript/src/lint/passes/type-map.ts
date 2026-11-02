@@ -36,9 +36,9 @@ export interface ParamInfo {
   type: string;
   hasDefault: boolean;
   /**
-   * Value of the `is_required` property, if explicitly specified.
-   * `undefined` means unspecified (defaults to required). `false` marks
-   * the input as explicitly optional.
+   * Value of the `is_required` property, if explicitly specified. Only
+   * `true` makes the input required (see `isRequiredInput`); unspecified
+   * matches the compiled `required: false`.
    */
   isRequired?: boolean;
 }
@@ -52,6 +52,13 @@ export interface ActionSignature {
   inputs: Map<string, ParamInfo>;
   outputs: Map<string, OutputParamInfo>;
   requireUserConfirmation?: BooleanField;
+  /**
+   * The `async_mode` field, if present. When true, the action is invoked
+   * asynchronously and its result is not awaited inline during tool
+   * selection. Only valid when the action's `target` scheme is
+   * `standardInvocableAction://` — see `actionTargetSchemeRule`.
+   */
+  asyncMode?: BooleanField;
   /** The `source` field value, if present. */
   source?: string;
   /** The `target` field, if present (e.g. "flow://Get_Account"). */
@@ -102,12 +109,17 @@ export interface TypeMap {
   transitionTargets: Map<string, TransitionTarget[]>;
 }
 
-/** Extract type text from a declaration node's `type` field via CST source. */
+/**
+ * Extract type text from a declaration node's `type` field via CST source,
+ * falling back to the type name for ASTs built without CST.
+ */
 function getTypeText(decl: Record<string, unknown>): string | null {
   const type = decl.type as Record<string, unknown> | undefined;
   if (!type) return null;
   const cst = type.__cst as CstMeta | undefined;
-  return cst?.node?.text?.trim() ?? null;
+  const text = cst?.node?.text?.trim();
+  if (text) return text;
+  return typeof type.name === 'string' ? type.name : null;
 }
 
 /** Extract a BooleanField from an AST node, including the key range from the parent mapping_element. */
@@ -163,7 +175,7 @@ function extractAnyStringValue(node: unknown): string | undefined {
   return undefined;
 }
 
-function extractParamMap(mapValue: unknown): Map<string, ParamInfo> {
+export function extractParamMap(mapValue: unknown): Map<string, ParamInfo> {
   const result = new Map<string, ParamInfo>();
   if (!mapValue || !isNamedMap(mapValue)) return result;
 
@@ -222,6 +234,24 @@ function extractOutputParamMap(
   return result;
 }
 
+/** Build the I/O and metadata signature of an action definition block. */
+export function extractActionSignature(
+  act: Record<string, unknown>
+): ActionSignature {
+  const sourceNode = act.source as { value?: string } | undefined;
+  return {
+    inputs: extractParamMap(act.inputs),
+    outputs: extractOutputParamMap(act.outputs),
+    requireUserConfirmation: extractBooleanField(act.require_user_confirmation),
+    asyncMode: extractBooleanField(act.async_mode),
+    source:
+      sourceNode && typeof sourceNode.value === 'string'
+        ? sourceNode.value
+        : undefined,
+    target: extractStringField(act.target),
+  };
+}
+
 export const typeMapKey = storeKey<TypeMap>('type-map');
 
 class TypeMapAnalyzer implements LintPass {
@@ -277,31 +307,15 @@ class TypeMapAnalyzer implements LintPass {
           if (actionsMap && isNamedMap(actionsMap)) {
             for (const [actName, actBlock] of actionsMap as NamedMap<unknown>) {
               if (!actBlock || typeof actBlock !== 'object') continue;
-              const act = actBlock as Record<string, unknown>;
-
-              const inputs = extractParamMap(act.inputs);
-              const outputs = extractOutputParamMap(act.outputs);
-              const requireUserConfirmation = extractBooleanField(
-                act.require_user_confirmation
-              );
-              const sourceNode = act.source as { value?: string } | undefined;
-              const source =
-                sourceNode && typeof sourceNode.value === 'string'
-                  ? sourceNode.value
-                  : undefined;
-
-              const target = extractStringField(act.target);
-
               if (!actions.has(topicName)) {
                 actions.set(topicName, new Map());
               }
-              actions.get(topicName)!.set(actName, {
-                inputs,
-                outputs,
-                requireUserConfirmation,
-                source,
-                target,
-              });
+              actions
+                .get(topicName)!
+                .set(
+                  actName,
+                  extractActionSignature(actBlock as Record<string, unknown>)
+                );
             }
           }
 

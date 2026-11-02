@@ -7,7 +7,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { generateFieldSnippet, escapeSnippetText } from './snippet-gen.js';
-import { StringValue, BooleanValue, NumberValue } from '../primitives.js';
+import {
+  StringValue,
+  BooleanValue,
+  NumberValue,
+  ExpressionValue,
+  ProcedureValue,
+} from '../primitives.js';
 import { Block } from '../block.js';
 import { NamedBlock } from '../named-block-factory.js';
 import {
@@ -27,6 +33,12 @@ describe('generateFieldSnippet', () => {
 
     it('returns undefined for NumberValue', () => {
       expect(generateFieldSnippet('count', NumberValue)).toBeUndefined();
+    });
+
+    it('generates an arrow snippet for ProcedureValue', () => {
+      expect(generateFieldSnippet('steps', ProcedureValue)).toBe(
+        'steps: ->\n    ${1:instructions}$0'
+      );
     });
   });
 
@@ -215,6 +227,36 @@ describe('generateFieldSnippet', () => {
       const lines = snippet!.split('\n');
       expect(lines[0]).toMatch(/^item \$\{\d+:Name\}:$/);
       expect(lines[1]).toMatch(/^ {4}\$\{\d+\}\$0$/);
+    });
+
+    it('uses an arrow for a named collection with a direct procedure body', () => {
+      const ProcedureEntry = NamedBlock(
+        'ProcedureEntry',
+        {},
+        {
+          body: ProcedureValue,
+        }
+      );
+      const collection = NamedCollectionBlock(ProcedureEntry);
+      const snippet = generateFieldSnippet('step', collection);
+
+      expect(snippet).toMatch(/^step \$\{\d+:Name\}: ->/);
+    });
+
+    it('keeps colinear procedure collection snippets unchanged', () => {
+      const ColinearEntry = NamedBlock(
+        'ColinearEntry',
+        {},
+        {
+          colinear: ExpressionValue,
+          body: ProcedureValue,
+        }
+      );
+      const collection = NamedCollectionBlock(ColinearEntry);
+      const snippet = generateFieldSnippet('action', collection);
+
+      expect(snippet).toMatch(/^action \$\{\d+:Name\}:/);
+      expect(snippet).not.toContain(': ->');
     });
   });
 

@@ -9,7 +9,11 @@ import { DiagnosticSeverity, attachDiagnostic } from '../core/diagnostics.js';
 import { storeKey, type LintPass } from '../core/analysis/lint-engine.js';
 import type { AstNodeLike } from '../core/types.js';
 import type { ScopeContext } from '../core/analysis/scope.js';
-import { Identifier, CallExpression } from '../core/expressions.js';
+import {
+  Identifier,
+  CallExpression,
+  DictLiteral,
+} from '../core/expressions.js';
 import { isTemplateInterpolation } from '../core/guards.js';
 import { lintDiagnostic } from './lint-utils.js';
 
@@ -17,11 +21,13 @@ import { lintDiagnostic } from './lint-utils.js';
  * Validates bare identifiers used as expression *values*.
  *
  * AgentScript has no loops, comprehensions, enums, or local/loop variable
- * bindings, so a bare identifier is only meaningful in two positions:
+ * bindings, so a bare identifier is only meaningful in three positions:
  *   1. the callee of a call expression (e.g. `len(...)`) — validated separately
- *      by the expression-validation pass against the known-function set; and
+ *      by the expression-validation pass against the known-function set;
  *   2. the property of a member expression (`x.prop`), which is stored as a
- *      string field and never visited as an expression.
+ *      string field and never visited as an expression; and
+ *   3. the key of a dict-literal entry (`{version: @outputs.n}`), which names a
+ *      field rather than resolving to a value, so we skip it.
  *
  * Any other standalone bare identifier resolves to nothing at runtime — most
  * commonly a lowercase `none`/`true`/`false`/`null` that the author meant as a
@@ -61,6 +67,17 @@ class IdentifierValidationPass implements LintPass {
     // dialect-registered functions are validated by expression-validation.
     const parent = this.ancestorStack[this.ancestorStack.length - 2];
     if (parent instanceof CallExpression && parent.func === expr) return;
+
+    // Skip dict-literal keys — a bare-word key (`{version: ...}`) is a field
+    // label, not a value reference. The walker visits the key directly under its
+    // DictLiteral, so `parent` is the dict; reference-equality against the entry
+    // keys distinguishes a key from an identically-named value in the same dict.
+    if (
+      parent instanceof DictLiteral &&
+      parent.entries.some(entry => entry.key === expr)
+    ) {
+      return;
+    }
 
     const cst = expr.__cst;
     if (!cst) return;

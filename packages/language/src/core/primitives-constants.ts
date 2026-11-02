@@ -43,8 +43,8 @@ export const AGENTSCRIPT_PRIMITIVE_TYPES = [
     description: 'A unique record identifier.',
     metadata: {
       deprecated: {
-        message: 'Use string instead.',
-        replacement: 'string',
+        message: 'Use object instead.',
+        replacement: 'object',
       },
     },
   },

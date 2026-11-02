@@ -132,6 +132,51 @@ connection telephony:
     ]);
   });
 
+  // A blank route name can't escalate, so the whole config is dropped (type,
+  // name, and the escalation "success confirmation" message) — regardless of
+  // whether the blank arrives as scheme-only, bare empty, or whitespace.
+  it.each([
+    ['scheme-only URI', 'flow://'],
+    ['bare empty string', ''],
+    ['whitespace only', '   '],
+  ])(
+    'should omit the outbound route config when the route name is blank (%s)',
+    (_label, routeName) => {
+      const source = agentSource(`
+connection messaging:
+    escalation_message: "Escalating you now"
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "${routeName}"
+    adaptive_response_allowed: True
+`);
+      const result = compileSource(source);
+
+      const surface = findSurface(result, 'messaging');
+      expect(surface).toBeDefined();
+      expect(surface?.outbound_route_configs).toEqual([]);
+    }
+  );
+
+  it('should keep an outbound route whose URI has a real name', () => {
+    const source = agentSource(`
+connection messaging:
+    escalation_message: "Escalating you now"
+    outbound_route_type: "OmniChannelFlow"
+    outbound_route_name: "flow://Real_Route"
+`);
+    const result = compileSource(source);
+
+    const surface = findSurface(result, 'messaging');
+    // The full URI is preserved verbatim — the scheme is not stripped.
+    expect(surface?.outbound_route_configs).toEqual([
+      {
+        escalation_message: 'Escalating you now',
+        outbound_route_type: 'OmniChannelFlow',
+        outbound_route_name: 'flow://Real_Route',
+      },
+    ]);
+  });
+
   // Python: test_single_connection_with_default_outbound_route_type
   it('should compile a connection with outbound_route_type passed through as-is', () => {
     const source = agentSource(`

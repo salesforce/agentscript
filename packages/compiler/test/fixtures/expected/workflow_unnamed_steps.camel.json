@@ -1,0 +1,240 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "OrderStatusAgent",
+    "label": "Order Status Agent",
+    "description": "Checks order status through a workflow",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [],
+    "defaultAgentUser": "test_user"
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [
+      {
+        "message": "Hello! How can I help?",
+        "messageType": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "messageType": "Error"
+      }
+    ],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "order_id",
+        "label": "Order Id",
+        "description": "The order to look up",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "order_status",
+        "label": "Order Status",
+        "description": "The current order status",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developerName": "is_vip",
+        "label": "Is Vip",
+        "description": "Whether the customer is a VIP",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      }
+    ],
+    "initialNode": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Entry point",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"order_status\""
+              }
+            ],
+            "name": "check_status",
+            "description": "Look up and report order status"
+          }
+        ],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "You help customers check order status.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nRoute order status requests to the workflow."
+              }
+            ]
+          }
+        ],
+        "afterAllToolCalls": [
+          {
+            "type": "handoff",
+            "target": "order_status",
+            "enabled": "state.AgentScriptInternal_next_topic==\"order_status\"",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "General support",
+        "tools": [],
+        "developerName": "support",
+        "label": "Support",
+        "actionDefinitions": [],
+        "instructions": "You help customers check order status.",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nHelp the customer with anything else."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "workflow",
+        "developerName": "order_status",
+        "label": "Order Status",
+        "steps": [
+          {
+            "name": "main",
+            "directives": [
+              {
+                "type": "ask_for",
+                "llmInputs": [
+                  "order_id"
+                ],
+                "instructions": "Ask for the order number.",
+                "developerName": "order_status_main_ask_for_01"
+              },
+              {
+                "type": "action",
+                "target": "lookup_order",
+                "boundInputs": {
+                  "orderId": "state.order_id"
+                },
+                "stateUpdates": [
+                  {
+                    "order_status": "result.status"
+                  }
+                ],
+                "developerName": "order_status_main_action_02"
+              },
+              {
+                "type": "say",
+                "text": "Your order {{state.order_id}} has shipped.",
+                "enabled": "state.order_status == \"shipped\"",
+                "developerName": "order_status_main_say_03"
+              },
+              {
+                "type": "say",
+                "text": "As a VIP, we are prioritizing your order.",
+                "enabled": "(not (state.order_status == \"shipped\")) and (state.is_vip)",
+                "developerName": "order_status_main_say_04"
+              },
+              {
+                "type": "say",
+                "text": "Your order is {{state.order_status}}.",
+                "enabled": "(not (state.order_status == \"shipped\")) and (not (state.is_vip))",
+                "developerName": "order_status_main_say_05"
+              },
+              {
+                "type": "handoff",
+                "target": "support",
+                "developerName": "order_status_main_handoff_06"
+              }
+            ]
+          }
+        ],
+        "description": "Look up and report order status",
+        "actionDefinitions": [
+          {
+            "developerName": "lookup_order",
+            "label": "Lookup Order",
+            "description": "Look up an order by id",
+            "includeInProgressIndicator": false,
+            "invocationTargetType": "flow",
+            "invocationTargetName": "LookupOrder",
+            "inputType": [
+              {
+                "developerName": "orderId",
+                "label": "Order Id",
+                "description": "Order Id",
+                "dataType": "String",
+                "isList": false,
+                "required": false,
+                "isUserInput": false
+              }
+            ],
+            "outputType": [
+              {
+                "developerName": "status",
+                "label": "Status",
+                "description": "Status",
+                "dataType": "String",
+                "isList": false,
+                "isUsedByPlanner": true,
+                "isDisplayable": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! How can I help?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

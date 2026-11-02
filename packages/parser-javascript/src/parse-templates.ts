@@ -206,6 +206,7 @@ function templateContinues(
       case 'else':
       case 'run':
       case 'set':
+      case 'say':
       case 'transition':
         return false;
       case 'with':

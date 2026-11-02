@@ -74,6 +74,7 @@ function walkNode(node: CSTNode, captures: HighlightCapture[]): void {
       return;
 
     case 'string_content':
+    case 'say_string_content':
       capture(node, 'string', captures);
       return;
 
@@ -98,7 +99,8 @@ function walkNode(node: CSTNode, captures: HighlightCapture[]): void {
       return;
 
     case 'template_expression':
-      captureTemplateExpression(node, captures);
+    case 'say_interpolation':
+      captureInterpolationDelimiters(node, captures);
       return;
 
     case 'variable_declaration':
@@ -223,8 +225,8 @@ function captureAtId(node: CSTNode, captures: HighlightCapture[]): void {
   }
 }
 
-/** Capture template expression delimiters {! and }. */
-function captureTemplateExpression(
+/** Capture interpolation delimiters {! and }. */
+function captureInterpolationDelimiters(
   node: CSTNode,
   captures: HighlightCapture[]
 ): void {
@@ -267,6 +269,7 @@ function captureAnonymous(node: CSTNode, captures: HighlightCapture[]): void {
     case 'run':
     case 'with':
     case 'set':
+    case 'say':
     case 'transition':
     case 'available':
     case 'when':

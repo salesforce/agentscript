@@ -15,12 +15,18 @@ import {
   resolveAtReference,
 } from '../ast-helpers.js';
 
+/** URI scheme for a workflow reference target, e.g. `workflow://account_summary`. */
+const WORKFLOW_TARGET_SCHEME = 'workflow';
+
 /**
  * Compile workflow declarations to AgentJSON Workflow objects.
  *
  * - `agent`-only: type 'agent', no prompt
  * - `agent` + `prompt`: type 'agent' with an additional prompt instruction
  * - `prompt`-only: type 'prompt'
+ * - `target`-only: type 'workflow', a reference to an externally-stored
+ *   workflow named by a `workflow://<name>` URI (prefix stripped). Mutually
+ *   exclusive with `agent`/`prompt`.
  */
 export function compileWorkflows(
   workflows: NamedMap<Record<string, unknown>> | undefined,
@@ -33,9 +39,65 @@ export function compileWorkflows(
   for (const [id, block] of iterateNamedMap(workflows)) {
     const hasAgent = block.agent != null;
     const hasPrompt = block.prompt != null;
+    const hasTarget = block.target != null;
 
-    if (!hasAgent && !hasPrompt) {
-      ctx.error(`Workflow '${id}' must set either 'agent' or 'prompt' or both`);
+    // A `target` reference is mutually exclusive with `agent`/`prompt`.
+    if (hasTarget && (hasAgent || hasPrompt)) {
+      ctx.error(
+        `Workflow '${id}' cannot combine 'target' with 'agent' or 'prompt'`,
+        getCstRange(block.target)
+      );
+      continue;
+    }
+
+    if (!hasAgent && !hasPrompt && !hasTarget) {
+      ctx.error(`Workflow '${id}' must set 'agent', 'prompt', or 'target'`);
+      continue;
+    }
+
+    if (hasTarget) {
+      const rawTarget = extractStringValue(block.target);
+
+      if (!rawTarget || rawTarget.trim() === '') {
+        ctx.error(
+          `Workflow '${id}' requires a non-empty target`,
+          getCstRange(block.target)
+        );
+        continue;
+      }
+
+      const schemeSep = rawTarget.indexOf('://');
+      if (schemeSep === -1) {
+        ctx.error(
+          `Workflow '${id}' target must use a URI scheme (e.g. "workflow://account_summary"), got "${rawTarget}"`,
+          getCstRange(block.target)
+        );
+        continue;
+      }
+
+      const scheme = rawTarget.slice(0, schemeSep);
+      if (scheme !== WORKFLOW_TARGET_SCHEME) {
+        ctx.error(
+          `Workflow '${id}' target uses unsupported scheme "${scheme}://". Supported: ${WORKFLOW_TARGET_SCHEME}://`,
+          getCstRange(block.target)
+        );
+        continue;
+      }
+
+      const targetName = rawTarget.slice(schemeSep + '://'.length);
+      if (targetName.trim() === '') {
+        ctx.error(
+          `Workflow '${id}' target requires a name after "${WORKFLOW_TARGET_SCHEME}://" (e.g. "${WORKFLOW_TARGET_SCHEME}://account_summary")`,
+          getCstRange(block.target)
+        );
+        continue;
+      }
+
+      result.push({
+        id,
+        invocation_target_type: 'workflow',
+        invocation_target_name: targetName,
+      });
       continue;
     }
 

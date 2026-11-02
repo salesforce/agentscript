@@ -7,9 +7,10 @@
 
 /**
  * Tests for the agentforce `context:` block — external context providers
- * (Salesforce, Data Cloud) the agent can draw on during execution, alongside
- * the existing memory / user_profile / past_conversations config. The set of
- * providers is a fixed schema for now; BYO Context is future work.
+ * (Enterprise Search, Salesforce, Data Cloud) the agent can draw on during
+ * execution, alongside the existing memory / user_profile / past_conversations
+ * config. The set of providers is a fixed schema for now; BYO Context is future
+ * work.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -20,16 +21,19 @@ import {
 } from './test-utils.js';
 
 describe('context providers', () => {
-  test('parses salesforce and data_cloud providers', () => {
+  test('parses search, salesforce, and data_cloud providers', () => {
     const doc = parseDocument(
       [
         'context:',
+        '    search:',
+        '        enabled: True',
         '    salesforce:',
         '        auto_enabled: True',
         '    data_cloud:',
         '        auto_enabled: True',
       ].join('\n')
     );
+    expect(doc.context?.search?.enabled?.value).toBe(true);
     expect(doc.context?.salesforce?.auto_enabled?.value).toBe(true);
     expect(doc.context?.data_cloud?.auto_enabled?.value).toBe(true);
   });
@@ -59,6 +63,8 @@ describe('context providers', () => {
   test('round-trips', () => {
     const source = [
       'context:',
+      '    search:',
+      '        enabled: False',
       '    salesforce:',
       '        auto_enabled: True',
       '    data_cloud:',
@@ -66,6 +72,7 @@ describe('context providers', () => {
     ].join('\n');
     const emitted = emitDocument(parseDocument(source));
     const doc = parseDocument(emitted);
+    expect(doc.context?.search?.enabled?.value).toBe(false);
     expect(doc.context?.salesforce?.auto_enabled?.value).toBe(true);
     expect(doc.context?.data_cloud?.enabled?.value).toBe(true);
   });

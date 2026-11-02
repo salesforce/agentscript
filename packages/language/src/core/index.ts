@@ -173,6 +173,7 @@ export type { Statement } from './statements.js';
 
 export {
   Template,
+  SayStatement,
   WithClause,
   SetClause,
   ToClause,
@@ -197,6 +198,7 @@ export {
   isToClause,
   isSetClause,
   isWithClause,
+  isSayStatement,
 } from './guards.js';
 
 export { Dialect } from './dialect.js';

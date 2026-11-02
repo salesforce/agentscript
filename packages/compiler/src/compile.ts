@@ -22,6 +22,7 @@ import { compileContextVariables } from './config/context-variables.js';
 import { compileAccess } from './config/compile-access.js';
 import { compileRuntime } from './config/compile-runtime.js';
 import { compileFileUpload } from './config/compile-file-upload.js';
+import { compileBilling } from './config/compile-billing.js';
 import { compileAgentVersion } from './agent-version/compile-agent-version.js';
 import { compileContext } from './context/compile-context.js';
 import { agentDslAuthoring, contextConfigurationSchema } from './types.js';
@@ -38,14 +39,22 @@ export interface CompileResult {
   diagnostics: Diagnostic[];
 }
 
+export interface CompileOptions {
+  /** Enable to optimize emitted AgentJSON for performance. Default true. */
+  optimize?: boolean;
+}
+
 /**
  * Compile a parsed AgentScript AST into AgentJSON (AgentDSLAuthoring schema v2.0).
  *
  * Output values are plain primitives. Source ranges are tracked in `ranges`
  * (populated automatically by ctx.track()). Pass both to serializeWithSourceMap().
  */
-export function compile(ast: ParsedAgentforce): CompileResult {
-  const ctx = new CompilerContext();
+export function compile(
+  ast: ParsedAgentforce,
+  options?: CompileOptions
+): CompileResult {
+  const ctx = new CompilerContext(options);
 
   // Step 1: Validate @knowledge references
   validateKnowledgeReferences(ast.knowledge, ctx);
@@ -84,6 +93,9 @@ export function compile(ast: ParsedAgentforce): CompileResult {
   // Step 4d: Compile file_upload block (nested under config; output maps to agent_version)
   const fileUpload = compileFileUpload(ast.config?.file_upload, ctx);
 
+  // Step 4e: Compile billing block (nested under config; output maps to agent_version)
+  const billing = compileBilling(ast.config?.billing, ctx);
+
   // Step 5: Extract additional parameters
   const additionalParameters = extractAdditionalParameters(
     ast.config,
@@ -97,6 +109,7 @@ export function compile(ast: ParsedAgentforce): CompileResult {
     additionalParameters,
     runtime,
     fileUpload,
+    billing,
     ctx
   );
 

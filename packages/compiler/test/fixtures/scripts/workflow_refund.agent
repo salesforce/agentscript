@@ -1,0 +1,66 @@
+system:
+    instructions: "You are a helpful refund assistant."
+    messages:
+        welcome: "Hello! How can I help with your order?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "refund_agent"
+    default_agent_user: "refund_agent@example.com"
+    agent_description: "Processes order refunds through a deterministic workflow."
+
+variables:
+    order_id: mutable string = ""
+        description: "The order to refund"
+    refund_complete: mutable boolean = False
+        description: "Whether the refund was issued"
+    customer_name: mutable string = ""
+        description: "The customer's name"
+
+start_agent intent_router:
+    description: "Route the user to the right place"
+    reasoning:
+        instructions: ->
+            | Use {!@actions.start_refund} when the user wants a refund.
+        actions:
+            start_refund: @utils.transition to @workflow.refund_workflow
+
+subagent refund_followup:
+    description: "Answer follow-up questions after a refund"
+    reasoning:
+        instructions: ->
+            | Answer any follow-up questions about the refund for order {!@variables.order_id}.
+
+workflow refund_workflow:
+    label: "Refund Workflow"
+    description: "Collects an order id, issues a refund, and confirms."
+    actions:
+        issue_refund:
+            description: "Issue a refund for the given order id."
+            require_user_confirmation: False
+            include_in_progress_indicator: True
+            progress_indicator_message: "Issuing your refund..."
+            inputs:
+                orderId: string
+                    is_required: True
+                    is_user_input: False
+            outputs:
+                status: string
+                    is_displayable: False
+                    filter_from_agent: False
+            target: "standardInvocableAction://issueRefund"
+    step greet: ->
+        say "Hi! I can help you process a refund."
+    step collect_order: ->
+        ask for @variables.order_id
+            instructions: "Ask the user for the order id they want refunded."
+    step issue_refund: ->
+        set @variables.customer_name = "SomeData"
+        run @actions.issue_refund
+            with orderId = @variables.order_id
+            set @variables.refund_complete = True
+        if @variables.refund_complete == True:
+            say "Your refund for order {!@variables.order_id} has been issued."
+            transition to @subagent.refund_followup
+        else:
+            escalate

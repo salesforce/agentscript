@@ -48,8 +48,10 @@ export function isStatementStart(ctx: ParserContext): boolean {
     case 'if':
     case 'run':
     case 'set':
+    case 'say':
     case 'transition':
     case 'escalate':
+    case 'end_session':
       return true;
     case 'with':
       // "with" is a statement only if not followed by colon (which would make it a key)
@@ -132,10 +134,14 @@ export function parseStatement(
         return parseRunStatement(ctx, parseTemplate);
       case 'set':
         return parseSetStatement(ctx);
+      case 'say':
+        return parseSayStatement(ctx);
       case 'transition':
         return parseTransitionStatement(ctx);
       case 'escalate':
         return parseEscalateStatement(ctx);
+      case 'end_session':
+        return parseEndSessionStatement(ctx);
       case 'ask':
         // "ask for" — two-word statement keyword (mirrors "available when").
         if (
@@ -209,8 +215,14 @@ export function parseStatement(
  * Consumes colon (with recovery), inline comment, extra inline tokens,
  * then INDENT → procedure → DEDENT, and trailing NEWLINE.
  *
- * @param errorOnMissingBody - if true, insert ERROR when colon has no
- *   indented body (used by `if`; else if / else silently accept missing body).
+ * A missing colon is always a syntax error — every one of `if`, `else if`
+ * and `else` requires it, matching the tree-sitter grammar (which lists `:`
+ * as a mandatory token in all three rules). Otherwise a colon-less `else`
+ * would parse as a valid `else_clause`, diverging from tree-sitter.
+ *
+ * @param errorOnMissingBody - if true, insert ERROR when the colon has no
+ *   indented body (used by `if`; else if / else silently accept a missing
+ *   body, e.g. while the author is still typing the block).
  */
 function parseColonAndProcedureBody(
   ctx: ParserContext,
@@ -219,11 +231,14 @@ function parseColonAndProcedureBody(
   errorOnMissingBody: boolean,
   parseTemplate?: (ctx: ParserContext) => CSTNode
 ): void {
-  // Colon (or recovery)
+  // Colon (or recovery) — required for if / else if / else alike.
+  // Insert a MISSING `:` node (not an empty ERROR) so the diagnostic reads
+  // "Missing :" and anchors to the end of the condition/keyword, matching
+  // tree-sitter (which lists `:` as a required token) and the mapping parser.
   if (ctx.peekKind() === TokenKind.COLON) {
     ctx.addAnonymousChild(node, ctx.consume());
-  } else if (errorOnMissingBody) {
-    node.appendChild(makeEmptyError(ctx));
+  } else {
+    node.appendChild(makeMissing(ctx, ':'));
   }
 
   // Inline comment after colon
@@ -604,6 +619,273 @@ export function parseSetStatement(ctx: ParserContext): CSTNode {
   return node;
 }
 
+/** Parse a workflow `say "..."` directive with direct reference interpolation. */
+export function parseSayStatement(ctx: ParserContext): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('say_statement');
+
+  ctx.addAnonymousChild(node, ctx.consume()); // say
+
+  if (ctx.peekKind() === TokenKind.STRING && ctx.peek().text.startsWith('"')) {
+    node.appendChild(parseSayString(ctx), 'value');
+  } else if (!ctx.isAtSyncPoint()) {
+    const token = ctx.consume();
+    const leaf = tokenToAutoLeaf(token, ctx.source, token.startOffset);
+    node.appendChild(
+      makeErrorNode(
+        ctx.source,
+        [leaf],
+        token.startOffset,
+        token.startOffset + token.text.length,
+        token.start,
+        token.end
+      )
+    );
+    const trailing = synchronizeRow(ctx, startTok.start.row);
+    if (trailing) node.appendChild(trailing);
+  } else {
+    node.appendChild(makeEmptyError(ctx));
+  }
+
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
+/** Split the lexer's whole-string token into a say-specific CST. */
+function parseSayString(ctx: ParserContext): CSTNode {
+  const token = ctx.peek();
+  const node = ctx.startNode('say_string');
+  const text = token.text;
+  const tokenOffset = token.startOffset;
+  const row = token.start.row;
+  const column = token.start.column;
+  ctx.consume();
+
+  const positions: Array<{ row: number; column: number }> = [];
+  let currentRow = row;
+  let currentColumn = column;
+  for (let index = 0; index < text.length; index++) {
+    positions.push({ row: currentRow, column: currentColumn });
+    if (text.charCodeAt(index) === 10) {
+      currentRow++;
+      currentColumn = 0;
+    } else {
+      currentColumn++;
+    }
+  }
+  positions.push({ row: currentRow, column: currentColumn });
+  const position = (index: number) => positions[index]!;
+  const appendLeaf = (
+    type: string,
+    start: number,
+    end: number,
+    isNamed = true,
+    parent: CSTNode = node,
+    fieldName?: string
+  ) => {
+    parent.appendChild(
+      new CSTNode(
+        type,
+        ctx.source,
+        tokenOffset + start,
+        tokenOffset + end,
+        position(start),
+        position(end),
+        isNamed
+      ),
+      fieldName
+    );
+  };
+
+  appendLeaf('"', 0, 1, false);
+
+  const hasClosingQuote = hasUnescapedClosingQuote(text);
+  const contentEnd = hasClosingQuote ? text.length - 1 : text.length;
+  let index = 1;
+  let contentStart = index;
+
+  const flushContent = (end: number) => {
+    if (end <= contentStart) return;
+    appendLeaf('say_string_content', contentStart, end);
+  };
+
+  while (index < contentEnd) {
+    if (text[index] === '\\' && index + 1 < contentEnd) {
+      flushContent(index);
+      const escapeEnd = index + 2;
+      const validEscape = /["'\\nrt0]/.test(text[index + 1]!);
+      if (validEscape) {
+        appendLeaf('escape_sequence', index, escapeEnd);
+      } else {
+        node.appendChild(
+          new CSTNode(
+            'ERROR',
+            ctx.source,
+            tokenOffset + index,
+            tokenOffset + escapeEnd,
+            position(index),
+            position(escapeEnd),
+            true,
+            true
+          )
+        );
+      }
+      index = escapeEnd;
+      contentStart = index;
+      continue;
+    }
+
+    if (text[index] === '{' && text[index + 1] === '!') {
+      flushContent(index);
+      const close = text.indexOf('}', index + 2);
+      if (close === -1 || close >= contentEnd) {
+        node.appendChild(
+          new CSTNode(
+            'ERROR',
+            ctx.source,
+            tokenOffset + index,
+            tokenOffset + contentEnd,
+            position(index),
+            position(contentEnd),
+            true,
+            true
+          )
+        );
+        index = contentEnd;
+        contentStart = index;
+        break;
+      }
+
+      const inner = text.slice(index + 2, close);
+      const match = inner.match(
+        /^\s*@([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/
+      );
+      if (!match) {
+        node.appendChild(
+          new CSTNode(
+            'ERROR',
+            ctx.source,
+            tokenOffset + index,
+            tokenOffset + close + 1,
+            position(index),
+            position(close + 1),
+            true,
+            true
+          )
+        );
+      } else {
+        const interpolation = new CSTNode(
+          'say_interpolation',
+          ctx.source,
+          tokenOffset + index,
+          tokenOffset + close + 1,
+          position(index),
+          position(close + 1)
+        );
+        appendLeaf('{!', index, index + 2, false, interpolation);
+
+        const atIndex = index + 2 + inner.indexOf('@');
+        const namespace = match[1]!;
+        const property = match[2]!;
+        const namespaceNode = new CSTNode(
+          'at_id',
+          ctx.source,
+          tokenOffset + atIndex,
+          tokenOffset + atIndex + namespace.length + 1,
+          position(atIndex),
+          position(atIndex + namespace.length + 1)
+        );
+        appendLeaf('@', atIndex, atIndex + 1, false, namespaceNode);
+        appendLeaf(
+          'id',
+          atIndex + 1,
+          atIndex + namespace.length + 1,
+          true,
+          namespaceNode
+        );
+
+        const dotIndex = text.indexOf('.', atIndex + namespace.length + 1);
+        const propertyIndex = text.indexOf(property, dotIndex + 1);
+        const reference = new CSTNode(
+          'say_reference',
+          ctx.source,
+          tokenOffset + atIndex,
+          tokenOffset + propertyIndex + property.length,
+          position(atIndex),
+          position(propertyIndex + property.length)
+        );
+        reference.appendChild(namespaceNode, 'namespace');
+        appendLeaf('.', dotIndex, dotIndex + 1, false, reference);
+        appendLeaf(
+          'id',
+          propertyIndex,
+          propertyIndex + property.length,
+          true,
+          reference,
+          'property'
+        );
+        interpolation.appendChild(reference, 'reference');
+        appendLeaf('}', close, close + 1, false, interpolation);
+        node.appendChild(interpolation);
+      }
+
+      index = close + 1;
+      contentStart = index;
+      continue;
+    }
+
+    // Match tree-sitter's token boundary: a lone `{` is one text part,
+    // while `{!` remains reserved for interpolation.
+    if (text[index] === '{') {
+      flushContent(index);
+      appendLeaf('say_string_content', index, index + 1);
+      index += 1;
+      contentStart = index;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  flushContent(index);
+  if (hasClosingQuote) {
+    appendLeaf('"', text.length - 1, text.length, false);
+  } else {
+    const missingPosition = position(text.length);
+    node.appendChild(
+      new CSTNode(
+        '"',
+        ctx.source,
+        tokenOffset + text.length,
+        tokenOffset + text.length,
+        missingPosition,
+        missingPosition,
+        false,
+        false,
+        true
+      )
+    );
+  }
+
+  ctx.finishNode(node, token);
+  return node;
+}
+
+function hasUnescapedClosingQuote(text: string): boolean {
+  if (text.length <= 1 || !text.endsWith('"')) return false;
+
+  let precedingBackslashes = 0;
+  for (
+    let index = text.length - 2;
+    index >= 0 && text[index] === '\\';
+    index--
+  ) {
+    precedingBackslashes++;
+  }
+  return precedingBackslashes % 2 === 0;
+}
+
 export function parseTransitionStatement(ctx: ParserContext): CSTNode {
   const startTok = ctx.peek();
   const node = ctx.startNode('transition_statement');
@@ -644,6 +926,15 @@ export function parseEscalateStatement(ctx: ParserContext): CSTNode {
   const startTok = ctx.peek();
   const node = ctx.startNode('escalate_statement');
   ctx.addAnonymousChild(node, ctx.consume()); // escalate
+  if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
+  ctx.finishNode(node, startTok);
+  return node;
+}
+
+export function parseEndSessionStatement(ctx: ParserContext): CSTNode {
+  const startTok = ctx.peek();
+  const node = ctx.startNode('end_session_statement');
+  ctx.addAnonymousChild(node, ctx.consume()); // end_session
   if (ctx.peekKind() === TokenKind.NEWLINE) ctx.consume();
   ctx.finishNode(node, startTok);
   return node;

@@ -1,0 +1,36 @@
+system:
+    instructions: "You are a document-processing assistant."
+
+config:
+    agent_name: "FileUploadManaged"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "service_user"
+    file_upload:
+        mode: "managed"
+
+variables:
+    needs_summary: mutable boolean = False
+    doc_id: mutable string = ""
+
+start_agent intake:
+    description: "Reviews uploaded files and answers questions about them"
+
+    actions:
+        summarize_doc:
+            description: "Summarize an uploaded document"
+            inputs:
+                doc_id: string
+            outputs:
+                summary: string
+            target: "flow://summarize_doc"
+
+    reasoning:
+        instructions: ->
+            | You have {!len(@system_variables.uploaded_files)} file(s) uploaded.
+            | The most recent upload is {!@system_variables.uploaded_files[-1].name}.
+            if @variables.needs_summary:
+                | Focus on the first three documents: {!@system_variables.uploaded_files[0:3]}
+
+        actions:
+            summarize_doc: @actions.summarize_doc
+                with doc_id = @system_variables.uploaded_files[0].id
