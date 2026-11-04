@@ -260,8 +260,8 @@ export function buildPriorGuardByTarget(
 /**
  * Right-associate a list of operands under a binary operator, parenthesizing
  * the tail so that 3+ operand expressions read `A OP (B OP (C OP D))`. The
- * runtime evaluator requires explicit parens for 3+ operand expressions (the
- * compiler's expression emitter never auto-parenthesizes), and this matches the
+ * runtime evaluator requires explicit parens for 3+ operand expressions (these
+ * strings are built here, not by the expression emitter), and this matches the
  * only existing 3-operand `enabled` condition in the golden corpus
  * (`pronto_customer_support`: `A and (B and C)`). For 1 operand the operand is
  * returned as-is; for 2 it is `A OP B` (no parens needed).
