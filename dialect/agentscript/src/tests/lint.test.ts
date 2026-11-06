@@ -20,6 +20,7 @@ import {
   createSchemaContext,
   LintEngine,
   PassStore,
+  attachDiagnostic,
   collectDiagnostics,
   DependencyResolutionError,
   storeKey,
@@ -36,6 +37,7 @@ import {
   NumberValue,
   BooleanValue,
   Sequence,
+  ActionsBlock,
   requiredFieldPass,
   constraintValidationPass,
   expressionValidationPass,
@@ -502,6 +504,101 @@ describe('LintEngine', () => {
     expect(() => engine.run(EMPTY_AST, EMPTY_SCHEMA_CTX)).toThrow(
       DependencyResolutionError
     );
+  });
+
+  it('replaces required-field diagnostics on repeated runs and clears them when the rule is disabled', () => {
+    const schema = { actions: ActionsBlock };
+    const schemaCtx = createSchemaContext({ schema, aliases: {} });
+    const ast = toAstRoot(
+      parseWithSchema(
+        `
+actions:
+  Notify_Manager:
+    description: "Notify the store manager"
+`,
+        schema
+      )
+    );
+    const rule = requiredFieldPass();
+    const engine = new LintEngine({ passes: [rule] });
+    const count = () =>
+      engine
+        .run(ast, schemaCtx)
+        .diagnostics.filter(d => d.code === 'missing-required-field').length;
+
+    const counts = [count(), count(), count()];
+    engine.disable(rule.id);
+    counts.push(count());
+
+    expect(counts).toEqual([1, 1, 1, 0]);
+  });
+
+  it.each([undefined, 'custom-lint'])(
+    'refreshes matching diagnostics and preserves other sources with engine source %s',
+    source => {
+      const range = {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 1 },
+      };
+      const preserved = ['parser', 'agentscript-schema', 'other-lint'].map(
+        source => ({
+          range,
+          source,
+          severity: DiagnosticSeverity.Error,
+          message: `${source} diagnostic`,
+        })
+      );
+      const ast = toAstRoot(
+        parseWithSchema('test: "value"', { test: StringValue })
+      );
+      ast.__diagnostics = [...preserved];
+      const diagnostic = {
+        range,
+        source: source ?? 'agentscript-lint',
+        severity: DiagnosticSeverity.Warning,
+        message: 'Diagnostic from the enabled rule',
+      };
+      const rule: LintPass = {
+        id: storeKey('test/source-cleanup'),
+        description: 'Emits a diagnostic matching the engine source',
+        run(_store, root) {
+          attachDiagnostic(root, { ...diagnostic });
+        },
+      };
+      const engine = new LintEngine({ passes: [rule], source });
+
+      for (let run = 0; run < 3; run++) {
+        expect(engine.run(ast, EMPTY_SCHEMA_CTX).diagnostics).toEqual([
+          ...preserved,
+          diagnostic,
+        ]);
+      }
+
+      engine.disable(rule.id);
+      expect(engine.run(ast, EMPTY_SCHEMA_CTX).diagnostics).toEqual(preserved);
+    }
+  );
+
+  it.each([
+    [undefined, 'agentscript-lint'],
+    ['custom-lint', 'custom-lint'],
+  ])('tags engine errors with %s source as %s', (source, expectedSource) => {
+    const rule: LintPass = {
+      id: storeKey('test/source-error'),
+      description: 'Fails to trigger an engine-generated diagnostic',
+      run() {
+        throw new Error('validation failed');
+      },
+    };
+    const engine = new LintEngine({ passes: [rule], source });
+
+    const { diagnostics } = engine.run(EMPTY_AST, EMPTY_SCHEMA_CTX);
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: 'lint-pass-error',
+      source: expectedSource,
+    });
   });
 
   it('is idempotent — running twice produces the same result', () => {
