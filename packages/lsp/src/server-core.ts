@@ -41,6 +41,7 @@ import {
   TOKEN_MODIFIERS,
 } from './providers/semantic-tokens.js';
 import type { SemanticTokensConfig } from './providers/semantic-tokens.js';
+import type { Gates } from '@agentscript/language';
 
 /**
  * Sets up all LSP handlers on the connection.
@@ -67,11 +68,15 @@ export function setupServer(connection: Connection, config: LspConfig): void {
     }
 
     const initializationOptions = params.initializationOptions as
-      | { dialect?: string }
+      | { dialect?: string; gates?: Gates }
       | undefined;
 
     if (initializationOptions?.dialect) {
       config.defaultDialect = initializationOptions.dialect;
+    }
+
+    if (initializationOptions?.gates) {
+      config.gates = initializationOptions.gates;
     }
 
     const capabilities = params.capabilities;

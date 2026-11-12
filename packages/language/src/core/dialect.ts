@@ -38,7 +38,11 @@ import {
   createDiagnostic,
   createParserDiagnostic,
   DeprecatedFieldDiagnostic,
+  GatedFeatureDiagnostic,
+  PreReleaseFeatureDiagnostic,
 } from './diagnostics.js';
+import { isGateOpen } from './gates.js';
+import type { Gates, GateRequirement } from './gates.js';
 import type { Expression } from './expressions.js';
 import {
   BooleanLiteral,
@@ -46,6 +50,9 @@ import {
   Identifier,
   Ellipsis,
   ErrorValue,
+  StringLiteral,
+  TemplateExpression,
+  TemplateText,
   expressionParsers,
 } from './expressions.js';
 import type { Statement } from './statements.js';
@@ -122,6 +129,23 @@ function collectAdoptedSiblings(
   return undefined;
 }
 
+/**
+ * The text a parsed scalar value stands for — a string literal, a bare
+ * identifier, or a `|` template without interpolations — for matching against
+ * gated values. Undefined for any other value (lists, blocks, expressions).
+ */
+function scalarValueText(value: unknown): string | undefined {
+  if (value instanceof StringLiteral) return value.value;
+  if (value instanceof Identifier) return value.name;
+  if (
+    value instanceof TemplateExpression &&
+    value.parts.every(part => part instanceof TemplateText)
+  ) {
+    return value.content.trim();
+  }
+  return undefined;
+}
+
 /** Extract the key's source range from a mapping_element CST node. */
 function getElementKeyRange(element: SyntaxNode): Range | undefined {
   const keyNode = element.childForFieldName('key');
@@ -132,6 +156,29 @@ function getElementKeyRange(element: SyntaxNode): Range | undefined {
 }
 
 export class Dialect {
+  /**
+   * Resolved feature gates for this parse, injected by the consumer; the
+   * dialect only reads them to allow/deny gated fields, blocks, and values.
+   * Undefined means no gate context — gated features are then treated as
+   * closed (fail-closed).
+   */
+  readonly gates?: Gates;
+
+  constructor(options?: { gates?: Gates }) {
+    this.gates = options?.gates;
+  }
+
+  /** An error if the feature's gate is closed, otherwise a pre-release notice. */
+  private gateDiagnostic(
+    range: Range,
+    feature: string,
+    gate: GateRequirement
+  ): Diagnostic {
+    return isGateOpen(this.gates, gate.id)
+      ? new PreReleaseFeatureDiagnostic(range, feature, gate.stage)
+      : new GatedFeatureDiagnostic(range, feature, gate);
+  }
+
   /** Parse source from parser CST using the given schema. */
   parse<T extends Schema>(
     node: SyntaxNode,
@@ -677,6 +724,18 @@ export class Dialect {
         dc.add(depDiag);
       }
 
+      // Gated field/block: flag it at the key — an error when the resolved
+      // gate set does not open its gate, otherwise a pre-release notice. The
+      // value is still parsed for recovery. Enforcement is lint-only: the
+      // compiler does not re-check gates.
+      const gate = fieldType.__metadata?.gatedBy;
+      if (gate) {
+        const keyNode = element.childForFieldName('key');
+        const keyIds = keyNode?.namedChildren.filter(n => n.type === 'id');
+        const keyRange = keyIds?.[0] ? toRange(keyIds[0]) : toRange(element);
+        dc.add(this.gateDiagnostic(keyRange, typeId, gate));
+      }
+
       const { blockValue, colinearValue, procedure } = getValueNodes(element);
       const valueNode = blockValue ?? colinearValue ?? procedure;
       const entryInfo = resolveEntryInfo(fieldType, typeId);
@@ -897,6 +956,25 @@ export class Dialect {
           adoptedElements
         );
         if (result) {
+          // Gated value: a specific accepted value of this field requires an
+          // open gate. Match the parsed value, not the raw text, so quoting,
+          // parentheses, and `|` templates can't slip past the gate.
+          const gatedValues = fieldType.__metadata?.gatedValues;
+          const valueText = gatedValues && scalarValueText(result.value);
+          if (
+            gatedValues &&
+            valueText !== undefined &&
+            Object.hasOwn(gatedValues, valueText)
+          ) {
+            dc.add(
+              this.gateDiagnostic(
+                valueNode ? toRange(valueNode) : toRange(element),
+                `${typeId}: ${valueText}`,
+                gatedValues[valueText]
+              )
+            );
+          }
+
           // For typedEntry wildcards, wrap the parsed Block value in a
           // ParameterDeclarationNode to preserve the colinear type annotation.
           let parsedValue = result.value;
@@ -1221,7 +1299,9 @@ export class Dialect {
 
     if (node.type === 'parenthesized_expression') {
       if (node.namedChildren.length > 0) {
-        return this.parseExpression(node.namedChildren[0]);
+        const inner = this.parseExpression(node.namedChildren[0]);
+        inner.__parenthesized = true;
+        return inner;
       }
     }
 

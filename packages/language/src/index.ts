@@ -75,6 +75,9 @@ export {
 } from './core/diagnostics.js';
 export type { Diagnostic } from './core/diagnostics.js';
 
+export { isGateOpen } from './core/gates.js';
+export type { Gates, GateRequirement, ReleaseStage } from './core/gates.js';
+
 export type { TStringValue, TNullableStringValue } from './core/primitives.js';
 
 export {
@@ -193,6 +196,7 @@ export {
   ToClause,
   AvailableWhen,
   RunStatement,
+  RunOption,
   IfStatement,
   TransitionStatement,
   EscalateStatement,
@@ -213,6 +217,7 @@ export {
   isNoneLiteral,
   isSubscriptExpression,
   isAtIdentifier,
+  isTemplate,
   isIfStatement,
   isTransitionStatement,
   isToClause,
@@ -279,9 +284,10 @@ export type { ScopeContext, SchemaContext } from './core/analysis/scope.js';
 export {
   getDocumentSymbols,
   getSymbolMembers,
+  computeRanges,
 } from './core/analysis/symbols.js';
 
-export type { DocumentSymbol } from './core/analysis/symbols.js';
+export type { DocumentSymbol, RangeInfo } from './core/analysis/symbols.js';
 
 export {
   findDefinitionAtPosition,

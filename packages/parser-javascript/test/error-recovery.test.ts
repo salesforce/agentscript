@@ -15,6 +15,7 @@
  * Tree-sitter tests are skipped gracefully if native bindings aren't available.
  */
 
+import type TreeSitter from 'tree-sitter';
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
@@ -49,7 +50,7 @@ try {
   const Parser = (await import('tree-sitter')).default;
   const AgentScript = (await import('@agentscript/parser-tree-sitter')).default;
   const parser = new Parser();
-  parser.setLanguage(AgentScript as unknown as typeof parser.Language);
+  parser.setLanguage(AgentScript as unknown as TreeSitter.Language);
   treeSitterParser = parser as unknown as TreeSitterParser;
   treeSitterAvailable = true;
 } catch {

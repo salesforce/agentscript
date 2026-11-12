@@ -34,6 +34,7 @@ import {
 import type { TypedMapFactory, TypedMapOptions } from './factory-types.js';
 import { overrideFactoryBuilderMethods } from './factory-utils.js';
 import { TypedMapParser } from './typed-map-parser.js';
+import { assertUngated } from './gates.js';
 
 // ---------------------------------------------------------------------------
 // TypedMap factory function
@@ -44,6 +45,7 @@ export function TypedMap<T extends TypedDeclarationBase = TypedDeclarationBase>(
   propertiesBlock: FieldType,
   options: TypedMapOptions = {}
 ): TypedMapFactory<T> {
+  assertUngated(propertiesBlock, 'TypedMap');
   const modifiers = options.modifiers ?? [];
   const primitiveTypes = options.primitiveTypes ?? [];
   const hasModifier = modifiers.length > 0;

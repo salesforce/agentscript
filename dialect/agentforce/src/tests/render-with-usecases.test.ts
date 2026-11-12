@@ -44,6 +44,19 @@ function renderWithCodes(diags: Diagnostic[]): Diagnostic[] {
   return diags.filter(d => String(d.code).startsWith('render-with'));
 }
 
+/** Lists render-with diagnostics as `code @ highlighted text`. */
+function renderWithSummary(source: string): string[] {
+  const lines = source.split('\n');
+  return renderWithCodes(runLint(source)).map(d => {
+    const { start, end } = d.range;
+    const text =
+      start.line === end.line
+        ? lines[start.line].slice(start.character, end.character)
+        : `line ${start.line}`;
+    return `${d.code} @ ${text}`;
+  });
+}
+
 /** Options for the {@link doc} source builder. */
 interface DocOptions {
   /**
@@ -60,8 +73,11 @@ interface DocOptions {
 
 const DEFAULT_OUTPUTS = [
   '                n: number',
+  '                    is_displayable: True',
   '                flag: boolean',
+  '                    is_displayable: True',
   '                text: string',
+  '                    is_displayable: True',
 ].join('\n');
 
 /**
@@ -160,9 +176,6 @@ function inp(...lines: string[]): string {
  * skips, and target resolution. Each built source uses a SINGLE declared input
  * wherever possible so a bound value produces no missing-required noise from
  * unrelated inputs — each assertion sees only the diagnostics it is about.
- *
- * Bindings are runtime no-ops today, so every diagnostic here is purely author
- * feedback.
  */
 
 /**
@@ -269,9 +282,13 @@ function single(inputLines: string[], renderBody: string): string {
  */
 const OUTPUTS_WITH_CONTAINERS = [
   '                n: number',
+  '                    is_displayable: True',
   '                text: string',
+  '                    is_displayable: True',
   '                obj_out: object',
+  '                    is_displayable: True',
   '                list_out: list[integer]',
+  '                    is_displayable: True',
 ].join('\n');
 
 /** Like {@link single}, but the action declares the container-typed outputs. */
@@ -1191,6 +1208,38 @@ ${single(OBJ, w('with block = @variables.Age'))}`;
       expect(diags[0].message).toContain('bogus');
     });
 
+    it.each(['@outputs.n', '"x"', '...', 'None'])(
+      'component with inputs: binding the wrapper to %s instead of an inline dict is flagged',
+      value => {
+        const diags = byCode(
+          runLint(single(COMPONENT_WITH_INPUTS, w(`with body = ${value}`))),
+          'render-with-component-non-dict-value'
+        );
+        expect(diags.map(d => d.message)).toEqual([
+          "format input 'body' must explicitly bind each parameter, e.g. `with body = {param1: <value>, param2: <value>}`",
+        ]);
+      }
+    );
+
+    it('an unknown schema type is not treated as a component', () => {
+      const diags = byCode(
+        runLint(
+          single(
+            [
+              'body:',
+              '    schema: "city://SomeComponent"',
+              '    type: object',
+              '        fields:',
+              '            heading: string = "hi"',
+            ],
+            w('with body = @outputs.n')
+          )
+        ),
+        'render-with-component-non-dict-value'
+      );
+      expect(diags).toEqual([]);
+    });
+
     it('component with inputs: no `with` is clean (nested fields all have defaults)', () => {
       expect(
         renderWithCodes(
@@ -1538,7 +1587,9 @@ ${single(OBJ, w('with block = @variables.Age'))}`;
       expect(diags).toHaveLength(0);
     });
 
-    it('treats a list of objects as satisfied when the element fields default', () => {
+    it('still requires a list of objects even when its element fields default', () => {
+      // Element defaults describe an element, not that one exists, so an
+      // unbound list compiles to null and must be bound.
       const diags = byCode(
         runLint(
           single(
@@ -1548,29 +1599,6 @@ ${single(OBJ, w('with block = @variables.Age'))}`;
               '        value: object',
               '            fields:',
               '                cell: string = "c"',
-              'title: string',
-            ],
-            w('with title = "x"')
-          )
-        ),
-        'render-with-missing-required-input'
-      );
-      expect(diags).toHaveLength(0);
-    });
-
-    it('still requires a list with a min_items floor even when its element defaults', () => {
-      // A `min_items` floor demands real elements, which an element default
-      // cannot supply, so the list must still be bound.
-      const diags = byCode(
-        runLint(
-          single(
-            [
-              'rows:',
-              '    type: list',
-              '        value: object',
-              '            fields:',
-              '                cell: string = "c"',
-              '        min_items: 2',
               'title: string',
             ],
             w('with title = "x"')
@@ -1580,6 +1608,19 @@ ${single(OBJ, w('with block = @variables.Age'))}`;
       );
       expect(diags).toHaveLength(1);
       expect(diags[0].message).toContain('rows');
+    });
+
+    it('treats a list as satisfied when it declares its own default', () => {
+      const diags = byCode(
+        runLint(
+          single(
+            ['labels: list[string] = ["a", "b"]', 'title: string'],
+            w('with title = "x"')
+          )
+        ),
+        'render-with-missing-required-input'
+      );
+      expect(diags).toHaveLength(0);
     });
 
     it('propagates default satisfaction through nested objects', () => {
@@ -2373,5 +2414,665 @@ describe('json primitive format rejects with-bindings', () => {
       String(d.code).startsWith('render-with')
     );
     expect(renderWith).toEqual([]);
+  });
+});
+
+// ============================================================================
+// Outputs marked `is_displayable: False`
+// ============================================================================
+
+describe('non-displayable outputs as with-binding values', () => {
+  const OUTPUTS = [
+    '                unset: number',
+    '                hidden: number',
+    '                    is_displayable: False',
+    '                hidden_too: number',
+    '                    is_displayable: False',
+    '                shown: number',
+    '                    is_displayable: True',
+    '                hidden_obj: object',
+    '                    is_displayable: False',
+  ].join('\n');
+
+  const summary = (inputs: string, ...bindings: string[]) =>
+    renderWithSummary(doc(inputs, w(...bindings), { outputs: OUTPUTS }));
+
+  it('flags a bound output marked is_displayable: False, as a Warning on the reference', () => {
+    const diags = renderWithCodes(
+      runLint(
+        doc(inp('f: number'), w('with f = @outputs.hidden'), {
+          outputs: OUTPUTS,
+        })
+      )
+    );
+    expect(diags).toHaveLength(1);
+    expect(diags[0].code).toBe('render-with-non-displayable-output');
+    expect(diags[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(diags[0].message).toBe(
+      "Output 'hidden' is not displayable: set `is_displayable: True` on it"
+    );
+    expect(summary(inp('f: number'), 'with f = @outputs.hidden')).toEqual([
+      'render-with-non-displayable-output @ @outputs.hidden',
+    ]);
+  });
+
+  it.each([
+    [
+      'an expression',
+      'f: number',
+      'with f = @outputs.hidden + 1',
+      '@outputs.hidden',
+    ],
+    [
+      'a unary expression',
+      'f: number',
+      'with f = -@outputs.hidden',
+      '@outputs.hidden',
+    ],
+    [
+      'a ternary condition',
+      'f: number',
+      'with f = @outputs.shown if @outputs.hidden > 0 else 0',
+      '@outputs.hidden',
+    ],
+    [
+      'a drilled path, as its root output',
+      'f: number',
+      'with f = @outputs.hidden_obj.price',
+      '@outputs.hidden_obj.price',
+    ],
+    [
+      'a list element',
+      'f:\n                    type: list\n                        value: number',
+      'with f = [@outputs.shown, @outputs.hidden]',
+      '@outputs.hidden',
+    ],
+    [
+      'a nested object field',
+      'f:\n                    type: object\n                        fields:\n                            v: number',
+      'with f = {v: @outputs.hidden}',
+      '@outputs.hidden',
+    ],
+  ])('flags one inside %s', (_label, input, binding, reference) => {
+    expect(summary(inp(input), binding)).toEqual([
+      `render-with-non-displayable-output @ ${reference}`,
+    ]);
+  });
+
+  it('flags every non-displayable output in one value', () => {
+    expect(
+      summary(
+        inp('f: number'),
+        'with f = @outputs.hidden + @outputs.hidden_too'
+      )
+    ).toEqual([
+      'render-with-non-displayable-output @ @outputs.hidden',
+      'render-with-non-displayable-output @ @outputs.hidden_too',
+    ]);
+  });
+
+  it('flags every use of a repeated output', () => {
+    const source = doc(
+      inp('f: number'),
+      w('with f = @outputs.shown + @outputs.hidden * @outputs.hidden'),
+      { outputs: OUTPUTS }
+    );
+    const line = source.split('\n').find(l => l.includes('with f ='))!;
+    const first = line.indexOf('@outputs.hidden');
+    expect(
+      renderWithCodes(runLint(source)).map(d => [
+        d.code,
+        d.range.start.character,
+      ])
+    ).toEqual([
+      ['render-with-non-displayable-output', first],
+      [
+        'render-with-non-displayable-output',
+        line.indexOf('@outputs.hidden', first + 1),
+      ],
+    ]);
+  });
+
+  it('flags the same output again in a separate binding', () => {
+    expect(
+      summary(
+        inp('f: number', 'g: number'),
+        'with f = @outputs.hidden',
+        'with g = @outputs.hidden'
+      )
+    ).toEqual([
+      'render-with-non-displayable-output @ @outputs.hidden',
+      'render-with-non-displayable-output @ @outputs.hidden',
+    ]);
+  });
+
+  it('flags an output that does not set is_displayable', () => {
+    expect(summary(inp('f: number'), 'with f = @outputs.unset')).toEqual([
+      'render-with-non-displayable-output @ @outputs.unset',
+    ]);
+  });
+
+  it('allows an output marked is_displayable: True', () => {
+    expect(summary(inp('f: number'), 'with f = @outputs.shown')).toEqual([]);
+  });
+
+  it('still type-checks the value', () => {
+    expect(
+      summary(inp('f: string'), 'with f = @outputs.hidden').sort()
+    ).toEqual([
+      'render-with-non-displayable-output @ @outputs.hidden',
+      'render-with-type-mismatch @ @outputs.hidden',
+    ]);
+  });
+
+  it('skips an overridden binding, whose value is discarded', () => {
+    expect(
+      summary(
+        inp('f: number'),
+        'with f = @outputs.hidden',
+        'with f = @outputs.shown'
+      )
+    ).toEqual(['render-with-duplicate-input @ f']);
+  });
+
+  it('skips a binding to an unknown input', () => {
+    expect(
+      summary(inp('f: number'), 'with f = 1', 'with g = @outputs.hidden')
+    ).toEqual(['render-with-unknown-input @ g']);
+  });
+});
+
+// ============================================================================
+// Lightning web component bindings
+// ============================================================================
+
+describe('lightning web component bindings', () => {
+  const OUTPUTS = [
+    '                name: string',
+    '                    is_displayable: True',
+    '                tagline: string',
+    '                    is_displayable: True',
+    '                price: number',
+    '                    is_displayable: True',
+    '                info: object',
+    '                    is_displayable: True',
+    '                hidden: string',
+    '                    is_displayable: False',
+  ].join('\n');
+
+  interface RenderOptions {
+    actionName?: string;
+    actionRef?: string;
+    connection?: string;
+    format?: string;
+    binding?: string;
+  }
+
+  const DEFAULT_BINDING =
+    'with card = {productName: @outputs.name, price: @outputs.price}';
+
+  function renderAction({
+    actionName = 'show_product',
+    actionRef = 'GetProduct',
+    connection = 'customer_web_client',
+    format = 'product_card',
+    binding = DEFAULT_BINDING,
+  }: RenderOptions = {}): string {
+    return [
+      `            ${actionName}: @actions.${actionRef}`,
+      `                when @connection.${connection}`,
+      `                    render: @response_formats.${format}`,
+      ...(binding ? [`                        ${binding}`] : []),
+    ].join('\n');
+  }
+
+  function topic(
+    name: string,
+    renders: string[],
+    { target = 'apex://GetProduct', actionDefs = ['GetProduct'] } = {}
+  ): string {
+    const definitions = actionDefs.map(
+      actionDef => `        ${actionDef}:
+            description: "does"
+            target: "${target}"
+            outputs:
+${OUTPUTS}`
+    );
+    return `
+topic ${name}:
+    description: "d"
+    actions:
+${definitions.join('\n')}
+    reasoning:
+        instructions: ->
+            |Show the product
+        actions:
+${renders.join('\n')}
+`;
+  }
+
+  function lwcDoc(...topics: string[]): string {
+    return `
+variables:
+    note: mutable string = "n"
+
+connection customer_web_client:
+    response_formats:
+        product_card:
+            description: "d"
+            inputs:
+                card:
+                    schema: "lightning_web_component://c__productCard"
+                    type: object
+                        fields:
+                            productName: string
+                            price: number
+                            subtitle:
+                                type: string
+                                is_required: False
+                            extra:
+                                type: object
+                                is_required: False
+        other_card:
+            description: "d"
+            inputs:
+                card:
+                    schema: "lightning_web_component://c__otherCard"
+                    type: object
+                        fields:
+                            productName: string
+                            price: number
+        optional_card:
+            description: "d"
+            inputs:
+                card:
+                    schema: "lightning_web_component://c__optionalCard"
+                    type: object
+                        fields:
+                            subtitle:
+                                type: string
+                                is_required: False
+        plain_text:
+            description: "d"
+            inputs:
+                text: string
+
+connection messaging:
+    response_formats:
+        plain_text:
+            description: "d"
+            inputs:
+                text: string
+${topics.join('')}`.trimStart();
+  }
+
+  function docWithBinding(binding: string): string {
+    return lwcDoc(topic('Product', [renderAction({ binding })]));
+  }
+
+  const summary = (binding: string) =>
+    renderWithSummary(docWithBinding(binding));
+
+  it('accepts every parameter, required or optional, bound to an action output', () => {
+    expect(summary(DEFAULT_BINDING)).toEqual([]);
+    expect(
+      summary(
+        'with card = {productName: @outputs.name, price: @outputs.price, subtitle: @outputs.name, extra: @outputs.info}'
+      )
+    ).toEqual([]);
+  });
+
+  it('allows a render with no `with` clauses', () => {
+    expect(summary('')).toEqual([]);
+  });
+
+  it('flags a parameter bound to neither an output nor a literal, as an Error on the value', () => {
+    const diags = renderWithCodes(
+      runLint(
+        docWithBinding(
+          'with card = {productName: @variables.note, price: @outputs.price}'
+        )
+      )
+    );
+    expect(diags).toHaveLength(1);
+    expect(diags[0].code).toBe('render-with-component-unsupported-value');
+    expect(diags[0].severity).toBe(DiagnosticSeverity.Error);
+    expect(diags[0].message).toBe(
+      "field 'productName' of format input 'card' can only be bound to an action output (`@outputs.<field>`) or a literal"
+    );
+  });
+
+  it.each([
+    ['a string literal', 'productName: "Trail Runner", price: @outputs.price'],
+    ['a number literal', 'productName: @outputs.name, price: 5'],
+    ['a negative number literal', 'productName: @outputs.name, price: -5'],
+  ])('accepts a parameter bound to %s', (_label, fields) => {
+    expect(summary(`with card = {${fields}}`)).toEqual([]);
+  });
+
+  // Optional string and object params, so a stacked type diagnostic would show.
+  // The non-output check runs independently, so any other problem with the
+  // value is reported too.
+  it.each([
+    ['None', 'subtitle', 'None', []],
+    ['a variable', 'subtitle', '@variables.note', []],
+    ['a drilled output', 'subtitle', '@outputs.info.name', []],
+    ['an expression', 'subtitle', '@outputs.name + "!"', []],
+    [
+      'a list literal',
+      'subtitle',
+      '[@outputs.name]',
+      ['render-with-type-mismatch @ [@outputs.name]'],
+    ],
+    [
+      'an inline object',
+      'extra',
+      '{a: @outputs.name}',
+      ['render-with-nested-unknown-field @ a'],
+    ],
+  ])(
+    'flags a parameter bound to %s',
+    (_label, param, value, alsoReported: string[]) => {
+      expect(
+        summary(
+          `with card = {productName: @outputs.name, price: @outputs.price, ${param}: ${value}}`
+        ).sort()
+      ).toEqual(
+        [
+          `render-with-component-unsupported-value @ ${value}`,
+          ...alsoReported,
+        ].sort()
+      );
+    }
+  );
+
+  it('places the diagnostic on the value line of a multi-line binding', () => {
+    const source = docWithBinding(
+      [
+        'with card = {',
+        '                            productName: @outputs.name,',
+        '                            price: @outputs.price + 1',
+        '                        }',
+      ].join('\n')
+    );
+    const diags = renderWithCodes(runLint(source));
+    expect(diags.map(d => d.code)).toEqual([
+      'render-with-component-unsupported-value',
+    ]);
+    const { start, end } = diags[0].range;
+    expect(source.split('\n')[start.line].trim()).toBe(
+      'price: @outputs.price + 1'
+    );
+    expect(end.line).toBe(start.line);
+    expect(renderWithSummary(source)).toEqual([
+      'render-with-component-unsupported-value @ @outputs.price + 1',
+    ]);
+  });
+
+  it('flags the component bound to an object output as a non-dict value', () => {
+    const diags = renderWithCodes(
+      runLint(docWithBinding('with card = @outputs.info'))
+    );
+    expect(diags.map(d => [d.code, d.severity, d.message])).toEqual([
+      [
+        'render-with-component-non-dict-value',
+        DiagnosticSeverity.Error,
+        "format input 'card' must explicitly bind each parameter, e.g. `with card = {param1: <value>, param2: <value>}`",
+      ],
+    ]);
+  });
+
+  it('flags the component bound to a scalar, along with its missing fields', () => {
+    expect(summary('with card = "card"').sort()).toEqual([
+      'render-with-component-non-dict-value @ "card"',
+      'render-with-nested-missing-required-field @ "card"',
+    ]);
+  });
+
+  it('reports `...` on a parameter as both a non-output value and an ellipsis', () => {
+    expect(
+      summary('with card = {productName: @outputs.name, price: ...}').sort()
+    ).toEqual([
+      'render-with-component-unsupported-value @ ...',
+      'render-with-ellipsis @ ...',
+    ]);
+  });
+
+  it('reports `...` on the component as both a non-dict value and an ellipsis', () => {
+    expect(summary('with card = ...').sort()).toEqual([
+      'render-with-component-non-dict-value @ ...',
+      'render-with-ellipsis @ ...',
+    ]);
+  });
+
+  it('reports the component bound to None as both a non-dict value and a required None', () => {
+    expect(summary('with card = None').sort()).toEqual([
+      'render-with-component-non-dict-value @ None',
+      'render-with-required-none @ None',
+    ]);
+  });
+
+  it('accepts an empty dict when every parameter is optional', () => {
+    const source = lwcDoc(
+      topic('Product', [
+        renderAction({ format: 'optional_card', binding: 'with card = {}' }),
+      ])
+    );
+    expect(renderWithSummary(source)).toEqual([]);
+  });
+
+  it('requires every required parameter, but not an optional one', () => {
+    const diags = renderWithCodes(
+      runLint(docWithBinding('with card = {productName: @outputs.name}'))
+    );
+    expect(diags.map(d => [d.code, d.message])).toEqual([
+      [
+        'render-with-nested-missing-required-field',
+        "format input 'card' is missing a binding for required field 'price'",
+      ],
+    ]);
+  });
+
+  it('reports an undeclared parameter as unknown only', () => {
+    expect(
+      summary(
+        'with card = {productName: @outputs.name, price: @outputs.price, bogus: 1}'
+      )
+    ).toEqual(['render-with-nested-unknown-field @ bogus']);
+  });
+
+  it('still type-checks an output against its parameter', () => {
+    expect(
+      summary('with card = {productName: @outputs.name, price: @outputs.name}')
+    ).toEqual(['render-with-type-mismatch @ @outputs.name']);
+  });
+
+  it('reports a non-displayable output as non-displayable only', () => {
+    expect(
+      summary(
+        'with card = {productName: @outputs.hidden, price: @outputs.price}'
+      )
+    ).toEqual(['render-with-non-displayable-output @ @outputs.hidden']);
+  });
+
+  describe('one render rule per action definition', () => {
+    const DUPLICATE = 'render-with-duplicate-render-rule';
+    const PLAIN_TEXT = {
+      format: 'plain_text',
+      binding: 'with text = @outputs.name',
+    };
+
+    /** Lists each diagnostic's code with the reasoning action it falls under. */
+    const flagged = (source: string): string[] => {
+      const lines = source.split('\n');
+      return renderWithCodes(runLint(source)).map(d => {
+        const action = lines
+          .slice(0, d.range.start.line)
+          .reverse()
+          .find(l => / {12}\w+: @actions\./.test(l))
+          ?.trim()
+          .split(':')[0];
+        return `${d.code} @ ${action}`;
+      });
+    };
+
+    it('flags every render rule of an action rendered twice in a subagent, as an Error on each format ref', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_card' }),
+          renderAction({ actionName: 'show_again' }),
+        ])
+      );
+      const diags = renderWithCodes(runLint(source));
+      expect(diags.map(d => [d.code, d.severity, d.message])).toEqual(
+        Array(2).fill([
+          DUPLICATE,
+          DiagnosticSeverity.Error,
+          "'GetProduct' can only have one customer_web_client render rule per subagent",
+        ])
+      );
+      expect(renderWithSummary(source)).toEqual(
+        Array(2).fill(`${DUPLICATE} @ @response_formats.product_card`)
+      );
+      expect(flagged(source)).toEqual([
+        `${DUPLICATE} @ show_card`,
+        `${DUPLICATE} @ show_again`,
+      ]);
+    });
+
+    it.each([
+      ['a different component', { format: 'other_card' }],
+      ['a non-component format', PLAIN_TEXT],
+      ['json', { format: 'json', binding: '' }],
+      ['es_type_message', { format: 'es_type_message', binding: '' }],
+    ])('counts a second render rule with %s', (_label, second) => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_card' }),
+          renderAction({ actionName: 'show_other', ...second }),
+        ])
+      );
+      expect(flagged(source)).toEqual([
+        `${DUPLICATE} @ show_card`,
+        `${DUPLICATE} @ show_other`,
+      ]);
+    });
+
+    it('flags two render rules even when neither is a component', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_text', ...PLAIN_TEXT }),
+          renderAction({ actionName: 'show_again', ...PLAIN_TEXT }),
+        ])
+      );
+      expect(flagged(source)).toEqual([
+        `${DUPLICATE} @ show_text`,
+        `${DUPLICATE} @ show_again`,
+      ]);
+    });
+
+    it('flags all three render rules of an action rendered three times', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_card' }),
+          renderAction({ actionName: 'show_other', format: 'other_card' }),
+          renderAction({ actionName: 'show_text', ...PLAIN_TEXT }),
+        ])
+      );
+      expect(flagged(source)).toEqual([
+        `${DUPLICATE} @ show_card`,
+        `${DUPLICATE} @ show_other`,
+        `${DUPLICATE} @ show_text`,
+      ]);
+    });
+
+    it('leaves two renders in one reasoning action to render-rules', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          [
+            renderAction({ actionName: 'show_card' }),
+            '                when @connection.customer_web_client',
+            '                    render: @response_formats.plain_text',
+            '                        with text = @outputs.name',
+          ].join('\n'),
+        ])
+      );
+      const codes = runLint(source).map(d => d.code);
+      expect(codes).toContain('render-rule-duplicate-connection');
+      expect(codes).not.toContain(DUPLICATE);
+    });
+
+    it('ignores a render on another connection', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_card' }),
+          renderAction({
+            actionName: 'show_text',
+            connection: 'messaging',
+            ...PLAIN_TEXT,
+          }),
+        ])
+      );
+      expect(flagged(source)).toEqual([]);
+    });
+
+    it('allows the same action rendered in each of several subagents', () => {
+      const source = lwcDoc(
+        topic('Shoes', [renderAction()]),
+        topic('Boots', [renderAction(PLAIN_TEXT)])
+      );
+      expect(flagged(source)).toEqual([]);
+    });
+
+    it('allows different actions in one subagent, even with the same target', () => {
+      const source = lwcDoc(
+        topic(
+          'Shoes',
+          [
+            renderAction({ actionName: 'show_shoe', actionRef: 'GetShoe' }),
+            renderAction({ actionName: 'show_boot', actionRef: 'GetBoot' }),
+          ],
+          { actionDefs: ['GetShoe', 'GetBoot'] }
+        )
+      );
+      expect(flagged(source)).toEqual([]);
+    });
+
+    it('counts a long-form format ref', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_card' }),
+          renderAction({
+            actionName: 'show_again',
+            format: 'product_card',
+          }).replace(
+            'render: @response_formats.product_card',
+            'render: @connection.customer_web_client.response_formats.product_card'
+          ),
+        ])
+      );
+      expect(flagged(source)).toEqual([
+        `${DUPLICATE} @ show_card`,
+        `${DUPLICATE} @ show_again`,
+      ]);
+    });
+
+    it('ignores a customer_web_client `when` with no render', () => {
+      const source = lwcDoc(
+        topic('Shoes', [
+          renderAction({ actionName: 'show_card' }),
+          [
+            '            show_again: @actions.GetProduct',
+            '                when @connection.customer_web_client',
+            '                    show_and_return: True',
+          ].join('\n'),
+        ])
+      );
+      expect(flagged(source)).toEqual([]);
+    });
+
+    it('allows a single render rule', () => {
+      expect(flagged(lwcDoc(topic('Shoes', [renderAction()])))).toEqual([]);
+    });
   });
 });

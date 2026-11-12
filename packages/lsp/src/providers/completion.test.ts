@@ -1301,3 +1301,35 @@ describe('snippet indentation contract (via provideCompletion)', () => {
     }
   });
 });
+
+describe('workflow action completions', () => {
+  const lines = [
+    'config:',
+    '    developer_name: "a"',
+    '    agent_type: "GoalBasedAgent"',
+    'actions:',
+    '    top_only:',
+    '        description: "Top"',
+    '        target: "flow://top"',
+    'workflow returns:',
+    '    description: "Returns"',
+    '    actions:',
+    '        local:',
+    '            description: "Local"',
+    '            target: "flow://local"',
+    '    steps:',
+    '        | Call {!@actions.local}',
+    '        run @actions.',
+  ];
+
+  test.each([
+    ['a run target', lines.length - 1, lines.at(-1)!.length],
+    ['a do directive', 14, lines[14].indexOf('local')],
+  ])('offers only workflow actions in %s', (_name, line, character) => {
+    const state = createAgentforceState(lines.join('\n'));
+    const result = provideCompletion(state, line, character, undefined, [
+      agentforceDialect,
+    ]);
+    expect(result?.items.map(item => item.label)).toEqual(['local']);
+  });
+});

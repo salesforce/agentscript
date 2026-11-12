@@ -1,0 +1,270 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "RenderWithBindings",
+    "label": "Render With Bindings Agent",
+    "description": "Bind action outputs and variables to response format inputs with render `with`",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [
+      {
+        "developer_name": "session_id",
+        "label": "Session Id",
+        "description": "Messaging session id",
+        "data_type": "string",
+        "field_mapping": "MessagingSession.Id"
+      }
+    ],
+    "default_agent_user": "support_bot@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hi! How can I help with your order?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "customer_name",
+        "label": "Customer Name",
+        "description": "Customer Name",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'Ada'"
+      }
+    ],
+    "initial_node": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Route support requests",
+        "tools": [],
+        "developer_name": "main",
+        "label": "Main",
+        "action_definitions": [],
+        "instructions": "You are an order support agent. Answer through the channel's rich formats."
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Answer questions about an order",
+        "tools": [
+          {
+            "type": "action",
+            "target": "Get_Order",
+            "bound_inputs": {},
+            "llm_inputs": [
+              "order_number"
+            ],
+            "state_updates": [],
+            "name": "Get_Order",
+            "render_rules": [
+              {
+                "surface_type": "messaging",
+                "response_format_name": "order_card",
+                "end_turn": true,
+                "input_bindings": {
+                  "title": "\"Order \" + result.order_number",
+                  "order_total": "result.total",
+                  "is_delayed": "result.days_late > 0",
+                  "status_label": "\"Delayed\" if result.days_late > 0 else \"On time\"",
+                  "currency_code": "\"USD\"",
+                  "note": null,
+                  "customer": {
+                    "name": "state.customer_name",
+                    "tier": "\"standard\"",
+                    "session_id": "variables.session_id"
+                  },
+                  "items": [
+                    {
+                      "name": "result.first_item",
+                      "quantity": "result.first_item_quantity"
+                    },
+                    {
+                      "name": "\"Gift wrap\"",
+                      "quantity": "1"
+                    }
+                  ],
+                  "tracking_numbers": "result.tracking_numbers"
+                }
+              },
+              {
+                "surface_type": "service_email",
+                "response_format_name": "order_email",
+                "end_turn": false,
+                "input_bindings": {
+                  "subject": "\"Your order \" + result.order_number",
+                  "greeting": "\"Hi \" + state.customer_name",
+                  "customer_question": "system.input_text",
+                  "signed_by": "connection.service_email.signature",
+                  "footer": {
+                    "text": "\"Sent by \" + connection.service_email.signature"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "developer_name": "orders",
+        "label": "Orders",
+        "action_definitions": [
+          {
+            "developer_name": "Get_Order",
+            "label": "Get Order",
+            "description": "Look up an order",
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "GetOrder",
+            "input_type": [
+              {
+                "developer_name": "order_number",
+                "label": "Order Number",
+                "description": "Order Number",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "order_number",
+                "label": "Order Number",
+                "description": "Order Number",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "total",
+                "label": "Total",
+                "description": "Total",
+                "data_type": "Double",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "days_late",
+                "label": "Days Late",
+                "description": "Days Late",
+                "data_type": "Integer",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "first_item",
+                "label": "First Item",
+                "description": "First Item",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "first_item_quantity",
+                "label": "First Item Quantity",
+                "description": "First Item Quantity",
+                "data_type": "Integer",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              },
+              {
+                "developer_name": "tracking_numbers",
+                "label": "Tracking Numbers",
+                "description": "Tracking Numbers",
+                "data_type": "String",
+                "is_list": true,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          }
+        ],
+        "instructions": "You are an order support agent. Answer through the channel's rich formats.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nLook up the order, then show its summary."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "surface_type": "messaging",
+        "outbound_route_configs": [],
+        "response_formats": [
+          {
+            "developer_name": "order_card",
+            "label": "Order Card",
+            "description": "Order summary card",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"order_total\":{\"type\":\"number\"},\"is_delayed\":{\"type\":\"boolean\"},\"status_label\":{\"type\":\"string\"},\"currency_code\":{\"type\":\"string\",\"const\":\"USD\"},\"note\":{\"type\":\"string\"},\"customer\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"tier\":{\"type\":\"string\",\"const\":\"standard\"},\"session_id\":{\"type\":\"string\"}},\"required\":[\"name\",\"tier\",\"session_id\"]},\"items\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"quantity\":{\"type\":\"integer\",\"const\":1}},\"required\":[\"name\",\"quantity\"]}},\"tracking_numbers\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"title\",\"order_total\",\"is_delayed\",\"status_label\",\"currency_code\",\"customer\",\"items\",\"tracking_numbers\"]}"
+          }
+        ]
+      },
+      {
+        "surface_type": "service_email",
+        "outbound_route_configs": [],
+        "response_formats": [
+          {
+            "developer_name": "order_email",
+            "label": "Order Email",
+            "description": "Order update email",
+            "input_schema": "{\"type\":\"object\",\"properties\":{\"subject\":{\"type\":\"string\"},\"greeting\":{\"type\":\"string\"},\"customer_question\":{\"type\":\"string\"},\"signed_by\":{\"type\":\"string\",\"const\":\"{{connection.service_email.signature}}\"},\"footer\":{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"]}},\"required\":[\"subject\",\"greeting\",\"customer_question\",\"signed_by\",\"footer\"]}"
+          }
+        ],
+        "input_parameters": [
+          {
+            "developer_name": "signature",
+            "label": "Signature",
+            "description": "Signature",
+            "data_type": "string",
+            "default_value": "'The Support Team'"
+          }
+        ]
+      }
+    ],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hi! How can I help with your order?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

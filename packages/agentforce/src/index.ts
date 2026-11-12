@@ -48,7 +48,7 @@ export {
   type MutateComponentOptions,
 } from './mutate-component.js';
 export { Document } from './document.js';
-export { compileSource } from './compile.js';
+export { compileSource, INLINE_CONDITION_SLOTS_GATE } from './compile.js';
 export type {
   AgentforceCompileResult,
   CompileSourceOptions,

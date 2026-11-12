@@ -104,6 +104,10 @@ export const OUTPUT_JSON_SCHEMA_TYPES = [
 export const AGENTFABRIC_IDENTIFIER_PATTERN =
   '[a-zA-Z][a-zA-Z0-9_.-]*[a-zA-Z0-9]';
 
+// Group ids are free-form (UUIDs, reverse-domain names, ...): any run of letters,
+// digits, `_`, `.` and `-`, with no constraint on the first or last character.
+export const GROUP_ID_PATTERN = '[a-zA-Z0-9_.-]+';
+
 // Anchor-free path fragment for the connection-target portion after the scheme
 // (e.g. the `…` in `mcp://…`). Accepts one, two, or three `/`-separated
 // identifier segments so that all three connection-reference shapes resolve:
@@ -112,7 +116,38 @@ export const AGENTFABRIC_IDENTIFIER_PATTERN =
 //     (e.g. `projectA/myConnection`)
 //   - fully-qualified cross-project reference — `<groupId>/<assetId>/<name>`
 //     (e.g. `cocacola/projectA/myConnection`)
-// Same-group deps accept both the two-segment and three-segment forms. Each
-// segment is a standard identifier; `/` is only a separator, so the leading one
-// or two qualifier segments are optional. Embed inside `^…$`.
-export const AGENTFABRIC_TARGET_PATTERN = `(?:${AGENTFABRIC_IDENTIFIER_PATTERN}/){0,2}${AGENTFABRIC_IDENTIFIER_PATTERN}`;
+export const AGENTFABRIC_TARGET_PATTERN = `(?:${GROUP_ID_PATTERN}/${AGENTFABRIC_IDENTIFIER_PATTERN}/${AGENTFABRIC_IDENTIFIER_PATTERN}|(?:${AGENTFABRIC_IDENTIFIER_PATTERN}/)?${AGENTFABRIC_IDENTIFIER_PATTERN})`;
+
+/**
+ * The two Claude authoring kinds. `Anthropic` targets the first-party
+ * Anthropic Messages API; `BedrockAnthropic` targets Claude hosted on AWS
+ * Bedrock. Both share an identical author-facing parameter set and differ only
+ * in the handler the runtime selects. Shared by the schema's `kind` enum /
+ * discriminant variants and the Anthropic lint rules so the authored and
+ * validated vocabularies cannot drift.
+ */
+export const AnthropicKind = {
+  Anthropic: 'Anthropic',
+  BedrockAnthropic: 'BedrockAnthropic',
+} as const;
+
+export type AnthropicKind = (typeof AnthropicKind)[keyof typeof AnthropicKind];
+
+// Claude 4.7 or newer: `<family>-<major>[-<minor>]` with major >= 5, or major 4
+// and minor >= 7. A trailing date (e.g. `-20251001`) never matches.
+const CLAUDE_MODEL = String.raw`claude-[a-z]+-(?:(?:[5-9]|[1-9]\d+)(?:-\d{1,2})?|4-(?:[7-9]|[1-9]\d))`;
+
+/** Model ids accepted by the `Anthropic` kind, e.g. `claude-sonnet-5`. */
+export const ANTHROPIC_MODEL_PATTERN = new RegExp(`^${CLAUDE_MODEL}$`);
+
+/**
+ * Model ids accepted by the `BedrockAnthropic` kind: Bedrock inference-profile
+ * ids, e.g. `us.anthropic.claude-sonnet-5`.
+ */
+export const BEDROCK_MODEL_PATTERN = new RegExp(
+  `^(?:us|global)\\.anthropic\\.${CLAUDE_MODEL}$`
+);
+
+/** Fable models always think, so they reject `thinking: disabled`. */
+export const THINKING_ALWAYS_ON_PATTERN =
+  /^(?:(?:us|global)\.anthropic\.)?claude-fable-/;

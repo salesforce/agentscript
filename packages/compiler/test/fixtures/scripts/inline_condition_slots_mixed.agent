@@ -1,0 +1,33 @@
+system:
+    instructions: "You are a helpful AI assistant."
+
+config:
+    agent_name: "InlineConditionSlotsMixed"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "service_user"
+
+variables:
+    tier: mutable string = "basic"
+    attempts: mutable number = 0
+    verified: mutable boolean = False
+
+start_agent main:
+    description: "Conditions read more than once keep their slot"
+    before_reasoning:
+        if @variables.tier == "gold":
+            set @variables.verified = True
+        else:
+            set @variables.verified = False
+        if @variables.attempts > 0:
+            set @variables.attempts = @variables.attempts - 1
+            set @variables.tier = "basic"
+        if @variables.verified:
+            set @variables.attempts = 0
+    reasoning:
+        instructions: ->
+            if @variables.tier == "gold":
+                | Welcome back, gold member.
+            else if @variables.tier == "silver":
+                | Welcome back, silver member.
+            else:
+                | Welcome.

@@ -30,6 +30,7 @@ import type {
   NamedCollectionBlockFactory,
 } from './factory-types.js';
 import { overrideFactoryBuilderMethods } from './factory-utils.js';
+import { assertUngated } from './gates.js';
 
 // ---------------------------------------------------------------------------
 // CollectionBlock — a block that contains typed variadic named children.
@@ -60,6 +61,7 @@ export function CollectionBlock<
   entryBlock: NamedBlockFactory<T, V>,
   opts?: CollectionBlockOpts
 ): CollectionBlockFactory<T, V> {
+  assertUngated(entryBlock, 'CollectionBlock');
   const kind = `Collection<${entryBlock.kind}>`;
 
   class CollectionBlockNode extends NamedMap<BlockCore> {
@@ -209,10 +211,11 @@ export function CollectionBlock<
   if (Object.keys(collectionMeta).length > 0) {
     dp('__metadata', collectionMeta);
   }
-  // Propagate schema, scopeAlias, and capabilities from the entry block so that
-  // scope introspection can discover scoped namespaces through collections.
+  // Propagate schema, scope options, and capabilities from the entry block so
+  // that scope introspection can discover scoped namespaces through collections.
   dp('schema', entryBlock.schema);
   dp('scopeAlias', entryBlock.scopeAlias);
+  dp('isolatedNamespaces', entryBlock.isolatedNamespaces);
   dp('capabilities', entryBlock.capabilities);
   dp('colinearType', entryBlock.colinearType);
   dp('__isCollection', true);
@@ -254,6 +257,7 @@ export function NamedCollectionBlock<
   entryBlock: NamedBlockFactory<T, V>,
   opts?: CollectionBlockOpts
 ): NamedCollectionBlockFactory<T, V> {
+  assertUngated(entryBlock, 'NamedCollectionBlock');
   const base = CollectionBlock(entryBlock, opts);
   const dp = (key: string, value: unknown) =>
     Object.defineProperty(base, key, {

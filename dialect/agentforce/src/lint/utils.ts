@@ -9,6 +9,16 @@
  * Shared utility functions for Agentforce lint passes.
  */
 
+import type {
+  AstNodeLike,
+  AstRoot,
+  SchemaContext,
+} from '@agentscript/language';
+import {
+  isAstNodeLike,
+  isNamedMap,
+  resolveNamespaceKeys,
+} from '@agentscript/language';
 import type { CstMeta, Range, SyntaxNode } from '@agentscript/types';
 import { toRange } from '@agentscript/types';
 
@@ -90,4 +100,50 @@ export function getFieldLineRange(node: unknown): Range {
     if (cst?.range) return cst.range;
   }
   return ZERO_RANGE;
+}
+
+/** An action declaration together with the block that declares it. */
+export interface OwnedAction {
+  readonly actionName: string;
+  readonly actBlock: AstNodeLike;
+  /** The topic/subagent/orchestrator/workflow block instance that owns this action. */
+  readonly ownerBlock: AstNodeLike;
+}
+
+/**
+ * Yields every action declared across all action-bearing blocks — topic,
+ * subagent (including start_agent, which aliases to subagent), orchestrator,
+ * and workflow — together with the block instance that owns it.
+ *
+ * Root-level `actions:` (the base agent-level ActionsBlock) is intentionally
+ * excluded: its outputs don't support `filter_from_agent` / `is_displayable`,
+ * so rules built on this helper have nothing to check there.
+ */
+export function* iterateActionsWithOwner(
+  root: AstRoot,
+  ctx: SchemaContext
+): Generator<OwnedAction> {
+  const blockKeys = new Set([
+    ...resolveNamespaceKeys('topic', ctx),
+    ...resolveNamespaceKeys('subagent', ctx),
+    'orchestrator',
+    'workflow',
+  ]);
+
+  for (const blockKey of blockKeys) {
+    const blockMap = root[blockKey];
+    if (!isNamedMap(blockMap)) continue;
+
+    for (const [, ownerBlock] of blockMap) {
+      if (!isAstNodeLike(ownerBlock)) continue;
+
+      const actionsMap = ownerBlock.actions;
+      if (!isNamedMap(actionsMap)) continue;
+
+      for (const [actionName, actBlock] of actionsMap) {
+        if (!isAstNodeLike(actBlock)) continue;
+        yield { actionName: String(actionName), actBlock, ownerBlock };
+      }
+    }
+  }
 }

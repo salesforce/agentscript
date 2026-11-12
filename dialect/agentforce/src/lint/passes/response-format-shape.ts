@@ -17,7 +17,7 @@
  *     min_items, max_items
  *
  * Fields are a closed set: what the script declares is the whole shape, and a
- * `schema:` URI never widens an object's fields. A schema-backed input (a
+ * `schema:` URI never widens an object's fields. A schema-backed input (e.g. a
  * messaging component) is indexed like any other object — its nested `fields:`
  * are its bindable sub-keys. Each format also records `hasBindableInputs`, which drills
  * through such a wrapper so a component with no fields (nothing to bind) reports
@@ -166,6 +166,18 @@ export function declAcceptsFields(
   return false;
 }
 
+export function parseSchemaComponent(
+  props: AstNodeLike | undefined
+): { type: string; fqn: string } | undefined {
+  const schema = props?.schema;
+  if (!isAstNodeLike(schema) || typeof schema.value !== 'string') {
+    return undefined;
+  }
+  const [type, fqn, ...rest] = schema.value.split('://');
+  if (!type || !fqn || rest.length > 0) return undefined;
+  return { type, fqn };
+}
+
 // ---------------------------------------------------------------------------
 // Recursive input-signature model
 // ---------------------------------------------------------------------------
@@ -231,6 +243,8 @@ export interface RenderInputInfo {
   element?: RenderInputInfo;
   /** Declared value constraints at this level, if any. */
   constraints?: RenderInputConstraints;
+  /** `schema: "<type>://<fqn>"`, e.g. `lightning_web_component://c__productCard`  */
+  schemaComponent?: { type: string; fqn: string };
 }
 
 /** Resolved binding-relevant view of a single response format. */
@@ -469,6 +483,7 @@ function infoFromParamDecl(decl: AstNodeLike): RenderInputInfo | undefined {
     isRequired,
     hasDefault,
     constraints,
+    schemaComponent: parseSchemaComponent(props),
   };
 
   // Short-form `list[X]`: `decl.type` is a SubscriptExpression whose index is
@@ -590,7 +605,7 @@ class ResponseFormatShapeAnalyzer implements LintPass {
  * Whether a format exposes any input to bind.
  *
  * Normally that's just "declares at least one input". The exception is a
- * messaging component, which declares its real inputs as the nested `fields:`
+ * schema-backed component, which declares its real inputs as the nested `fields:`
  * of a single `schema:`-backed wrapper input — so we drill one level and report
  * whether that wrapper has any fields. A component that declares none exposes
  * nothing to bind.
@@ -610,7 +625,7 @@ function formatHasBindableInputs(rawInputs: unknown): boolean {
   // Not a schema-backed wrapper — a single ordinary input is an input.
   if (!isAstNodeLike(props) || props.schema == null) return true;
 
-  // Messaging component: its bindable inputs are the wrapper's nested fields.
+  // Schema component: its bindable inputs are the wrapper's nested fields.
   const fields = resolveFieldsMap(props);
   return fields !== undefined && fields.size > 0;
 }

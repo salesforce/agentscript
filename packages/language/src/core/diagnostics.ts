@@ -14,6 +14,7 @@ import type {
 } from './types.js';
 import { toRange, hasCstRange } from './types.js';
 import { formatSuggestionHint } from '../lint/lint-utils.js';
+import type { GateRequirement, ReleaseStage } from './gates.js';
 
 // Diagnostic types — canonical definitions live in @agentscript/types.
 // Re-exported here so internal language modules can import from './diagnostics.js'.
@@ -170,6 +171,50 @@ export class DeprecatedFieldDiagnostic implements Diagnostic {
     if (replacement) {
       this.data = { replacement };
     }
+  }
+}
+
+/**
+ * A field, block, or value is used but its feature gate is not open for the
+ * current parse. The consumer injects the resolved gate set; the language layer
+ * only reports the denial. The gate id is kept out of the message (as in hover)
+ * and carried in `data` for tooling. See {@link ./gates.ts}.
+ */
+export class GatedFeatureDiagnostic implements Diagnostic {
+  severity = DiagnosticSeverity.Error;
+  code = 'gated-feature';
+  source = 'agentscript';
+  message: string;
+  data: { gate: string; stage: ReleaseStage; [key: string]: unknown };
+
+  constructor(
+    public range: Range,
+    feature: string,
+    gate: GateRequirement
+  ) {
+    this.message = `'${feature}' is a ${gate.stage} feature and is not enabled.`;
+    this.data = { gate: gate.id, stage: gate.stage };
+  }
+}
+
+/**
+ * A gated field, block, or value is used and its feature gate is open: tells
+ * the author the feature is pre-release (pilot/beta).
+ */
+export class PreReleaseFeatureDiagnostic implements Diagnostic {
+  severity = DiagnosticSeverity.Information;
+  code = 'pre-release-feature';
+  source = 'agentscript';
+  message: string;
+  data: { stage: ReleaseStage; [key: string]: unknown };
+
+  constructor(
+    public range: Range,
+    feature: string,
+    stage: ReleaseStage
+  ) {
+    this.message = `'${feature}' is a ${stage} feature.`;
+    this.data = { stage };
   }
 }
 

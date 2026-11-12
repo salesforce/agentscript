@@ -1962,6 +1962,19 @@ subagent main:
     expect(errors).toHaveLength(0);
   });
 
+  it('validates @system_variables.user_id in instructions', () => {
+    const diagnostics = runLint(`
+subagent main:
+  label: "Main"
+  reasoning:
+    instructions: ->
+      |Session user: {!@system_variables.user_id}
+`);
+    expect(
+      diagnostics.filter(d => d.code === 'undefined-reference')
+    ).toHaveLength(0);
+  });
+
   it('validates @system_variables.last_reply.interrupted', () => {
     const diagnostics = runLint(`
 subagent main:
@@ -4749,6 +4762,56 @@ subagent main:
       run @actions.fetch
         with user_id=@variables.id
         set @variables.result=@outputs.data
+`);
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('reports unreachable directives in an unnamed workflow steps block', () => {
+    const warnings = unreachableWarnings(`
+workflow flow:
+  description: "Flow"
+  steps: ->
+    transition to @subagent.main
+    say "Unreachable"
+`);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('transition');
+  });
+
+  it('reports unreachable directives in a named workflow step', () => {
+    const warnings = unreachableWarnings(`
+workflow flow:
+  description: "Flow"
+  step first: ->
+    say "Reachable"
+  step second: ->
+    transition to @subagent.main
+    say "Unreachable"
+`);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].range.start.line).toBe(7);
+    expect(warnings[0].message).toContain('transition');
+  });
+
+  it('reports unreachable directives after escalate in a named workflow step', () => {
+    const warnings = unreachableWarnings(`
+workflow flow:
+  description: "Flow"
+  step only: ->
+    escalate
+    say "Unreachable"
+`);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('escalate');
+  });
+
+  it('does not flag a named workflow step that ends with a transition', () => {
+    const warnings = unreachableWarnings(`
+workflow flow:
+  description: "Flow"
+  step only: ->
+    say "Done"
+    transition to @subagent.main
 `);
     expect(warnings).toHaveLength(0);
   });

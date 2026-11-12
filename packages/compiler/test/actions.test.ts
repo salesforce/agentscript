@@ -14,7 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { parseSource, findNode, isActionTool } from './test-utils.js';
 import {
   STATE_UPDATE_ACTION,
   AGENT_INSTRUCTIONS_VARIABLE,
@@ -47,14 +47,12 @@ start_agent test:
                 with param1=@variables.data
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
     // Find the action tool (not a state update tool)
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(1);
 
     const tool = actionTools[0];
@@ -87,13 +85,11 @@ start_agent test:
                 with param1=@variables.data
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(1);
 
     const tool = actionTools[0];
@@ -142,13 +138,11 @@ start_agent test:
                 with param3=@variables.final
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(3);
 
     expect(actionTools[0].name).toBe('friendly_first');
@@ -188,13 +182,11 @@ start_agent test:
                 with param1=@variables.data
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(1);
     expect(actionTools[0].bound_inputs).toEqual({ param1: 'state.data' });
   });
@@ -227,13 +219,11 @@ start_agent test:
                 with param2=@variables.user_id
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(1);
     expect(actionTools[0].bound_inputs).toEqual({
       param1: 'state.data',
@@ -271,13 +261,11 @@ start_agent test:
                 with param1=@variables.data
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(1);
 
     const tool = actionTools[0];
@@ -306,13 +294,11 @@ start_agent test:
                 available when @system_variables.user_input == "test"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(1);
     expect(actionTools[0].enabled).toBe('system.input_text == "test"');
   });
@@ -345,11 +331,11 @@ start_agent test:
                 with user_email=...
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const setVarTool = node.tools.find(t => t.name === 'capture_user_info')!;
+    const setVarTool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.name === 'capture_user_info')!;
     expect(setVarTool).toBeDefined();
     expect(setVarTool.target).toBe(STATE_UPDATE_ACTION);
     expect(setVarTool.enabled).toBe('variables.should_run');
@@ -393,11 +379,11 @@ start_agent test:
                 set @variables.counter = 1
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const setVarTool = node.tools.find(t => t.name === 'update_state')!;
+    const setVarTool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.name === 'update_state')!;
     expect(setVarTool).toBeDefined();
     expect(setVarTool.target).toBe(STATE_UPDATE_ACTION);
     expect(setVarTool.enabled).toBe('variables.allow_update');
@@ -432,11 +418,11 @@ start_agent test:
                 with user_name=...
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const setVarTool = node.tools.find(t => t.name === 'capture_when_ready')!;
+    const setVarTool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.name === 'capture_when_ready')!;
     expect(setVarTool).toBeDefined();
     expect(setVarTool.target).toBe(STATE_UPDATE_ACTION);
     // Mutable variables resolve to the `state.` namespace, not `variables.`
@@ -466,11 +452,11 @@ start_agent test:
                 with region=...
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const setVarTool = node.tools.find(t => t.name === 'capture_region')!;
+    const setVarTool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.name === 'capture_region')!;
     expect(setVarTool).toBeDefined();
     expect(setVarTool.enabled).toBe('variables.is_business_hours == True');
     expect(setVarTool.llm_inputs).toEqual(['region']);
@@ -495,11 +481,11 @@ start_agent test:
                 with user_name=...
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const setVarTool = node.tools.find(t => t.name === 'capture_name')!;
+    const setVarTool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.name === 'capture_name')!;
     expect(setVarTool).toBeDefined();
     expect(setVarTool.enabled).toBeUndefined();
   });
@@ -529,11 +515,11 @@ start_agent test:
                 with user_name=...
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const setVarTool = node.tools.find(t => t.name === 'capture')!;
+    const setVarTool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.name === 'capture')!;
     expect(setVarTool).toBeDefined();
     expect(setVarTool.enabled).toBe('variables.second_flag');
 
@@ -575,9 +561,7 @@ start_agent test:
             my_action: @actions.my_action
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     const actionDef = (node.action_definitions ?? []).find(
       a => a.developer_name === 'my_action'
     );
@@ -691,23 +675,21 @@ topic next:
             | Next step
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
     // Should have 3 tools: 2 action tools + 1 state update tool for transition
-    expect(node.tools.length).toBe(3);
+    expect((node.tools ?? []).length).toBe(3);
 
     // Action tools
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     expect(actionTools.length).toBe(2);
     expect(actionTools[0].name).toBe('friendly_action');
     expect(actionTools[0].target).toBe('Long_Technical_Action_Name');
 
     // Transition tool
-    const transitionTools = node.tools.filter(
+    const transitionTools = (node.tools ?? []).filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(transitionTools.length).toBe(1);
@@ -736,9 +718,7 @@ start_agent test:
     const { output, diagnostics } = compile(parseSource(source));
 
     // Should compile successfully
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     expect(node).toBeDefined();
 
     // Should have warning diagnostic
@@ -889,9 +869,7 @@ start_agent test:
 
   const compileAndGetActionDef = (scheme: string, name: string) => {
     const { output } = compile(parseSource(makeSource(scheme, name)));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     return (node.action_definitions ?? []).find(
       a => a.developer_name === 'my_action'
     );
@@ -947,10 +925,8 @@ start_agent test:
 describe('tool description override', () => {
   function compileTopic(source: string) {
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
-    return node.tools.filter(t => t.target !== STATE_UPDATE_ACTION);
+    const node = findNode(output, 'test', 'subagent');
+    return (node.tools ?? []).filter(t => t.target !== STATE_UPDATE_ACTION);
   }
 
   it('emits description when supplied on the reasoning action', () => {
@@ -1037,9 +1013,7 @@ start_agent test:
             clean_zoo: @actions.clean_zoo
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     const actionDef = node.action_definitions!.find(
       a => a.developer_name === 'clean_zoo'
     )!;
@@ -1071,9 +1045,7 @@ start_agent test:
             clean_zoo: @actions.clean_zoo
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     const actionDef = node.action_definitions!.find(
       a => a.developer_name === 'clean_zoo'
     )!;
@@ -1123,9 +1095,7 @@ start_agent test:
 
   const getActionDef = (name: string) => {
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     return node.action_definitions!.find(a => a.developer_name === name)!;
   };
 
@@ -1154,12 +1124,10 @@ start_agent test:
 describe('action default slot-fill', () => {
   function findActionTool(source: string, toolTarget: string) {
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
-    const actionTools = node.tools.filter(
-      t => t.target !== STATE_UPDATE_ACTION
-    );
+    const node = findNode(output, 'test', 'subagent');
+    const actionTools = (node.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target !== STATE_UPDATE_ACTION);
     return actionTools.find(t => t.target === toolTarget);
   }
 
@@ -1365,9 +1333,7 @@ start_agent test:
                 run @actions.followup
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     const postToolCalls = node.post_tool_call ?? [];
     const primaryPost = postToolCalls.find(p => p.target === 'primary');
     expect(primaryPost).toBeDefined();
@@ -1397,9 +1363,7 @@ start_agent test:
 describe('action references in instruction templates', () => {
   function getInstructionText(source: string): string {
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
     const bri = node.before_reasoning_iteration!;
     const appendAction = bri.find(
       (a: Record<string, unknown>) =>
@@ -1498,10 +1462,10 @@ agent done:
       'will be ignored at runtime'
     );
 
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
-    const setVariablesTool = node.tools.find(t => t.name === 'capture_name');
+    const node = findNode(output, 'test', 'subagent');
+    const setVariablesTool = (node.tools ?? []).find(
+      t => t.name === 'capture_name'
+    );
     expect(setVariablesTool).toBeDefined();
     expect(setVariablesTool?.target).toBe(STATE_UPDATE_ACTION);
   });
@@ -1540,10 +1504,10 @@ start_agent test:
       'will be ignored at runtime'
     );
 
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
-    const setVariablesTool = node.tools.find(t => t.name === 'capture_name');
+    const node = findNode(output, 'test', 'subagent');
+    const setVariablesTool = (node.tools ?? []).find(
+      t => t.name === 'capture_name'
+    );
     expect(setVariablesTool).toBeDefined();
     expect(setVariablesTool?.target).toBe(STATE_UPDATE_ACTION);
   });

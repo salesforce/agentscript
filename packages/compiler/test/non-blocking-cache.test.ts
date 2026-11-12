@@ -9,7 +9,12 @@ import { describe, expect, it } from 'vitest';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
 import { agentDslAuthoring } from '../src/types.js';
-import { checkSchemaConformance, parseSource } from './test-utils.js';
+import {
+  checkSchemaConformance,
+  findNode,
+  isActionTool,
+  parseSource,
+} from './test-utils.js';
 
 function compileAction(
   cache = 'cache:\n                expiration: 60',
@@ -54,9 +59,7 @@ describe('action cache and execution behavior', () => {
     expect(
       diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
     ).toEqual([]);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    );
+    const node = findNode(output, 'main', 'subagent');
     expect(node?.action_definitions?.[0]?.cache).toEqual({ ttl });
     expect(checkSchemaConformance(output)).toEqual([]);
   });
@@ -66,11 +69,9 @@ describe('action cache and execution behavior', () => {
     expect(
       diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
     ).toEqual([]);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    );
+    const node = findNode(output, 'main', 'subagent');
     for (const name of ['lookup', 'lookup_again']) {
-      const tool = node?.tools.find(t => t.name === name);
+      const tool = node.tools?.find(t => t.name === name);
       expect(tool).toBeDefined();
       expect(tool).not.toHaveProperty('non_blocking_behavior');
       expect(tool).not.toHaveProperty('execution_mode');
@@ -83,9 +84,7 @@ describe('action cache and execution behavior', () => {
     expect(
       diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
     ).toEqual([]);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    );
+    const node = findNode(output, 'main', 'subagent');
     expect(node?.action_definitions?.[0]).toMatchObject({
       developer_name: 'Lookup',
       cache: { ttl: 60000 },
@@ -96,14 +95,14 @@ describe('action cache and execution behavior', () => {
     expect(node?.action_definitions?.[0]?.cache).not.toHaveProperty(
       'expiration'
     );
-    expect(node?.tools.find(t => t.name === 'lookup')).toMatchObject({
+    expect(node.tools?.find(t => t.name === 'lookup')).toMatchObject({
       target: 'Lookup',
       non_blocking_behavior: 'fire_and_forget',
     });
-    expect(node?.tools.find(t => t.name === 'lookup')).not.toHaveProperty(
+    expect(node.tools?.find(t => t.name === 'lookup')).not.toHaveProperty(
       'execution_mode'
     );
-    expect(node?.tools.find(t => t.name === 'lookup_again')).not.toHaveProperty(
+    expect(node.tools?.find(t => t.name === 'lookup_again')).not.toHaveProperty(
       'non_blocking_behavior'
     );
     expect(agentDslAuthoring.safeParse(output).success).toBe(true);
@@ -116,9 +115,7 @@ describe('action cache and execution behavior', () => {
       const { output } = compileAction(
         `cache:\n                expiration: ${expiration}`
       );
-      const node = output.agent_version.nodes.find(
-        n => n.developer_name === 'main'
-      );
+      const node = findNode(output, 'main', 'subagent');
       expect(node?.action_definitions?.[0]).not.toHaveProperty('cache');
     }
   );
@@ -128,10 +125,8 @@ describe('action cache and execution behavior', () => {
       'cache:\n                expiration: 60',
       'later'
     );
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    );
-    expect(node?.tools.find(t => t.name === 'lookup')).not.toHaveProperty(
+    const node = findNode(output, 'main', 'subagent');
+    expect(node.tools?.find(t => t.name === 'lookup')).not.toHaveProperty(
       'non_blocking_behavior'
     );
   });
@@ -156,13 +151,11 @@ subagent worker:
     description: "Worker"
 `)
     );
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'worker'
-    );
+    const node = findNode(output, 'worker', 'subagent');
     expect(node?.action_definitions?.[0]).toMatchObject({
       cache: { ttl: 30000 },
     });
-    expect(node?.tools.find(t => t.target === 'Lookup')).not.toHaveProperty(
+    expect(node.tools?.find(t => t.target === 'Lookup')).not.toHaveProperty(
       'non_blocking_behavior'
     );
   });
@@ -189,10 +182,8 @@ subagent worker:
             |Work
 `)
       );
-      const node = output.agent_version.nodes.find(
-        n => n.developer_name === 'main'
-      );
-      const tool = node?.tools.find(t => t.name === 'delegate');
+      const node = findNode(output, 'main', 'subagent');
+      const tool = node.tools?.find(t => t.name === 'delegate');
       expect(tool).toMatchObject({
         type: 'supervision',
       });
@@ -266,10 +257,7 @@ start_agent main:
     expect(
       diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
     ).toEqual([]);
-    expect(
-      output.agent_version.nodes.find(n => n.developer_name === 'main')
-        ?.post_tool_call
-    ).toBeDefined();
+    expect(findNode(output, 'main', 'subagent').post_tool_call).toBeDefined();
   });
 
   it('compiles blocking execution on a built-in utility', () => {
@@ -320,9 +308,9 @@ start_agent main:
 `;
       const result = compile(parseSource(source));
       expect(
-        result.output.agent_version.nodes
-          .find(n => n.developer_name === 'main')
-          ?.tools.find(t => t.name === 'lookup')
+        findNode(result.output, 'main', 'subagent').tools?.find(
+          t => t.name === 'lookup'
+        )
       ).not.toHaveProperty('render_rules');
 
       const blocking = compile(
@@ -334,9 +322,9 @@ start_agent main:
         )
       ).toEqual([]);
       expect(
-        blocking.output.agent_version.nodes
-          .find(n => n.developer_name === 'main')
-          ?.tools.find(t => t.name === 'lookup')?.render_rules
+        findNode(blocking.output, 'main', 'subagent')
+          .tools?.filter(isActionTool)
+          .find(t => t.name === 'lookup')?.render_rules
       ).toEqual([
         {
           surface_type: 'messaging',

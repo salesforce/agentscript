@@ -48,7 +48,7 @@ export function compileModalityParameters(
 
   // Extract voice config from modality variant
   const voiceEntry = modalityBlock?.get('voice');
-  const voice = compileVoiceConfiguration(voiceEntry, ctx);
+  const voice = compileVoiceConfiguration(voiceEntry, ctx, languageBlock);
 
   const result: ModalityParameters = {
     language,
@@ -141,7 +141,8 @@ function compileLanguageConfiguration(
  */
 function compileVoiceConfiguration(
   voiceBlock: ParsedVoiceModality | undefined,
-  ctx: CompilerContext
+  ctx: CompilerContext,
+  agentLanguageBlock?: ParsedLanguage
 ): VoiceConfiguration | null {
   if (!voiceBlock) return null;
 
@@ -170,14 +171,19 @@ function compileVoiceConfiguration(
     voiceV2Config.outbound = outbound;
   }
 
-  // Extract V2 languages
-  const languages = compileVoiceLanguages(voiceBlock, ctx);
+  // Extract V2 languages. The voice language block is optional — without it,
+  // voice falls back to the agent's languages (V2 only).
+  const languages = compileVoiceLanguages(
+    voiceBlock,
+    ctx,
+    hasV1 ? undefined : agentLanguageBlock
+  );
   if (languages !== undefined) {
     voiceV2Config.languages = languages;
   }
 
   // ensure V1 & V2 aren't being used simultaneously
-  if (Object.keys(voiceV2Config)?.length > 0 && hasV1) {
+  if (Object.keys(voiceV2Config).length > 0 && hasV1) {
     ctx.error(
       `Invalid modality voice configuration. Both Voice schema versions were detected, use only one at a time.`
     );
@@ -331,16 +337,38 @@ function createVoiceLanguageConfig(lang: string, isDefault = false) {
  */
 function compileVoiceLanguages(
   voiceBlock: ParsedVoiceModality | undefined,
-  ctx: CompilerContext
+  ctx: CompilerContext,
+  agentLanguageBlock?: ParsedLanguage
 ): Array<Sourceable<VoiceLanguageConfig>> | undefined {
-  if (!voiceBlock?.language) return undefined;
+  if (!voiceBlock) return undefined;
+  if (!voiceBlock.language) {
+    return compileAgentLanguageFallback(voiceBlock, ctx, agentLanguageBlock);
+  }
+
+  // Explicit 'all_additional_locales: True' opts into "same languages as Text" —
+  // expand eagerly to the agent's full locale set. The voice block's own
+  // default_locale is kept as the first (start) language; its additional_locales
+  // are ignored.
+  const voiceAllAdditionalLocales = extractSourcedBoolean(
+    voiceBlock.language.all_additional_locales
+  );
+  if (voiceAllAdditionalLocales?.value === true) {
+    return compileAgentAllLocales(voiceBlock, ctx, agentLanguageBlock);
+  }
 
   const configs: Array<
     Sourceable<VoiceLanguageConfig> & { _isDefault?: boolean }
   > = [];
 
-  // Validate default language
-  const lang = extractStringValue(voiceBlock.language?.default_locale);
+  // Validate default language. 'all_additional_locales: False' opts out of expanding
+  // to the agent's additional locales but doesn't require restating the default, so
+  // fall back to the agent-level default_locale only in that case — any other missing
+  // default_locale (e.g. an empty voice.language block) still errors below.
+  const lang =
+    extractStringValue(voiceBlock.language?.default_locale) ??
+    (voiceAllAdditionalLocales?.value === false
+      ? extractStringValue(agentLanguageBlock?.default_locale)
+      : undefined);
   if (lang === undefined || !supportedLocale.safeParse(lang).success) {
     ctx.error(
       `Invalid voice default language code '${lang}'. Must be a supported language.`
@@ -369,6 +397,32 @@ function compileVoiceLanguages(
     configs.push(createVoiceLanguageConfig(lang));
   }
 
+  if (!applyLanguageSettings(voiceBlock, configs, ctx)) return undefined;
+
+  if (configs.length === 0) return undefined;
+
+  // Sort: is_default: True goes to index 0, others maintain their order
+  configs.sort((a, b) => {
+    if (a._isDefault && !b._isDefault) return -1;
+    if (!a._isDefault && b._isDefault) return 1;
+    return 0;
+  });
+
+  // Remove the temporary _isDefault flag
+  configs.forEach(config => delete config._isDefault);
+
+  return configs;
+}
+
+/**
+ * Apply the per-language `language_settings` overrides onto the declared language configs.
+ * Returns false (after reporting an error) when a settings tag names an undeclared locale.
+ */
+function applyLanguageSettings(
+  voiceBlock: ParsedVoiceModality,
+  configs: Array<Sourceable<VoiceLanguageConfig>>,
+  ctx: CompilerContext
+): boolean {
   const languagesMap = voiceBlock.language_settings as Map<string, unknown>;
   for (const [languageCode, langBlock] of iterateNamedMap(languagesMap)) {
     const entry = langBlock as Record<string, unknown>;
@@ -382,9 +436,9 @@ function compileVoiceLanguages(
     const config = configs.find(el => el.language_code === languageCode);
     if (config === undefined) {
       ctx.error(
-        `Invalid voice language_settings tag '${languageCode}'. Must be a supported locale.`
+        `Invalid voice language_settings tag '${languageCode}'. '${languageCode}' isn't one of the agent's languages.`
       );
-      return undefined;
+      return false;
     }
 
     // Extract inbound direction
@@ -399,18 +453,109 @@ function compileVoiceLanguages(
       config.outbound = outbound;
     }
   }
+  return true;
+}
+
+/**
+ * Derive the voice languages from the agent-level `language:` block when the voice
+ * `language:` block is omitted entirely, so root voice settings (e.g. persona) attach
+ * to the agent's default locale.
+ *
+ * Only `default_locale` is emitted, never `additional_locales` — like the Text
+ * modality's own compiled `language` block, `all_additional_locales` can't be expanded
+ * into a concrete locale list at compile time; that's resolved later by the planner/GSM.
+ *
+ * Without an agent language block there's nothing to derive, so orphaned
+ * `language_settings` go unvalidated here — the `voice-language-settings-not-declared`
+ * lint pass owns that case.
+ */
+function compileAgentLanguageFallback(
+  voiceBlock: ParsedVoiceModality,
+  ctx: CompilerContext,
+  agentLanguageBlock: ParsedLanguage | undefined
+): Array<Sourceable<VoiceLanguageConfig>> | undefined {
+  if (!agentLanguageBlock) return undefined;
+
+  const configs: Array<Sourceable<VoiceLanguageConfig>> = [];
+
+  const defaultLocale = extractStringValue(agentLanguageBlock.default_locale);
+
+  const add = (locale: string | undefined) => {
+    if (
+      locale &&
+      supportedLocale.safeParse(locale).success &&
+      !configs.some(c => c.language_code === locale)
+    ) {
+      configs.push(createVoiceLanguageConfig(locale));
+    }
+  };
+  add(defaultLocale);
+  configs.forEach(c => delete (c as { _isDefault?: boolean })._isDefault);
+
+  // language_settings overrides apply to the derived locales, as with a voice language block.
+  if (!applyLanguageSettings(voiceBlock, configs, ctx)) return undefined;
 
   if (configs.length === 0) return undefined;
 
-  // Sort: is_default: True goes to index 0, others maintain their order
-  configs.sort((a, b) => {
-    if (a._isDefault && !b._isDefault) return -1;
-    if (!a._isDefault && b._isDefault) return 1;
-    return 0;
-  });
+  return configs;
+}
 
-  // Remove the temporary _isDefault flag
-  configs.forEach(config => delete config._isDefault);
+/**
+ * Derive the voice languages from the agent-level `language:` block when the voice
+ * `language:` block explicitly sets `all_additional_locales: True`. Unlike the
+ * omitted-language-block fallback above, this expands eagerly to the agent's full
+ * locale set: `default_locale` plus every valid `additional_locales` entry.
+ *
+ * An explicit voice `default_locale` is kept and placed at index 0, ahead of the
+ * agent's locales, since the default language is always the first entry.
+ */
+function compileAgentAllLocales(
+  voiceBlock: ParsedVoiceModality,
+  ctx: CompilerContext,
+  agentLanguageBlock: ParsedLanguage | undefined
+): Array<Sourceable<VoiceLanguageConfig>> | undefined {
+  if (!agentLanguageBlock) return undefined;
+
+  const configs: Array<Sourceable<VoiceLanguageConfig>> = [];
+
+  const voiceDefaultLocale = extractStringValue(
+    voiceBlock.language?.default_locale
+  );
+  if (
+    voiceDefaultLocale !== undefined &&
+    !supportedLocale.safeParse(voiceDefaultLocale).success
+  ) {
+    ctx.error(
+      `Invalid voice default language code '${voiceDefaultLocale}'. Must be a supported language.`
+    );
+    return undefined;
+  }
+
+  const defaultLocale = extractStringValue(agentLanguageBlock.default_locale);
+  const additionalLocales = extractStringSequence(
+    agentLanguageBlock.additional_locales,
+    'language.additional_locales',
+    ctx
+  );
+
+  const add = (locale: string | undefined) => {
+    if (
+      locale &&
+      supportedLocale.safeParse(locale).success &&
+      !configs.some(c => c.language_code === locale)
+    ) {
+      configs.push(createVoiceLanguageConfig(locale));
+    }
+  };
+  add(voiceDefaultLocale);
+  add(defaultLocale);
+  for (const locale of additionalLocales) add(locale);
+  configs.forEach(c => delete (c as { _isDefault?: boolean })._isDefault);
+
+  // language_settings overrides apply to the derived locales, as with a voice language block.
+  if (!applyLanguageSettings(voiceBlock, configs, ctx)) return undefined;
+
+  if (configs.length === 0) return undefined;
 
   return configs;
 }
@@ -693,6 +838,10 @@ function compileVoiceV1(
         string,
         unknown
       >;
+      const minWait = extractSourcedNumber(endpointingBlock.min_wait_time_ms);
+      if (minWait !== undefined) {
+        endpointingConfig.min_wait_time_ms = minWait;
+      }
       const maxWait = extractSourcedNumber(endpointingBlock.max_wait_time_ms);
       if (maxWait !== undefined) {
         endpointingConfig.max_wait_time_ms = maxWait;

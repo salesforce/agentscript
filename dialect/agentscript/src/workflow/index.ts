@@ -11,5 +11,10 @@ export {
   resolveWorkflowAction,
   workflowUnknownActionMessage,
   workflowNameCollisions,
+  WORKFLOW_DO_MAX_LENGTH,
+  workflowDoReferenceError,
 } from './lint/index.js';
-export type { WorkflowNameCollision } from './lint/index.js';
+export type {
+  WorkflowDoReferenceError,
+  WorkflowNameCollision,
+} from './lint/index.js';

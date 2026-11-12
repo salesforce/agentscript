@@ -38,10 +38,31 @@ function getResponseFormat(
   throw new Error(`Format ${formatName} not found`);
 }
 
+// A loosely-typed JSON Schema shape covering the subset of keywords this
+// compiler emits for response-format input schemas. The runtime value is
+// JSON parsed from a string, so this only describes what the tests below
+// actually assert against.
+interface JsonSchemaValue {
+  type?: string;
+  description?: string;
+  properties?: Record<string, JsonSchemaValue>;
+  items?: JsonSchemaValue;
+  required?: string[];
+  enum?: unknown[];
+  const?: unknown;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  minimum?: number;
+  maximum?: number;
+  $schema?: string;
+}
+
 function getFormatInputSchema(
   result: ReturnType<typeof compile>,
   formatName: string
-): Record<string, unknown> {
+): JsonSchemaValue & { properties: Record<string, JsonSchemaValue> } {
   const format = getResponseFormat(result, formatName);
   if (format.input_schema) {
     return JSON.parse(format.input_schema);
@@ -256,10 +277,10 @@ start_agent main:
     const result = compileSource(source);
     const schema = getFormatInputSchema(result, 'my_format');
 
-    expect(schema.properties.data.properties.name.description).toBe(
+    expect(schema.properties.data.properties!.name.description).toBe(
       'The {{state.entity_type}} name'
     );
-    expect(schema.properties.data.properties.price.description).toBe(
+    expect(schema.properties.data.properties!.price.description).toBe(
       'The {{state.entity_type}} price'
     );
   });
@@ -400,9 +421,124 @@ start_agent main:
     );
     // Messaging component parameter descriptions are static —
     // `{!...}` left verbatim (no interpolation).
-    expect(schema.properties.form.properties.petName.description).toBe(
+    expect(schema.properties.form.properties!.petName.description).toBe(
       'The {!@variables.petType} name'
     );
+  });
+});
+
+describe('Lightning web component inputs', () => {
+  it('should compile a lightning web component, emitting const only for params with a default', () => {
+    const source = `
+config:
+    agent_name: "Test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+connection customer_web_client:
+    description: "web"
+    response_formats:
+        acme_menu_card:
+            description: "Show the menu card."
+            inputs:
+                card:
+                    schema: "lightning_web_component://acme__MenuCard"
+                    type: object
+                        fields:
+                            title: string
+                                description: "the card title"
+                            tags: list[string] = ["vegan", "spicy"]
+                            itemCount: number = 0
+
+start_agent main:
+    description: "test"
+`;
+    const schema = getFormatInputSchema(
+      compileSource(source),
+      'acme_menu_card'
+    );
+
+    // A format containing a lightning web component is typed as lightning_web_component
+    // at the top level (the component property itself stays `object`).
+    expect(schema.type).toBe('lightning_web_component');
+    expect(schema.required).toEqual(['card']);
+    expect(schema.properties.card).toEqual({
+      type: 'object',
+      $schema: 'lightning_web_component://acme__MenuCard',
+      properties: {
+        title: { type: 'string', description: 'the card title' },
+        tags: { type: 'list', itemType: 'string', const: ['vegan', 'spicy'] },
+        itemCount: { type: 'number', const: 0 },
+      },
+    });
+  });
+
+  it('should not emit is_required on component params (script-only, like messaging components)', () => {
+    const source = `
+config:
+    agent_name: "Test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+connection customer_web_client:
+    description: "web"
+    response_formats:
+        acme_menu_card:
+            description: "Show the menu card."
+            inputs:
+                card:
+                    schema: "lightning_web_component://acme__MenuCard"
+                    type: object
+                        fields:
+                            title: string
+                                is_required: True
+                            note: string
+                                is_required: False
+
+start_agent main:
+    description: "test"
+`;
+    const schema = getFormatInputSchema(
+      compileSource(source),
+      'acme_menu_card'
+    );
+
+    expect(schema.properties.card).toEqual({
+      type: 'object',
+      $schema: 'lightning_web_component://acme__MenuCard',
+      properties: {
+        title: { type: 'string' },
+        note: { type: 'string' },
+      },
+    });
+  });
+
+  it('should compile a parameterless lightning web component without properties', () => {
+    const source = `
+config:
+    agent_name: "Test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+connection customer_web_client:
+    description: "web"
+    response_formats:
+        c_menu_card:
+            description: "Show the menu card."
+            inputs:
+                card: object
+                    schema: "lightning_web_component://c__menuCard"
+
+start_agent main:
+    description: "test"
+`;
+    const schema = getFormatInputSchema(compileSource(source), 'c_menu_card');
+
+    expect(schema.type).toBe('lightning_web_component');
+    expect(schema.properties.card).toEqual({
+      type: 'object',
+      $schema: 'lightning_web_component://c__menuCard',
+    });
   });
 });
 
@@ -511,17 +647,46 @@ start_agent main:
 `;
     const surface = findSurface(compileSource(source), 'messaging');
     // `name` is the action alias; `target` resolves to the referenced
-    // response_format's name.
+    // response_format's name, whose description the action inherits.
+    expect(surface?.response_actions).toEqual([
+      {
+        target: 'messaging_choices',
+        name: 'my_choice',
+        description: 'A choices format',
+      },
+      {
+        target: 'messaging_rich_link',
+        name: 'my_link',
+        description: 'A rich link format',
+      },
+    ]);
+  });
+
+  it('should fall back to the action name for response_actions description when the format has none', () => {
+    const source = `
+config:
+    agent_name: "Test"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+
+connection messaging:
+    reasoning:
+        response_actions:
+            my_choice: @response_formats.messaging_choices
+    response_formats:
+        messaging_choices:
+            inputs:
+                f: string
+
+start_agent main:
+    description: "test"
+`;
+    const surface = findSurface(compileSource(source), 'messaging');
     expect(surface?.response_actions).toEqual([
       {
         target: 'messaging_choices',
         name: 'my_choice',
         description: 'My Choice',
-      },
-      {
-        target: 'messaging_rich_link',
-        name: 'my_link',
-        description: 'My Link',
       },
     ]);
   });
@@ -849,7 +1014,7 @@ start_agent main:
       const result = compileSource(source);
       const schema = getFormatInputSchema(result, 'test_format');
 
-      expect(schema.properties.tokens.items.properties.values).toEqual({
+      expect(schema.properties.tokens.items!.properties!.values).toEqual({
         type: 'array',
         items: {
           type: 'string',

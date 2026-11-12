@@ -15,14 +15,30 @@ import {
 } from '../constants.js';
 
 /**
- * The subset of `DirectiveOptions` the optimization pipeline reads. Declared as
- * a `Pick` so that adding an input the pipeline needs later widens this one type
- * instead of churning `optimizeDirectiveActions`'s signature and every caller.
+ * The inputs the optimization pipeline reads: the subset of `DirectiveOptions`
+ * it needs, plus compile state that lives outside the action list. Declared in
+ * one place so that adding an input the pipeline needs later widens this one
+ * type instead of churning `optimizeDirectiveActions`'s signature and every
+ * caller.
  */
 export type OptimizeDirectiveOptions = Pick<
   DirectiveOptions,
   'agentInstructionsVariable'
->;
+> & {
+  /**
+   * Run optimization 4b (`inlineSingleReadConditionSlots`). Off by default: it
+   * is opt-in via the `inlineConditionSlots` compile option.
+   */
+  inlineConditionSlots?: boolean;
+  /**
+   * The `enabled` gates of the `@system_variables.uploaded_files` references
+   * captured so far for the current node. They live on the node, not in the
+   * action list, and are evaluated against end-of-directives state, so a
+   * condition slot named in one must keep its write (see
+   * `inlineSingleReadConditionSlots`).
+   */
+  fileReferenceGates?: readonly string[];
+};
 
 /**
  * Directive-action optimization pipeline.
@@ -34,14 +50,20 @@ export type OptimizeDirectiveOptions = Pick<
  * ordering contract — callers must not reorder or partially apply these
  * passes:
  *
- *   1. Instruction appends are fused: adjacent same-gate appends to the
+ *   1. Optimization 4b: a condition slot write
+ *      (`AgentScriptInternal_condition_<idx>`) whose value is read by exactly
+ *      one gate — the action right after it — is dropped, and that gate reads
+ *      the condition directly (`inlineSingleReadConditionSlots`). It runs first
+ *      so the gates it rewrites take part in steps 2 and 4: e.g. two sequential
+ *      `if x: | ...` appends end up adjacent and same-gated.
+ *   2. Instruction appends are fused: adjacent same-gate appends to the
  *      agent-instructions template variable (e.g. consecutive top-level
  *      `| ...` lines) collapse into one state update
  *      (`mergeAdjacentInstructionAppends`).
- *   2. The per-turn instruction reset (`var → ''`) is folded into the first
- *      unconditional append that survives step 1, saving one envelope per turn
+ *   3. The per-turn instruction reset (`var → ''`) is folded into the first
+ *      unconditional append that survives step 2, saving one envelope per turn
  *      (`withInstructionReset` — the instruction-reset fold).
- *   3. Optimization 4a: adjacent state-update envelopes that share the same
+ *   4. Optimization 4a: adjacent state-update envelopes that share the same
  *      `enabled` gate are fused into one envelope carrying the concatenated
  *      `state_updates` (`mergeAdjacentStateUpdates`). This step runs
  *      unconditionally, not just on the instruction-injection path. Two kinds
@@ -54,9 +76,10 @@ export type OptimizeDirectiveOptions = Pick<
  *      counts as such a read: a fused envelope evaluates it once, before any
  *      of its writes.
  *
- * Steps 1 and 2 only run when an `agentInstructionsVariable` is supplied —
+ * Steps 2 and 3 only run when an `agentInstructionsVariable` is supplied —
  * its presence is exactly the signal that directives are appending to the
- * agent-instructions template. Step 3 always runs.
+ * agent-instructions template. Step 1 only runs when `inlineConditionSlots` is
+ * set (off by default). Step 4 always runs.
  *
  * This pass always optimizes; the caller decides whether to run it at all (see
  * `compileDeterministicDirectives`, which emits the pre-optimization graph
@@ -66,13 +89,20 @@ export function optimizeDirectiveActions(
   actions: (Action | HandOffAction)[],
   options: OptimizeDirectiveOptions
 ): (Action | HandOffAction)[] {
-  const { agentInstructionsVariable } = options;
+  const {
+    agentInstructionsVariable,
+    inlineConditionSlots = false,
+    fileReferenceGates = [],
+  } = options;
+  const inlined = inlineConditionSlots
+    ? inlineSingleReadConditionSlots(actions, fileReferenceGates)
+    : actions;
   const appendMerged = agentInstructionsVariable
     ? withInstructionReset(
-        mergeAdjacentInstructionAppends(actions, agentInstructionsVariable),
+        mergeAdjacentInstructionAppends(inlined, agentInstructionsVariable),
         agentInstructionsVariable
       )
-    : actions;
+    : inlined;
   return mergeAdjacentStateUpdates(appendMerged);
 }
 
@@ -274,6 +304,445 @@ function referencesAnyKey(
     if (typeof value === 'string' && pattern.test(value)) return true;
   }
   return false;
+}
+
+/**
+ * If `action` is a state update whose only entry writes a runtime condition
+ * slot, return the slot name and the condition it snapshots; otherwise null.
+ */
+function conditionSlotWrite(
+  action: Action | HandOffAction
+): { slot: string; condition: string } | null {
+  if (action.target !== STATE_UPDATE_ACTION) return null;
+  const updates = (action as Action).state_updates;
+  if (!updates || updates.length !== 1) return null;
+  const keys = Object.keys(updates[0]);
+  if (keys.length !== 1) return null;
+  const slot = keys[0];
+  const condition = updates[0][slot];
+  if (
+    !slot.startsWith(`${RUNTIME_CONDITION_VARIABLE}_`) ||
+    typeof condition !== 'string'
+  ) {
+    return null;
+  }
+  return { slot, condition };
+}
+
+/** An action's `enabled` gate string, or undefined when it has none. */
+function gateOf(action: Action | HandOffAction): string | undefined {
+  return typeof action.enabled === 'string' ? action.enabled : undefined;
+}
+
+function isSpace(ch: string | undefined): boolean {
+  return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r';
+}
+
+function isWordChar(ch: string | undefined): boolean {
+  return (
+    ch !== undefined &&
+    ((ch >= 'a' && ch <= 'z') ||
+      (ch >= 'A' && ch <= 'Z') ||
+      (ch >= '0' && ch <= '9') ||
+      ch === '_')
+  );
+}
+
+/**
+ * Index of the bracket closing the one opened at `expr[open]`, skipping string
+ * literals, or -1 if it does not close before `end`.
+ */
+function closingBracket(expr: string, open: number, end: number): number {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = open; i < end; i++) {
+    const ch = expr[i];
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '(' || ch === '[' || ch === '{') {
+      depth++;
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      if (--depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * The top-level `and` operands of a gate, with nested conjunctions flattened
+ * and redundant wrapping parens stripped — `(a) and ((b) and (c))` becomes
+ * `['a', 'b', 'c']`. A trivial gate (absent or `'True'`) has none.
+ *
+ * An operand that is not a pure conjunction at top level — one with a depth-0
+ * `or`, conditional expression, or `lambda`, all of which bind looser than
+ * `and` — is kept whole, so every returned operand really is a conjunct of the
+ * gate. Splitting less than possible is always safe: it only makes the
+ * implication check in `inlineSingleReadConditionSlots` stricter.
+ */
+function gateConjuncts(gate: string | undefined): string[] {
+  if (gate === undefined || gate === 'True') return [];
+  return splitConjunction(gate);
+}
+
+function splitConjunction(expr: string): string[] {
+  const conjuncts: string[] = [];
+  collectConjuncts(expr, 0, expr.length, conjuncts);
+  return conjuncts;
+}
+
+/**
+ * Push the conjuncts of `expr[start, end)` onto `out`. Works on index ranges
+ * of the one gate string so splitting allocates only the returned operands.
+ */
+function collectConjuncts(
+  expr: string,
+  start: number,
+  end: number,
+  out: string[]
+): void {
+  for (;;) {
+    while (start < end && isSpace(expr[start])) start++;
+    while (end > start && isSpace(expr[end - 1])) end--;
+    if (expr[start] !== '(' || closingBracket(expr, start, end) !== end - 1) {
+      break;
+    }
+    start++;
+    end--;
+  }
+
+  // Scan the top level for word tokens, skipping brackets and strings.
+  const cuts: number[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = start; i < end; i++) {
+    const ch = expr[i];
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '(' || ch === '[' || ch === '{') {
+      depth++;
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      depth--;
+    } else if (
+      depth === 0 &&
+      isWordChar(ch) &&
+      (i === start || !isWordChar(expr[i - 1]))
+    ) {
+      let wordEnd = i + 1;
+      while (wordEnd < end && isWordChar(expr[wordEnd])) wordEnd++;
+      const word = expr.slice(i, wordEnd);
+      if (word === 'or' || word === 'if' || word === 'lambda') {
+        out.push(expr.slice(start, end));
+        return;
+      }
+      if (
+        word === 'and' &&
+        i > start &&
+        wordEnd < end &&
+        isSpace(expr[i - 1]) &&
+        isSpace(expr[wordEnd])
+      ) {
+        cuts.push(i, wordEnd);
+      }
+      i = wordEnd - 1;
+    }
+  }
+
+  if (cuts.length === 0) {
+    out.push(expr.slice(start, end));
+    return;
+  }
+  let operandStart = start;
+  for (let c = 0; c < cuts.length; c += 2) {
+    collectConjuncts(expr, operandStart, cuts[c], out);
+    operandStart = cuts[c + 1];
+  }
+  collectConjuncts(expr, operandStart, end, out);
+}
+
+/**
+ * Replace the `state.<slot>` read in `gate` with `condition`, keeping the rest
+ * of the gate as emitted. Only called once the slot is known to be read exactly
+ * once in `gate`, as a bare top-level conjunct.
+ */
+function substituteSlotRead(
+  gate: string,
+  slotRef: string,
+  condition: string
+): string {
+  if (gate.trim() === slotRef) return condition;
+  let start = gate.indexOf(slotRef);
+  while (
+    isWordChar(gate[start - 1]) ||
+    isWordChar(gate[start + slotRef.length])
+  ) {
+    start = gate.indexOf(slotRef, start + 1);
+  }
+  const end = start + slotRef.length;
+  const wrapped = gate[start - 1] === '(' && gate[end] === ')';
+  const replacement = wrapped ? condition : `(${condition})`;
+  return gate.slice(0, start) + replacement + gate.slice(end);
+}
+
+/**
+ * Optimization 4b — drop a condition slot write whose value is read by exactly
+ * one gate, the action right after it, and have that gate read the condition
+ * directly.
+ *
+ * An `if` snapshots its condition into a slot (`AgentScriptInternal_condition_
+ * <idx>`) because every body action re-evaluates its gate against committed
+ * state: an earlier body statement could otherwise flip the condition before a
+ * later one re-checks it, and an `else` could run after its `then` flipped it.
+ * When the only gate reading the snapshot is the very next action, nothing can
+ * run in between, so the snapshot is redundant — the common single-statement
+ * `if` without `else`. The write costs one runtime envelope; dropping it also
+ * leaves same-gated neighbours adjacent for steps 2 and 4 to fuse.
+ *
+ * With W the slot write (`{slot: C}` gated on G) and R the next action, the
+ * write is inlined only when all of these hold:
+ *
+ *  - R is an action (not a handoff) that reads the slot only in its `enabled`
+ *    gate and does not write it.
+ *  - R's gate has every top-level conjunct of G, plus `state.<slot>`, plus
+ *    zero or more others that don't read the slot. Then R can only run if W
+ *    did, and R' = G ∧ C ∧ others evaluated without W equals R evaluated after
+ *    W. G never reads the slot itself: nested conditionals allocate slots
+ *    above their parent's, so a write is gated only on lower slots.
+ *  - No later action reads the value W wrote. The scan ends at the next write
+ *    of the slot under the identical gate G (it replaces W's value whenever W
+ *    ran).
+ *  - No captured file reference gates on the slot: those gates sit on the node
+ *    and are evaluated after the directives run, so they need the slot.
+ *
+ * The conjunct analysis is only a check; the rewrite itself swaps R's
+ * `state.<slot>` conjunct for `(C)` in place, so R' keeps the shape the
+ * emitter gave R. Emitted gates put the innermost `if` last, so C is still
+ * evaluated only after G's conjuncts hold.
+ *
+ * This relies on the lowering's invariant that every read of a slot follows
+ * its own `if`'s write of it. A reader that ran without its write would
+ * already be reading some other `if`'s value, and this pass does not try to
+ * preserve which one.
+ */
+function inlineSingleReadConditionSlots(
+  actions: (Action | HandOffAction)[],
+  fileReferenceGates: readonly string[]
+): (Action | HandOffAction)[] {
+  if (!actions.some(action => conditionSlotWrite(action))) return actions;
+  // Gates repeat heavily within one list (every body action of an `if` shares
+  // its prefix), so split each distinct gate string once.
+  const conjunctCache = new Map<string, readonly string[]>();
+  const conjuncts = (gate: string | undefined): readonly string[] => {
+    if (gate === undefined) return [];
+    let cached = conjunctCache.get(gate);
+    if (!cached) {
+      cached = gateConjuncts(gate);
+      conjunctCache.set(gate, cached);
+    }
+    return cached;
+  };
+  const fileGateReads = slotReadsIn(fileReferenceGates);
+  const result = [...actions];
+  for (let i = 0; i < result.length; ) {
+    const reader = inlinedReader(result, i, fileGateReads, conjuncts);
+    if (reader) {
+      // Revisit the rewritten reader: it may be a slot write itself.
+      result.splice(i, 2, reader);
+    } else {
+      i++;
+    }
+  }
+  return result;
+}
+
+/**
+ * If `actions[index]` is a condition slot write that can be inlined into the
+ * action after it (see `inlineSingleReadConditionSlots`), return that action
+ * with its gate rewritten to read the condition directly; otherwise null.
+ */
+function inlinedReader(
+  actions: (Action | HandOffAction)[],
+  index: number,
+  fileGateReads: ReadonlySet<string>,
+  conjuncts: (gate: string | undefined) => readonly string[]
+): Action | null {
+  const write = conditionSlotWrite(actions[index]);
+  const reader = actions[index + 1];
+  if (!write || !reader || reader.type !== 'action') return null;
+  const { slot, condition } = write;
+  const slotRef = `state.${slot}`;
+  const readerGate = gateOf(reader);
+  // Cheapest checks first: most slot writes have several readers and fail
+  // here or in the dead-value scan, before any gate is split into conjuncts.
+  if (!readerGate || !readerGate.includes(slotRef)) return null;
+  const readsSlot = (value: unknown): boolean => readsSlotIn(value, slotRef);
+  if (
+    readsSlot(condition) ||
+    fileGateReads.has(slot) ||
+    (reader.state_updates ?? []).some(update => Object.hasOwn(update, slot))
+  ) {
+    return null;
+  }
+
+  // The lowering gates a slot write only on lower slots (nested conditionals
+  // allocate above their parent's), so G never reads W's own slot. Bail if it
+  // ever does rather than reason about which `if`'s value G would see.
+  const writeGate = gateOf(actions[index]);
+  if (readsSlot(writeGate)) return null;
+  for (let j = index + 2; j < actions.length; j++) {
+    const later = actions[j];
+    if (slotReads(later).has(slot)) return null;
+    if (
+      gateOf(later) === writeGate &&
+      conditionSlotWrite(later)?.slot === slot
+    ) {
+      break;
+    }
+  }
+
+  for (const key of Object.keys(reader) as (keyof Action)[]) {
+    if (key !== 'enabled' && readsSlot(reader[key])) return null;
+  }
+
+  const writeConjuncts = conjuncts(writeGate);
+
+  const others = [...conjuncts(readerGate)];
+  for (const conjunct of [...writeConjuncts, slotRef]) {
+    const at = others.indexOf(conjunct);
+    if (at < 0) return null;
+    others.splice(at, 1);
+  }
+  if (others.some(readsSlot)) return null;
+
+  return {
+    ...reader,
+    enabled: substituteSlotRead(readerGate, slotRef, condition),
+  };
+}
+
+const SLOT_READ_PREFIX = `state.${RUNTIME_CONDITION_VARIABLE}_`;
+
+/**
+ * The condition slots read (`state.<slot>`, as a whole identifier) anywhere in
+ * `value`'s keys or string values. An `indexOf` scan rather than a regex per
+ * slot: 4b asks this for every candidate, and almost no strings mention a slot.
+ */
+function slotReadsIn(value: unknown, out = new Set<string>()): Set<string> {
+  if (typeof value === 'string') {
+    const digitsAt = SLOT_READ_PREFIX.length;
+    for (
+      let at = value.indexOf(SLOT_READ_PREFIX);
+      at >= 0;
+      at = value.indexOf(SLOT_READ_PREFIX, at + 1)
+    ) {
+      let end = at + digitsAt;
+      while (value[end] >= '0' && value[end] <= '9') end++;
+      if (
+        end === at + digitsAt ||
+        isWordChar(value[at - 1]) ||
+        isWordChar(value[end])
+      ) {
+        continue;
+      }
+      out.add(value.slice(at + 'state.'.length, end));
+    }
+  } else if (Array.isArray(value)) {
+    for (const child of value) slotReadsIn(child, out);
+  } else if (value && typeof value === 'object') {
+    for (const key of Object.keys(value)) {
+      slotReadsIn(key, out);
+      slotReadsIn((value as Record<string, unknown>)[key], out);
+    }
+  }
+  return out;
+}
+
+/**
+ * True if `value`'s keys or string values read `slotRef` (`state.<slot>`) as a
+ * whole identifier, so a check for `..._1` does not match `..._12`.
+ */
+function readsSlotIn(value: unknown, slotRef: string): boolean {
+  if (typeof value === 'string') {
+    for (
+      let at = value.indexOf(slotRef);
+      at >= 0;
+      at = value.indexOf(slotRef, at + 1)
+    ) {
+      if (
+        !isWordChar(value[at - 1]) &&
+        !isWordChar(value[at + slotRef.length])
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some(child => readsSlotIn(child, slotRef));
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value).some(
+      key =>
+        readsSlotIn(key, slotRef) ||
+        readsSlotIn((value as Record<string, unknown>)[key], slotRef)
+    );
+  }
+  return false;
+}
+
+const slotReadsCache = new WeakMap<Action | HandOffAction, Set<string>>();
+
+/**
+ * The condition slots `action` reads anywhere, memoized per action object. The
+ * dead-value scan in `inlinedReader` checks every later action for each slot
+ * write, so scanning once per action keeps the pass linear.
+ */
+function slotReads(action: Action | HandOffAction): Set<string> {
+  let reads = slotReadsCache.get(action);
+  if (!reads) {
+    reads = slotReadsIn(action);
+    slotReadsCache.set(action, reads);
+  }
+  return reads;
+}
+
+/**
+ * Indices of the runtime condition slots `value` mentions anywhere — as a
+ * write key or a `state.` read. Run over the compiled nodes, this is the set of
+ * slots that still need a state-variable declaration once 4b has dropped the
+ * writes and reads of the rest.
+ */
+export function referencedConditionSlots(value: unknown): Set<number> {
+  const prefix = `${RUNTIME_CONDITION_VARIABLE}_`;
+  const pattern = new RegExp(`\\b${prefix}(\\d+)\\b`, 'g');
+  const slots = new Set<number>();
+  // Walk rather than `JSON.stringify` the whole graph: only the few strings
+  // that mention a slot are scanned with the regex.
+  const scan = (text: string): void => {
+    if (!text.includes(prefix)) return;
+    for (const match of text.matchAll(pattern)) slots.add(Number(match[1]));
+  };
+  const visit = (node: unknown): void => {
+    if (typeof node === 'string') {
+      scan(node);
+    } else if (Array.isArray(node)) {
+      for (const child of node) visit(child);
+    } else if (node && typeof node === 'object') {
+      for (const key of Object.keys(node)) {
+        scan(key);
+        visit((node as Record<string, unknown>)[key]);
+      }
+    }
+  };
+  visit(value);
+  return slots;
 }
 
 /**

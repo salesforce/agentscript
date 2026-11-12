@@ -78,6 +78,12 @@ export interface SchemaContext {
   readonly colinearResolvedScopes: ReadonlySet<string>;
   /** Namespaces whose blocks declare the 'invocationTarget' capability (can be called as a tool). */
   readonly invocationTargetNamespaces: ReadonlySet<string>;
+  /**
+   * Scope level -> namespaces that resolve only inside that scope, from
+   * `NamedBlockOpts.isolatedNamespaces`. Root-level definitions of these
+   * namespaces are not visible inside the scope.
+   */
+  readonly isolatedNamespaces: ReadonlyMap<string, ReadonlySet<string>>;
   /** Namespaces whose blocks declare the 'transitionTarget' capability (can receive a handoff/transition). */
   readonly transitionTargetNamespaces: ReadonlySet<string>;
   /**
@@ -168,6 +174,7 @@ export function createSchemaContext(info: SchemaInfo): SchemaContext {
     globalScopes,
     colinearResolvedScopes,
     invocationTargetNamespaces: capabilityNamespaces.invocationTarget,
+    isolatedNamespaces: buildIsolatedNamespaces(info),
     transitionTargetNamespaces: capabilityNamespaces.transitionTarget,
     nodeMemberNames,
     nodeOutputMemberName: info.nodeMemberAccess?.outputMember,
@@ -472,6 +479,40 @@ function buildScopedNamespaces(
   }
 
   return result;
+}
+
+function buildIsolatedNamespaces(
+  schemaInfo: SchemaInfo
+): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  const visited = new WeakSet<Schema>();
+  const walk = (schema: Schema): void => {
+    if (alreadyVisited(visited, schema)) return;
+    for (const rawFt of Object.values(schema)) {
+      const fieldType = resolveFieldType(rawFt);
+      if (fieldType.scopeAlias && fieldType.isolatedNamespaces) {
+        const namespaces = result.get(fieldType.scopeAlias) ?? new Set();
+        for (const ns of fieldType.isolatedNamespaces) namespaces.add(ns);
+        result.set(fieldType.scopeAlias, namespaces);
+      }
+      if (fieldType.schema) walk(fieldType.schema);
+    }
+  };
+  walk(schemaInfo.schema);
+  return result;
+}
+
+/**
+ * True when references to `namespace` inside the `scope` level resolve only
+ * against that scope, with no fallback to root-level definitions.
+ */
+export function isIsolatedNamespace(
+  ctx: SchemaContext,
+  scope: string | undefined,
+  namespace: string
+): boolean {
+  if (!scope) return false;
+  return ctx.isolatedNamespaces.get(scope)?.has(namespace) ?? false;
 }
 
 /** Add `scope` to the set of hosting scopes for `fieldName`. */

@@ -12,6 +12,7 @@
  * compile into BYONNode with type "byon" and hardcoded byo_client configuration.
  */
 import { describe, it, expect } from 'vitest';
+import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
 import type { BYONNode, AgentVersion } from '../src/types.js';
@@ -832,5 +833,119 @@ subagent Tableau_Analyze:
     expect(
       version.additional_parameters?.enable_propagate_internal_org_jwt_to_icr
     ).toBeUndefined();
+  });
+});
+
+describe('Custom subagent on_exit handoffs', () => {
+  function compileOnExit(onExit: string) {
+    const source = `
+${baseConfig}
+variables:
+    done: mutable boolean = False
+
+subagent Other:
+    description: "Other"
+
+subagent Shopper_Agent:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+    on_exit: ->
+${onExit}
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = findNode(output, 'Shopper_Agent') as BYONNode;
+    return {
+      node,
+      dropped: diagnostics.filter(d => d.code === 'dropped-handoff'),
+      schemaErrors: diagnostics.filter(d => d.code === 'schema-validation'),
+    };
+  }
+
+  it.each([
+    ['transition', '        transition to @subagent.Other'],
+    ['escalate', '        escalate'],
+    ['end_session', '        end_session'],
+  ])(
+    'drops %s and its companion action with a warning',
+    (keyword, statement) => {
+      const { node, dropped, schemaErrors } = compileOnExit(
+        `        set @variables.done = True\n${statement}`
+      );
+
+      // Only the set survives: no handoff, no next_topic/end-session action.
+      expect(node.on_exit).toEqual([
+        expect.objectContaining({
+          type: 'action',
+          state_updates: [{ done: 'True' }],
+        }),
+      ]);
+      expect(dropped).toEqual([
+        expect.objectContaining({
+          severity: DiagnosticSeverity.Warning,
+          message: `\`${keyword}\` in on_exit of a custom subagent was dropped: it only runs actions.`,
+        }),
+      ]);
+      expect(schemaErrors).toEqual([]);
+    }
+  );
+
+  it('drops handoffs nested in if/else bodies', () => {
+    const { node, dropped, schemaErrors } = compileOnExit(
+      `        if @variables.done:
+            transition to @subagent.Other
+        else:
+            set @variables.done = True
+            end_session`
+    );
+
+    expect(node.on_exit?.every(a => a.type === 'action')).toBe(true);
+    expect(JSON.stringify(node.on_exit)).not.toContain('next_topic');
+    expect(JSON.stringify(node.on_exit)).not.toContain('end_session');
+    expect(dropped).toHaveLength(2);
+    expect(schemaErrors).toEqual([]);
+  });
+
+  it('emits no condition snapshot when every branch was dropped', () => {
+    const { node, dropped } = compileOnExit(
+      `        if @variables.done:
+            transition to @subagent.Other
+        else:
+            escalate`
+    );
+
+    expect(node.on_exit ?? []).toEqual([]);
+    expect(JSON.stringify(node.on_exit ?? [])).not.toContain(
+      'AgentScriptInternal_condition_'
+    );
+    expect(dropped).toHaveLength(2);
+  });
+
+  it('omits on_exit when every directive is dropped', () => {
+    const { node, dropped, schemaErrors } = compileOnExit(
+      '        transition to @subagent.Other'
+    );
+
+    expect(node.on_exit).toBeUndefined();
+    expect(dropped).toHaveLength(1);
+    expect(schemaErrors).toEqual([]);
+  });
+
+  it('keeps handoffs in on_init', () => {
+    const source = `
+${baseConfig}
+subagent Other:
+    description: "Other"
+
+subagent Shopper_Agent:
+    schema: "node://commerce/shopper_agent/v1"
+    description: "Commerce Cloud shopper agent"
+    on_init: ->
+        transition to @subagent.Other
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const node = findNode(output, 'Shopper_Agent') as BYONNode;
+
+    expect(node.on_init?.some(a => a.type === 'handoff')).toBe(true);
+    expect(diagnostics.filter(d => d.code === 'dropped-handoff')).toEqual([]);
   });
 });

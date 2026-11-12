@@ -7,7 +7,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource, checkSchemaConformance } from './test-utils.js';
+import {
+  parseSource,
+  checkSchemaConformance,
+  findNode,
+  isActionTool,
+} from './test-utils.js';
 import { DiagnosticSeverity } from '@agentscript/types';
 
 describe('GBA: Top-level actions inheritance', () => {
@@ -42,22 +47,19 @@ subagent worker:
     );
     expect(errors).toHaveLength(0);
 
-    const nodes = output.agent_version.nodes;
-    expect(nodes).toHaveLength(2);
+    expect(output.agent_version.nodes).toHaveLength(2);
 
-    const mainNode = nodes.find(n => n.developer_name === 'main');
-    const workerNode = nodes.find(n => n.developer_name === 'worker');
-    expect(mainNode).toBeDefined();
-    expect(workerNode).toBeDefined();
+    const mainNode = findNode(output, 'main', 'subagent');
+    const workerNode = findNode(output, 'worker', 'subagent');
 
     // start_agent (router) node does NOT receive top-level actions.
-    expect(mainNode!.action_definitions ?? []).toHaveLength(0);
+    expect(mainNode.action_definitions ?? []).toHaveLength(0);
     expect(
-      (mainNode!.tools ?? []).filter(t => t.type === 'action')
+      (mainNode.tools ?? []).filter(t => t.type === 'action')
     ).toHaveLength(0);
 
     // Regular subagent node DOES receive top-level actions.
-    const workerActionNames = (workerNode!.action_definitions ?? []).map(
+    const workerActionNames = (workerNode.action_definitions ?? []).map(
       a => a.developer_name
     );
     expect(workerActionNames).toContain('log_activity');
@@ -66,13 +68,10 @@ subagent worker:
 
   it('creates tools with correct shape including name field on regular subagents', () => {
     const { output } = compile(parseSource(source));
-    const workerNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'worker'
-    );
-    expect(workerNode).toBeDefined();
+    const workerNode = findNode(output, 'worker', 'subagent');
 
-    expect(workerNode!.tools).toBeDefined();
-    const actionTools = workerNode!.tools!.filter(t => t.type === 'action');
+    expect(workerNode.tools).toBeDefined();
+    const actionTools = workerNode.tools!.filter(isActionTool);
     expect(actionTools.length).toBeGreaterThanOrEqual(2);
 
     const logTool = actionTools.find(t => t.target === 'log_activity');
@@ -91,14 +90,11 @@ subagent worker:
 
   it('start_agent node does not inherit top-level actions', () => {
     const { output } = compile(parseSource(source));
-    const startNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    );
+    const startNode = findNode(output, 'main', 'subagent');
 
-    expect(startNode).toBeDefined();
-    expect(startNode!.action_definitions ?? []).toHaveLength(0);
+    expect(startNode.action_definitions ?? []).toHaveLength(0);
     expect(
-      (startNode!.tools ?? []).filter(t => t.type === 'action')
+      (startNode.tools ?? []).filter(t => t.type === 'action')
     ).toHaveLength(0);
   });
 
@@ -141,21 +137,18 @@ subagent worker:
     );
     expect(errors).toHaveLength(0);
 
-    const worker = output.agent_version.nodes.find(
-      n => n.developer_name === 'worker'
-    );
-    expect(worker).toBeDefined();
+    const worker = findNode(output, 'worker', 'subagent');
 
-    const emailTools = (worker!.tools ?? []).filter(
-      t => t.type === 'action' && t.target === 'send_email'
-    );
+    const emailTools = (worker.tools ?? [])
+      .filter(isActionTool)
+      .filter(t => t.target === 'send_email');
     // Exactly one tool for the target — no duplicate from the inheritance merge.
     expect(emailTools).toHaveLength(1);
     // Required, unbound input surfaced to the planner.
     expect(emailTools[0]!.llm_inputs).toContain('recipient');
 
     // And a single action definition for the target.
-    const emailDefs = (worker!.action_definitions ?? []).filter(
+    const emailDefs = (worker.action_definitions ?? []).filter(
       a => a.developer_name === 'send_email'
     );
     expect(emailDefs).toHaveLength(1);
@@ -201,11 +194,10 @@ subagent worker:
 
     // The seeded llm_inputs live on the regular subagent node, since the
     // start_agent router does not receive top-level actions.
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'worker'
-    );
-    expect(node).toBeDefined();
-    const tool = node!.tools!.find(t => t.target === 'send_email');
+    const node = findNode(output, 'worker', 'subagent');
+    const tool = node
+      .tools!.filter(isActionTool)
+      .find(t => t.target === 'send_email');
     expect(tool).toBeDefined();
     // Required, unbound inputs must be surfaced to the planner via llm_inputs,
     // just like an ordinary reasoning-referenced action.

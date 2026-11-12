@@ -204,6 +204,17 @@ describe('formatSchemaHoverMarkdown', () => {
     expect(result).toContain('Experimental');
   });
 
+  test('includes release stage of gated fields and values, not gate ids', () => {
+    const result = formatSchemaHoverMarkdown(['field'], {
+      gatedBy: { id: 'test.fieldGate', stage: 'pilot' },
+      gatedValues: { experimental: { id: 'test.valueGate', stage: 'beta' } },
+    });
+    expect(result).toContain('_Pilot_');
+    expect(result).toContain('`experimental` (Beta)');
+    expect(result).not.toContain('test.fieldGate');
+    expect(result).not.toContain('test.valueGate');
+  });
+
   test('includes modifiers from KeywordInfo', () => {
     const modifiers: KeywordInfo[] = [
       { keyword: 'mutable', description: 'Can change' },

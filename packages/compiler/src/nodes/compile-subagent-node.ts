@@ -70,7 +70,10 @@ import {
 } from './optimize-actions.js';
 import { resolveActionType } from './resolve-action-type.js';
 import { compileReasoningActions } from './compile-reasoning-actions.js';
-import { compileSystemInstructions } from './compile-system-instructions.js';
+import {
+  appendConnectionSystemInstructions,
+  compileSystemInstructions,
+} from './compile-system-instructions.js';
 import {
   collectStepsFromStatements,
   findAllCollectTargets,
@@ -151,9 +154,13 @@ export function compileSubAgentNode(
   );
 
   // Compile system instructions
-  const systemInstructions = compileSystemInstructions(
+  let systemInstructions = compileSystemInstructions(
     systemBlock,
     topicBlock,
+    ctx
+  );
+  systemInstructions = appendConnectionSystemInstructions(
+    systemInstructions,
     ctx
   );
 

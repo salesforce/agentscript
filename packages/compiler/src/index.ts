@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 export { compile } from './compile.js';
-export type { CompileResult } from './compile.js';
+export type { CompileResult, CompiledAgentDSL } from './compile.js';
 
 export { serializeWithSourceMap as serialize } from './source-map/source-map-serializer.js';
 export type {

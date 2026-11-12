@@ -46,6 +46,8 @@ import {
 import { agentIqValidationPass } from './agentiq-validation.js';
 import { gbaOnlyBlocksPass } from './gba-only-blocks.js';
 import { systemInstructionsPass } from './system-instructions.js';
+import { onExitHandoffsPass } from './on-exit-handoffs.js';
+import { runTargetPass } from './run-target.js';
 import { workflowValidationPass } from '../../workflow/lint/index.js';
 
 export {
@@ -98,8 +100,21 @@ export {
 } from './render-rules.js';
 export type { ParsedFormatRef } from './render-rules.js';
 export { instructionTemplateSyntaxPass } from './instruction-template-syntax.js';
+export type { InstructionTemplateSyntaxOptions } from './instruction-template-syntax.js';
 export { gbaOnlyBlocksPass } from './gba-only-blocks.js';
-export { systemInstructionsPass } from './system-instructions.js';
+export {
+  systemInstructionsPass,
+  validateStatements,
+} from './system-instructions.js';
+export { onExitHandoffsPass } from './on-exit-handoffs.js';
+export {
+  runTargetPass,
+  runUtilsMessage,
+  subagentUnknownActionMessage,
+  reasoningOnlyActionNames,
+  RUN_UTILS_CODE,
+  SUBAGENT_UNKNOWN_ACTION_CODE,
+} from './run-target.js';
 export { workflowValidationPass } from '../../workflow/lint/index.js';
 
 /** All AgentScript lint passes in engine execution order. */
@@ -127,6 +142,8 @@ export function defaultRules(): LintPass[] {
     agentIqValidationPass(),
     gbaOnlyBlocksPass(),
     systemInstructionsPass(),
+    onExitHandoffsPass(),
+    runTargetPass(),
     // AgentScript analyzers
     typeMapAnalyzer(),
     reasoningActionsAnalyzer(),

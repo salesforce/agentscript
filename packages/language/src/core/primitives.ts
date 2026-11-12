@@ -44,6 +44,7 @@ import {
   typeMismatchDiagnostic,
 } from './diagnostics.js';
 import { addBuilderMethods } from './field-builder.js';
+import { assertUngated } from './gates.js';
 import {
   ALLOWED_STRING_VALUE_KINDS,
   AllowedStringValueKind,
@@ -422,6 +423,7 @@ export const ReferenceValue = addBuilderMethods({
  * Templates are handled at the CST level (node.type === 'template').
  */
 export function union(...types: FieldType[]): SingularFieldType<Expression> {
+  for (const t of types) assertUngated(t, 'union');
   const expressionKindSet: ReadonlySet<string> = EXPRESSION_KINDS;
   const allAccepts = [...new Set(types.flatMap(t => t.__accepts ?? []))];
   const accepts = allAccepts.filter((k): k is ExpressionKind =>

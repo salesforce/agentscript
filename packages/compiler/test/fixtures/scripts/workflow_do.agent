@@ -1,0 +1,64 @@
+system:
+    instructions: "You are a helpful returns assistant."
+    messages:
+        welcome: "Hello! How can I help with your order?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "returns_agent"
+    default_agent_user: "returns_agent@example.com"
+    agent_description: "Processes order returns through a workflow with natural-language steps."
+
+variables:
+    order_id: mutable string = ""
+        description: "The order to return"
+    is_vip: mutable boolean = False
+        description: "Whether the customer is a VIP"
+
+start_agent intent_router:
+    description: "Route the user to the right place"
+    reasoning:
+        instructions: ->
+            | Use {!@actions.start_return} when the user wants to return an order.
+        actions:
+            start_return: @utils.transition to @workflow.return_workflow
+
+subagent order_inquiries:
+    description: "Answer questions about orders"
+    reasoning:
+        instructions: ->
+            | Answer questions about order {!@variables.order_id}.
+
+workflow return_workflow:
+    label: "Return Workflow"
+    description: "Collects order details, processes a return, and confirms."
+    actions:
+        lookup_order:
+            description: "Look up an order by its id."
+            inputs:
+                orderId: string
+                    is_required: True
+            outputs:
+                status: string
+            target: "flow://lookup_order"
+        process_return:
+            description: "Start a return for an order."
+            require_user_confirmation: True
+            inputs:
+                orderId: string
+                    is_required: True
+                reason: string
+            outputs:
+                returnId: string
+            target: "flow://process_return"
+    step collect: ->
+        | Ask the user for the order to return, then call {!@actions.lookup_order}
+          to check that the order exists.
+        | Tell the user the status of the order.
+    step confirm_and_close: ->
+        if @variables.is_vip:
+            | Thank the customer for being a VIP.
+        | Call {!@actions.process_return} for order {!@variables.order_id}
+          and say the return id back to the user.
+        say "Your return has started."
+        transition to @subagent.order_inquiries

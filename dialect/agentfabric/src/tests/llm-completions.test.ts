@@ -79,6 +79,37 @@ describe('LLM entry variant completions', () => {
     expect(labels).not.toContain('reasoning_effort');
   });
 
+  it.each(['Anthropic', 'BedrockAnthropic'])(
+    'blank line in %s llm entry includes Claude fields only',
+    kind => {
+      const source = build(
+        'llm:',
+        '    myLLM:',
+        '        target: "llm://connection_name"',
+        `        kind: "${kind}"`,
+        '        model: "claude-sonnet-5"',
+        INDENT8
+      );
+
+      const lines = source.split('\n');
+      const labels = completionLabelsAt(
+        source,
+        lines.length - 1,
+        INDENT8.length
+      );
+
+      expect(labels).toContain('effort');
+      expect(labels).toContain('thinking');
+      expect(labels).toContain('stop_sequences');
+      expect(labels).toContain('max_tokens');
+      expect(labels).not.toContain('max_output_tokens');
+      expect(labels).not.toContain('temperature');
+      expect(labels).not.toContain('top_p');
+      expect(labels).not.toContain('reasoning_effort');
+      expect(labels).not.toContain('thinking_level');
+    }
+  );
+
   it('two sibling entries — variant fields are scoped to the matching kind', () => {
     const source = build(
       'llm:',

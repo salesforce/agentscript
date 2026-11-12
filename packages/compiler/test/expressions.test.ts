@@ -257,6 +257,24 @@ describe('compileExpression', () => {
   });
 
   describe('@system_variables references', () => {
+    it('compiles the session user identity into the system namespace', () => {
+      const expr = new MemberExpression(
+        new AtIdentifier('system_variables'),
+        'user_id'
+      );
+      expect(compileExpression(expr, ctx)).toBe('system.user_id');
+      expect(ctx.diagnostics).toEqual([]);
+    });
+
+    it('compiles a subscript read of the session user identity', () => {
+      const expr = new SubscriptExpression(
+        new AtIdentifier('system_variables'),
+        new StringLiteral('user_id')
+      );
+      expect(compileExpression(expr, ctx)).toBe('system["user_id"]');
+      expect(ctx.diagnostics).toEqual([]);
+    });
+
     it('should compile @system_variables.user_input as system.input_text', () => {
       const expr = new MemberExpression(
         new AtIdentifier('system_variables'),

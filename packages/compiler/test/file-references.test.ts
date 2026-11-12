@@ -878,8 +878,9 @@ start_agent main:
   });
 
   it('should give sibling file-gated else-if chains distinct condition slots', () => {
-    // First chain uses slots 1..2; being file-gated it reserves them, so the
-    // second chain gets slots 3..4 rather than colliding on slot 1.
+    // Only the first chain's head captures a file, so it reserves slot 1 and
+    // the second chain starts at slot 2 rather than colliding on slot 1. The
+    // first chain's `else if` (slot 2) has no file gate, so it may be reused.
     const source = `
 config:
     agent_name: "FileBot"
@@ -912,9 +913,8 @@ start_agent main:
     const gates = node.file_references!.map(
       e => (e as Record<string, unknown>).enabled as string
     );
-    expect(gates[0]).toContain('state.AgentScriptInternal_condition_1');
-    expect(gates[1]).toContain('state.AgentScriptInternal_condition_3');
-    expect(gates[0]).not.toBe(gates[1]);
+    expect(gates[0]).toBe('state.AgentScriptInternal_condition_1');
+    expect(gates[1]).toBe('state.AgentScriptInternal_condition_2');
   });
 
   it('should over-select (not under-select) for the mixed bracket+index form @system_variables["uploaded_files"][0]', () => {

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { LintEngine, collectDiagnostics } from '@agentscript/language';
+import { LintEngine } from '@agentscript/language';
 import { parseDocument, emitDocument, testSchemaCtx } from './test-utils.js';
 import { defaultRules } from '../lint/passes/index.js';
 import type { Diagnostic } from '@agentscript/types';
@@ -14,9 +14,7 @@ import type { Diagnostic } from '@agentscript/types';
 function runLint(source: string): Diagnostic[] {
   const ast = parseDocument(source);
   const engine = new LintEngine({ passes: defaultRules() });
-  const { diagnostics: lintDiags } = engine.run(ast, testSchemaCtx);
-  const astDiags = collectDiagnostics(ast);
-  return [...astDiags, ...lintDiags];
+  return engine.run(ast, testSchemaCtx).diagnostics;
 }
 
 describe('connection response_formats validation', () => {
@@ -180,6 +178,23 @@ connection messaging:
                 field: string
         audio:
             target: "system://MessagingAudio"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const warnings = diagnostics.filter(
+        d => d.code === 'response-format-unknown-system-target'
+      );
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('recognizes the MessagingAttachment system target', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        attachment:
+            target: "system://MessagingAttachment"
+            inputs:
+                field: string
 `.trimStart();
 
       const diagnostics = runLint(source);
@@ -485,6 +500,23 @@ connection customer_web_client:
         client_action:
             description: "Needs inputs"
             target: "system://ClientAction"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const missingInputs = diagnostics.filter(
+        d =>
+          d.code === 'missing-required-field' && d.message.includes("'inputs'")
+      );
+      expect(missingInputs.length).toBeGreaterThan(0);
+    });
+
+    it('still requires inputs for system://MessagingAttachment', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        attachment:
+            description: "Needs inputs"
+            target: "system://MessagingAttachment"
 `.trimStart();
 
       const diagnostics = runLint(source);
@@ -806,7 +838,66 @@ connection messaging:
       expect(schemaErrors[0].message).toContain(
         "unsupported schema type 'city'"
       );
-      expect(schemaErrors[0].message).toContain('messaging_component');
+      expect(schemaErrors[0].message).toBe(
+        "Input 'penguin_form' has unsupported schema type 'city'. Supported types: messaging_component."
+      );
+    });
+
+    it('lists only the schema types the connection supports', () => {
+      const source = `
+connection customer_web_client:
+    description: "d"
+    response_formats:
+        forms_component:
+            inputs:
+                penguin_form: object
+                    schema: "city://city_schema"
+`.trimStart();
+
+      const schemaErrors = runLint(source).filter(
+        d => d.code === 'response-format-unsupported-schema-type'
+      );
+      expect(schemaErrors).toHaveLength(1);
+      expect(schemaErrors[0].message).toBe(
+        "Input 'penguin_form' has unsupported schema type 'city'. Supported types: lightning_web_component."
+      );
+    });
+
+    it('treats an Object prototype key as an unsupported schema type', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        forms_component:
+            inputs:
+                penguin_form: object
+                    schema: "constructor://x"
+`.trimStart();
+
+      expect(
+        runLint(source).filter(
+          d => d.code === 'response-format-unsupported-schema-type'
+        )
+      ).toHaveLength(1);
+    });
+
+    it('lists no schema types when the connection supports none', () => {
+      const source = `
+connection service_email:
+    description: "d"
+    response_formats:
+        forms_component:
+            inputs:
+                penguin_form: object
+                    schema: "city://city_schema"
+`.trimStart();
+
+      const schemaErrors = runLint(source).filter(
+        d => d.code === 'response-format-unsupported-schema-type'
+      );
+      expect(schemaErrors).toHaveLength(1);
+      expect(schemaErrors[0].message).toBe(
+        "Input 'penguin_form' has unsupported schema type 'city'. The 'service_email' connection does not support component schemas."
+      );
     });
 
     it('errors with invalid-schema-uri for missing :// structure', () => {
@@ -848,8 +939,9 @@ connection messaging:
         d => d.code === 'response-format-nested-schema'
       );
       expect(schemaErrors.length).toBeGreaterThan(0);
-      expect(schemaErrors[0].message).toContain('nested field');
-      expect(schemaErrors[0].message).toContain('top-level');
+      expect(schemaErrors[0].message).toBe(
+        "Input 'penguin_form' has invalid schema placement: 'messaging_component://' is only valid on top-level input fields."
+      );
     });
 
     it('allows messaging_component schema on top-level input field', () => {
@@ -881,12 +973,13 @@ connection penguin:
 
       const diagnostics = runLint(source);
       const surfaceErrors = diagnostics.filter(
-        d => d.code === 'response-format-messaging-component-wrong-surface'
+        d => d.code === 'response-format-component-wrong-surface'
       );
       expect(surfaceErrors.length).toBeGreaterThan(0);
       expect(surfaceErrors[0].severity).toBe(1 /* Error */);
-      expect(surfaceErrors[0].message).toContain('Messaging components');
-      expect(surfaceErrors[0].message).toContain('messaging connection');
+      expect(surfaceErrors[0].message).toBe(
+        "The 'penguin' connection does not support the 'messaging_component' component type."
+      );
     });
 
     it('does not error for messaging_component schema under connection messaging', () => {
@@ -901,7 +994,24 @@ connection messaging:
 
       const diagnostics = runLint(source);
       const surfaceErrors = diagnostics.filter(
-        d => d.code === 'response-format-messaging-component-wrong-surface'
+        d => d.code === 'response-format-component-wrong-surface'
+      );
+      expect(surfaceErrors).toHaveLength(0);
+    });
+
+    it('does not error for messaging_component schema under connection whatsapp_business', () => {
+      const source = `
+connection whatsapp_business:
+    response_formats:
+        phone_number_template:
+            inputs:
+                request_phone_number: object
+                    schema: "messaging_component://Request_phone_number"
+`.trimStart();
+
+      const diagnostics = runLint(source);
+      const surfaceErrors = diagnostics.filter(
+        d => d.code === 'response-format-component-wrong-surface'
       );
       expect(surfaceErrors).toHaveLength(0);
     });
@@ -1026,6 +1136,398 @@ start_agent main:
         d => d.code === 'response-format-messaging-component-missing-default'
       );
       expect(defaultErrors).toHaveLength(0);
+    });
+  });
+
+  describe('lightning web component validation', () => {
+    // Params cover a missing default, a literal default, and script-only
+    // `is_required` (True and False).
+    const lightningFormat = (connection: string, schema: string) =>
+      `
+connection ${connection}:
+    description: "d"
+    response_formats:
+        acme_menu_card:
+            description: "Menu card"
+            inputs:
+                card:
+                    schema: "${schema}"
+                    type: object
+                        fields:
+                            title: string
+                                description: "the card title"
+                                is_required: True
+                            itemCount: number = 0
+                            note: string
+                                is_required: False
+
+start_agent main:
+    description: "test"
+`.trimStart();
+
+    /** Errors, plus any response-format warning (e.g. object-missing-fields). */
+    const formatProblems = (diagnostics: Diagnostic[]) =>
+      diagnostics.filter(
+        d => d.severity === 1 || String(d.code).startsWith('response-format-')
+      );
+
+    it.each(['customer_web_client'])(
+      'allows a lightning web component on a %s connection without param defaults',
+      connection => {
+        const diagnostics = runLint(
+          lightningFormat(
+            connection,
+            'lightning_web_component://acme__MenuCard'
+          )
+        );
+        expect(formatProblems(diagnostics)).toHaveLength(0);
+      }
+    );
+
+    it('does not warn for a parameterless lightning web component without fields', () => {
+      const source = `
+connection customer_web_client:
+    description: "d"
+    response_formats:
+        acme_menu_card:
+            description: "Menu card"
+            inputs:
+                card: object
+                    schema: "lightning_web_component://acme__MenuCard"
+`.trimStart();
+      expect(formatProblems(runLint(source))).toHaveLength(0);
+    });
+
+    it.each([
+      'messaging',
+      'ms_copilot',
+      'lightning_experience',
+      'agentforce_mobile_sdk',
+      'penguin',
+    ])(
+      'errors when a lightning web component is used on a %s connection',
+      connection => {
+        const diagnostics = runLint(
+          lightningFormat(
+            connection,
+            'lightning_web_component://acme__MenuCard'
+          )
+        );
+        const surfaceErrors = diagnostics.filter(
+          d => d.code === 'response-format-component-wrong-surface'
+        );
+        expect(surfaceErrors).toHaveLength(1);
+        expect(surfaceErrors[0].severity).toBe(1 /* Error */);
+        expect(surfaceErrors[0].message).toBe(
+          `The '${connection}' connection does not support the 'lightning_web_component' component type.`
+        );
+      }
+    );
+
+    it.each(['acme__MenuCard', 'my_ns__Menu_Card', 'c__menuCard2'])(
+      'accepts the <namespace>__<devName> FQN %s',
+      fqn => {
+        const diagnostics = runLint(
+          lightningFormat(
+            'customer_web_client',
+            `lightning_web_component://${fqn}`
+          )
+        );
+        expect(
+          diagnostics.filter(
+            d => d.code === 'response-format-invalid-component-fqn'
+          )
+        ).toHaveLength(0);
+      }
+    );
+
+    it.each([
+      'MenuCard',
+      '__MenuCard',
+      'acme__',
+      'acme_MenuCard',
+      'acme___MenuCard',
+      'acme__Menu__Card',
+      'acme:MenuCard',
+      'acme/menuCard',
+      '1acme__MenuCard',
+      // not trimmed: the compiler would emit the space in `$schema`
+      'acme__MenuCard ',
+    ])('errors on the malformed FQN %s', fqn => {
+      const diagnostics = runLint(
+        lightningFormat(
+          'customer_web_client',
+          `lightning_web_component://${fqn}`
+        )
+      );
+      const fqnErrors = diagnostics.filter(
+        d => d.code === 'response-format-invalid-component-fqn'
+      );
+      expect(fqnErrors).toHaveLength(1);
+      expect(fqnErrors[0].severity).toBe(1 /* Error */);
+      expect(fqnErrors[0].message).toContain(`'${fqn}'`);
+      expect(fqnErrors[0].message).toContain('<namespace>__<devName>');
+      // Reported on the `schema:` URI (line 7 of the source)
+      expect(fqnErrors[0].range.start.line).toBe(7);
+    });
+  });
+
+  describe('lightning web component parameter defaults', () => {
+    const NON_LITERAL = 'response-format-component-non-literal-default';
+
+    const withParam = (schema: string, param: string) =>
+      `
+variables:
+    v: mutable string = "x"
+
+connection customer_web_client:
+    description: "d"
+    response_formats:
+        acme_menu_card:
+            description: "Menu card"
+            inputs:
+                card:
+                    schema: "${schema}"
+                    type: object
+                        fields:
+                            ${param}
+`.trimStart();
+
+    const lwc = (param: string) =>
+      withParam('lightning_web_component://acme__MenuCard', param);
+
+    it.each([
+      'title: string = "text"',
+      'count: number = 0',
+      'offset: number = -1',
+      'ratio: number = 1.5',
+      'enabled: boolean = True',
+      'note: string = None',
+      'tags: list[string] = ["a", "b"]',
+    ])('accepts the literal default `%s`', param => {
+      expect(
+        runLint(lwc(param)).filter(d => d.code === NON_LITERAL)
+      ).toHaveLength(0);
+    });
+
+    it.each([
+      'title: string = @variables.v',
+      'title: string = @inputs.v',
+      'title: string = @outputs.v',
+      'count: number = 1 + 2',
+    ])('errors on the non-literal default `%s`', param => {
+      const errors = runLint(lwc(param)).filter(d => d.code === NON_LITERAL);
+      expect(errors).toHaveLength(1);
+      expect(errors[0].severity).toBe(1 /* Error */);
+      expect(errors[0].message).toContain(`parameter '${param.split(':')[0]}'`);
+    });
+
+    it.each([
+      [
+        'an object param',
+        `config:
+                                type: object
+                                    fields:
+                                        label: string = @variables.v`,
+      ],
+      [
+        'a list[object] param',
+        `rows:
+                                type: list
+                                    value: object
+                                        fields:
+                                            label: string = @variables.v`,
+      ],
+    ])('errors on a non-literal default nested in %s', (_case, param) => {
+      const errors = runLint(lwc(param)).filter(d => d.code === NON_LITERAL);
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain(`parameter 'label'`);
+    });
+
+    it('reports a list default with a reference only as a non-primitive list', () => {
+      const codes = runLint(lwc('tags: list[string] = [@variables.v]'))
+        .filter(d => String(d.code).startsWith('response-format-'))
+        .map(d => d.code);
+      expect(codes).toEqual(['response-format-list-default-non-primitive']);
+    });
+
+    it('still allows variable defaults on messaging component params', () => {
+      const source = withParam(
+        'messaging_component://FormMessage__PetIntakeForm',
+        'title: string = @variables.v'
+      ).replace('connection customer_web_client:', 'connection messaging:');
+      expect(runLint(source).filter(d => d.code === NON_LITERAL)).toHaveLength(
+        0
+      );
+    });
+  });
+
+  describe('schema component field shapes', () => {
+    const MISSING_FIELDS = 'response-format-object-missing-fields';
+
+    const component = (connection: string, schema: string, fields: string) =>
+      `
+connection ${connection}:
+    description: "d"
+    response_formats:
+        acme_menu_card:
+            description: "Menu card"
+            inputs:
+                card:
+                    schema: "${schema}"
+                    type: object
+                        fields:
+${fields}
+`.trimStart();
+
+    const F = '                            ';
+
+    it.each([
+      [
+        'lightning web component',
+        'customer_web_client',
+        'lightning_web_component://acme__MenuCard',
+        `${F}config: object`,
+      ],
+      [
+        'messaging component',
+        'messaging',
+        'messaging_component://FormMessage__PetIntakeForm',
+        `${F}config: object = "x"`,
+      ],
+    ])(
+      'does not warn on an object param of a %s without fields',
+      (_case, connection, schema, fields) => {
+        const diags = runLint(component(connection, schema, fields));
+        expect(diags.filter(d => d.code === MISSING_FIELDS)).toHaveLength(0);
+      }
+    );
+
+    it('does not warn on a deeper nested object inside a component param', () => {
+      const fields = `${F}config:
+${F}    type: object
+${F}        fields:
+${F}            inner: object`;
+      const diags = runLint(
+        component(
+          'customer_web_client',
+          'lightning_web_component://acme__MenuCard',
+          fields
+        )
+      );
+      expect(diags.filter(d => d.code === MISSING_FIELDS)).toHaveLength(0);
+    });
+  });
+
+  describe('component schema check precedence', () => {
+    it('reports only nested-schema for a nested lightning web component with an invalid FQN', () => {
+      const source = `
+connection customer_web_client:
+    description: "d"
+    response_formats:
+        menu_card:
+            description: "Menu card"
+            inputs:
+                wrapper:
+                    type: object
+                        fields:
+                            card:
+                                schema: "lightning_web_component://MenuCard"
+                                type: object
+`.trimStart();
+      const codes = runLint(source)
+        .filter(d => d.severity === 1)
+        .map(d => d.code);
+      expect(codes).toEqual(['response-format-nested-schema']);
+    });
+
+    it.each([
+      [
+        'an unsupported schema type',
+        'city://city_schema',
+        'response-format-unsupported-schema-type',
+      ],
+      [
+        'a malformed schema URI',
+        'messaging_component://a://b',
+        'response-format-invalid-schema-uri',
+      ],
+    ])(
+      'still warns about missing fields on an object input with %s',
+      (_case, schema, schemaCode) => {
+        const source = `
+connection messaging:
+    response_formats:
+        forms_component:
+            description: "d"
+            inputs:
+                penguin_form: object
+                    schema: "${schema}"
+`.trimStart();
+        const codes = runLint(source)
+          .filter(d => String(d.code).startsWith('response-format-'))
+          .map(d => d.code)
+          .sort();
+        expect(codes).toEqual(
+          [schemaCode, 'response-format-object-missing-fields'].sort()
+        );
+      }
+    );
+
+    it('reports only wrong-surface for an invalid lightning FQN on an unsupported connection', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        menu_card:
+            description: "Menu card"
+            inputs:
+                card: object
+                    schema: "lightning_web_component://MenuCard"
+`.trimStart();
+      const codes = runLint(source)
+        .filter(d => d.severity === 1)
+        .map(d => d.code);
+      expect(codes).toEqual(['response-format-component-wrong-surface']);
+    });
+
+    it('reports only wrong-surface for a nested component on the wrong connection', () => {
+      const source = `
+connection customer_web_client:
+    description: "d"
+    response_formats:
+        pet_form:
+            description: "Pet form"
+            inputs:
+                wrapper:
+                    type: object
+                        fields:
+                            form:
+                                schema: "messaging_component://FormMessage__PetIntakeForm"
+                                type: object
+`.trimStart();
+      const codes = runLint(source)
+        .filter(d => d.severity === 1)
+        .map(d => d.code);
+      expect(codes).toEqual(['response-format-component-wrong-surface']);
+    });
+
+    it('reports only invalid-schema-uri for a malformed component URI, skipping component checks', () => {
+      const source = `
+connection messaging:
+    response_formats:
+        pet_form:
+            description: "Pet form"
+            inputs:
+                form:
+                    schema: "messaging_component://a://b"
+                    type: object
+                        fields:
+                            petName: string
+`.trimStart();
+      const codes = runLint(source)
+        .filter(d => d.severity === 1)
+        .map(d => d.code);
+      expect(codes).toEqual(['response-format-invalid-schema-uri']);
     });
   });
 

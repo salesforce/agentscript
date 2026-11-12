@@ -13,7 +13,10 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { StringValue } from '@agentscript/language';
+import type { Gates } from '@agentscript/language';
 import { processDocument } from './pipeline.js';
+import type { LspConfig } from './lsp-config.js';
 import { testConfig } from './test-utils.js';
 
 const dialectVersion = testConfig.dialects[0].version;
@@ -160,5 +163,33 @@ system:
     expect(versionDiag!.data).toEqual({
       suggestedVersions: [String(major), `${major}.${minor}`],
     });
+  });
+
+  test('processDocument passes config.gates to the language service', () => {
+    // The agentscript schema gates nothing, so add a gated test-only field.
+    const [dialect] = testConfig.dialects;
+    const gatedConfig: LspConfig = {
+      ...testConfig,
+      dialects: [
+        {
+          ...dialect,
+          schemaInfo: {
+            ...dialect.schemaInfo,
+            schema: {
+              ...dialect.schemaInfo.schema,
+              gated_field: StringValue.gatedBy('test.gate'),
+            },
+          },
+        },
+      ],
+    };
+    const gateErrors = (gates?: Gates) =>
+      processDocument('test://gates.agent', 'gated_field: "hi"', {
+        ...gatedConfig,
+        gates,
+      }).diagnostics.filter(d => d.code === 'gated-feature');
+
+    expect(gateErrors()).toHaveLength(1);
+    expect(gateErrors({ 'test.gate': true })).toHaveLength(0);
   });
 });

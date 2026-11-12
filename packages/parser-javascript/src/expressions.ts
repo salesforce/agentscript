@@ -28,7 +28,16 @@ import { skipVirtualTokens } from './recovery.js';
 
 // Hoisted constants — avoid per-call allocation
 // Must match ESCAPE_TABLE in @agentscript/language (packages/language/src/core/string-escapes.ts)
-const VALID_ESCAPES = new Set(['"', "'", '\\', 'n', 'r', 't', '0']);
+export const VALID_ESCAPES: ReadonlySet<string> = new Set([
+  '"',
+  "'",
+  '\\',
+  '/',
+  'n',
+  'r',
+  't',
+  '0',
+]);
 
 const KEY_STOP_KEYWORDS = new Set([
   'if',

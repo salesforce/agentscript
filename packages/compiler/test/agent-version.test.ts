@@ -89,8 +89,8 @@ topic secondary:
     expect(nodeNames).toContain('secondary');
 
     // Language configuration present
-    expect(av.modality_parameters.language).toBeDefined();
-    expect(av.modality_parameters.language?.default_locale).toBe('en_US');
+    expect(av.modality_parameters?.language).toBeDefined();
+    expect(av.modality_parameters?.language?.default_locale).toBe('en_US');
 
     // State variables include built-in + user-defined. The fixture has no
     // if/else, so no AgentScriptInternal_condition_N slot is declared.
@@ -504,7 +504,7 @@ start_agent main:
     description: "desc"
 `;
     const { output, diagnostics } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(lang?.default_locale).toBe('en_US');
@@ -532,7 +532,7 @@ start_agent main:
     description: "desc"
 `;
     const { output, diagnostics } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(lang?.default_locale).toBe('fr');
@@ -556,7 +556,7 @@ start_agent main:
     const { output } = compileSource(source);
     // When no language block, modality_parameters is empty object (language is null)
     expect(output.agent_version.modality_parameters).toBeDefined();
-    expect(output.agent_version.modality_parameters.language).toBeUndefined();
+    expect(output.agent_version.modality_parameters?.language).toBeUndefined();
   });
 
   it('should compile all_additional_locales flag', () => {
@@ -575,7 +575,7 @@ start_agent main:
     description: "desc"
 `;
     const { output, diagnostics } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(lang?.default_locale).toBe('ja');
@@ -599,7 +599,7 @@ start_agent main:
     description: "desc"
 `;
     const { output, diagnostics } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(JSON.parse(JSON.stringify(lang))).not.toHaveProperty('adaptive');
@@ -622,7 +622,7 @@ start_agent main:
     description: "desc"
 `;
     const { output, diagnostics } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(lang?.adaptive).toBe(true);
@@ -655,7 +655,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(lang?.adaptive).toBe(false);
@@ -679,7 +679,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compileSource(source);
-    const lang = output.agent_version.modality_parameters.language;
+    const lang = output.agent_version.modality_parameters?.language;
 
     expect(lang).toBeDefined();
     expect(lang?.adaptive).toBe(true);
@@ -993,7 +993,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compileSource(source);
-    const msgs = output.agent_version.system_messages;
+    const msgs = output.agent_version.system_messages!;
     expect(msgs.length).toBe(2);
 
     const welcome = msgs.find(m => m.message_type === 'Welcome');
@@ -1082,13 +1082,13 @@ topic troubleshoot:
     expect(varNames).toContain('AgentScriptInternal_next_topic');
 
     // Language
-    expect(av.modality_parameters.language?.default_locale).toBe('en_US');
-    expect(av.modality_parameters.language?.additional_locales).toEqual(
+    expect(av.modality_parameters?.language?.default_locale).toBe('en_US');
+    expect(av.modality_parameters?.language?.additional_locales).toEqual(
       expect.arrayContaining(['es_MX', 'fr'])
     );
 
     // System messages
-    expect(av.system_messages.length).toBe(2);
+    expect(av.system_messages!.length).toBe(2);
 
     // Additional parameters
     const params = av.additional_parameters as

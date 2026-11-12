@@ -40,7 +40,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const modalityParams = output.agent_version.modality_parameters;
+      const modalityParams = output.agent_version.modality_parameters!;
 
       // Should NOT be empty
       expect(modalityParams).toBeDefined();
@@ -65,7 +65,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const modalityParams = output.agent_version.modality_parameters;
+      const modalityParams = output.agent_version.modality_parameters!;
       expect(modalityParams).toEqual({});
     });
 
@@ -86,7 +86,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const modalityParams = output.agent_version.modality_parameters;
+      const modalityParams = output.agent_version.modality_parameters!;
 
       expect(modalityParams.language).toBeDefined();
       expect(modalityParams.language?.default_locale).toBe('en_US');
@@ -108,7 +108,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const modalityParams = output.agent_version.modality_parameters;
+      const modalityParams = output.agent_version.modality_parameters!;
 
       expect(modalityParams.language).toBeDefined();
       expect(modalityParams.language?.default_locale).toBe('fr');
@@ -139,7 +139,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.inbound_keywords).toBeDefined();
       expect(voice?.inbound_keywords?.keywords).toEqual([
         'urgent',
@@ -163,7 +163,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       // Empty array should not produce inbound_keywords at all
       expect(voice?.inbound_keywords).toBeUndefined();
     });
@@ -184,7 +184,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.inbound_keywords?.keywords).toEqual(['urgent']);
     });
 
@@ -207,7 +207,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.inbound_keywords?.keywords).toEqual([
         'first',
         'second',
@@ -237,7 +237,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.outbound_filler_sentences).toBeDefined();
       expect(Array.isArray(voice?.outbound_filler_sentences)).toBe(true);
       expect(voice?.outbound_filler_sentences?.length).toBe(1);
@@ -266,7 +266,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.outbound_filler_sentences?.length).toBe(3);
 
       expect(
@@ -299,7 +299,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.outbound_filler_sentences?.length).toBe(1);
       expect(
         voice?.outbound_filler_sentences?.[0]?.filler_sentences?.waiting
@@ -336,7 +336,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       const speakUpConfig = voice?.additional_configs?.speak_up_config;
 
       expect(speakUpConfig).toBeDefined();
@@ -363,11 +363,81 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       const endpointingConfig = voice?.additional_configs?.endpointing_config;
 
       expect(endpointingConfig).toBeDefined();
       expect(endpointingConfig?.max_wait_time_ms).toBe(1500);
+    });
+
+    it('should compile endpointing_config with min_wait_time_ms and max_wait_time_ms', () => {
+      const source = `
+config:
+    agent_name: "EndpointingBot"
+
+modality voice:
+    voice_id: "v1Voice"
+
+    additional_configs:
+        endpointing_config:
+            min_wait_time_ms: 250
+            max_wait_time_ms: 1500
+
+start_agent main:
+    description: "test"
+`;
+      const { output } = compile(parseSource(source));
+      const endpointingConfig =
+        output.agent_version.modality_parameters!.voice?.additional_configs
+          ?.endpointing_config;
+      expect(endpointingConfig?.min_wait_time_ms).toBe(250);
+      expect(endpointingConfig?.max_wait_time_ms).toBe(1500);
+    });
+
+    it('should compile endpointing_config with only min_wait_time_ms', () => {
+      const source = `
+config:
+    agent_name: "EndpointingBot"
+
+modality voice:
+    voice_id: "v1Voice"
+
+    additional_configs:
+        endpointing_config:
+            min_wait_time_ms: 250
+
+start_agent main:
+    description: "test"
+`;
+      const { output } = compile(parseSource(source));
+      const endpointingConfig =
+        output.agent_version.modality_parameters!.voice?.additional_configs
+          ?.endpointing_config;
+      expect(endpointingConfig?.min_wait_time_ms).toBe(250);
+      expect(endpointingConfig?.max_wait_time_ms).toBeUndefined();
+    });
+
+    it('should emit min_wait_time_ms when it is 0', () => {
+      const source = `
+config:
+    agent_name: "EndpointingBot"
+
+modality voice:
+    voice_id: "v1Voice"
+
+    additional_configs:
+        endpointing_config:
+            min_wait_time_ms: 0
+
+start_agent main:
+    description: "test"
+`;
+      const { output } = compile(parseSource(source));
+      const endpointingConfig =
+        output.agent_version.modality_parameters!.voice?.additional_configs
+          ?.endpointing_config;
+      expect(endpointingConfig).toBeDefined();
+      expect(endpointingConfig?.min_wait_time_ms).toBe(0);
     });
 
     it('should compile beepboop_config', () => {
@@ -388,7 +458,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       const beepboopConfig = voice?.additional_configs?.beepboop_config;
 
       expect(beepboopConfig).toBeDefined();
@@ -409,6 +479,7 @@ modality voice:
             speak_up_follow_up_wait_time_ms: 6000
             speak_up_message: "Hello?"
         endpointing_config:
+            min_wait_time_ms: 300
             max_wait_time_ms: 2000
         beepboop_config:
             max_wait_time_ms: 1800
@@ -419,7 +490,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       const additionalConfigs = voice?.additional_configs;
 
       expect(additionalConfigs).toBeDefined();
@@ -430,6 +501,7 @@ start_agent main:
       expect(
         additionalConfigs?.speak_up_config?.speak_up_first_wait_time_ms
       ).toBe(10000);
+      expect(additionalConfigs?.endpointing_config?.min_wait_time_ms).toBe(300);
       expect(additionalConfigs?.endpointing_config?.max_wait_time_ms).toBe(
         2000
       );
@@ -454,7 +526,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       const speakUpConfig = voice?.additional_configs?.speak_up_config;
 
       expect(speakUpConfig).toBeDefined();
@@ -489,7 +561,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.pronunciation_dict).toBeDefined();
       expect(voice?.pronunciation_dict?.pronunciations).toEqual([
         {
@@ -522,7 +594,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.pronunciation_dict?.pronunciations?.length).toBe(1);
       expect(voice?.pronunciation_dict?.pronunciations?.[0]).toEqual({
         grapheme: 'SQL',
@@ -549,7 +621,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.pronunciation_dict?.pronunciations?.length).toBe(1);
       expect(voice?.pronunciation_dict?.pronunciations?.[0]).toEqual({
         grapheme: 'OK',
@@ -578,7 +650,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.inbound_filler_words_detection).toBe(true);
     });
 
@@ -600,7 +672,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.voice_id).toBe('EQx6HGDYjkDpcli6vorJ');
       expect(voice?.outbound_speed).toBe(1.5);
       expect(voice?.outbound_style_exaggeration).toBe(0.75);
@@ -622,7 +694,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.outbound_speed).toBe(0.5);
     });
 
@@ -642,7 +714,7 @@ start_agent main:
       const ast = parseSource(source);
       const { output } = compile(ast);
 
-      const voice = output.agent_version.modality_parameters.voice;
+      const voice = output.agent_version.modality_parameters!.voice;
       expect(voice?.outbound_style_exaggeration).toBe(0.0);
       expect(voice?.outbound_stability).toBe(1.0);
       expect(voice?.outbound_similarity).toBe(0.5);
@@ -694,7 +766,7 @@ start_agent main:
       // Should have no diagnostics
       expect(diagnostics).toHaveLength(0);
 
-      const voice = output.agent_version.modality_parameters
+      const voice = output.agent_version.modality_parameters!
         .voice as VoiceConfiguration;
 
       // Verify all fields are present and correct

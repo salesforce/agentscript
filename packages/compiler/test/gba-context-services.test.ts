@@ -39,10 +39,12 @@ start_agent main:
     expect(errors).toHaveLength(0);
 
     expect(output.agent_version.context).toBeDefined();
-    expect(output.agent_version.context.salesforce).toEqual({ enabled: true });
-    expect(output.agent_version.context.data_cloud).toEqual({ enabled: false });
-    expect(output.agent_version.context.memory).toEqual({ enabled: true });
-    expect(output.agent_version.context.search).toEqual({ enabled: true });
+    expect(output.agent_version.context?.salesforce).toEqual({ enabled: true });
+    expect(output.agent_version.context?.data_cloud).toEqual({
+      enabled: false,
+    });
+    expect(output.agent_version.context?.memory).toEqual({ enabled: true });
+    expect(output.agent_version.context?.search).toEqual({ enabled: true });
   });
 
   it('produces schema-conformant output', () => {
@@ -132,9 +134,9 @@ start_agent main:
     );
     expect(errors).toHaveLength(0);
 
-    expect(output.agent_version.context.memory).toEqual({ enabled: false });
-    expect(output.agent_version.context.search).toEqual({ enabled: false });
-    expect(output.agent_version.context.data_cloud).toEqual({ enabled: true });
-    expect(output.agent_version.context.salesforce).toBeUndefined();
+    expect(output.agent_version.context?.memory).toEqual({ enabled: false });
+    expect(output.agent_version.context?.search).toEqual({ enabled: false });
+    expect(output.agent_version.context?.data_cloud).toEqual({ enabled: true });
+    expect(output.agent_version.context?.salesforce).toBeUndefined();
   });
 });

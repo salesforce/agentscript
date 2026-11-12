@@ -2377,6 +2377,22 @@ connection messaging:
     expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
   });
 
+  it('warns when whatsapp_business connection has inputs field', () => {
+    const diagnostics = runSecurityLint(`
+connection whatsapp_business:
+    inputs:
+        test: string
+`);
+
+    const warnings = diagnostics.filter(
+      d => d.code === 'connection-field-not-used'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('WhatsApp Business');
+    expect(warnings[0].message).toContain('inputs');
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+  });
+
   it('warns when customer_web_client connection has inputs field', () => {
     const diagnostics = runSecurityLint(`
 connection customer_web_client:
@@ -3891,6 +3907,49 @@ ${outputs}
     expect(missingSchemaWarnings).toHaveLength(1);
     expect(missingSchemaWarnings[0].message).toContain("'result'");
   });
+
+  it('flags a primitive input with complex_data_type_name on an orchestrator action', () => {
+    const source = `
+orchestrator agent:
+  actions:
+    A:
+      description: "A"
+      inputs:
+        amount: number
+          complex_data_type_name: "lightning__objectType"
+`;
+    const diagnostics = runSecurityLint(source);
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain("'amount'");
+  });
+
+  it('flags primitive inputs/outputs with complex_data_type_name on a workflow action', () => {
+    const source = `
+workflow W:
+  description: "W"
+  actions:
+    A:
+      description: "A"
+      inputs:
+        amount: number
+          complex_data_type_name: "lightning__objectType"
+      outputs:
+        total: number
+          complex_data_type_name: "lightning__objectType"
+      target: "flow://A"
+`;
+    const diagnostics = runSecurityLint(source);
+    const warnings = diagnostics.filter(
+      d => d.code === 'complex-data-type-on-primitive'
+    );
+    expect(warnings.map(w => w.message)).toEqual([
+      expect.stringContaining("'amount'"),
+      expect.stringContaining("'total'"),
+    ]);
+  });
 });
 
 // ============================================================================
@@ -4519,7 +4578,34 @@ start_agent main:
     expect(settingsErrors[0].severity).toBe(DiagnosticSeverity.Error);
   });
 
-  it('flags all language_settings keys when no voice language block exists', () => {
+  it('accepts a language_settings key matching the agent default_locale when no voice language block exists', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "fr_CA"
+    - "de"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language_settings:
+    en_US:
+      outbound:
+        persona_id: "test123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(0);
+  });
+
+  it('flags language_settings keys for agent additional_locales when no voice language block exists', () => {
     const diagnostics = runSecurityLint(`
 language:
   default_locale: "en_US"
@@ -4546,25 +4632,22 @@ start_agent main:
     const settingsErrors = diagnostics.filter(
       d => d.code === 'voice-language-settings-not-declared'
     );
+    // Fallback resolves only to default_locale (en_US).
     expect(settingsErrors).toHaveLength(2);
   });
 
-  it('accepts any language_settings key when voice all_additional_locales is True', () => {
+  it('flags language_settings keys not in agent or voice languages', () => {
     const diagnostics = runSecurityLint(`
 language:
   default_locale: "en_US"
+  additional_locales:
+    - "fr_CA"
 
 config:
   agent_name: "TestAgent"
 
 modality voice:
-  language:
-    default_locale: "en_US"
-    all_additional_locales: True
   language_settings:
-    fr_CA:
-      outbound:
-        persona_id: "test123"
     de:
       inbound:
         filler_words_detection: True
@@ -4576,7 +4659,299 @@ start_agent main:
     const settingsErrors = diagnostics.filter(
       d => d.code === 'voice-language-settings-not-declared'
     );
+    // de is not in agent language (only en_US and fr_CA), so it should error
+    expect(settingsErrors).toHaveLength(1);
+    expect(settingsErrors[0].message).toContain("'de'");
+  });
+
+  it('flags language_settings keys when neither agent nor voice language block exists', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language_settings:
+    es:
+      outbound:
+        persona_id: "test123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    // No declared locales at all, so 'es' is still flagged.
+    expect(settingsErrors).toHaveLength(1);
+    expect(settingsErrors[0].message).toContain("'es'");
+  });
+
+  it('accepts language_settings keys for the agent default_locale and additional_locales when voice all_additional_locales is True', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "fr_CA"
+    - "de"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    all_additional_locales: True
+  language_settings:
+    en_US:
+      outbound:
+        persona_id: "test123"
+    fr_CA:
+      outbound:
+        persona_id: "test123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    // Explicit all_additional_locales: True expands to the agent's full locale set.
     expect(settingsErrors).toHaveLength(0);
+  });
+
+  it('flags a language_settings key not in the agent locales when voice all_additional_locales is True', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "fr_CA"
+    - "de"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    all_additional_locales: True
+  language_settings:
+    es:
+      outbound:
+        persona_id: "test123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(1);
+    expect(settingsErrors[0].message).toContain("'es'");
+  });
+
+  it('allows a voice default_locale outside the text locales under all_additional_locales and ignores additional_locales', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "es"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "de"
+    additional_locales:
+      - "fr"
+    all_additional_locales: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    // The compiler keeps any supported voice default (index 0) and validates the
+    // code itself; additional_locales is ignored. Neither is a declared-subset error.
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('accepts a language_settings key for the voice default_locale under all_additional_locales', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "es"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "de"
+    all_additional_locales: True
+  language_settings:
+    de:
+      outbound:
+        persona_id: "test123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    // The compiler keeps the voice default, so language_settings may target it.
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(0);
+  });
+
+  it('flags language_settings for the voice default_locale under all_additional_locales when there is no agent language block', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "de"
+    all_additional_locales: True
+  language_settings:
+    de:
+      outbound:
+        persona_id: "test123"
+
+start_agent main:
+  description: "Main"
+`);
+
+    // compileAgentAllLocales emits nothing without an agent language block, so the
+    // voice default is not a declared language and its settings are still flagged.
+    const settingsErrors = diagnostics.filter(
+      d => d.code === 'voice-language-settings-not-declared'
+    );
+    expect(settingsErrors).toHaveLength(1);
+    expect(settingsErrors[0].message).toContain("'de'");
+  });
+
+  it('allows voice locales outside the text locales when the agent language sets all_additional_locales True', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "es"
+  all_additional_locales: True
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "de"
+    additional_locales:
+      - "fr"
+
+start_agent main:
+  description: "Main"
+`);
+
+    // The agent-level flag opens the text language block, so there is no declared subset.
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('allows a voice default_locale outside the text locales when the agent language sets all_additional_locales True', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "fr_CA"
+  additional_locales:
+    - "en_US"
+    - "es_MX"
+    - "ja"
+  all_additional_locales: True
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "it"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(0);
+  });
+
+  it('errors on a supported voice default_locale outside the text locales when all_additional_locales is False', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "fr_CA"
+  additional_locales:
+    - "en_US"
+    - "es_MX"
+    - "ja"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "it"
+    all_additional_locales: False
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(1);
+    expect(voiceLangErrors[0].message).toContain("'it'");
+    expect(voiceLangErrors[0].message).toContain(
+      'not declared in the language block'
+    );
+  });
+
+  it('errors on a supported voice default_locale outside the text locales without all_additional_locales', () => {
+    const diagnostics = runSecurityLint(`
+language:
+  default_locale: "fr_CA"
+  additional_locales:
+    - "en_US"
+    - "es_MX"
+    - "ja"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+    default_locale: "it"
+
+start_agent main:
+  description: "Main"
+`);
+
+    const voiceLangErrors = diagnostics.filter(
+      d => d.code === 'voice-language-not-declared'
+    );
+    expect(voiceLangErrors).toHaveLength(1);
+    expect(voiceLangErrors[0].message).toContain("'it'");
+    expect(voiceLangErrors[0].message).toContain(
+      'not declared in the language block'
+    );
   });
 
   it('does not validate when voice modality has no language config', () => {
@@ -4776,6 +5151,32 @@ start_agent main:
     expect(mixingErrors).toHaveLength(1);
     expect(mixingErrors[0].message).toContain('inbound');
     expect(mixingErrors[0].message).toContain('language');
+    expect(mixingErrors[0].message).toContain("'voice_id'");
+  });
+
+  it('flags V1 properties alongside language with all_additional_locales: True', () => {
+    const diagnostics = runSecurityLint(`
+config:
+  agent_name: "TestAgent"
+
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "es"
+
+modality voice:
+  voice_id: "Christina"
+  language:
+    all_additional_locales: True
+
+start_agent main:
+  description: "Main"
+`);
+
+    const mixingErrors = diagnostics.filter(
+      d => d.code === 'voice-version-mixing'
+    );
+    expect(mixingErrors).toHaveLength(1);
     expect(mixingErrors[0].message).toContain("'voice_id'");
   });
 });

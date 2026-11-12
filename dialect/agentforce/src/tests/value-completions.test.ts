@@ -110,4 +110,22 @@ describe('Agentforce value-position completions', () => {
     expect(labels).not.toContain('string');
     expect(labels).not.toContain('Internal');
   });
+
+  it('after `mode: ` under config.billing suggests the billing modes', () => {
+    const modeLine = `${INDENT4}mode: `;
+    const source = ['config:', `${INDENT2}billing:`, modeLine].join('\n');
+
+    const lines = source.split('\n');
+    const modeLineIdx = lines.findIndex(l => l === modeLine);
+    expect(modeLineIdx).toBeGreaterThan(-1);
+
+    const labels = valueCompletionLabelsAt(
+      source,
+      modeLineIdx,
+      modeLine.length
+    );
+
+    expect(labels).toContain('ACTION_BASED');
+    expect(labels).toContain('RESOLUTION_BASED');
+  });
 });

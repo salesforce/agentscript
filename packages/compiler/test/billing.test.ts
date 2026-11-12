@@ -9,15 +9,33 @@
  * billing compilation tests — the billing block nested in config is extracted
  * and compiled into agent_version.billing (billing mode is version-specific, so
  * the DSL places it on agent_version rather than global_configuration). The
- * dialect surface uses the exact agent-dsl `billingMode` enum values, so the
- * mode passes through to AgentJSON unchanged.
+ * authored RESOLUTION_BASED maps to agent-dsl's OUTCOME_BASED; OUTCOME_BASED
+ * itself is a deprecated alias that compiles to the same output.
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
 import { parseSource } from './test-utils.js';
 
 describe('billing: compilation', () => {
-  it('should compile billing with mode: OUTCOME_BASED', () => {
+  it('should compile billing with mode: RESOLUTION_BASED to OUTCOME_BASED', () => {
+    const source = `
+config:
+    developer_name: "test_agent"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "test@example.com"
+    billing:
+        mode: "RESOLUTION_BASED"
+
+start_agent main:
+    description: "Test agent"
+`;
+    const { output } = compile(parseSource(source));
+    expect(output.agent_version.billing).toEqual({
+      mode: 'OUTCOME_BASED',
+    });
+  });
+
+  it('should compile billing with deprecated mode: OUTCOME_BASED unchanged', () => {
     const source = `
 config:
     developer_name: "test_agent"
@@ -109,7 +127,7 @@ config:
     default_agent_user: "support@example.com"
     enable_enhanced_event_logs: True
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 
 system:
     instructions: "You are a customer service agent."

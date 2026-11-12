@@ -14,10 +14,12 @@
  * - default_agent_user may be `None` only for AgentforceEmployeeAgent
  * - runtime.user_skills not allowed for AgentforceServiceAgent
  * - billing only allowed for AgentforceServiceAgent
+ * - billing mode OUTCOME_BASED is deprecated in favor of RESOLUTION_BASED
  *
  * Diagnostics: config-missing-agent-name, config-duplicate-agent-name,
  *              config-missing-default-agent-user, config-invalid-default-agent-user-none,
- *              runtime-user-skills-agent-type, billing-agent-type
+ *              runtime-user-skills-agent-type, billing-agent-type,
+ *              deprecated-billing-mode
  */
 
 import type {
@@ -33,7 +35,7 @@ import {
   isNoneLiteral,
   isAstNodeLike,
 } from '@agentscript/language';
-import { DiagnosticSeverity } from '@agentscript/types';
+import { DiagnosticSeverity, DiagnosticTag } from '@agentscript/types';
 import { getBlockRange } from '../utils.js';
 import { isAllowedAgentType } from '../agent-types.js';
 
@@ -209,6 +211,25 @@ class ConfigValidationPass implements LintPass {
           `'billing' is only supported for AgentforceServiceAgent (got ${agentTypeValue}).`,
           DiagnosticSeverity.Error,
           'billing-agent-type'
+        )
+      );
+    }
+
+    // OUTCOME_BASED is a deprecated alias for RESOLUTION_BASED. Both compile to
+    // the same agent JSON, so existing scripts keep working — warn, not error.
+    const billingMode = isAstNodeLike(billing) ? billing.mode : undefined;
+    if (
+      isAstNodeLike(billingMode) &&
+      getStringValue(billingMode) === 'OUTCOME_BASED'
+    ) {
+      attachDiagnostic(
+        billingMode,
+        lintDiagnostic(
+          getBlockRange(billingMode),
+          "Billing mode 'OUTCOME_BASED' is deprecated and will be removed in a future release. Use 'RESOLUTION_BASED' instead.",
+          DiagnosticSeverity.Warning,
+          'deprecated-billing-mode',
+          { tags: [DiagnosticTag.Deprecated] }
         )
       );
     }

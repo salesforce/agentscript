@@ -7,9 +7,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import type { WorkflowNode } from '../src/types.js';
-import { parseSource } from './test-utils.js';
+import type { WorkflowDirective, WorkflowNode } from '../src/types.js';
+import { parseSource, readFixtureSource } from './test-utils.js';
 import { DiagnosticSeverity } from '@agentscript/types';
+import { parse } from '@agentscript/parser';
+import { dedupeDiagnostics, parseAndLint } from '@agentscript/language';
+import { agentforceDialect } from '@agentscript/agentforce-dialect';
+import type { ParsedAgentforce } from '@agentscript/agentforce-dialect';
 
 const HEADER = `
 config:
@@ -58,6 +62,49 @@ function compileWorkflow(body: string, header = HEADER) {
     ? ''
     : '\n    description: "Test workflow"';
   return compileSource(`${header}\nworkflow flow:${description}\n${body}`);
+}
+
+/** Name of the workflow condition slot for an `if` at nesting `depth`. */
+const slotName = (depth: number) =>
+  `AgentScriptInternal_workflow_condition_${depth}`;
+/** The guard that reads the slot, or its negation. */
+const slotRef = (depth: number) => `state.${slotName(depth)}`;
+const notSlotRef = (depth: number) => `not (${slotRef(depth)})`;
+/** Evaluate the condition strictly as an input, then copy the echoed result. */
+const snapshotFields = (depth: number, condition: string) => ({
+  bound_inputs: { condition },
+  state_updates: [{ [slotName(depth)]: 'result.condition' }],
+});
+
+const WORKFLOW_SLOT_PREFIX = 'AgentScriptInternal_workflow_condition_';
+
+/** Matches a guard built only from workflow condition slots. */
+const SLOTS_ONLY =
+  /^(?:[()\s]|not|and|state\.AgentScriptInternal_workflow_condition_\d+)+$/;
+
+const WORKFLOW_FIXTURES = [
+  'workflow_refund.agent',
+  'workflow_unnamed_steps.agent',
+  'workflow_do.agent',
+];
+
+/** Workflow condition slots declared in `state_variables`, in order. */
+function declaredSlots(result: ReturnType<typeof compileSource>['result']) {
+  return (result.output.agent_version.state_variables ?? [])
+    .map(v => v.developer_name)
+    .filter(name => name.startsWith(WORKFLOW_SLOT_PREFIX));
+}
+
+/** Every `enabled` guard in a workflow's steps. */
+function enabledGuards(workflow: WorkflowNode | undefined) {
+  return (workflow?.steps ?? [])
+    .flatMap(step => step.directives)
+    .flatMap(d => (d.enabled === undefined ? [] : [String(d.enabled)]));
+}
+
+/** `[developer_name, enabled]` for each directive. */
+function guards(directives: WorkflowDirective[] | undefined) {
+  return (directives ?? []).map(d => [d.developer_name, d.enabled]);
 }
 
 describe('workflow node compilation', () => {
@@ -172,6 +219,7 @@ describe('workflow node compilation', () => {
         type: 'action',
         target: '__state_update_action__',
         state_updates: [{ order_id: '"A1"' }],
+        chat_history_behavior: { add_to_chat_history: false },
         developer_name: 'flow_work_action_01',
       },
       {
@@ -207,19 +255,21 @@ describe('workflow node compilation', () => {
 
     expect(errors).toEqual([]);
     const directives = workflow?.steps[0].directives ?? [];
-    expect(directives.map(d => [d.developer_name, d.enabled])).toEqual([
+    expect(guards(directives)).toEqual([
       ['flow_decide_say_01', undefined],
-      ['flow_decide_say_02', 'state.order_id == "A1"'],
-      ['flow_decide_handoff_03', 'state.order_id == "A1"'],
-      [
-        'flow_decide_say_04',
-        '(not (state.order_id == "A1")) and (state.is_vip)',
-      ],
-      [
-        'flow_decide_say_05',
-        '(not (state.order_id == "A1")) and (not (state.is_vip))',
-      ],
+      ['flow_decide_action_02', undefined],
+      ['flow_decide_say_03', slotRef(1)],
+      ['flow_decide_handoff_04', slotRef(1)],
+      ['flow_decide_action_05', notSlotRef(1)],
+      ['flow_decide_say_06', `(${notSlotRef(1)}) and (${slotRef(2)})`],
+      ['flow_decide_say_07', `(${notSlotRef(1)}) and (${notSlotRef(2)})`],
     ]);
+    expect(directives[1]).toMatchObject({
+      ...snapshotFields(1, 'state.order_id == "A1"'),
+    });
+    expect(directives[4]).toMatchObject({
+      ...snapshotFields(2, 'state.is_vip'),
+    });
   });
 
   it('routes @utils.transition to a workflow node', () => {
@@ -301,20 +351,20 @@ workflow flow:
         'end_session is not supported inside a workflow',
       ],
       [
-        'running a non-action target',
+        'running a @utils member',
         `
     step a: ->
         run @utils.escalate
 `,
-        "'run @utils.escalate' is not supported inside a workflow",
+        "'run' cannot target '@utils.escalate'. Use 'escalate' instead.",
       ],
       [
-        'instruction template lines',
+        'running a non-action target',
         `
     step a: ->
-        | Say hello.
+        run @variables.session_id
 `,
-        "Instruction lines ('|') are not supported inside a workflow",
+        "'run @variables.session_id' is not supported inside a workflow",
       ],
       [
         'ask for on a linked variable',
@@ -330,14 +380,23 @@ workflow flow:
       expect(errors.some(e => e.includes(message))).toBe(true);
     });
 
-    it('rejects a workflow with no compilable directives', () => {
-      const { errors } = compileWorkflow(`
+    it('rejects a workflow with no steps', () => {
+      const { codes } = compileWorkflow(`
+    actions:
+        lookup:
+            description: "Look up"
+            target: "flow://Lookup"
+`);
+      expect(codes).toContain('workflow-no-directives');
+      expect(codes).not.toContain('schema-validation');
+    });
+
+    it('reports only the cause when errors drop every directive', () => {
+      const { codes } = compileWorkflow(`
     step a: ->
         end_session
 `);
-      expect(errors.some(e => e.includes('has no compilable directives'))).toBe(
-        true
-      );
+      expect(codes).toEqual(['workflow-unsupported-statement']);
     });
 
     it('rejects a generated directive name longer than 80 characters once per step', () => {
@@ -428,8 +487,9 @@ workflow return_order:
       );
       expect(names).toEqual([
         'flow_first_say_01',
-        'flow_first_say_02',
-        'flow_first_handoff_03',
+        'flow_first_action_02',
+        'flow_first_say_03',
+        'flow_first_handoff_04',
         'flow_second_say_01',
       ]);
       expect(new Set(names).size).toBe(names.length);
@@ -472,9 +532,72 @@ workflow return_order:
     });
   });
 
-  describe('condition variables written inside a branch', () => {
-    it('rejects a write followed by another directive under the same if/else', () => {
-      const { codes } = compileWorkflow(`
+  describe('workflow-level model configuration', () => {
+    const STEP = '\n    step greet: ->\n        say "Hi"';
+
+    it('uses the workflow model_config when no agent-wide default is authored', () => {
+      const { errors, workflow } = compileWorkflow(
+        `    model_config:\n        model: "model://workflow_model"\n        params:\n            temperature: 0.4${STEP}`
+      );
+      expect(errors).toEqual([]);
+      expect(workflow?.model_configuration).toEqual({
+        model_ref: 'workflow_model',
+        configuration: { temperature: 0.4 },
+      });
+    });
+
+    it('overrides the agent-wide model and merges params with workflow params winning', () => {
+      const { errors, workflow } = compileWorkflow(
+        `    model_config:\n        model: "model://workflow_model"\n        params:\n            temperature: 0.9${STEP}`,
+        `${HEADER}\nmodel_config:\n    model: "model://agent_model"\n    params:\n        temperature: 0.2\n        max_tokens: 2000\n`
+      );
+      expect(errors).toEqual([]);
+      expect(workflow?.model_configuration).toEqual({
+        model_ref: 'workflow_model',
+        configuration: { temperature: 0.9, max_tokens: 2000 },
+      });
+    });
+
+    it('keeps the agent-wide model when the workflow sets params only', () => {
+      const { errors, workflow } = compileWorkflow(
+        `    model_config:\n        params:\n            temperature: 0.9${STEP}`,
+        `${HEADER}\nmodel_config:\n    model: "model://agent_model"\n`
+      );
+      expect(errors).toEqual([]);
+      expect(workflow?.model_configuration).toEqual({
+        model_ref: 'agent_model',
+        configuration: { temperature: 0.9 },
+      });
+    });
+  });
+
+  describe('if conditions are evaluated once', () => {
+    it('stores the condition in a slot and gates the branch on it', () => {
+      const { errors, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            say "VIP"
+`);
+      expect(errors).toEqual([]);
+      expect(workflow?.steps[0].directives).toEqual([
+        {
+          type: 'action',
+          target: '__state_update_action__',
+          ...snapshotFields(1, 'state.is_vip'),
+          chat_history_behavior: { add_to_chat_history: false },
+          developer_name: 'flow_a_action_01',
+        },
+        {
+          type: 'say',
+          text: 'VIP',
+          enabled: slotRef(1),
+          developer_name: 'flow_a_say_02',
+        },
+      ]);
+    });
+
+    it('gates the else on the stored condition when the if body changes it', () => {
+      const { errors, workflow } = compileWorkflow(`
     step a: ->
         if @variables.order_id == "":
             ask for @variables.order_id
@@ -483,12 +606,32 @@ workflow return_order:
         else:
             say "Using the existing order"
 `);
-      expect(codes).toEqual(['workflow-condition-written-in-branch']);
+      expect(errors).toEqual([]);
+      const directives = workflow?.steps[0].directives ?? [];
+      expect(guards(directives)).toEqual([
+        ['flow_a_action_01', undefined],
+        ['flow_a_ask_for_02', slotRef(1)],
+        ['flow_a_say_03', slotRef(1)],
+        ['flow_a_say_04', notSlotRef(1)],
+      ]);
+      expect(directives[0]).toMatchObject({
+        ...snapshotFields(1, 'state.order_id == ""'),
+      });
     });
 
     it.each([
       [
-        'set in the if body with an else',
+        'an ask for changes the condition and another directive follows',
+        `
+        if @variables.order_id == "":
+            ask for @variables.order_id
+                instructions: "Ask for the order id."
+            say "Thanks"
+        else:
+            say "Using the existing order"`,
+      ],
+      [
+        'a set in the if body changes the condition and there is an else',
         `
         if @variables.is_vip:
             set @variables.is_vip = False
@@ -496,7 +639,7 @@ workflow return_order:
             say "Not VIP"`,
       ],
       [
-        'run with set inside an else',
+        'a run with set in the else changes the condition',
         `
         if @variables.is_vip:
             say "VIP"
@@ -507,29 +650,13 @@ workflow return_order:
             say "Checked"`,
       ],
       [
-        'a write to a variable read by an outer condition',
+        'a nested write changes a variable an outer condition reads',
         `
         if @variables.is_vip:
             if @variables.order_id == "":
                 set @variables.is_vip = False
             say "Done"`,
       ],
-    ])('rejects %s', (_label, body) => {
-      const { codes } = compileWorkflow(`
-    actions:
-        lookup:
-            description: "Look up"
-            inputs:
-                orderId: string
-            outputs:
-                found: boolean
-            target: "flow://Lookup"
-    step a: ->${body}
-`);
-      expect(codes).toEqual(['workflow-condition-written-in-branch']);
-    });
-
-    it.each([
       [
         'the write is the last directive of the if/else',
         `
@@ -554,11 +681,437 @@ workflow return_order:
             if @variables.is_vip:
                 say "VIP"`,
       ],
-    ])('allows it when %s', (_label, body) => {
-      const { errors } = compileWorkflow(`
+    ])(
+      'compiles when %s, with every guard reading only slots',
+      (_label, body) => {
+        const { errors, workflow } = compileWorkflow(`
+    actions:
+        lookup:
+            description: "Look up"
+            inputs:
+                orderId: string
+            outputs:
+                found: boolean
+            target: "flow://Lookup"
     step a: ->${body}
 `);
+        expect(errors).toEqual([]);
+        const guarded = enabledGuards(workflow);
+        expect(guarded.length).toBeGreaterThan(0);
+        for (const guard of guarded) expect(guard).toMatch(SLOTS_ONLY);
+      }
+    );
+
+    it('stores a condition on a system variable, which can change while an ask for is paused', () => {
+      const { errors, result, workflow } = compileWorkflow(`
+    step a: ->
+        if @system_variables.user_input == "yes":
+            ask for @variables.order_id
+                instructions: "Ask for the order id."
+        else:
+            say "Skipped"
+`);
       expect(errors).toEqual([]);
+      const directives = workflow?.steps[0].directives ?? [];
+      expect(guards(directives)).toEqual([
+        ['flow_a_action_01', undefined],
+        ['flow_a_ask_for_02', slotRef(1)],
+        ['flow_a_say_03', notSlotRef(1)],
+      ]);
+      expect(directives[0]).toMatchObject({
+        ...snapshotFields(1, 'system.input_text == "yes"'),
+      });
+      expect(declaredSlots(result)).toEqual([slotName(1)]);
+    });
+
+    it('stores a truthy non-boolean condition as written', () => {
+      const { errors, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.order_id:
+            say "Has an order"
+`);
+      expect(errors).toEqual([]);
+      expect(workflow?.steps[0].directives[0]).toMatchObject({
+        ...snapshotFields(1, 'state.order_id'),
+      });
+    });
+
+    it.each([
+      [
+        'a missing nested key',
+        '@variables.payload.missing',
+        'state.payload.missing',
+      ],
+      ['an invalid comparison', '@variables.amount > 0', 'state.amount > 0'],
+      ['a false result', 'False', 'False'],
+      ['a None result', 'None', 'None'],
+    ])(
+      'evaluates %s through strict bound inputs rather than a state update',
+      (_label, sourceCondition, compiledCondition) => {
+        const { errors, workflow } = compileWorkflow(
+          `
+    step a: ->
+        if ${sourceCondition}:
+            say "Body"
+        else:
+            say "Else"
+`,
+          HEADER.replace(
+            'variables:',
+            `variables:
+    payload: mutable object = {}
+        description: "Payload"
+    amount: mutable number
+        description: "Amount"`
+          )
+        );
+        expect(errors).toEqual([]);
+        // The original expression must only occur in bound_inputs: ActionNode
+        // propagates input errors; state_updates skip missing-key errors.
+        // The result copy has no False reset that could select the else on error.
+        expect(workflow?.steps[0].directives).toEqual([
+          {
+            type: 'action',
+            target: '__state_update_action__',
+            bound_inputs: { condition: compiledCondition },
+            state_updates: [{ [slotName(1)]: 'result.condition' }],
+            chat_history_behavior: { add_to_chat_history: false },
+            developer_name: 'flow_a_action_01',
+          },
+          {
+            type: 'say',
+            text: 'Body',
+            enabled: slotRef(1),
+            developer_name: 'flow_a_say_02',
+          },
+          {
+            type: 'say',
+            text: 'Else',
+            enabled: notSlotRef(1),
+            developer_name: 'flow_a_say_03',
+          },
+        ]);
+      }
+    );
+
+    describe('nesting', () => {
+      it('gates an if in the body on the enclosing slot and keeps the outer else on its own', () => {
+        const { errors, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            say "outer"
+            if @variables.order_id == "A":
+                say "inner yes"
+            else:
+                say "inner no"
+            say "after inner"
+        else:
+            say "outer else"
+`);
+        expect(errors).toEqual([]);
+        const directives = workflow?.steps[0].directives ?? [];
+        expect(guards(directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_say_02', slotRef(1)],
+          ['flow_a_action_03', slotRef(1)],
+          ['flow_a_say_04', `(${slotRef(1)}) and (${slotRef(2)})`],
+          ['flow_a_say_05', `(${slotRef(1)}) and (${notSlotRef(2)})`],
+          ['flow_a_say_06', slotRef(1)],
+          ['flow_a_say_07', notSlotRef(1)],
+        ]);
+        expect(directives[0]).toMatchObject({
+          ...snapshotFields(1, 'state.is_vip'),
+        });
+        expect(directives[2]).toMatchObject({
+          ...snapshotFields(2, 'state.order_id == "A"'),
+        });
+      });
+
+      it('gates an if in the else on the negated enclosing slot', () => {
+        const { errors, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            say "vip"
+        else:
+            if @variables.order_id == "A":
+                say "a"
+            say "other"
+`);
+        expect(errors).toEqual([]);
+        expect(guards(workflow?.steps[0].directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_say_02', slotRef(1)],
+          ['flow_a_action_03', notSlotRef(1)],
+          ['flow_a_say_04', `(${notSlotRef(1)}) and (${slotRef(2)})`],
+          ['flow_a_say_05', notSlotRef(1)],
+        ]);
+      });
+
+      it('reuses the inner slot for sibling ifs after a nested if', () => {
+        const { errors, result, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            if @variables.order_id == "A":
+                say "x"
+            if @variables.order_id == "B":
+                say "y"
+        else:
+            say "z"
+`);
+        expect(errors).toEqual([]);
+        const directives = workflow?.steps[0].directives ?? [];
+        expect(guards(directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_action_02', slotRef(1)],
+          ['flow_a_say_03', `(${slotRef(1)}) and (${slotRef(2)})`],
+          ['flow_a_action_04', slotRef(1)],
+          ['flow_a_say_05', `(${slotRef(1)}) and (${slotRef(2)})`],
+          ['flow_a_say_06', notSlotRef(1)],
+        ]);
+        expect(directives[1]).toMatchObject({
+          ...snapshotFields(2, 'state.order_id == "A"'),
+        });
+        expect(directives[3]).toMatchObject({
+          ...snapshotFields(2, 'state.order_id == "B"'),
+        });
+        expect(declaredSlots(result)).toEqual([slotName(1), slotName(2)]);
+      });
+
+      it('declares one slot per nesting level', () => {
+        const { errors, result } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            if @variables.order_id == "A":
+                if @variables.order_id == "B":
+                    say "deep"
+`);
+        expect(errors).toEqual([]);
+        const slots = (
+          result.output.agent_version.state_variables ?? []
+        ).filter(v => v.developer_name.startsWith(WORKFLOW_SLOT_PREFIX));
+        expect(slots).toEqual(
+          [1, 2, 3].map(depth =>
+            expect.objectContaining({
+              developer_name: slotName(depth),
+              data_type: 'boolean',
+              is_list: false,
+              visibility: 'Internal',
+            })
+          )
+        );
+      });
+
+      it('reuses the first slot for sibling ifs and for ifs in other steps', () => {
+        const { errors, result, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            say "1"
+        if @variables.order_id == "A":
+            say "2"
+    step b: ->
+        if @variables.is_vip:
+            say "3"
+`);
+        expect(errors).toEqual([]);
+        const [stepA, stepB] = workflow?.steps ?? [];
+        expect(guards(stepA.directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_say_02', slotRef(1)],
+          ['flow_a_action_03', undefined],
+          ['flow_a_say_04', slotRef(1)],
+        ]);
+        expect(guards(stepB.directives)).toEqual([
+          ['flow_b_action_01', undefined],
+          ['flow_b_say_02', slotRef(1)],
+        ]);
+        expect(declaredSlots(result)).toEqual([slotName(1)]);
+      });
+    });
+
+    describe('else if chains', () => {
+      it('takes the next slot inside an else if link and inside the trailing else', () => {
+        const { errors, result, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.order_id == "A":
+            say "a"
+        else if @variables.is_vip:
+            if @variables.order_id == "B":
+                say "b"
+        else:
+            if @variables.order_id == "C":
+                say "c"
+`);
+        expect(errors).toEqual([]);
+        expect(guards(workflow?.steps[0].directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_say_02', slotRef(1)],
+          ['flow_a_action_03', notSlotRef(1)],
+          ['flow_a_action_04', `(${notSlotRef(1)}) and (${slotRef(2)})`],
+          [
+            'flow_a_say_05',
+            `(${notSlotRef(1)}) and (${slotRef(2)}) and (${slotRef(3)})`,
+          ],
+          ['flow_a_action_06', `(${notSlotRef(1)}) and (${notSlotRef(2)})`],
+          [
+            'flow_a_say_07',
+            `(${notSlotRef(1)}) and (${notSlotRef(2)}) and (${slotRef(3)})`,
+          ],
+        ]);
+        expect(declaredSlots(result)).toEqual([1, 2, 3].map(slotName));
+      });
+
+      it('numbers the links the same when a middle link produces no directive', () => {
+        const { codes, result, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.order_id == "A":
+            say "a"
+        else if @variables.is_vip:
+            end_session
+        else if @variables.order_id == "B":
+            say "b"
+`);
+        expect(codes).toEqual(['workflow-unsupported-statement']);
+        expect(guards(workflow?.steps[0].directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_say_02', slotRef(1)],
+          ['flow_a_action_03', notSlotRef(1)],
+          ['flow_a_action_04', `(${notSlotRef(1)}) and (${notSlotRef(2)})`],
+          [
+            'flow_a_say_05',
+            `(${notSlotRef(1)}) and (${notSlotRef(2)}) and (${slotRef(3)})`,
+          ],
+        ]);
+        expect(declaredSlots(result)).toEqual([1, 2, 3].map(slotName));
+      });
+    });
+
+    describe('branches that produce no directives', () => {
+      it('emits no snapshot and declares no slot when neither branch produces a directive', () => {
+        const { codes, result, workflow } = compileWorkflow(`
+    step a: ->
+        say "Hi"
+        if @variables.is_vip:
+            end_session
+`);
+        expect(codes).toEqual(['workflow-unsupported-statement']);
+        expect(workflow?.steps[0].directives.map(d => d.type)).toEqual(['say']);
+        expect(declaredSlots(result)).toEqual([]);
+      });
+
+      it('keeps the snapshot when only the else produces a directive', () => {
+        const { codes, result, workflow } = compileWorkflow(`
+    step a: ->
+        if @variables.is_vip:
+            end_session
+        else:
+            say "Fine"
+`);
+        expect(codes).toEqual(['workflow-unsupported-statement']);
+        expect(guards(workflow?.steps[0].directives)).toEqual([
+          ['flow_a_action_01', undefined],
+          ['flow_a_say_02', notSlotRef(1)],
+        ]);
+        expect(declaredSlots(result)).toEqual([slotName(1)]);
+      });
+    });
+
+    describe('slots in the whole agent', () => {
+      it('keeps workflow slots apart from subagent chain and system instruction slots', () => {
+        const header = [
+          'system:',
+          '    instructions: ->',
+          '        | You are helpful.',
+          '        if @variables.is_vip:',
+          '            | VIP.',
+          '        else:',
+          '            | Polite.',
+          HEADER.replace(
+            '            | Help.',
+            [
+              '            if @variables.order_id == "A":',
+              '                | A.',
+              '            else if @variables.order_id == "B":',
+              '                | B.',
+              '            else if @variables.order_id == "C":',
+              '                | C.',
+              '            else:',
+              '                | Other.',
+            ].join('\n')
+          ),
+          'workflow other:',
+          '    description: "Other"',
+          '    step b: ->',
+          '        if @variables.is_vip:',
+          '            if @variables.order_id == "A":',
+          '                say "b"',
+          '',
+        ].join('\n');
+        const { errors, result } = compileWorkflow(
+          `
+    step a: ->
+        if @variables.is_vip:
+            if @variables.order_id == "A":
+                say "a"
+`,
+          header
+        );
+        expect(errors).toEqual([]);
+
+        const declared = (
+          result.output.agent_version.state_variables ?? []
+        ).map(v => v.developer_name);
+        expect(new Set(declared).size).toBe(declared.length);
+        expect(
+          declared.filter(name =>
+            name.startsWith('AgentScriptInternal_condition_')
+          )
+        ).toEqual([1, 2, 3].map(i => `AgentScriptInternal_condition_${i}`));
+        expect(declaredSlots(result)).toEqual([slotName(1), slotName(2)]);
+
+        const workflows = result.output.agent_version.nodes.filter(
+          (n): n is WorkflowNode => n.type === 'workflow'
+        );
+        expect(workflows).toHaveLength(2);
+        for (const workflow of workflows) {
+          const guarded = enabledGuards(workflow);
+          expect(guarded.length).toBeGreaterThan(0);
+          for (const guard of guarded) expect(guard).toMatch(SLOTS_ONLY);
+        }
+      });
+    });
+
+    it.each(WORKFLOW_FIXTURES)(
+      'gates every directive in %s on workflow slots only',
+      fixture => {
+        const { errors, workflow } = compileSource(readFixtureSource(fixture));
+        expect(errors).toEqual([]);
+        const guarded = enabledGuards(workflow);
+        expect(guarded.length).toBeGreaterThan(0);
+        for (const guard of guarded) expect(guard).toMatch(SLOTS_ONLY);
+      }
+    );
+
+    it('can push a long step name over the directive name limit with the snapshot action', () => {
+      // `flow_<step>_say_02` is exactly 80 characters; `_action_01` is 3 longer.
+      const step = 'a'.repeat(68);
+      const withoutIf = compileWorkflow(`
+    step ${step}: ->
+        say "Hi"
+        say "Hi"
+`);
+      expect(withoutIf.codes).toEqual([]);
+
+      const withIf = compileWorkflow(`
+    step ${step}: ->
+        if @variables.is_vip:
+            say "Hi"
+`);
+      expect(
+        withIf.codes.filter(code => code === 'workflow-invalid-directive-name')
+      ).toHaveLength(1);
+      expect(withIf.errors).toContainEqual(
+        expect.stringContaining('exceeds 80 characters')
+      );
     });
   });
 
@@ -571,17 +1124,10 @@ workflow return_order:
 ${inputs}
             target: "flow://Lookup"`;
 
-    /** Diagnostics other than the follow-on errors for an empty workflow. */
     function actionDiagnostics(
       result: ReturnType<typeof compileWorkflow>['result']
     ) {
-      return result.diagnostics
-        .filter(
-          d =>
-            d.code !== 'workflow-no-directives' &&
-            d.code !== 'schema-validation'
-        )
-        .map(d => [d.severity, d.code]);
+      return result.diagnostics.map(d => [d.severity, d.code]);
     }
 
     it('rejects an ellipsis slot at compile time and drops the directive', () => {
@@ -614,6 +1160,23 @@ ${inputs}
             with typo = "x"
 `);
       expect(unknownInput.codes).toContain('action-unknown-input');
+    });
+
+    it.each([
+      ["a '|' line", '| Say the status.', "A '|' line cannot be inside 'run'"],
+      ['a say', 'say "Done"', "Only 'with' and 'set' clauses"],
+    ])('rejects %s inside a run body', (_label, stmt, message) => {
+      const { errors, codes, workflow } = compileWorkflow(`${lookupAction(
+        '                orderId: string'
+      )}
+    step a: ->
+        run @actions.lookup
+            with orderId = @variables.order_id
+            ${stmt}
+`);
+      expect(codes).toEqual(['workflow-unsupported-statement']);
+      expect(errors[0]).toContain(message);
+      expect(workflow?.steps).toEqual([]);
     });
 
     it('requires only inputs marked is_required: True without a default', () => {
@@ -696,37 +1259,357 @@ workflow flow:
       expect(codes).toContain('action-unknown-input');
     });
 
-    it('warns, but still emits the action, when require_user_confirmation is True', () => {
-      const confirmed = compileWorkflow(`${lookupAction(
-        '                orderId: string',
-        '\n            require_user_confirmation: True'
-      )}
-    step a: ->
-        run @actions.lookup
-            with orderId = "A1"
-`);
-      expect(actionDiagnostics(confirmed.result)).toEqual([
-        [DiagnosticSeverity.Warning, 'workflow-action-confirmation-ignored'],
-      ]);
-      expect(confirmed.workflow?.steps[0].directives[0]).toMatchObject({
-        type: 'action',
-        target: 'lookup',
-      });
-
-      for (const extra of [
-        '',
-        '\n            require_user_confirmation: False',
-      ]) {
-        const { result } = compileWorkflow(`${lookupAction(
+    it.each([
+      ['True', true],
+      ['False', false],
+    ])(
+      'emits require_user_confirmation: %s on the workflow action definition',
+      (value, expected) => {
+        const { result, workflow } = compileWorkflow(`${lookupAction(
           '                orderId: string',
-          extra
+          `\n            require_user_confirmation: ${value}`
         )}
     step a: ->
         run @actions.lookup
             with orderId = "A1"
 `);
         expect(actionDiagnostics(result)).toEqual([]);
+        expect(workflow?.steps[0].directives[0]).toMatchObject({
+          type: 'action',
+          target: 'lookup',
+        });
+        expect(workflow?.action_definitions).toEqual([
+          expect.objectContaining({
+            developer_name: 'lookup',
+            require_user_confirmation: expected,
+          }),
+        ]);
       }
+    );
+  });
+
+  describe('do directives', () => {
+    const ACTIONS = `
+    actions:
+        lookup:
+            description: "Look up"
+            inputs:
+                order_id: string
+                    is_required: True
+                note: string
+            target: "flow://Lookup"
+        refund:
+            description: "Refund"
+            target: "flow://Refund"`;
+    const lookupTool = {
+      type: 'action',
+      target: 'lookup',
+      name: 'lookup',
+      llm_inputs: ['order_id'],
+    };
+    const refundTool = {
+      type: 'action',
+      target: 'refund',
+      name: 'refund',
+      llm_inputs: [],
+    };
+
+    function compileDo(steps: string) {
+      const compiled = compileWorkflow(`${ACTIONS}\n    step a: ->\n${steps}`);
+      return {
+        ...compiled,
+        directives: compiled.workflow?.steps[0]?.directives ?? [],
+      };
+    }
+
+    it('compiles one line to a do directive with its action as a tool', () => {
+      const { errors, directives } = compileDo(`
+        | Call {!@actions.lookup} for {!@variables.order_id}.
+`);
+      expect(errors).toEqual([]);
+      expect(directives).toEqual([
+        {
+          type: 'do',
+          developer_name: 'flow_a_do_01',
+          instructions: 'Call lookup for {{state.order_id}}.',
+          tools: [lookupTool],
+        },
+      ]);
+    });
+
+    it('keeps the line breaks of continuation lines', () => {
+      const { errors, directives } = compileDo(`
+        | Call {!@actions.lookup}
+          and say the result back.
+`);
+      expect(errors).toEqual([]);
+      expect(directives[0]).toMatchObject({
+        instructions: 'Call lookup\nand say the result back.',
+      });
+    });
+
+    it('makes one directive for each | line', () => {
+      const { errors, directives } = compileDo(`
+        | Call {!@actions.lookup}
+          and {!@actions.refund}.
+        | Then call {!@actions.refund} and {!@actions.refund} again.
+        say "Done"
+        | Say goodbye.
+`);
+      expect(errors).toEqual([]);
+      expect(directives).toEqual([
+        {
+          type: 'do',
+          developer_name: 'flow_a_do_01',
+          instructions: 'Call lookup\nand refund.',
+          tools: [lookupTool, refundTool],
+        },
+        {
+          type: 'do',
+          developer_name: 'flow_a_do_02',
+          instructions: 'Then call refund and refund again.',
+          tools: [refundTool],
+        },
+        { type: 'say', developer_name: 'flow_a_say_03', text: 'Done' },
+        {
+          type: 'do',
+          developer_name: 'flow_a_do_04',
+          instructions: 'Say goodbye.',
+        },
+      ]);
+    });
+
+    it('makes separate directives inside and outside if and else bodies', () => {
+      const { errors, directives } = compileDo(`
+        | Before.
+        if @variables.is_vip:
+            | VIP {!@actions.refund}.
+            | VIP again.
+        else:
+            | Regular.
+        | After.
+`);
+      expect(errors).toEqual([]);
+      expect(
+        directives.map(d => [
+          d.type === 'do' ? d.instructions : d.type,
+          d.enabled,
+        ])
+      ).toEqual([
+        ['Before.', undefined],
+        ['action', undefined],
+        ['VIP refund.', slotRef(1)],
+        ['VIP again.', slotRef(1)],
+        ['Regular.', notSlotRef(1)],
+        ['After.', undefined],
+      ]);
+    });
+
+    it('rejects an action that is not defined in the workflow', () => {
+      const { codes, errors, directives } = compileDo(`
+        | Call {!@actions.missing}.
+        say "Done"
+`);
+      expect(codes).toEqual(['workflow-unknown-action']);
+      expect(errors[0]).toContain("'{!@actions.missing}' in a '|' line");
+      expect(directives.map(d => d.type)).toEqual(['say']);
+    });
+
+    it('rejects a top-level action', () => {
+      const { codes, errors } = compileSource(`
+config:
+    developer_name: "WorkflowAgent"
+
+actions:
+    top_only:
+        description: "Top-level only"
+        target: "flow://top_only"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route.
+        actions:
+            go_flow: @utils.transition to @workflow.flow
+
+workflow flow:
+    description: "Test workflow"
+    step a: ->
+        | Call {!@actions.top_only}.
+`);
+      expect(codes).toContain('workflow-unknown-action');
+      expect(errors.join('\n')).toContain(
+        "'{!@actions.top_only}' in a '|' line"
+      );
+    });
+
+    it.each(['escalate', 'transition', 'end_session', 'setVariables'])(
+      'rejects {!@utils.%s}',
+      name => {
+        const { result, directives } = compileDo(`
+        | If the user is upset, call {!@utils.${name}}.
+        say "Done"
+`);
+        expect(
+          result.diagnostics
+            .filter(d => d.severity === DiagnosticSeverity.Error)
+            .map(d => [d.code, d.message])
+        ).toEqual([
+          [
+            'workflow-do-unsupported-reference',
+            expect.stringContaining(`'@utils.${name}'`),
+          ],
+        ]);
+        expect(directives.map(d => d.type)).toEqual(['say']);
+      }
+    );
+
+    it.each([
+      '@outputs.found',
+      '@inputs.order',
+      '@subagent.support',
+      '@workflow.flow',
+      '@outputs.order.id',
+    ])('rejects {!%s}', reference => {
+      const { result, directives } = compileDo(`
+        | Use {!${reference}}.
+        say "Done"
+`);
+      expect(
+        result.diagnostics
+          .filter(d => d.severity === DiagnosticSeverity.Error)
+          .map(d => [d.code, d.message])
+      ).toEqual([
+        [
+          'workflow-do-unsupported-reference',
+          expect.stringContaining(`'${reference}'`),
+        ],
+      ]);
+      expect(directives.map(d => d.type)).toEqual(['say']);
+    });
+
+    it.each([
+      ['@outputs.items[0]', '@outputs.items'],
+      ['len(@outputs.items)', '@outputs.items'],
+      ['@outputs.found if @variables.is_vip else "none"', '@outputs.found'],
+      ['@utils.escalate if @variables.is_vip else ""', '@utils.escalate'],
+    ])('rejects the reference inside {!%s}', (expression, reference) => {
+      const { result, directives } = compileDo(`
+        | Use {!${expression}}.
+        say "Done"
+`);
+      expect(
+        result.diagnostics
+          .filter(d => d.severity === DiagnosticSeverity.Error)
+          .map(d => [d.code, d.message])
+      ).toEqual([
+        [
+          'workflow-do-unsupported-reference',
+          expect.stringContaining(`'${reference}' is not supported`),
+        ],
+      ]);
+      expect(directives.map(d => d.type)).toEqual(['say']);
+    });
+
+    it('rejects an action that is not the entire {! } expression', () => {
+      const { result, directives } = compileDo(`
+        | Use {!@actions.lookup if @variables.is_vip else ""}.
+        say "Done"
+`);
+      expect(
+        result.diagnostics
+          .filter(d => d.severity === DiagnosticSeverity.Error)
+          .map(d => [d.code, d.message])
+      ).toEqual([
+        [
+          'workflow-do-unsupported-reference',
+          "'@actions.lookup' must be the entire '{! }' expression.",
+        ],
+      ]);
+      expect(directives.map(d => d.type)).toEqual(['say']);
+    });
+
+    it('accepts expressions over supported references', () => {
+      const { errors, directives } = compileDo(`
+        | Order {!@variables.order_id[0]}, {!len(@variables.order_id)}, {!"VIP" if @variables.is_vip else "regular"}.
+`);
+      expect(errors).toEqual([]);
+      expect(directives[0]).toMatchObject({
+        instructions:
+          'Order {{state.order_id[0]}}, {{len(state.order_id)}}, {{"VIP" if state.is_vip else "regular"}}.',
+      });
+    });
+
+    it('accepts system variables and knowledge', () => {
+      const { errors, workflow } = compileWorkflow(
+        `
+    step a: ->
+        | Reply to {!@system_variables.user_input} if {!@knowledge.citations_enabled}.
+`,
+        `${HEADER}
+knowledge:
+    citations_enabled: True
+`
+      );
+      expect(errors).toEqual([]);
+      expect(workflow?.steps[0].directives).toEqual([
+        {
+          type: 'do',
+          developer_name: 'flow_a_do_01',
+          instructions: 'Reply to {{system.input_text}} if {{True}}.',
+        },
+      ]);
+    });
+
+    it('keeps blank continuation lines between lines of text', () => {
+      const { errors, directives } = compileDo(`
+        | First.
+
+          Second.
+`);
+      expect(errors).toEqual([]);
+      expect(directives).toEqual([
+        {
+          type: 'do',
+          developer_name: 'flow_a_do_01',
+          instructions: 'First.\n\nSecond.',
+        },
+      ]);
+    });
+
+    it('rejects a line with no text', () => {
+      const { codes, directives } = compileDo(`
+        | First.
+        |
+        | Second.
+`);
+      expect(codes).toEqual(['workflow-empty-do']);
+      expect(directives.map(d => d.type === 'do' && d.instructions)).toEqual([
+        'First.',
+        'Second.',
+      ]);
+    });
+
+    it('does not use the tool names of a subagent compiled before it', () => {
+      const { errors, workflow } = compileWorkflow(
+        `
+    actions:
+        support:
+            description: "Support"
+            target: "flow://Support"
+    step a: ->
+        | Call {!@actions.support}.
+`,
+        `${HEADER}        actions:
+            go_support: @utils.transition to @subagent.support
+`
+      );
+      expect(errors).toEqual([]);
+      expect(workflow?.steps[0].directives[0]).toMatchObject({
+        instructions: 'Call support.',
+        tools: [expect.objectContaining({ name: 'support' })],
+      });
     });
   });
 
@@ -743,5 +1626,261 @@ workflow flow:
     expect(
       result.output.agent_version.nodes.filter(n => n.developer_name === 'flow')
     ).toHaveLength(1);
+  });
+});
+
+describe('workflow unknown action with lint and compile', () => {
+  it('reports one diagnostic for a top-level action in run', () => {
+    const source = `
+config:
+    developer_name: "WorkflowAgent"
+    agent_type: "GoalBasedAgent"
+
+actions:
+    top_only:
+        description: "Top-level only"
+        target: "flow://top_only"
+
+start_agent main:
+    description: "Entry point"
+    reasoning:
+        instructions: ->
+            | Route.
+        actions:
+            go_flow: @utils.transition to @workflow.flow
+
+workflow flow:
+    description: "Test workflow"
+    step work: ->
+        run @actions.top_only
+`;
+    const linted = parseAndLint(parse(source).rootNode, agentforceDialect);
+    const compiled = compile(linted.ast as ParsedAgentforce);
+    const diagnostics = dedupeDiagnostics([
+      ...linted.diagnostics,
+      ...compiled.diagnostics,
+    ]).filter(
+      d =>
+        d.code === 'workflow-unknown-action' || d.code === 'undefined-reference'
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'workflow-unknown-action',
+        message: expect.stringContaining("'top_only'"),
+      }),
+    ]);
+  });
+});
+
+describe('workflow global system instructions', () => {
+  const withSystem = (instructions: string) =>
+    `system:\n${instructions}\n${HEADER}`;
+  const STATIC_HEADER = withSystem('    instructions: "You are helpful."');
+  const SYSTEM = '{{state.AgentScriptInternal_system_instructions}}';
+
+  const systemVariable = (
+    result: ReturnType<typeof compileWorkflow>['result']
+  ) =>
+    result.output.agent_version.state_variables?.find(
+      v => v.developer_name === 'AgentScriptInternal_system_instructions'
+    );
+
+  it('stores the system instructions in the state variable on entry', () => {
+    const { errors, result, workflow } = compileWorkflow(
+      `
+    step greet: ->
+        say "Hi"
+`,
+      STATIC_HEADER
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.on_init).toEqual([
+      {
+        type: 'action',
+        target: '__state_update_action__',
+        state_updates: [
+          {
+            AgentScriptInternal_system_instructions:
+              'template::You are helpful.',
+          },
+        ],
+      },
+    ]);
+    expect(systemVariable(result)).toBeDefined();
+  });
+
+  it('labels the system instructions on say directives', () => {
+    const { errors, workflow } = compileWorkflow(
+      `
+    step greet: ->
+        say "Hello {!@variables.order_id}"
+`,
+      STATIC_HEADER
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.steps[0].directives[0]).toMatchObject({
+      type: 'say',
+      text: `System Prompt:\n\n${SYSTEM}\n\nMessage for the system to follow:\n\nHello {{state.order_id}}`,
+    });
+  });
+
+  it('prepends the system instructions to ask-for directives', () => {
+    const { errors, workflow } = compileWorkflow(
+      `
+    step collect: ->
+        ask for @variables.order_id
+            instructions: "Ask for the order id."
+`,
+      STATIC_HEADER
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.steps[0].directives[0]).toMatchObject({
+      type: 'ask_for',
+      instructions: `${SYSTEM}\n\nAsk for the order id.`,
+    });
+  });
+
+  it('prepends the system instructions to do directives', () => {
+    const { errors, workflow } = compileWorkflow(
+      `
+    step a: ->
+        | Greet the customer.
+`,
+      STATIC_HEADER
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.steps[0].directives[0]).toMatchObject({
+      type: 'do',
+      instructions: `${SYSTEM}\n\nGreet the customer.`,
+    });
+  });
+
+  it('compiles variable references in the system instructions', () => {
+    const { errors, workflow } = compileWorkflow(
+      `
+    step collect: ->
+        ask for @variables.order_id
+            instructions: "Ask."
+`,
+      withSystem(`    instructions: ->
+        | VIP: {!@variables.is_vip}.`)
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.on_init?.[0]).toMatchObject({
+      state_updates: [
+        {
+          AgentScriptInternal_system_instructions:
+            'template::VIP: {{state.is_vip}}.',
+        },
+      ],
+    });
+  });
+
+  it('leaves the workflow unchanged without system instructions', () => {
+    const { result, workflow } = compileWorkflow(`
+    step a: ->
+        say "Hi"
+        ask for @variables.order_id
+            instructions: "Ask."
+`);
+    expect(workflow?.on_init).toBeUndefined();
+    expect(systemVariable(result)).toBeUndefined();
+    expect(workflow?.steps[0].directives).toMatchObject([
+      { type: 'say', text: 'Hi' },
+      { type: 'ask_for', instructions: 'Ask.' },
+    ]);
+  });
+
+  it('does not change non-LLM directives', () => {
+    const { errors, workflow } = compileWorkflow(
+      `
+    step a: ->
+        set @variables.order_id = "x"
+        transition to @subagent.support
+`,
+      STATIC_HEADER
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.steps[0].directives).toEqual([
+      {
+        type: 'action',
+        target: '__state_update_action__',
+        state_updates: [{ order_id: '"x"' }],
+        chat_history_behavior: { add_to_chat_history: false },
+        developer_name: 'flow_a_action_01',
+      },
+      {
+        type: 'handoff',
+        target: 'support',
+        developer_name: 'flow_a_handoff_02',
+      },
+    ]);
+  });
+
+  it('builds conditional system instructions on entry', () => {
+    const { errors, result, workflow } = compileWorkflow(
+      `
+    step a: ->
+        say "Hi"
+`,
+      withSystem(`    instructions: ->
+        | You are helpful.
+        if @variables.is_vip:
+            | Treat the customer as a VIP.
+        else:
+            | Be polite.`)
+    );
+    expect(errors).toEqual([]);
+    expect(workflow?.on_init).toEqual([
+      {
+        type: 'action',
+        target: '__state_update_action__',
+        enabled: 'True',
+        state_updates: [
+          {
+            AgentScriptInternal_system_instructions:
+              'template::\nYou are helpful.',
+          },
+        ],
+      },
+      {
+        type: 'action',
+        target: '__state_update_action__',
+        enabled: 'True',
+        state_updates: [{ AgentScriptInternal_condition_1: 'state.is_vip' }],
+      },
+      {
+        type: 'action',
+        target: '__state_update_action__',
+        enabled: 'state.AgentScriptInternal_condition_1',
+        state_updates: [
+          {
+            AgentScriptInternal_system_instructions:
+              'template::{{state.AgentScriptInternal_system_instructions}}\nTreat the customer as a VIP.',
+          },
+        ],
+      },
+      {
+        type: 'action',
+        target: '__state_update_action__',
+        enabled: 'not (state.AgentScriptInternal_condition_1)',
+        state_updates: [
+          {
+            AgentScriptInternal_system_instructions:
+              'template::{{state.AgentScriptInternal_system_instructions}}\nBe polite.',
+          },
+        ],
+      },
+    ]);
+    expect(workflow?.steps[0].directives[0]).toMatchObject({
+      type: 'say',
+      text: `System Prompt:\n\n${SYSTEM}\n\nMessage for the system to follow:\n\nHi`,
+    });
+    const declared = result.output.agent_version.state_variables?.map(
+      v => v.developer_name
+    );
+    expect(declared).toContain('AgentScriptInternal_system_instructions');
+    expect(declared).toContain('AgentScriptInternal_condition_1');
   });
 });

@@ -115,21 +115,31 @@ describe('workflow-scoped actions', () => {
     '        run @actions.fallback',
   ].join('\n');
 
-  test('prefers local actions and falls back to global actions', () => {
+  test('resolves only actions of the workflow', () => {
     const diagnostics = parseAndLint(
       parse(source).rootNode,
       agentscriptDialect
     ).diagnostics.filter(
-      diagnostic => diagnostic.code === 'undefined-reference'
+      diagnostic =>
+        diagnostic.code === 'workflow-unknown-action' ||
+        diagnostic.code === 'undefined-reference'
     );
-    expect(diagnostics).toEqual([]);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'workflow-unknown-action',
+        message: expect.stringContaining("'run' target 'fallback'"),
+        range: expect.objectContaining({
+          start: positionOf(source, '@actions.fallback'),
+        }),
+      }),
+    ]);
 
     const document = parseDocument(source);
     expect(
       getCompletionCandidates(document, 'actions', testSchemaCtx, {
         workflow: 'process',
       }).map(candidate => candidate.name)
-    ).toEqual(['shared', 'fallback']);
+    ).toEqual(['shared']);
     expect(
       getCompletionCandidates(document, 'actions', testSchemaCtx).map(
         candidate => candidate.name
@@ -148,14 +158,249 @@ describe('workflow-scoped actions', () => {
     );
 
     const fallbackReference = positionOf(source, '@actions.fallback', 0);
-    const fallbackDefinition = findDefinitionAtPosition(
-      document,
-      fallbackReference.line,
-      fallbackReference.character,
-      testSchemaCtx
-    ).definition;
-    expect(fallbackDefinition?.definitionRange.start.line).toBe(
-      positionOf(source, '    fallback:').line
+    expect(
+      findDefinitionAtPosition(
+        document,
+        fallbackReference.line,
+        fallbackReference.character,
+        testSchemaCtx
+      ).definition
+    ).toBeNull();
+  });
+
+  test('offers no top-level actions to a workflow without actions', () => {
+    const document = parseDocument(
+      [
+        'actions:',
+        '    fallback:',
+        '        description: "Global fallback"',
+        '        target: "flow://fallback"',
+        'workflow process:',
+        '    description: "Process"',
+        '    steps:',
+        '        run @actions.fallback',
+      ].join('\n')
     );
+    expect(
+      getCompletionCandidates(document, 'actions', testSchemaCtx, {
+        workflow: 'process',
+      })
+    ).toEqual([]);
+  });
+
+  test('does not suggest top-level actions for an unknown action', () => {
+    const source = [
+      'actions:',
+      '    fallback:',
+      '        description: "Global fallback"',
+      '        target: "flow://fallback"',
+      'workflow process:',
+      '    description: "Process"',
+      '    steps:',
+      '        run @actions.fallbak',
+    ].join('\n');
+    const diagnostics = parseAndLint(
+      parse(source).rootNode,
+      agentscriptDialect
+    ).diagnostics.filter(
+      diagnostic => diagnostic.code === 'undefined-reference'
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        message: "'fallbak' is not defined in actions",
+      }),
+    ]);
+  });
+
+  test('still resolves top-level actions in a subagent', () => {
+    const source = [
+      'actions:',
+      '    fallback:',
+      '        description: "Global fallback"',
+      '        target: "flow://fallback"',
+      'subagent main:',
+      '    description: "Main"',
+      '    actions:',
+      '        local:',
+      '            description: "Local"',
+      '            target: "flow://local"',
+      '    reasoning:',
+      '        instructions: "Help"',
+      '        actions:',
+      '            call_fallback: @actions.fallback',
+    ].join('\n');
+    const diagnostics = parseAndLint(
+      parse(source).rootNode,
+      agentscriptDialect
+    ).diagnostics.filter(
+      diagnostic => diagnostic.code === 'undefined-reference'
+    );
+    expect(diagnostics).toEqual([]);
+
+    const document = parseDocument(source);
+    expect(
+      getCompletionCandidates(document, 'actions', testSchemaCtx, {
+        subagent: 'main',
+      }).map(candidate => candidate.name)
+    ).toEqual(['local', 'call_fallback', 'fallback']);
+
+    const reference = positionOf(source, '@actions.fallback');
+    expect(
+      findDefinitionAtPosition(
+        document,
+        reference.line,
+        reference.character,
+        testSchemaCtx
+      ).definition?.definitionRange.start.line
+    ).toBe(positionOf(source, '    fallback:').line);
+  });
+});
+
+describe('workflow-scoped actions in do directives', () => {
+  const source = [
+    'config:',
+    '    agent_type: "GoalBasedAgent"',
+    'actions:',
+    '    fallback:',
+    '        description: "Global fallback"',
+    '        target: "flow://fallback"',
+    'workflow process:',
+    '    description: "Process"',
+    '    actions:',
+    '        local:',
+    '            description: "Local"',
+    '            target: "flow://local"',
+    '    steps:',
+    '        | Call {!@actions.local}',
+    '        if True:',
+    '            | Then call {!@actions.fallback}',
+    '        else:',
+    '            | Else call {!@actions.fallback}',
+    '        | Or call {!@actions.missing}',
+  ].join('\n');
+
+  test('accepts only actions of the workflow', () => {
+    const diagnostics = parseAndLint(
+      parse(source).rootNode,
+      agentscriptDialect
+    ).diagnostics.filter(
+      diagnostic =>
+        diagnostic.code === 'workflow-unknown-action' ||
+        diagnostic.code === 'undefined-reference'
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'workflow-unknown-action',
+        message: expect.stringContaining(
+          "'{!@actions.fallback}' in a '|' line"
+        ),
+        range: expect.objectContaining({
+          start: positionOf(source, '@actions.fallback'),
+        }),
+      }),
+      expect.objectContaining({
+        code: 'workflow-unknown-action',
+        range: expect.objectContaining({
+          start: positionOf(source, '@actions.fallback}', 1),
+        }),
+      }),
+      expect.objectContaining({
+        code: 'undefined-reference',
+        message: expect.stringContaining("'missing'"),
+        range: expect.objectContaining({
+          start: positionOf(source, '@actions.missing'),
+        }),
+      }),
+    ]);
+  });
+});
+
+describe('unsupported references in do directives', () => {
+  test.each([
+    '@utils.escalate',
+    '@utils.transition',
+    '@utils.end_session',
+    '@outputs.found',
+    '@subagent.support',
+    '@outputs.order.id',
+  ])('rejects {!%s}', reference => {
+    const source = [
+      'workflow process:',
+      '    description: "Process"',
+      '    steps:',
+      `        | If the user is upset, use {!${reference}}`,
+    ].join('\n');
+    const diagnostics = parseAndLint(
+      parse(source).rootNode,
+      agentscriptDialect
+    ).diagnostics.filter(
+      diagnostic => diagnostic.code === 'workflow-do-unsupported-reference'
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(`'${reference}'`),
+        range: expect.objectContaining({
+          start: positionOf(source, reference),
+        }),
+      }),
+    ]);
+  });
+
+  test.each([
+    ['@outputs.items[0]', '@outputs.items'],
+    ['len(@outputs.items)', '@outputs.items'],
+    ['@utils.escalate if @variables.ready else ""', '@utils.escalate'],
+    ['@actions.lookup if @variables.ready else ""', '@actions.lookup'],
+    [
+      '@actions.lookup if @variables.ready else @actions.refund',
+      '@actions.lookup',
+    ],
+  ])('rejects the reference inside {!%s}', (expression, reference) => {
+    const source = [
+      'workflow process:',
+      '    description: "Process"',
+      '    steps:',
+      `        | Use {!${expression}}`,
+    ].join('\n');
+    const diagnostics = parseAndLint(
+      parse(source).rootNode,
+      agentscriptDialect
+    ).diagnostics.filter(
+      diagnostic => diagnostic.code === 'workflow-do-unsupported-reference'
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(`'${reference}'`),
+        range: expect.objectContaining({
+          start: positionOf(source, reference),
+        }),
+      }),
+    ]);
+  });
+
+  test.each([
+    '@variables.order_id',
+    '@system_variables.user_input',
+    '@system_variables.last_reply.interrupted',
+    '@system_variables.uploaded_files[0].name',
+    'len(@variables.items)',
+    '"VIP" if @variables.ready else "regular"',
+  ])('accepts {!%s}', reference => {
+    const source = [
+      'workflow process:',
+      '    description: "Process"',
+      '    steps:',
+      `        | Reply to {!${reference}}`,
+    ].join('\n');
+    const codes = parseAndLint(
+      parse(source).rootNode,
+      agentscriptDialect
+    ).diagnostics.map(diagnostic => diagnostic.code);
+
+    expect(codes).not.toContain('workflow-do-unsupported-reference');
   });
 });

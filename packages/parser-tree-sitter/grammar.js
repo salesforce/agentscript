@@ -255,7 +255,13 @@ export default grammar({
       seq(
         'run',
         field('target', $.expression),
-        optional(seq($._indent, field('block_value', $.procedure), $._dedent)),
+        optional(
+          seq(
+            $._indent,
+            field('block_value', alias($.mapping, $.procedure)),
+            $._dedent
+          )
+        ),
         $._newline
       ),
 
@@ -470,7 +476,7 @@ export default grammar({
     string_content: $ => /[^"\\]+/,
 
     // Must match ESCAPE_TABLE in @agentscript/language (packages/language/src/core/string-escapes.ts)
-    escape_sequence: $ => /\\["'\\nrt0]/,
+    escape_sequence: $ => /\\["'\\/nrt0]/,
 
     // Kept after existing rules so adding `say` does not renumber generated
     // symbols for the rest of the grammar.

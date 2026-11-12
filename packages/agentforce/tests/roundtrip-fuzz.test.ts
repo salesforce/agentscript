@@ -126,8 +126,8 @@ describe('tab indentation collapses action block structure', () => {
     const spaceDoc = parse(spaceSource);
     const tabDoc = parse(tabSource);
 
-    const spaceAgent = spaceDoc.ast.start_agent.get('greeting');
-    const tabAgent = tabDoc.ast.start_agent.get('greeting');
+    const spaceAgent = spaceDoc.ast.start_agent!.get('greeting')!;
+    const tabAgent = tabDoc.ast.start_agent!.get('greeting')!;
 
     // Key properties should match regardless of indentation style
     expect(tabAgent.description.value).toBe(spaceAgent.description.value);

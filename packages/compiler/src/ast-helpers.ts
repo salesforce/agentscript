@@ -302,7 +302,14 @@ export function extractDictExpression(
     const key = extractStringOrIdentifierValue(entry.key);
     const value = extractExpressionValue(entry.value);
     if (key !== undefined && value !== undefined) {
-      result[key] = value;
+      // Define a data property so an authored `__proto__` key cannot change
+      // result's prototype (plain assignment would invoke the setter).
+      Object.defineProperty(result, key, {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
   }
 
@@ -312,7 +319,9 @@ export function extractDictExpression(
 /**
  * Extract a string key from an expression (handles string literals and identifiers).
  */
-function extractStringOrIdentifierValue(expr: Expression): string | undefined {
+export function extractStringOrIdentifierValue(
+  expr: Expression
+): string | undefined {
   if (expr.__kind === 'StringLiteral') {
     return (expr as StringLiteral).value;
   }

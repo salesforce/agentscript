@@ -16,6 +16,7 @@ import {
   NumberValue,
   BooleanValue,
   ExpressionValue,
+  ExpressionSequence,
   ProcedureValue,
   Sequence,
   ReferenceValue,
@@ -37,7 +38,10 @@ import type {
 
 import {
   AGENTFABRIC_IDENTIFIER_PATTERN,
+  ANTHROPIC_MODEL_PATTERN,
+  BEDROCK_MODEL_PATTERN,
   AGENTFABRIC_TARGET_PATTERN,
+  AnthropicKind,
   ConnectionKind,
   Namespace,
   OUTPUT_JSON_SCHEMA_TYPES,
@@ -104,7 +108,15 @@ export const AFConfigBlock = Block('AFConfigBlock', {
 
 const OPENAI_KIND = 'OpenAI';
 const GEMINI_KIND = 'Gemini';
+const ANTHROPIC_KIND = AnthropicKind.Anthropic;
+const BEDROCK_ANTHROPIC_KIND = AnthropicKind.BedrockAnthropic;
 
+// Fields common to every LLM kind. Provider-specific sampling controls
+// (`temperature`, `top_p`) live in the OpenAI/Gemini variants instead — the
+// Anthropic kinds intentionally omit them (these Claude models reject them outright),
+// and strict-schema validation rejects any field outside a kind's merged
+// (base + variant) schema, so keeping them out of the base is what enforces
+// the "only the allowed parameters" rule for the Anthropic kinds.
 const llmBaseFields: Schema = {
   target: StringValue.describe(
     'Connection URI (llm://connection_name) referencing an LLM connection. Also accepts a same-group qualified reference (llm://<assetId>/<name>) or a fully-qualified cross-project reference (llm://<groupId>/<assetId>/<name>).'
@@ -115,15 +127,8 @@ const llmBaseFields: Schema = {
     .required(),
   kind: StringValue.describe('LLM provider discriminator.')
     .required()
-    .enum([OPENAI_KIND, GEMINI_KIND]),
+    .enum([OPENAI_KIND, GEMINI_KIND, ANTHROPIC_KIND, BEDROCK_ANTHROPIC_KIND]),
   model: StringValue.describe('The model name to use.').required(),
-  temperature: NumberValue.describe('Controls randomness in output.')
-    .min(0)
-    .max(2),
-  top_p: NumberValue.describe('Nucleus sampling parameter.').min(0).max(1),
-  max_output_tokens: NumberValue.describe(
-    'Maximum number of tokens to generate.'
-  ),
   headers: ExpressionValue.describe(
     'Optional headers map for this LLM provider.'
   ),
@@ -133,7 +138,21 @@ const llmBaseFields: Schema = {
   api_key: StringValue.describe('Optional API key for this LLM provider.'),
 };
 
+// Generation controls shared by the OpenAI and Gemini kinds (declared
+// per-variant so they are not accepted under the Anthropic kinds, which use
+// their own parameter set, e.g. `max_tokens`).
+const commonGenerationFields: Schema = {
+  temperature: NumberValue.describe('Controls randomness in output.')
+    .min(0)
+    .max(2),
+  top_p: NumberValue.describe('Nucleus sampling parameter.').min(0).max(1),
+  max_output_tokens: NumberValue.describe(
+    'Maximum number of tokens to generate.'
+  ),
+};
+
 const openaiLlmVariantFields: Schema = {
+  ...commonGenerationFields,
   reasoning_effort: StringValue.describe(
     'Constrains effort on reasoning for OpenAI reasoning models.'
   ).enum(['NONE', 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH', 'XHIGH']),
@@ -143,6 +162,7 @@ const openaiLlmVariantFields: Schema = {
 };
 
 const geminiLlmVariantFields: Schema = {
+  ...commonGenerationFields,
   thinking_level: StringValue.describe(
     'Level of thinking tokens for Gemini models.'
   ).enum(['LOW', 'HIGH']),
@@ -154,10 +174,48 @@ const geminiLlmVariantFields: Schema = {
   ),
 };
 
+// Author-facing parameters for both Claude kinds. `Anthropic` and
+// `BedrockAnthropic` share an identical set, so the same variant fields are
+// registered for each. Variant fields override the base ones, so `model` is
+// restricted to the supported Claude ids and `max_tokens` (Anthropic's API field
+// name) is mandatory (>= 1) here.
+const anthropicLlmVariantFields: Schema = {
+  model: StringValue.describe('The Claude model id to use.')
+    .required()
+    .pattern(ANTHROPIC_MODEL_PATTERN),
+  max_tokens: NumberValue.describe('Maximum number of tokens to generate.')
+    .required()
+    .min(1),
+  effort: StringValue.describe(
+    'Controls overall token spend (thinking, text and tool calls). Works with ' +
+      'or without thinking. `xhigh` is not available on every model.'
+  ).enum(['low', 'medium', 'high', 'xhigh', 'max']),
+  thinking: StringValue.describe(
+    'Controls extended thinking mode directly. Omit to send no thinking ' +
+      "field (the model's default applies)."
+  ).enum(['adaptive', 'disabled']),
+  stop_sequences: ExpressionSequence().describe(
+    'Custom text sequences that make the model stop generating.'
+  ),
+};
+
+// Bedrock takes inference-profile ids, e.g. `us.anthropic.claude-sonnet-5` or
+// `global.anthropic.claude-sonnet-5`.
+const bedrockAnthropicLlmVariantFields: Schema = {
+  ...anthropicLlmVariantFields,
+  model: StringValue.describe(
+    'The Bedrock inference-profile id of the Claude model.'
+  )
+    .required()
+    .pattern(BEDROCK_MODEL_PATTERN),
+};
+
 const LLMEntryBlockFactory = NamedBlock('LLMEntryBlock', llmBaseFields)
   .discriminant('kind')
   .variant(OPENAI_KIND, openaiLlmVariantFields)
-  .variant(GEMINI_KIND, geminiLlmVariantFields);
+  .variant(GEMINI_KIND, geminiLlmVariantFields)
+  .variant(ANTHROPIC_KIND, anthropicLlmVariantFields)
+  .variant(BEDROCK_ANTHROPIC_KIND, bedrockAnthropicLlmVariantFields);
 
 export const LLMEntryBlock = LLMEntryBlockFactory.describe(
   'LLM configuration entry.'

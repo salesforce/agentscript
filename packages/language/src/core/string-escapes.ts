@@ -15,11 +15,13 @@
  * Must stay in sync with:
  *   - tree-sitter grammar.js  `escape_sequence` regex
  *   - parser-javascript        VALID_ESCAPES set
+ * Enforced by string-escapes.test.ts and the parser-javascript parity tests.
  */
 export const ESCAPE_TABLE: ReadonlyMap<string, string> = new Map([
   ['"', '"'],
   ["'", "'"],
   ['\\', '\\'],
+  ['/', '/'],
   ['n', '\n'],
   ['t', '\t'],
   ['r', '\r'],
@@ -36,13 +38,19 @@ export function interpretEscape(char: string): string | undefined {
 }
 
 /**
+ * Escapes accepted on input but never emitted: apostrophes need no escaping
+ * in double-quoted literals, and `\/` exists only so JSON-encoded text
+ * (which may escape `/`) parses as-is.
+ */
+const DECODE_ONLY_ESCAPES: ReadonlySet<string> = new Set(["'", '/']);
+
+/**
  * Maps interpreted characters back to escape codes used by double-quoted
- * serialization. Apostrophes are valid decoded escapes but do not need
- * escaping in double-quoted literals.
+ * serialization.
  */
 const REVERSE_ESCAPE_TABLE: ReadonlyMap<string, string> = new Map(
   [...ESCAPE_TABLE]
-    .filter(([code]) => code !== "'")
+    .filter(([code]) => !DECODE_ONLY_ESCAPES.has(code))
     .map(([code, char]) => [char, `\\${code}`] as const)
   // backslash maps to itself in ESCAPE_TABLE ('\\' -> '\\'), so its
   // reverse entry is already correct ('\\' -> '\\\\' via the template).

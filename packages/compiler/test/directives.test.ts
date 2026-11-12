@@ -31,7 +31,8 @@ import {
   createStateUpdateAction,
   optimizeDirectiveActions,
 } from '../src/nodes/optimize-actions.js';
-import { parseSource } from './test-utils.js';
+import { DiagnosticSeverity } from '@agentscript/types';
+import { parseSource, findNode } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
   EMPTY_TOPIC_VALUE,
@@ -63,9 +64,7 @@ topic destination:
             | Destination
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
     // after_reasoning should have actions for the transition
     expect(node.after_reasoning).toBeDefined();
@@ -114,9 +113,7 @@ topic destination:
             | Destination
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
     // before_reasoning should have actions for the transition
     expect(node.before_reasoning).toBeDefined();
@@ -236,10 +233,10 @@ variables:
     entries: Record<string, string>[];
   }[] {
     const { output, diagnostics } = compile(parseSource(source));
-    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toHaveLength(0);
+    const node = findNode(output, 'main', 'subagent');
     return (node.before_reasoning_iteration ?? [])
       .filter(a => a.target === STATE_UPDATE_ACTION)
       .map(a => ({
@@ -362,13 +359,15 @@ topic dest:
             | dest
 `)
     );
-    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toHaveLength(0);
+    const node = findNode(output, 'main', 'subagent');
     const actions = node.before_reasoning ?? [];
-    const writes = (action: Action, key: string) =>
-      (action.state_updates ?? []).some(su => key in su);
+    const writes = (
+      action: { state_updates?: Record<string, unknown>[] | null },
+      key: string
+    ) => (action.state_updates ?? []).some(su => key in su);
 
     const handoffIndex = actions.findIndex(a => a.target === 'dest');
     const bIndex = actions.findIndex(a => writes(a, 'b'));
@@ -435,12 +434,8 @@ start_agent main:
     const optimized = compile(parseSource(SOURCE));
     const unoptimized = compile(parseSource(SOURCE), { optimize: false });
 
-    const optimizedNode = optimized.output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
-    const unoptimizedNode = unoptimized.output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const optimizedNode = findNode(optimized.output, 'main', 'subagent');
+    const unoptimizedNode = findNode(unoptimized.output, 'main', 'subagent');
 
     const optimizedActions = beforeReasoningIteration(
       optimizedNode.before_reasoning_iteration

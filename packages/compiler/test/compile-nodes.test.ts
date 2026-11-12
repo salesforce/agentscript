@@ -16,14 +16,15 @@
  * Avoids duplicating tests already covered in node-compilation.test.ts.
  */
 import { describe, it, expect } from 'vitest';
+import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { parseSource, findNode } from './test-utils.js';
 import {
   STATE_UPDATE_ACTION,
   AGENT_INSTRUCTIONS_VARIABLE,
   NEXT_TOPIC_VARIABLE,
 } from '../src/constants.js';
-import type { SubAgentNode, RouterNode, Action } from '../src/types.js';
+import type { SubAgentNode, Action } from '../src/types.js';
 
 // ---------------------------------------------------------------------------
 // Python: test_compile_agentscript_with_functions_and_blocks
@@ -67,12 +68,8 @@ topic AdminTasks:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.nodes.length).toBe(2);
 
-    const userNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'UserManagement'
-    )!;
-    const adminNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'AdminTasks'
-    )!;
+    const userNode = findNode(output, 'UserManagement', 'subagent');
+    const adminNode = findNode(output, 'AdminTasks', 'subagent');
 
     expect(userNode).toBeDefined();
     expect(adminNode).toBeDefined();
@@ -80,9 +77,9 @@ topic AdminTasks:
     // UserManagement node
     expect(userNode.type).toBe('subagent');
     expect(userNode.description).toBe('Manage user accounts');
-    expect(userNode.tools.length).toBe(1);
-    expect(userNode.tools[0].name).toBe('getUser');
-    expect(userNode.tools[0].target).toBe('getUser');
+    expect(userNode.tools!.length).toBe(1);
+    expect(userNode.tools![0].name).toBe('getUser');
+    expect(userNode.tools![0].target).toBe('getUser');
     expect(userNode.action_definitions!.length).toBe(1);
     expect(userNode.action_definitions![0].developer_name).toBe('getUser');
     expect(userNode.action_definitions![0].invocation_target_type).toBe('apex');
@@ -93,11 +90,11 @@ topic AdminTasks:
     // AdminTasks node
     expect(adminNode.type).toBe('subagent');
     expect(adminNode.description).toBe('Admin tasks');
-    expect(adminNode.tools.length).toBe(1);
-    expect(adminNode.tools[0].name).toBe('updateUser');
+    expect(adminNode.tools!.length).toBe(1);
+    expect(adminNode.tools![0].name).toBe('updateUser');
     expect(adminNode.action_definitions!.length).toBe(1);
     expect(adminNode.action_definitions![0].developer_name).toBe('updateUser');
-    expect(adminNode.action_definitions![0].input_type.length).toBe(2);
+    expect(adminNode.action_definitions![0].input_type!.length).toBe(2);
   });
 });
 
@@ -120,11 +117,9 @@ start_agent InfoNode:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.nodes.length).toBe(1);
 
-    const node = output.agent_version.nodes[0];
-    expect(node.developer_name).toBe('InfoNode');
-    expect(node.type).toBe('subagent');
+    const node = findNode(output, 'InfoNode', 'subagent');
     expect(node.description).toBe('Info node');
-    expect(node.tools.length).toBe(0);
+    expect((node.tools ?? []).length).toBe(0);
     expect(
       node.action_definitions === undefined ||
         node.action_definitions === null ||
@@ -152,8 +147,7 @@ start_agent greeting:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.nodes.length).toBe(1);
 
-    const node = output.agent_version.nodes[0];
-    expect(node.developer_name).toBe('greeting');
+    const node = findNode(output, 'greeting', 'subagent');
     expect(node.label).toBe('Greeting');
     expect(node.description).toBe('Greet the customer');
   });
@@ -180,8 +174,7 @@ start_agent start_agent:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.nodes.length).toBe(1);
 
-    const node = output.agent_version.nodes[0];
-    expect(node.developer_name).toBe('start_agent');
+    const node = findNode(output, 'start_agent', 'subagent');
     expect(node.label).toBe('Start Agent');
     expect(node.description).toBe('Anonymous start agent');
   });
@@ -208,9 +201,7 @@ start_agent TopicNode:
             | Topic-level instructions
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TopicNode'
-    )!;
+    const node = findNode(output, 'TopicNode', 'subagent');
 
     // System instructions land in node.instructions
     expect(node.instructions).toBe('System-level instructions');
@@ -243,9 +234,7 @@ start_agent TopicNode:
             | Topic-level instructions only
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TopicNode'
-    )!;
+    const node = findNode(output, 'TopicNode', 'subagent');
 
     // No system block means node.instructions defaults to "" (a valid string),
     // never omitted/None. Omitting the key makes it round-trip through the
@@ -293,15 +282,9 @@ topic StartTopic:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.nodes.length).toBe(3);
 
-    const functionNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'FunctionTopic'
-    )!;
-    const simpleNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'SimpleTopic'
-    )!;
-    const startNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'StartTopic'
-    )!;
+    const functionNode = findNode(output, 'FunctionTopic', 'subagent');
+    const simpleNode = findNode(output, 'SimpleTopic', 'subagent');
+    const startNode = findNode(output, 'StartTopic', 'subagent');
 
     // All nodes get global system instructions
     expect(functionNode.instructions).toBe('Global system instructions');
@@ -340,11 +323,8 @@ start_agent NoDescNode:
             | Instructions without description
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'NoDescNode'
-    )!;
+    const node = findNode(output, 'NoDescNode', 'subagent');
 
-    expect(node.developer_name).toBe('NoDescNode');
     // Description should default to empty string
     expect(node.description).toBe('');
   });
@@ -378,16 +358,14 @@ start_agent TypeTestTopic:
             typeTestFunction: @actions.typeTestFunction
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TypeTestTopic'
-    )!;
+    const node = findNode(output, 'TypeTestTopic', 'subagent');
 
     expect(node.action_definitions!.length).toBe(1);
     const actionDef = node.action_definitions![0];
-    expect(actionDef.input_type.length).toBe(4);
+    expect(actionDef.input_type!.length).toBe(4);
 
     const paramsByName = new Map(
-      actionDef.input_type.map(p => [p.developer_name, p])
+      actionDef.input_type!.map(p => [p.developer_name, p])
     );
 
     // string -> String
@@ -450,13 +428,7 @@ topic other_topic_3:
             | Other topic 3 instructions
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'start_agent'
-    )!;
-
-    // Should be a router node
-    expect(node.type).toBe('router');
-    const routerNode = node as RouterNode;
+    const routerNode = findNode(output, 'start_agent', 'router');
 
     expect(routerNode.developer_name).toBe('start_agent');
     expect(routerNode.label).toBe('Start Agent');
@@ -464,7 +436,7 @@ topic other_topic_3:
 
     // Should have model configuration
     expect(routerNode.model_configuration).toBeDefined();
-    expect(routerNode.model_configuration.model_ref).toBe(
+    expect(routerNode.model_configuration!.model_ref).toBe(
       'sfdc_ai__DefaultEinsteinHyperClassifier'
     );
 
@@ -534,12 +506,8 @@ topic support:
             | Provide support
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(output, 'router', 'router');
 
-    expect(node).toBeDefined();
-    expect(node.type).toBe('router');
     expect(node.model_configuration).toBeUndefined();
 
     // Should have an error about missing URI scheme
@@ -610,6 +578,54 @@ start_agent main:
 // ---------------------------------------------------------------------------
 
 describe('reasoning block compilation with Template instructions', () => {
+  it('rejects assignment to the session user system variable', () => {
+    const { diagnostics } = compile(
+      parseSource(`
+config:
+    agent_name: "TestBot"
+
+start_agent main:
+    description: "Session identity"
+    reasoning:
+        instructions: ->
+            set @system_variables.user_id = "spoofed"
+            | Answer the request.
+`)
+    );
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: DiagnosticSeverity.Error,
+          message: 'Cannot resolve variable name from expression',
+        }),
+      ])
+    );
+  });
+
+  it('reads session identity from the system namespace in reasoning instructions', () => {
+    const { output } = compile(
+      parseSource(`
+config:
+    agent_name: "TestBot"
+
+start_agent main:
+    description: "Session identity"
+    reasoning:
+        instructions: ->
+            | Session user: {!@system_variables.user_id}
+`)
+    );
+    const node = findNode(output, 'main', 'subagent');
+    expect(node.focus_prompt).toBe(`{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`);
+    const instructionAction = node.before_reasoning_iteration![0] as Action;
+    expect(instructionAction.state_updates).toEqual([
+      {
+        [AGENT_INSTRUCTIONS_VARIABLE]:
+          'template::\nSession user: {{system.user_id}}',
+      },
+    ]);
+  });
+
   it('should compile template instructions into focus_prompt + BRI', () => {
     const source = `
 config:
@@ -622,15 +638,11 @@ start_agent TemplateInstructionsTopic:
             | Direct template instructions without Procedure wrapper.
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TemplateInstructionsTopic'
-    )!;
+    const node = findNode(output, 'TemplateInstructionsTopic', 'subagent');
 
-    expect(node.developer_name).toBe('TemplateInstructionsTopic');
     expect(node.label).toBe('Template Instructions Topic');
     expect(node.description).toBe('Template test');
-    expect(node.type).toBe('subagent');
-    expect((node as SubAgentNode).reasoning_type).toBe('salesforce.default');
+    expect(node.reasoning_type).toBe('salesforce.default');
 
     // Focus prompt uses state variable for dynamic instructions
     expect(node.focus_prompt).toBe(`{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`);
@@ -665,9 +677,7 @@ start_agent MultiLineTopic:
             | third line
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'MultiLineTopic'
-    )!;
+    const node = findNode(output, 'MultiLineTopic', 'subagent');
 
     // A single folded action, regardless of the number of | lines: the
     // unconditional reset + append collapse into one assignment.
@@ -715,9 +725,7 @@ start_agent ProceduralTopic:
             | outro line two
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'ProceduralTopic'
-    )!;
+    const node = findNode(output, 'ProceduralTopic', 'subagent');
     const bri = node.before_reasoning_iteration!;
 
     const PREFIX = `template::{{state.${AGENT_INSTRUCTIONS_VARIABLE}}}`;
@@ -776,10 +784,10 @@ describe('instruction append merging across procedural directives', () => {
 
   function compileMain(source: string): SubAgentNode {
     const { output, diagnostics } = compile(parseSource(source));
-    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
-    return output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )! as SubAgentNode;
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toHaveLength(0);
+    return findNode(output, 'main', 'subagent');
   }
 
   const HEAD = `
@@ -970,15 +978,15 @@ variables:
 
   function mainBri(source: string): Action[] {
     const { output, diagnostics } = compile(parseSource(source));
-    expect(diagnostics.filter(d => d.severity === 0)).toHaveLength(0);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toHaveLength(0);
+    const node = findNode(output, 'main', 'subagent');
     return (node.before_reasoning_iteration ?? []) as Action[];
   }
 
   const instructionValue = (a: Action): string | undefined =>
-    a.state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE];
+    a.state_updates?.[0]?.[AGENT_INSTRUCTIONS_VARIABLE] as string | undefined;
 
   it('folds an unconditional reset + first unconditional append into one assignment', () => {
     const bri = mainBri(`${HEAD}

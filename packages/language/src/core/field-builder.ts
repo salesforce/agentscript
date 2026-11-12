@@ -24,6 +24,7 @@ import { createDiagnostic, DiagnosticSeverity } from './diagnostics.js';
 import type { Diagnostic } from './diagnostics.js';
 import type { Statement } from './statements.js';
 import { IfStatement, RunStatement } from './statements.js';
+import type { ReleaseStage } from './gates.js';
 
 export type { ConstraintMetadata, FieldMetadata } from './types.js';
 
@@ -76,6 +77,28 @@ export interface BuilderMethods<
     opts?: { since?: string; removeIn?: string; replacement?: string }
   ): ConstrainedBuilder<S, V, F>;
   experimental(): ConstrainedBuilder<S, V, F>;
+  /**
+   * Gate the whole field/block behind a feature gate at a release stage
+   * (default `'beta'`). When the resolved gate set (injected by the consumer)
+   * does not open `id`, authoring the field produces a `gated-feature` lint
+   * error; when it does, a `pre-release-feature` notice. Gates are only
+   * checked at schema keys; passing a gated type into another type (e.g.
+   * `union`, `ExpressionSequence`) throws. See gates.ts.
+   */
+  gatedBy(id: string, stage?: ReleaseStage): ConstrainedBuilder<S, V, F>;
+  /**
+   * Gate a single accepted value behind a feature gate at a release stage
+   * (default `'beta'`). Multiple calls accumulate. Use when only certain values
+   * of a field are gated rather than the whole field. Only string values are
+   * matched (a quoted string, bare word, or `|` template without
+   * interpolations); boolean and number literals and entries of list values
+   * are not checked.
+   */
+  gatedValue(
+    value: string,
+    id: string,
+    stage?: ReleaseStage
+  ): ConstrainedBuilder<S, V, F>;
   required(): ConstrainedBuilder<S, V, F>;
   accepts(kinds: string[]): ConstrainedBuilder<S, V, F>;
   /**
@@ -366,6 +389,16 @@ export function addBuilderMethods<
         opts?: { since?: string; removeIn?: string; replacement?: string }
       ) => withMeta({ deprecated: { message: msg, ...opts } });
       target.experimental = () => withMeta({ experimental: true });
+      target.gatedBy = (id: string, stage: ReleaseStage = 'beta') =>
+        withMeta({ gatedBy: { id, stage } });
+      target.gatedValue = (
+        value: string,
+        id: string,
+        stage: ReleaseStage = 'beta'
+      ) =>
+        withMeta({
+          gatedValues: { ...meta.gatedValues, [value]: { id, stage } },
+        });
       target.required = () => withMeta({ required: true });
     }
     target.hidden = () => withMeta({ hidden: true });

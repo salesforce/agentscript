@@ -20,17 +20,31 @@ export const AGENT_INSTRUCTIONS_VARIABLE =
   'AgentScriptInternal_agent_instructions';
 export const SYSTEM_INSTRUCTIONS_VARIABLE =
   'AgentScriptInternal_system_instructions';
+export const CONNECTION_SYSTEM_INSTRUCTIONS_VARIABLE =
+  'AgentScriptInternal_connection_system_instructions';
 export const RUNTIME_CONDITION_VARIABLE = 'AgentScriptInternal_condition';
+export const WORKFLOW_CONDITION_VARIABLE =
+  'AgentScriptInternal_workflow_condition';
 
 /**
- * Returns the per-chain-link condition variable name for slot `idx`.
- * Used by `else if` chain compilation: each chain link writes to its own
- * variable so prior links' truth values stay stable when subsequent links
- * write into their own slots. Slot indices are 1-based and shared across
- * multiple chains within the same node.
+ * Returns the condition variable name for slot `idx` (1-based). A subagent
+ * `if` stores its condition in the slot for its nesting depth within the
+ * node; an `else if` is an `if` nested in the `else`, so it takes the next
+ * slot.
  */
-export function chainConditionVariableName(idx: number): string {
+export function conditionVariableName(idx: number): string {
   return `${RUNTIME_CONDITION_VARIABLE}_${idx}`;
+}
+
+/**
+ * Returns the condition variable name for a workflow `if` at nesting `depth`
+ * (1 for a top-level `if`). Workflow conditions are stored before an `ask for`
+ * or `|` line may pause the workflow across turns, so they live apart from the
+ * `conditionVariableName` slots that subagent hooks and the workflow's
+ * `on_init` rewrite.
+ */
+export function workflowConditionVariableName(depth: number): string {
+  return `${WORKFLOW_CONDITION_VARIABLE}_${depth}`;
 }
 
 export const EMPTY_TOPIC_VALUE = '"__EMPTY__"';
@@ -127,24 +141,51 @@ export const SYSTEM_INSTRUCTION_STATE_VARIABLE: InternalStateVariable = {
   visibility: 'Internal',
 };
 
+export const CONNECTION_SYSTEM_INSTRUCTION_STATE_VARIABLE: InternalStateVariable =
+  {
+    developer_name: CONNECTION_SYSTEM_INSTRUCTIONS_VARIABLE,
+    label: 'Connection System Instructions',
+    description: 'Dynamic connection system instructions for the current turn',
+    data_type: 'string',
+    is_list: false,
+    default: "''",
+    visibility: 'Internal',
+  };
+
 /**
- * Build the state-variable declaration for the n-th condition slot. Slot 1
- * is used by plain `if`/`else` (sequential plain ifs reuse it); slots 2..N
- * are allocated for `else if` chain links.
+ * Build the state-variable declaration for the condition slot at nesting
+ * `idx`. Sibling `if`s reuse a slot; nested `if`s and `else if` links take
+ * the slots above their enclosing `if`.
  *
  * Declared on demand by the agent_version assembler based on the maximum
  * slot index observed across the agent.
  */
-export function chainConditionStateVariable(
-  idx: number
-): InternalStateVariable {
+export function conditionStateVariable(idx: number): InternalStateVariable {
   return {
-    developer_name: chainConditionVariableName(idx),
+    developer_name: conditionVariableName(idx),
     label: `Runtime Condition ${idx}`,
     description:
       idx === 1
         ? 'Runtime condition evaluation for if statements'
-        : `Runtime condition evaluation for else-if chain link ${idx}`,
+        : `Runtime condition evaluation for if statements at nesting depth ${idx}`,
+    data_type: 'boolean',
+    is_list: false,
+    visibility: 'Internal',
+  };
+}
+
+/**
+ * Build the state-variable declaration for the workflow condition slot at
+ * nesting `depth`. Declared on demand by the agent_version assembler based on
+ * the deepest workflow `if` observed across the agent.
+ */
+export function workflowConditionStateVariable(
+  depth: number
+): InternalStateVariable {
+  return {
+    developer_name: workflowConditionVariableName(depth),
+    label: `Workflow Condition ${depth}`,
+    description: `Condition of a workflow if at nesting depth ${depth}, stored before its branches run`,
     data_type: 'boolean',
     is_list: false,
     visibility: 'Internal',

@@ -42,11 +42,21 @@
  *   - render-with-input-connection-mismatch     (Error)   a long `@connection.C.inputs.Y` value
  *                                                          names a connection other than the
  *                                                          active one
+ *   - render-with-non-displayable-output        (Warning) a value uses an output not marked
+ *                                                          `is_displayable: True`
+ *   - render-with-component-unsupported-value   (Error)   a lightning web component parameter
+ *                                                          is bound to anything but `@outputs.X`
+ *                                                          or a string/number/boolean literal
+ *   - render-with-component-non-dict-value      (Error)   a schema component isn't bound to an
+ *                                                          inline dict of its parameters
+ *   - render-with-duplicate-render-rule         (Error)   an action definition has more than one
+ *                                                          customer_web_client render rule in a
+ *                                                          subagent
  *
  * Only declared inputs are accepted: you can bind an input or object field only
  * if the script spells it out — any name that isn't declared under a format is
  * reported as unknown, and pointing at a `schema:` URI does not quietly add
- * more allowed names. A messaging component is bound through its wrapper input
+ * more allowed names. A schema component (e.g. a messaging component) is bound through its wrapper input
  * (its nested `fields:` are the sub-keys); when it declares no fields there is
  * nothing to bind, so any binding on it is an unknown input — exactly like
  * binding to any input-less format (see `hasBindableInputs`).
@@ -66,12 +76,12 @@
 import type { LintPass } from '@agentscript/language';
 import {
   defineRule,
-  each,
   attachDiagnostic,
   findSuggestion,
   lintDiagnostic,
   isAstNodeLike,
   decomposeAtMemberChain,
+  forEachExpressionChild,
   inferExpressionType,
   RESERVED_BUILT_IN_RESPONSE_FORMATS,
 } from '@agentscript/language';
@@ -96,6 +106,7 @@ import {
   type ResponseFormatShapeIndex,
   type ConnectionInputsIndex,
 } from './response-format-shape.js';
+import { SCHEMA_COMPONENT_TYPES } from './connection-validation.js';
 
 // ---------------------------------------------------------------------------
 // Type-family compatibility
@@ -252,21 +263,14 @@ function staticLiteral(
  * it needs no `with` binding. Satisfied when any of these hold, to any depth:
  *
  * - it declares a default;
- * - it is an object whose every field is itself satisfied by definition;
- * - it is a list whose element is itself satisfied by definition.
+ * - it is an object whose every field is itself satisfied by definition.
  *
- * A list with a `min_items` floor is the exception: the floor demands real
- * elements, and an element default only describes an element that is not there.
- * Such a list is never satisfied by definition.
+ * A list is satisfied only by its own default. Its element defaults describe an
+ * element, not that one exists, so an unbound list compiles to `null`.
  */
 function isSatisfiedByDefinition(info: RenderInputInfo): boolean {
   if (info.hasDefault) return true;
   if (info.kind === 'object') return allFieldsSatisfied(info.fields);
-  if (info.kind === 'list' && info.element) {
-    const minItems = info.constraints?.minItems;
-    if (minItems !== undefined && minItems > 0) return false;
-    return isSatisfiedByDefinition(info.element);
-  }
   return false;
 }
 
@@ -298,14 +302,21 @@ export function renderWithBindingsRule(): LintPass {
     description:
       'Validates render: `with` bindings against the response format input signature',
     deps: {
-      entry: each(reasoningActionsKey),
+      entries: reasoningActionsKey,
       shapeIndex: responseFormatShapeIndexKey,
       connInputs: connectionInputsIndexKey,
       typeMap: typeMapKey,
     },
 
-    run({ entry, shapeIndex, connInputs, typeMap }) {
-      new BindingValidator(entry, shapeIndex, connInputs, typeMap).validate();
+    run({ entries, shapeIndex, connInputs, typeMap }) {
+      for (const entry of entries) {
+        new BindingValidator(entry, shapeIndex, connInputs, typeMap).validate();
+      }
+      // The client renderer limit applies only to customer_web_client (ecv2)
+      validateAtMostOneRenderRulePerActionDefinition(
+        entries,
+        'customer_web_client'
+      );
     },
   });
 }
@@ -415,8 +426,21 @@ class BindingValidator {
   }
 
   validate(): void {
-    const { statements } = this.entry;
-    if (!statements) return;
+    const renders = BindingValidator.findRenderStatements(this.entry);
+    for (const { render, whenConnection } of renders) {
+      this.validateRender(render, whenConnection);
+    }
+  }
+
+  static findRenderStatements(
+    entry: ReasoningActionEntry
+  ): Array<{ render: Record<string, unknown>; whenConnection: string }> {
+    const renders: Array<{
+      render: Record<string, unknown>;
+      whenConnection: string;
+    }> = [];
+    const { statements } = entry;
+    if (!statements) return renders;
 
     for (const stmt of statements) {
       if (stmt.__kind !== 'WhenStatement') continue;
@@ -433,9 +457,10 @@ class BindingValidator {
       const body = (stmt.body as Array<Record<string, unknown>>) ?? [];
       for (const child of body) {
         if (child.__kind !== 'RenderStatement') continue;
-        this.validateRender(child, connection);
+        renders.push({ render: child, whenConnection: connection });
       }
     }
+    return renders;
   }
 
   private validateRender(
@@ -539,7 +564,27 @@ class BindingValidator {
         if (suggestion !== undefined) suggestedTargets.add(suggestion);
         continue;
       }
-      this.validateValue(stmt.value, info, `format input '${param}'`);
+
+      const label = `format input '${param}'`;
+
+      // Validate that all bound action outputs are marked displayable
+      for (const { reference, output } of findOutputReferences(stmt.value)) {
+        const outputInfo = this.entry.sig.outputs.get(output);
+        if (outputInfo && outputInfo.isDisplayable?.value !== true) {
+          this.reportNonDisplayableOutput(reference, output);
+        }
+      }
+
+      // Validate that a schema component is bound to an inline dict of its
+      // parameters, eg. with comp={param1: <value>, param2: <value>}
+      if (
+        info.schemaComponent &&
+        SCHEMA_COMPONENT_TYPES.includes(info.schemaComponent.type) &&
+        valueKind(stmt.value) !== 'dict'
+      ) {
+        this.reportComponentNonDictValue(stmt.value, label, param);
+      }
+      this.validateValue(stmt.value, info, label);
     }
 
     // Binding is all-or-nothing, but only once the author has opted in: a render
@@ -547,6 +592,18 @@ class BindingValidator {
     // soon as one input is bound, the rest of the required inputs must be too.
     if (bound.size > 0) {
       this.reportMissingRequired(inputs, bound, suggestedTargets, renderRange);
+    }
+  }
+
+  private validateValueIsOutputRefOrLiteral(
+    value: unknown,
+    label: string
+  ): void {
+    const chain = decomposeAtMemberChain(value);
+    const isDirectOutputRef =
+      chain?.namespace === 'outputs' && chain.path.length === 1;
+    if (!isDirectOutputRef && staticLiteral(value) === undefined) {
+      this.reportComponentUnsupportedValue(value, label);
     }
   }
 
@@ -697,11 +754,11 @@ class BindingValidator {
         continue;
       }
 
-      this.validateValue(
-        entry.value,
-        fieldInfo,
-        `field '${keyName}' of ${label}`
-      );
+      const fieldLabel = `field '${keyName}' of ${label}`;
+      if (info.schemaComponent?.type === 'lightning_web_component') {
+        this.validateValueIsOutputRefOrLiteral(entry.value, fieldLabel);
+      }
+      this.validateValue(entry.value, fieldInfo, fieldLabel);
     }
 
     // Required fields omitted from the inline literal.
@@ -1176,11 +1233,127 @@ class BindingValidator {
       )
     );
   }
+
+  private reportNonDisplayableOutput(value: unknown, output: string): void {
+    const range = rangeOf(value);
+    if (!range) return;
+    attachDiagnostic(
+      value as AstNodeLike,
+      lintDiagnostic(
+        range,
+        `Output '${output}' is not displayable: set \`is_displayable: True\` on it`,
+        DiagnosticSeverity.Warning,
+        'render-with-non-displayable-output'
+      )
+    );
+  }
+
+  private reportComponentNonDictValue(
+    value: unknown,
+    label: string,
+    param: string
+  ): void {
+    const range = rangeOf(value);
+    if (!range) return;
+    attachDiagnostic(
+      value as AstNodeLike,
+      lintDiagnostic(
+        range,
+        `${label} must explicitly bind each parameter, e.g. \`with ${param} = {param1: <value>, param2: <value>}\``,
+        DiagnosticSeverity.Error,
+        'render-with-component-non-dict-value'
+      )
+    );
+  }
+
+  private reportComponentUnsupportedValue(value: unknown, label: string): void {
+    const range = rangeOf(value);
+    if (!range) return;
+    attachDiagnostic(
+      value as AstNodeLike,
+      lintDiagnostic(
+        range,
+        `${label} can only be bound to an action output (\`@outputs.<field>\`) or a literal`,
+        DiagnosticSeverity.Error,
+        'render-with-component-unsupported-value'
+      )
+    );
+  }
+}
+
+/**
+ * The client holds one renderer per action definition, so an action definition
+ * can have only one render rule on the connection per subagent.
+ */
+function validateAtMostOneRenderRulePerActionDefinition(
+  entries: readonly ReasoningActionEntry[],
+  connection: string
+): void {
+  const rendersByActionDef = new Map<
+    string,
+    Array<{ entry: ReasoningActionEntry; render: Record<string, unknown> }>
+  >();
+  // Collect each action's renders, keyed by subagent and action definition
+  for (const entry of entries) {
+    if (entry.namespace !== 'actions') continue;
+    const render = BindingValidator.findRenderStatements(entry).find(
+      ({ whenConnection }) => whenConnection === connection
+    )?.render;
+    if (!render) continue;
+
+    const actionDefKey = `${entry.topicName}.${entry.refActionName}`;
+    const renders = rendersByActionDef.get(actionDefKey) ?? [];
+    renders.push({ entry, render });
+    rendersByActionDef.set(actionDefKey, renders);
+  }
+
+  // Flag when the same action definition has multiple render rules per subagent
+  for (const renders of rendersByActionDef.values()) {
+    if (renders.length < 2) continue;
+    for (const { entry, render } of renders) {
+      const range = rangeOf(render.value) ?? rangeOf(render);
+      if (!range) continue;
+      attachDiagnostic(
+        render as AstNodeLike,
+        lintDiagnostic(
+          range,
+          `'${entry.refActionName}' can only have one ${connection} render rule per subagent`,
+          DiagnosticSeverity.Error,
+          'render-with-duplicate-render-rule'
+        )
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Returns every `@outputs.X` in a value, including inside dicts, lists, and
+ * expressions.
+ *
+ * For a drilled `@outputs.X.Y`, the output is `X`.
+ */
+function findOutputReferences(
+  value: unknown,
+  outputRefs: Array<{ reference: AstNodeLike; output: string }> = []
+): Array<{ reference: AstNodeLike; output: string }> {
+  if (!isAstNodeLike(value)) return outputRefs;
+  const chain = decomposeAtMemberChain(value);
+  if (chain) {
+    // A member chain has no nested expressions
+    if (chain.namespace === 'outputs' && chain.path[0] !== undefined) {
+      outputRefs.push({ reference: value, output: chain.path[0] });
+    }
+    return outputRefs;
+  }
+  forEachExpressionChild(value, child =>
+    findOutputReferences(child, outputRefs)
+  );
+  return outputRefs;
+}
 
 /**
  * Reads a WithClause's param-token source range.

@@ -16,13 +16,14 @@ import {
 import type { AstRoot, LintPass, PassStore } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { validateWorkflowActionInputs } from './action-inputs.js';
+import { validateWorkflowDoDirectives } from './do-directives.js';
 import { workflowNameCollisions } from './node-names.js';
 import { validateStepsWorkflow } from './steps-structure.js';
 
 class WorkflowValidationPass implements LintPass {
   readonly id = storeKey('workflow-validation');
   readonly description =
-    'Validates workflow step structure, action input bindings, and node names';
+    'Validates workflow step structure, action input bindings, do directives, and node names';
 
   run(_store: PassStore, root: AstRoot): void {
     const workflows = root.workflow;
@@ -32,6 +33,7 @@ class WorkflowValidationPass implements LintPass {
       if (!isAstNodeLike(rawWorkflow)) continue;
       validateStepsWorkflow(rawWorkflow);
       validateWorkflowActionInputs(rawWorkflow, root.actions);
+      validateWorkflowDoDirectives(rawWorkflow, root.actions);
     }
 
     for (const { workflow, message } of workflowNameCollisions(root)) {
@@ -56,8 +58,13 @@ export function workflowValidationPass(): LintPass {
 
 export { validateStepsWorkflow } from './steps-structure.js';
 export {
+  WORKFLOW_DO_MAX_LENGTH,
+  workflowDoReferenceError,
+} from './do-directives.js';
+export {
   resolveWorkflowAction,
   workflowUnknownActionMessage,
 } from './action-inputs.js';
 export { workflowNameCollisions } from './node-names.js';
 export type { WorkflowNameCollision } from './node-names.js';
+export type { WorkflowDoReferenceError } from './do-directives.js';

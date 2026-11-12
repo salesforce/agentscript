@@ -1,0 +1,327 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "returns_agent",
+    "label": "Returns Agent",
+    "description": "Processes order returns through a workflow with natural-language steps.",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "returns_agent@example.com"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [
+      {
+        "message": "Hello! How can I help with your order?",
+        "message_type": "Welcome"
+      },
+      {
+        "message": "Sorry, something went wrong.",
+        "message_type": "Error"
+      }
+    ],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "order_id",
+        "label": "Order Id",
+        "description": "The order to return",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "''"
+      },
+      {
+        "developer_name": "is_vip",
+        "label": "Is Vip",
+        "description": "Whether the customer is a VIP",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "AgentScriptInternal_workflow_condition_1",
+        "label": "Workflow Condition 1",
+        "description": "Condition of a workflow if at nesting depth 1, stored before its branches run",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_system_instructions",
+        "label": "System Instructions",
+        "description": "Dynamic system instructions for the current turn",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "intent_router",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Route the user to the right place",
+        "tools": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"return_workflow\""
+              }
+            ],
+            "name": "start_return",
+            "description": "Collects order details, processes a return, and confirms."
+          }
+        ],
+        "developer_name": "intent_router",
+        "label": "Intent Router",
+        "action_definitions": [],
+        "instructions": "You are a helpful returns assistant.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nUse start_return when the user wants to return an order."
+              }
+            ]
+          }
+        ],
+        "after_all_tool_calls": [
+          {
+            "type": "handoff",
+            "target": "return_workflow",
+            "enabled": "state.AgentScriptInternal_next_topic==\"return_workflow\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Answer questions about orders",
+        "tools": [],
+        "developer_name": "order_inquiries",
+        "label": "Order Inquiries",
+        "action_definitions": [],
+        "instructions": "You are a helpful returns assistant.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nAnswer questions about order {{state.order_id}}."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "workflow",
+        "developer_name": "return_workflow",
+        "label": "Return Workflow",
+        "steps": [
+          {
+            "name": "collect",
+            "directives": [
+              {
+                "type": "do",
+                "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\nAsk the user for the order to return, then call lookup_order\nto check that the order exists.",
+                "tools": [
+                  {
+                    "type": "action",
+                    "target": "lookup_order",
+                    "name": "lookup_order",
+                    "llm_inputs": [
+                      "orderId"
+                    ]
+                  }
+                ],
+                "developer_name": "return_workflow_collect_do_01"
+              },
+              {
+                "type": "do",
+                "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\nTell the user the status of the order.",
+                "developer_name": "return_workflow_collect_do_02"
+              }
+            ]
+          },
+          {
+            "name": "confirm_and_close",
+            "directives": [
+              {
+                "type": "action",
+                "target": "__state_update_action__",
+                "bound_inputs": {
+                  "condition": "state.is_vip"
+                },
+                "state_updates": [
+                  {
+                    "AgentScriptInternal_workflow_condition_1": "result.condition"
+                  }
+                ],
+                "chat_history_behavior": {
+                  "add_to_chat_history": false
+                },
+                "developer_name": "return_workflow_confirm_and_close_action_01"
+              },
+              {
+                "type": "do",
+                "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\nThank the customer for being a VIP.",
+                "enabled": "state.AgentScriptInternal_workflow_condition_1",
+                "developer_name": "return_workflow_confirm_and_close_do_02"
+              },
+              {
+                "type": "do",
+                "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\nCall process_return for order {{state.order_id}}\nand say the return id back to the user.",
+                "tools": [
+                  {
+                    "type": "action",
+                    "target": "process_return",
+                    "name": "process_return",
+                    "llm_inputs": [
+                      "orderId"
+                    ]
+                  }
+                ],
+                "developer_name": "return_workflow_confirm_and_close_do_03"
+              },
+              {
+                "type": "say",
+                "text": "System Prompt:\n\n{{state.AgentScriptInternal_system_instructions}}\n\nMessage for the system to follow:\n\nYour return has started.",
+                "developer_name": "return_workflow_confirm_and_close_say_04"
+              },
+              {
+                "type": "handoff",
+                "target": "order_inquiries",
+                "developer_name": "return_workflow_confirm_and_close_handoff_05"
+              }
+            ]
+          }
+        ],
+        "on_init": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::You are a helpful returns assistant."
+              }
+            ]
+          }
+        ],
+        "description": "Collects order details, processes a return, and confirms.",
+        "action_definitions": [
+          {
+            "developer_name": "lookup_order",
+            "label": "Lookup Order",
+            "description": "Look up an order by its id.",
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "lookup_order",
+            "input_type": [
+              {
+                "developer_name": "orderId",
+                "label": "Order Id",
+                "description": "Order Id",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "status",
+                "label": "Status",
+                "description": "Status",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ]
+          },
+          {
+            "developer_name": "process_return",
+            "label": "Process Return",
+            "description": "Start a return for an order.",
+            "include_in_progress_indicator": false,
+            "invocation_target_type": "flow",
+            "invocation_target_name": "process_return",
+            "input_type": [
+              {
+                "developer_name": "orderId",
+                "label": "Order Id",
+                "description": "Order Id",
+                "data_type": "String",
+                "is_list": false,
+                "required": true,
+                "is_user_input": false
+              },
+              {
+                "developer_name": "reason",
+                "label": "Reason",
+                "description": "Reason",
+                "data_type": "String",
+                "is_list": false,
+                "required": false,
+                "is_user_input": false
+              }
+            ],
+            "output_type": [
+              {
+                "developer_name": "returnId",
+                "label": "Return Id",
+                "description": "Return Id",
+                "data_type": "String",
+                "is_list": false,
+                "is_used_by_planner": true,
+                "is_displayable": false
+              }
+            ],
+            "require_user_confirmation": true
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true,
+      "system_messages": "[{\"message\": \"Hello! How can I help with your order?\", \"messageType\": \"Welcome\"}, {\"message\": \"Sorry, something went wrong.\", \"messageType\": \"Error\"}]"
+    }
+  }
+}

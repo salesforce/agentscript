@@ -12,7 +12,7 @@
  * are passed in by the caller (lsp-server, lsp-browser, or custom server).
  */
 
-import type { DialectConfig, AstRoot } from '@agentscript/language';
+import type { DialectConfig, AstRoot, Gates } from '@agentscript/language';
 import type { SyntaxNode, Diagnostic } from '@agentscript/types';
 
 export interface LspParser {
@@ -59,6 +59,14 @@ export interface LspConfig {
   parser: LspParser;
   /** Query executor for semantic token highlights. */
   queryExecutor?: QueryExecutor;
+  /**
+   * Resolved feature gates (gate id → open), injected by the host. Gated
+   * fields/values whose gate is not open produce `gated-feature` errors, and
+   * open ones a `pre-release-feature` notice; a gate absent from the map is
+   * treated as closed. Can also be supplied by the client via
+   * `initializationOptions.gates`, which replaces this value when present.
+   */
+  gates?: Gates;
   /** Optional compile hook factory. Only agentforce supports compile. */
   compile?: (dialectName: string) => CompileHook | undefined;
   /** Enable completion provider. Default: true. */

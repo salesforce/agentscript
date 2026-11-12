@@ -294,7 +294,7 @@ start_agent main:
 `;
     const { output } = compile(parseSource(source));
     expect(
-      output.agent_version.modality_parameters.language?.default_locale
+      output.agent_version.modality_parameters?.language?.default_locale
     ).toBe('en_US');
   });
 });

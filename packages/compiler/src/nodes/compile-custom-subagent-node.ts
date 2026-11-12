@@ -13,6 +13,7 @@ import {
 } from '@agentscript/language';
 import type { ProcedureValue } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
+import { isAction } from '../types.js';
 import type { BYONNode, BYOClientConfig, Tool } from '../types.js';
 import type { ParsedTopicLike } from '../parsed-types.js';
 import { extractStringValue, iterateNamedMap } from '../ast-helpers.js';
@@ -161,11 +162,14 @@ export function compileCustomSubagentNode(
   const onExitStmts = extractStatements(
     block.on_exit as ProcedureValue | undefined
   );
+  // on_exit only holds actions, so handoff-producing directives are dropped
+  // (with a warning); the filter narrows the result to Action[].
   const onExit = onExitStmts?.length
     ? compileDeterministicDirectives(onExitStmts, ctx, {
         addNextTopicResetAction: false,
         gateOnNextTopicEmpty: false,
-      })
+        handoffsDisallowedIn: 'on_exit of a custom subagent',
+      }).filter(isAction)
     : null;
 
   const node: BYONNode = {
@@ -193,7 +197,7 @@ export function compileCustomSubagentNode(
   }
 
   if (onExit && onExit.length > 0) {
-    node.on_exit = onExit as BYONNode['on_exit'];
+    node.on_exit = onExit;
   }
 
   ctx.setScriptPath(node, name);

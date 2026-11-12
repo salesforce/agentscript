@@ -1,0 +1,114 @@
+system:
+    instructions: ->
+        | You are a customer support agent for an online store.
+        if @variables.verified:
+            | The customer is signed in and verified.
+
+config:
+    developer_name: "ConnectionConditionalInstructions"
+    agent_label: "Connection Conditional Instructions"
+    description: "Conditional additional_system_instructions next to static and conditional system instructions"
+    file_upload:
+        mode: "managed"
+
+variables:
+    verified: mutable boolean = False
+        description: "Whether the customer is verified"
+    tier: mutable string = "standard"
+        description: "Customer tier"
+    LegalDisclosure: mutable string = "This email may be monitored for quality."
+        description: "Legal disclaimer text"
+    EndUserLanguage: linked string
+        source: @MessagingSession.EndUserLanguage
+        description: "Customer language"
+
+connection service_email:
+    additional_system_instructions: ->
+        | Ignore email signatures and quoted replies.
+        if @variables.EndUserLanguage == "fr":
+            | Reply in French.
+        else:
+            | Reply in the customer's language.
+        if @variables.tier == "gold" or @variables.tier == "platinum":
+            | Offer a callback from a senior agent.
+        else if @variables.LegalDisclosure != "":
+            | End the email with: {!@variables.LegalDisclosure}
+        else:
+            | End the email with the standard sign-off.
+        | Keep the email under 200 words.
+
+connection messaging:
+    additional_system_instructions: ->
+        if @variables.verified:
+            | You may share order and account details.
+        else if @system_variables.current_modality == "voice":
+            | Ask the customer to say their order number to verify their identity.
+        else:
+            | Ask the customer to type their order number to verify their identity.
+
+connection customer_web_client:
+    additional_system_instructions: ->
+        | The customer has a {!@variables.tier} membership.
+        # Verified customers can upload receipts.
+        if not @variables.verified:
+            | Ask the customer to sign in before sharing order details.
+        if @variables.verified:
+            | Use the uploaded receipt to find the order: {!@system_variables.uploaded_files[-1].name}
+
+connection voice:
+    additional_system_instructions: "Speak clearly and avoid reading out links."
+
+connection telephony:
+    additional_system_instructions: ->
+        | Keep answers to one or two sentences.
+
+# Routers get no connection instructions.
+start_agent router:
+    description: "Routes requests"
+
+    model_config:
+        model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
+
+    reasoning:
+        instructions: ->
+            | Route the customer to the right subagent.
+
+        actions:
+            go_to_main: @utils.transition to @subagent.main
+                description: "General support"
+            go_to_billing: @utils.transition to @subagent.billing
+                description: "Billing questions"
+            go_to_returns: @utils.transition to @subagent.returns
+                description: "Returns"
+
+subagent main:
+    description: "General support"
+
+    reasoning:
+        instructions: ->
+            | Assist the customer with their inquiry.
+            if @variables.tier == "gold":
+                | Thank the customer for being a gold member.
+
+subagent billing:
+    description: "Billing questions"
+
+    system:
+        instructions: ->
+            | You are a billing specialist.
+            if @system_variables.current_modality == "voice":
+                | Read amounts out in full, for example "twelve dollars and fifty cents".
+
+    reasoning:
+        instructions: ->
+            | Answer billing questions.
+
+subagent returns:
+    description: "Returns"
+
+    system:
+        instructions: "You are a returns specialist."
+
+    reasoning:
+        instructions: ->
+            | Help the customer return an item.

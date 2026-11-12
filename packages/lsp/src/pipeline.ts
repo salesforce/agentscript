@@ -96,7 +96,7 @@ export function processDocument(
   if (existingService && existingService.dialectConfig.name === dialect.name) {
     service = existingService;
   } else {
-    service = createLanguageService({ dialect });
+    service = createLanguageService({ dialect, gates: config.gates });
   }
 
   // Parse with the injected parser and update the language service

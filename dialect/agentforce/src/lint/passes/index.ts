@@ -10,7 +10,10 @@ import {
   unusedVariablePass,
   decomposeAtMemberExpression,
 } from '@agentscript/language';
-import { defaultRules as agentscriptRules } from '@agentscript/agentscript-dialect';
+import {
+  defaultRules as agentscriptRules,
+  instructionTemplateSyntaxPass,
+} from '@agentscript/agentscript-dialect';
 
 /**
  * Variables the Agentforce runtime reads by name from the messaging session,
@@ -69,6 +72,7 @@ export {
 export { configValidationRule } from './config-validation.js';
 export { variableValidationRule } from './variable-validation.js';
 export { complexDataTypeWarningRule } from './complex-data-type.js';
+export { actionOutputsAllFilteredRule } from './action-outputs-all-filtered.js';
 export { customSubagentValidationRule } from './custom-subagent-validation.js';
 export { adaptiveLanguageValidationRule } from './adaptive-language-validation.js';
 export { governedAdditionalParametersRule } from './governed-additional-parameters.js';
@@ -78,6 +82,9 @@ export {
 } from './voice-language-validation.js';
 export { emptyBlockRule } from './empty-block.js';
 export { recommendedPromptsValidationRule } from './recommended-prompts-validation.js';
+export { workflowBetaNoticeRule } from './workflow-beta-notice.js';
+export { workflowSelfTransitionRule } from './workflow-self-transition.js';
+export { liveExperimentalRule } from './live-experimental.js';
 
 import { actionTargetSchemeRule } from './action-target.js';
 import { executionModeRule } from './execution-mode.js';
@@ -98,6 +105,7 @@ import {
 import { configValidationRule } from './config-validation.js';
 import { variableValidationRule } from './variable-validation.js';
 import { complexDataTypeWarningRule } from './complex-data-type.js';
+import { actionOutputsAllFilteredRule } from './action-outputs-all-filtered.js';
 import { customSubagentValidationRule } from './custom-subagent-validation.js';
 import { adaptiveLanguageValidationRule } from './adaptive-language-validation.js';
 import { governedAdditionalParametersRule } from './governed-additional-parameters.js';
@@ -107,21 +115,31 @@ import {
 } from './voice-language-validation.js';
 import { emptyBlockRule } from './empty-block.js';
 import { recommendedPromptsValidationRule } from './recommended-prompts-validation.js';
+import { workflowBetaNoticeRule } from './workflow-beta-notice.js';
+import { workflowSelfTransitionRule } from './workflow-self-transition.js';
+import { liveExperimentalRule } from './live-experimental.js';
 
 /** All Agentforce lint rules — extends AgentScript rules with security checks. */
 export function defaultRules(): LintPass[] {
-  const baseRules = agentscriptRules().map(rule =>
-    rule.id === 'unused-variable'
-      ? unusedVariablePass({
+  const baseRules = agentscriptRules().map(rule => {
+    switch (rule.id) {
+      case 'unused-variable':
+        return unusedVariablePass({
           overrideMessageForVariable: (name, decl) => {
             const expectedSource = REQUIRED_PLATFORM_VARIABLE_SOURCES.get(name);
             if (!expectedSource) return undefined;
             if (readSourceBinding(decl) !== expectedSource) return undefined;
             return `Variable '${name}' is not used but is required by Agentforce. Removing this variable can cause issues when running the agent.`;
           },
-        })
-      : rule
-  );
+        });
+      case 'instruction-template-syntax':
+        return instructionTemplateSyntaxPass({
+          instructionFields: ['additional_system_instructions'],
+        });
+      default:
+        return rule;
+    }
+  });
   return [
     ...baseRules,
     actionTargetSchemeRule(),
@@ -139,6 +157,7 @@ export function defaultRules(): LintPass[] {
     configValidationRule(),
     variableValidationRule(),
     complexDataTypeWarningRule(),
+    actionOutputsAllFilteredRule(),
     customSubagentValidationRule(),
     adaptiveLanguageValidationRule(),
     governedAdditionalParametersRule(),
@@ -146,5 +165,8 @@ export function defaultRules(): LintPass[] {
     voiceVersionMixingRule(),
     emptyBlockRule(),
     recommendedPromptsValidationRule(),
+    workflowBetaNoticeRule(),
+    workflowSelfTransitionRule(),
+    liveExperimentalRule(),
   ];
 }

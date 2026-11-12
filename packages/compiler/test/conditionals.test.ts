@@ -16,8 +16,8 @@
  * Uses .agent source syntax with parseSource -> compile -> assert pattern.
  */
 import { describe, it, expect } from 'vitest';
-import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { compile, type CompileOptions } from '../src/compile.js';
+import { parseSource, findNode } from './test-utils.js';
 import {
   STATE_UPDATE_ACTION,
   RUNTIME_CONDITION_VARIABLE,
@@ -40,13 +40,11 @@ import {
  */
 function getBriActions(
   source: string,
-  nodeName: string
+  nodeName: string,
+  options?: CompileOptions
 ): (Action | HandOffAction)[] {
-  const { output } = compile(parseSource(source));
-  const node = output.agent_version.nodes.find(
-    n => n.developer_name === nodeName
-  )!;
-  expect(node).toBeDefined();
+  const { output } = compile(parseSource(source), options);
+  const node = findNode(output, nodeName, 'subagent');
   return (node.before_reasoning_iteration ?? []) as (Action | HandOffAction)[];
 }
 
@@ -316,8 +314,8 @@ start_agent main:
 // Python: TestNestedConditionals.test_nested_if_statements_error
 // ---------------------------------------------------------------------------
 
-describe('nested if statements produce error', () => {
-  it('should emit a warning diagnostic for nested if/else', () => {
+describe('nested if/else', () => {
+  it('should compile the nested if/else into its own slot without a warning', () => {
     const source = `
 config:
     agent_name: "TestBot"
@@ -339,17 +337,27 @@ start_agent main:
             | Done
 `;
     const { output, diagnostics } = compile(parseSource(source));
-
-    // Should still compile (nested if is a warning, not a hard error)
     expect(output.agent_version.nodes.length).toBe(1);
 
-    // Should have a diagnostic warning about nested if/else
     const nestedWarning = diagnostics.find(
       d =>
         d.message.toLowerCase().includes('nested') &&
         d.message.toLowerCase().includes('if')
     );
-    expect(nestedWarning).toBeDefined();
+    expect(nestedWarning).toBeUndefined();
+
+    // The inner else reads slot 2, so the outer slot 1 is never clobbered.
+    const bri = getBriActions(source, 'main') as Action[];
+    const slot1Writes = bri.filter(a =>
+      a.state_updates?.some(u => CONDITION_SLOT_1 in u)
+    );
+    expect(slot1Writes).toHaveLength(1);
+    const innerElse = bri.find(
+      a =>
+        typeof a.enabled === 'string' &&
+        a.enabled.includes(`not (state.${RUNTIME_CONDITION_VARIABLE}_2)`)
+    );
+    expect(innerElse?.enabled).toContain(`state.${CONDITION_SLOT_1}`);
   });
 });
 
@@ -429,7 +437,7 @@ start_agent main:
     expect(branchA.enabled).not.toContain('not');
 
     // Branch-b body: gated on slot 1 negated AND slot 2 positive. The shared
-    // (unsuffixed) runtime variable is NOT used by chain links.
+    // (unsuffixed) runtime variable is NOT used by else-if conditions.
     const branchB = bri.find((a: Record<string, unknown>) => {
       const updates = a.state_updates as Array<Record<string, string>>;
       return updates?.some(u => 'seen_b' in u && u['seen_b'] === 'True');
@@ -503,10 +511,10 @@ start_agent main:
     expect(stateVarNames).toContain(`${RUNTIME_CONDITION_VARIABLE}_3`);
   });
 
-  it('should still warn when a real `if` is nested inside an else: branch', () => {
-    // Regression guard: the nested-if check is only suppressed for chain links
-    // (CST type else_if_clause), not for any IfStatement that happens to live
-    // in another IfStatement's orelse.
+  it('should compile a real `if` nested inside an else: branch as a nested if', () => {
+    // Regression guard: only CST else_if_clause links form a chain, not any
+    // IfStatement that happens to live in another IfStatement's orelse. The
+    // nested if gets its own slot, gated under the outer else.
     const source = `
 config:
     agent_name: "TestBot"
@@ -530,8 +538,18 @@ start_agent main:
             | Done
 `;
     const { diagnostics } = compile(parseSource(source));
+    expect(findNestedIfWarning(diagnostics)).toBeUndefined();
 
-    expect(findNestedIfWarning(diagnostics)).toBeDefined();
+    const bri = getBriActions(source, 'main') as Action[];
+    const innerWrite = bri.find(a =>
+      a.state_updates?.some(u => `${RUNTIME_CONDITION_VARIABLE}_2` in u)
+    );
+    expect(innerWrite?.state_updates).toEqual([
+      { [`${RUNTIME_CONDITION_VARIABLE}_2`]: 'state.inner' },
+    ]);
+    const setFlag = bri.find(a => a.state_updates?.some(u => 'flag' in u));
+    expect(setFlag?.enabled).toContain(`not (state.${CONDITION_SLOT_1})`);
+    expect(setFlag?.enabled).toContain(`state.${RUNTIME_CONDITION_VARIABLE}_2`);
   });
 });
 
@@ -705,5 +723,339 @@ start_agent main:
     expect(elseAction.bound_inputs).toEqual({
       event: '"Notification skipped"',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('single-read if inlines its condition into the gate (inlineConditionSlots)', () => {
+  const GATE_ON: CompileOptions = { inlineConditionSlots: true };
+
+  const HEAD = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    loadedTools: mutable boolean = False
+    allowTestDrives: mutable boolean = True
+    Tools: mutable string = ""
+    count: mutable number = 1
+    x: mutable number = 1
+    y: mutable boolean = False
+
+subagent other:
+    description: "Other"
+    reasoning:
+        instructions: ->
+            | Other
+`;
+
+  function compileMain(
+    body: string,
+    block: 'before_reasoning' | 'after_reasoning' = 'before_reasoning',
+    options?: CompileOptions
+  ) {
+    const { output } = compile(
+      parseSource(`${HEAD}
+start_agent main:
+    description: "Test"
+    ${block}:
+${body}
+    reasoning:
+        instructions: ->
+            | Main
+`),
+      { ...GATE_ON, ...options }
+    );
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )! as SubAgentNode;
+    const actions = (node[block] ?? []) as (Action | HandOffAction)[];
+    const slotDeclared = (output.agent_version.state_variables ?? []).some(
+      v => v.developer_name === CONDITION_SLOT_1
+    );
+    return { actions, slotDeclared };
+  }
+
+  const writesSlot = (actions: (Action | HandOffAction)[]) =>
+    actions.some(a =>
+      (a as Action).state_updates?.some(u => CONDITION_SLOT_1 in u)
+    );
+
+  it('gates a lone set on the condition and declares no slot', () => {
+    const { actions, slotDeclared } = compileMain(`
+        if not @variables.loadedTools and @variables.allowTestDrives:
+            set @variables.Tools = @variables.Tools + ", Scheduling a test drive"`);
+
+    expect(writesSlot(actions)).toBe(false);
+    expect(slotDeclared).toBe(false);
+    const set = actions.find(a =>
+      (a as Action).state_updates?.some(u => 'Tools' in u)
+    )!;
+    expect(set.enabled).toContain('state.loadedTools');
+    expect(set.enabled).toContain('state.allowTestDrives');
+    expect(set.enabled).not.toContain(CONDITION_SLOT_1);
+  });
+
+  it('gates a single-target transition on the condition; the handoff still gates on next_topic', () => {
+    const { actions, slotDeclared } = compileMain(`
+        if @variables.y:
+            transition to @subagent.other`);
+
+    expect(writesSlot(actions)).toBe(false);
+    expect(slotDeclared).toBe(false);
+    const setNext = actions.find(a =>
+      (a as Action).state_updates?.some(
+        u => u[NEXT_TOPIC_VARIABLE] === '"other"'
+      )
+    )!;
+    expect(setNext.enabled).toContain('state.y');
+    const handoff = actions.find(a => a.type === 'handoff')!;
+    expect(handoff.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="other"`);
+  });
+
+  it('merges adjacent same-condition instruction appends once the slot writes are gone', () => {
+    const bri = getBriActions(
+      `${HEAD}
+start_agent main:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            if @variables.y:
+                | first
+            if @variables.y:
+                | second
+`,
+      'main',
+      GATE_ON
+    );
+    const appends = bri.filter(a => a.enabled === 'state.y');
+    expect(appends).toHaveLength(1);
+    expect(
+      (appends[0] as Action).state_updates![0][AGENT_INSTRUCTIONS_VARIABLE]
+    ).toContain('first\nsecond');
+  });
+
+  it('keeps the slot when a later body statement would re-read a condition an earlier one mutates', () => {
+    // Inlined, `| still runs` would gate on `count > 0` AFTER count dropped to 0.
+    const bri = getBriActions(
+      `${HEAD}
+start_agent main:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            if @variables.count > 0:
+                set @variables.count = @variables.count - 1
+                | still runs
+`,
+      'main',
+      GATE_ON
+    );
+    expect(writesSlot(bri)).toBe(true);
+    const append = bri.find(a =>
+      (a as Action).state_updates?.some(u => {
+        const value = u[AGENT_INSTRUCTIONS_VARIABLE];
+        return typeof value === 'string' && value.includes('still runs');
+      })
+    )!;
+    expect(append.enabled).toBe(`state.${CONDITION_SLOT_1}`);
+  });
+
+  it('keeps the slot for if/else (the else gate is a second read)', () => {
+    const { actions, slotDeclared } = compileMain(`
+        if @variables.x == 1:
+            set @variables.x = 2
+        else:
+            set @variables.y = True`);
+    expect(writesSlot(actions)).toBe(true);
+    expect(slotDeclared).toBe(true);
+  });
+
+  it('inlines the last else-if link but keeps the head slot its negation reads', () => {
+    const { actions, slotDeclared } = compileMain(`
+        if @variables.x == 1:
+            set @variables.x = 2
+        else if @variables.x == 2:
+            set @variables.y = True`);
+    // The head slot is read twice (its body, and the second link's negation),
+    // so it stays — and that negation keeps the branches exclusive even though
+    // the first body sets x = 2.
+    expect(writesSlot(actions)).toBe(true);
+    expect(slotDeclared).toBe(true);
+    expect(
+      actions.some(a =>
+        (a as Action).state_updates?.some(
+          u => `${RUNTIME_CONDITION_VARIABLE}_2` in u
+        )
+      )
+    ).toBe(false);
+    const second = actions.find(a =>
+      (a as Action).state_updates?.some(u => u['y'] === 'True')
+    )!;
+    expect(second.enabled).toContain(`not (state.${CONDITION_SLOT_1})`);
+    expect(second.enabled).toContain('state.x == 2');
+  });
+
+  it('inlines a nested single-read if but keeps the outer slot', () => {
+    const { actions, slotDeclared } = compileMain(`
+        if @variables.y:
+            if @variables.x == 1:
+                set @variables.count = 0`);
+    // The outer slot is read by both the inner write's gate and the set's.
+    expect(writesSlot(actions)).toBe(true);
+    expect(slotDeclared).toBe(true);
+    const set = actions.find(a =>
+      (a as Action).state_updates?.some(u => 'count' in u)
+    )!;
+    // With the inner write gone, the remaining slot read is the outer condition.
+    expect(set.enabled).toContain(`state.${CONDITION_SLOT_1}`);
+    expect(set.enabled).toContain('state.x == 1');
+  });
+
+  it('inlines a nested if; the sibling after it still gates on the outer slot', () => {
+    // The nested if has its own slot, read only by `set count`, so it inlines.
+    // The outer slot is read by both, so it stays.
+    const { actions } = compileMain(`
+        if @variables.y:
+            if @variables.x == 1:
+                set @variables.count = 0
+            set @variables.loadedTools = True`);
+    const slotWrites = actions.filter(a =>
+      (a as Action).state_updates?.some(u =>
+        Object.keys(u).some(k => k.startsWith(RUNTIME_CONDITION_VARIABLE))
+      )
+    ) as Action[];
+    expect(slotWrites.map(a => a.state_updates)).toEqual([
+      [{ [CONDITION_SLOT_1]: 'state.y' }],
+    ]);
+    const setCount = actions.find(a =>
+      (a as Action).state_updates?.some(u => 'count' in u)
+    )!;
+    expect(setCount.enabled).toContain(`state.${CONDITION_SLOT_1}`);
+    expect(setCount.enabled).toContain('state.x == 1');
+    const setLoaded = actions.find(a =>
+      (a as Action).state_updates?.some(u => 'loadedTools' in u)
+    )!;
+    expect(setLoaded.enabled).toContain(`state.${CONDITION_SLOT_1}`);
+    expect(setLoaded.enabled).not.toContain('state.x');
+  });
+
+  it('gates a run on the condition even when its set writes a variable the condition reads', () => {
+    const { output } = compile(
+      parseSource(`${HEAD}
+start_agent main:
+    description: "Test"
+    actions:
+        validate:
+            description: "Validate"
+            inputs:
+                ref: string
+            outputs:
+                is_valid: boolean
+            target: "flow://Validate"
+    before_reasoning:
+        if @variables.y == False:
+            run @actions.validate
+                with ref=@variables.Tools
+                set @variables.y = @outputs.is_valid
+    reasoning:
+        instructions: ->
+            | Main
+`),
+      GATE_ON
+    );
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )! as SubAgentNode;
+    const actions = (node.before_reasoning ?? []) as (Action | HandOffAction)[];
+    expect(writesSlot(actions)).toBe(false);
+    // The run is one envelope: its gate reads `y` once, before its own
+    // output-driven `set` writes `y`.
+    const run = actions.find(a => a.target === 'validate')! as Action;
+    expect(run.enabled).toContain('state.y == False');
+    expect(run.enabled).not.toContain(CONDITION_SLOT_1);
+    expect(JSON.stringify(run.state_updates)).toContain('is_valid');
+  });
+
+  it('gates an escalate on the condition; the handoff still gates on next_topic', () => {
+    const { actions, slotDeclared } = compileMain(`
+        if @variables.y:
+            escalate`);
+    expect(writesSlot(actions)).toBe(false);
+    expect(slotDeclared).toBe(false);
+    const handoff = actions.find(a => a.type === 'handoff')!;
+    const setNext = actions[actions.indexOf(handoff) - 1];
+    expect(setNext.enabled).toContain('state.y');
+    expect(handoff.enabled).toBe(
+      `state.${NEXT_TOPIC_VARIABLE} == ${(setNext as Action).state_updates![0][NEXT_TOPIC_VARIABLE]}`
+    );
+  });
+
+  it('keeps the slot for end_session (action and handoff both read the gate)', () => {
+    const { actions, slotDeclared } = compileMain(
+      `
+        if @variables.y:
+            end_session`,
+      'after_reasoning'
+    );
+    expect(writesSlot(actions)).toBe(true);
+    expect(slotDeclared).toBe(true);
+  });
+
+  it('keeps the slot a captured file reference gates on (file refs evaluate the gate later)', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+    file_upload:
+        mode: "managed"
+
+variables:
+    y: mutable boolean = False
+
+start_agent main:
+    description: "Test"
+    reasoning:
+        instructions: ->
+            if @variables.y:
+                | Files: {!@system_variables.uploaded_files}
+`;
+    const { output } = compile(parseSource(source), GATE_ON);
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )! as SubAgentNode;
+    const bri = (node.before_reasoning_iteration ?? []) as (
+      | Action
+      | HandOffAction
+    )[];
+    expect(writesSlot(bri)).toBe(true);
+    expect(JSON.stringify(node.file_references)).toContain(CONDITION_SLOT_1);
+  });
+
+  it('leaves the slot in place by default (gate off)', () => {
+    const { actions, slotDeclared } = compileMain(
+      `
+        if @variables.y:
+            set @variables.x = 2`,
+      'before_reasoning',
+      { inlineConditionSlots: false }
+    );
+    expect(writesSlot(actions)).toBe(true);
+    expect(slotDeclared).toBe(true);
+  });
+
+  it('leaves the slot in place with optimize: false even when the gate is on', () => {
+    const { actions, slotDeclared } = compileMain(
+      `
+        if @variables.y:
+            set @variables.x = 2`,
+      'before_reasoning',
+      { optimize: false }
+    );
+    expect(writesSlot(actions)).toBe(true);
+    expect(slotDeclared).toBe(true);
+    const set = actions.find(a =>
+      (a as Action).state_updates?.some(u => 'x' in u)
+    )!;
+    expect(set.enabled).toContain(`state.${CONDITION_SLOT_1}`);
   });
 });

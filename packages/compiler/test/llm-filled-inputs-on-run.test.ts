@@ -15,8 +15,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
-import type { Action } from '../src/types.js';
+import { findNode, isActionTool, parseSource } from './test-utils.js';
+import { isAction } from '../src/types.js';
 import { DiagnosticSeverity } from '@agentscript/types';
 
 /** Head with a `lookup_order` action that has two required inputs. */
@@ -42,21 +42,21 @@ const ACTIONS_BLOCK = `
             target: "flow://Lookup_Order"
 `;
 
-function errors(diagnostics: { severity: number; message: string }[]) {
+function errors<T extends { severity: number }>(diagnostics: T[]): T[] {
   return diagnostics.filter(d => d.severity === DiagnosticSeverity.Error);
 }
 
-function warnings(diagnostics: { severity: number; message: string }[]) {
+function warnings<T extends { severity: number }>(diagnostics: T[]): T[] {
   return diagnostics.filter(d => d.severity === DiagnosticSeverity.Warning);
 }
 
 function mainNode(source: string) {
   const { output, diagnostics } = compile(parseSource(source));
-  const node = output.agent_version.nodes.find(
-    n => n.developer_name === 'main'
-  )!;
+  const node = findNode(output, 'main', 'subagent');
   return { node, diagnostics };
 }
+
+type MainNode = ReturnType<typeof mainNode>['node'];
 
 describe('LLM-filled inputs on deterministic runs raise a compile error', () => {
   it('before_reasoning: `with param = ...` errors and does not reach bound_inputs', () => {
@@ -79,9 +79,9 @@ ${ACTIONS_BLOCK}
     expect(errs[0].message).toContain('order_number');
 
     // The invalid input must NOT land in bound_inputs as a literal "...".
-    const action = (node.before_reasoning ?? []).find(
-      (a: Action) => a.target === 'lookup_order'
-    );
+    const action = (node.before_reasoning ?? [])
+      .filter(isAction)
+      .find(a => a.target === 'lookup_order');
     expect(action).toBeDefined();
     expect(action?.bound_inputs).toEqual({
       customer_id: 'state.customer_id',
@@ -166,6 +166,188 @@ ${ACTIONS_BLOCK}
     expect(errs[0].message).toContain('order_number');
     expect(errs[0].message).toContain('reasoning.actions');
   });
+
+  it.each([
+    [
+      'a ternary',
+      '... if @variables.customer_id == "" else @variables.customer_id',
+    ],
+    ['a binary expression', '... + "-suffix"'],
+    ['a list literal', '[...]'],
+    ['a call argument', 'len(...)'],
+  ])(
+    '`...` nested in %s errors and does not reach bound_inputs',
+    (_, value) => {
+      const { node, diagnostics } = mainNode(`${HEAD}
+start_agent main:
+    description: "Main"
+${ACTIONS_BLOCK}
+    before_reasoning:
+        run @actions.lookup_order
+            with order_number=${value}
+            with customer_id=@variables.customer_id
+    reasoning:
+        instructions: ->
+            | Help the customer.
+`);
+      const errs = errors(diagnostics);
+      expect(errs).toHaveLength(1);
+      expect(errs[0].message).toContain('order_number');
+      expect(errs[0].message).toContain('reasoning.actions');
+
+      const action = (node.before_reasoning ?? [])
+        .filter(isAction)
+        .find(a => a.target === 'lookup_order');
+      expect(action?.bound_inputs).toEqual({
+        customer_id: 'state.customer_id',
+      });
+      // The rejected param must not also get a missing-required-input warning.
+      expect(
+        warnings(diagnostics).filter(w => w.message.includes('Required input'))
+      ).toHaveLength(0);
+    }
+  );
+
+  const NESTED_RUN = `run @actions.lookup_order
+    with order_number=... if @variables.customer_id == "" else @variables.customer_id
+    with customer_id=@variables.customer_id`;
+
+  /** Re-indent `NESTED_RUN` so it sits `spaces` deep in the agent source. */
+  function nestedRun(spaces: number): string {
+    return NESTED_RUN.split('\n')
+      .map(l => ' '.repeat(spaces) + l)
+      .join('\n');
+  }
+
+  it.each([
+    {
+      context: 'after_reasoning',
+      body: `    after_reasoning:
+${nestedRun(8)}
+    reasoning:
+        instructions: ->
+            | Help the customer.`,
+      actions: (n: MainNode) => n.after_reasoning,
+    },
+    {
+      context: 'an if inside after_reasoning',
+      body: `    after_reasoning:
+        if @variables.customer_id != "":
+${nestedRun(12)}
+    reasoning:
+        instructions: ->
+            | Help the customer.`,
+      actions: (n: MainNode) => n.after_reasoning,
+    },
+    {
+      context: 'instructions: ->',
+      body: `    reasoning:
+        instructions: ->
+${nestedRun(12)}
+            | Help the customer.`,
+      actions: (n: MainNode) => n.before_reasoning_iteration,
+    },
+    {
+      context: 'an if inside instructions: ->',
+      body: `    reasoning:
+        instructions: ->
+            if @variables.customer_id != "":
+${nestedRun(16)}
+            | Help the customer.`,
+      actions: (n: MainNode) => n.before_reasoning_iteration,
+    },
+  ])(
+    '$context: `...` nested in a ternary errors at the `...` and does not reach bound_inputs',
+    ({ body, actions }) => {
+      const source = `${HEAD}
+start_agent main:
+    description: "Main"
+${ACTIONS_BLOCK}
+${body}
+`;
+      const { node, diagnostics } = mainNode(source);
+
+      const errs = errors(diagnostics);
+      expect(errs).toHaveLength(1);
+      expect(errs[0].message).toContain('order_number');
+      expect(errs[0].message).toContain('reasoning.actions');
+
+      const lines = source.split('\n');
+      const line = lines.findIndex(l => l.includes('with order_number='));
+      expect(errs[0].range.start.line).toBe(line);
+      expect(errs[0].range.start.character).toBe(lines[line].indexOf('...'));
+
+      const action = (actions(node) ?? [])
+        .filter(isAction)
+        .find(a => a.target === 'lookup_order');
+      expect(action?.bound_inputs).toEqual({
+        customer_id: 'state.customer_id',
+      });
+      expect(
+        warnings(diagnostics).filter(w => w.message.includes('Required input'))
+      ).toHaveLength(0);
+    }
+  );
+
+  it('points the nested-`...` error at the `...` token', () => {
+    const { diagnostics } = mainNode(`${HEAD}
+start_agent main:
+    description: "Main"
+${ACTIONS_BLOCK}
+    before_reasoning:
+        run @actions.lookup_order
+            with order_number=@variables.customer_id if @variables.customer_id != "" else ...
+            with customer_id=@variables.customer_id
+    reasoning:
+        instructions: ->
+            | Help the customer.
+`);
+    const [err] = errors(diagnostics);
+    const line =
+      '            with order_number=@variables.customer_id if @variables.customer_id != "" else ...';
+    expect(err.range.start.character).toBe(line.indexOf('...'));
+    expect(err.range.end.character).toBe(line.indexOf('...') + 3);
+  });
+
+  it('reports one error per clause, at the first `...`, when a value has several', () => {
+    const { diagnostics } = mainNode(`${HEAD}
+start_agent main:
+    description: "Main"
+${ACTIONS_BLOCK}
+    before_reasoning:
+        run @actions.lookup_order
+            with order_number=... + ...
+            with customer_id=@variables.customer_id
+    reasoning:
+        instructions: ->
+            | Help the customer.
+`);
+    const errs = errors(diagnostics);
+    expect(errs).toHaveLength(1);
+    const line = '            with order_number=... + ...';
+    expect(errs[0].range.start.character).toBe(line.indexOf('...'));
+  });
+
+  it('post_tool_call: `...` nested in a ternary on a nested run errors', () => {
+    const { diagnostics } = mainNode(`${HEAD}
+start_agent main:
+    description: "Main"
+${ACTIONS_BLOCK}
+        notify:
+            description: "Notify"
+            target: "flow://Notify"
+    reasoning:
+        instructions: ->
+            | Help the customer.
+        actions:
+            do_notify: @actions.notify
+                run @actions.lookup_order
+                    with order_number=... if @variables.customer_id == "" else @variables.customer_id
+                    with customer_id=@variables.customer_id
+`);
+    expect(errors(diagnostics)).toHaveLength(1);
+    expect(errors(diagnostics)[0].message).toContain('reasoning.actions');
+  });
 });
 
 describe('missing required inputs on deterministic runs warn', () => {
@@ -224,7 +406,9 @@ ${ACTIONS_BLOCK}
                 with customer_id=@variables.customer_id
 `);
     expect(errors(diagnostics)).toHaveLength(0);
-    const tool = (node.tools ?? []).find(t => t.target === 'lookup_order');
+    const tool = (node.tools ?? [])
+      .filter(isActionTool)
+      .find(t => t.target === 'lookup_order');
     expect(tool).toBeDefined();
     expect(tool?.llm_inputs).toEqual(['order_number']);
     expect(tool?.bound_inputs).toEqual({ customer_id: 'state.customer_id' });

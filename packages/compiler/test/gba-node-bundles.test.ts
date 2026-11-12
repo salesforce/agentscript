@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource, checkSchemaConformance } from './test-utils.js';
+import { parseSource, checkSchemaConformance, findNode } from './test-utils.js';
 import { DiagnosticSeverity } from '@agentscript/types';
 
 describe('GBA: Node-level bundles', () => {
@@ -43,25 +43,19 @@ subagent execution:
     );
     expect(errors).toHaveLength(0);
 
-    const executionNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'execution'
-    );
-    expect(executionNode).toBeDefined();
-    expect(executionNode!.bundles).toBeDefined();
-    expect(executionNode!.bundles).toHaveLength(2);
+    const executionNode = findNode(output, 'execution', 'subagent');
+    expect(executionNode.bundles).toBeDefined();
+    expect(executionNode.bundles).toHaveLength(2);
 
-    const bundleNames = executionNode!.bundles!.map(p => p.name);
+    const bundleNames = executionNode.bundles!.map(p => p.name);
     expect(bundleNames).toEqual(['targeting', 'prospecting']);
   });
 
   it('does not add bundles field when not present', () => {
     const { output } = compile(parseSource(source));
 
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    );
-    expect(mainNode).toBeDefined();
-    expect(mainNode!.bundles).toBeUndefined();
+    const mainNode = findNode(output, 'main', 'subagent');
+    expect(mainNode.bundles).toBeUndefined();
   });
 
   it('produces schema-conformant output', () => {
@@ -99,17 +93,13 @@ subagent beta:
     );
     expect(errors).toHaveLength(0);
 
-    const alphaNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'alpha'
-    );
-    const betaNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'beta'
-    );
+    const alphaNode = findNode(output, 'alpha', 'subagent');
+    const betaNode = findNode(output, 'beta', 'subagent');
 
-    expect(alphaNode!.bundles).toBeDefined();
-    expect(alphaNode!.bundles).toHaveLength(1);
-    expect(alphaNode!.bundles![0].name).toBe('bundle_a');
+    expect(alphaNode.bundles).toBeDefined();
+    expect(alphaNode.bundles).toHaveLength(1);
+    expect(alphaNode.bundles![0].name).toBe('bundle_a');
 
-    expect(betaNode!.bundles).toBeUndefined();
+    expect(betaNode.bundles).toBeUndefined();
   });
 });

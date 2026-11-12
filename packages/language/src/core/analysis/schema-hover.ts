@@ -15,6 +15,12 @@
  */
 
 import type { FieldMetadata, KeywordInfo } from '../types.js';
+import type { ReleaseStage } from '../gates.js';
+
+const RELEASE_STAGE_LABELS: Record<ReleaseStage, string> = {
+  pilot: 'Pilot',
+  beta: 'Beta',
+};
 
 /**
  * Interface for navigating the schema tree during hover resolution.
@@ -186,6 +192,23 @@ export function formatSchemaHoverMarkdown(
 
   if (metadata.experimental) {
     parts.push(`\n\n_Experimental_`);
+  }
+
+  if (metadata.gatedBy) {
+    parts.push(`\n\n_${RELEASE_STAGE_LABELS[metadata.gatedBy.stage]}_`);
+  }
+
+  if (metadata.gatedValues) {
+    const entries = Object.entries(metadata.gatedValues);
+    if (entries.length > 0) {
+      const rendered = entries
+        .map(
+          ([value, gate]) =>
+            `\`${value}\` (${RELEASE_STAGE_LABELS[gate.stage]})`
+        )
+        .join(', ');
+      parts.push(`\n\n_Pre-release values:_ ${rendered}`);
+    }
   }
 
   if (modifiers && modifiers.length > 0) {

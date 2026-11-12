@@ -247,6 +247,7 @@ export function NamedBlock<T extends Schema>(
     static readonly isNamed = true as const;
     static readonly allowAnonymous = opts?.allowAnonymous ?? false;
     static readonly scopeAlias = scopeLevel;
+    static readonly isolatedNamespaces = opts?.isolatedNamespaces;
     static readonly colinearType = colinear;
     static readonly hasColinear = hasColinear;
     static readonly hasBody = hasBody;

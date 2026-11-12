@@ -10,6 +10,8 @@
  *
  * The `llm.target`, `actions.target` and trigger `target` fields all embed the
  * shared `AGENTFABRIC_IDENTIFIER_PATTERN` fragment inside their scheme regex.
+ * Only the group id of a fully-qualified `<groupId>/<assetId>/<name>` reference
+ * may start with a digit (group ids are often UUIDs).
  * The framework surfaces mismatches as `constraint-pattern` diagnostics.
  */
 import { describe, it, expect } from 'vitest';
@@ -89,6 +91,11 @@ describe('connection-target identifier pattern', () => {
       'llm://xx',
       'llm://projectA/myConnection',
       'llm://cocacola/projectA/myConnection',
+      'llm://123e4567-e89b-12d3-a456-426614174000/projectA/myConnection',
+      'llm://1abc/projectA/myConnection',
+      'llm://com.acme_corp-1/projectA/myConnection',
+      'llm://_-9./projectA/myConnection',
+      'llm://9/projectA/myConnection',
     ])('accepts %s', target => {
       const result = parseAndLintSource(llmSource(target));
       expect(patternDiagnostics(result.diagnostics)).toHaveLength(0);
@@ -105,6 +112,12 @@ describe('connection-target identifier pattern', () => {
       ['llm://', 'empty identifier'],
       ['llm://a/b/c/d', 'four-segment qualified reference'],
       ['llm://cocacola/projectA/', 'empty element segment'],
+      ['llm:///projectA/myConnection', 'empty group id'],
+      ['llm://my group/projectA/myConnection', 'whitespace in group id'],
+      ['llm://acme@corp/projectA/myConnection', 'invalid char in group id'],
+      ['llm://1abc/myConnection', 'digit prefix on two-segment asset id'],
+      ['llm://cocacola/1abc/myConnection', 'digit prefix on asset id'],
+      ['llm://cocacola/projectA/1abc', 'digit prefix on connection name'],
     ])('rejects %s (%s)', target => {
       const result = parseAndLintSource(llmSource(target));
       const found = patternDiagnostics(result.diagnostics);
@@ -130,6 +143,14 @@ describe('connection-target identifier pattern', () => {
       ['mcp://cocacola/projectA/myConnection', 'mcp:tool'],
       ['a2a://projectA/myAgent', 'a2a:send_message'],
       ['a2a://cocacola/projectA/myAgent', 'a2a:send_message'],
+      [
+        'mcp://123e4567-e89b-12d3-a456-426614174000/projectA/myConnection',
+        'mcp:tool',
+      ],
+      [
+        'a2a://123e4567-e89b-12d3-a456-426614174000/projectA/myAgent',
+        'a2a:send_message',
+      ],
     ])('accepts %s', (target, kind) => {
       const result = parseAndLintSource(actionSource(target, kind));
       expect(patternDiagnostics(result.diagnostics)).toHaveLength(0);
@@ -142,6 +163,7 @@ describe('connection-target identifier pattern', () => {
       ['a2a://', 'a2a:send_message', 'empty identifier'],
       ['mcp://a/b/c/d', 'mcp:tool', 'four-segment qualified reference'],
       ['mcp://cocacola/projectA/', 'mcp:tool', 'empty element segment'],
+      ['mcp://1abc/myConnection', 'mcp:tool', 'digit prefix on asset id'],
     ])('rejects %s (%s / %s)', (target, kind) => {
       const result = parseAndLintSource(actionSource(target, kind));
       expect(patternDiagnostics(result.diagnostics).length).toBeGreaterThan(0);

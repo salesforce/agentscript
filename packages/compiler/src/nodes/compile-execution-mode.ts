@@ -8,6 +8,9 @@
 import type { Tool } from '../types.js';
 import { extractSourcedString } from '../ast-helpers.js';
 import { sourced, type Sourced } from '../sourced.js';
+import type { RunStatement } from '@agentscript/language';
+import { analyzeRunOptions } from '@agentscript/agentforce-dialect';
+import type { CompilerContext } from '../compiler-context.js';
 
 type NonBlockingBehavior = NonNullable<Tool['non_blocking_behavior']>;
 
@@ -21,4 +24,22 @@ export function compileExecutionMode(
     return sourced(behavior.value, behavior.range);
   }
   return undefined;
+}
+
+export function compileRunExecutionMode(
+  stmt: RunStatement,
+  ctx: CompilerContext
+): Sourced<NonBlockingBehavior> | undefined {
+  const { executionMode, diagnostics } = analyzeRunOptions(stmt);
+  for (const diagnostic of diagnostics) {
+    ctx.addDiagnostic(
+      diagnostic.severity,
+      diagnostic.message,
+      diagnostic.range,
+      diagnostic.code
+    );
+  }
+  return diagnostics.length === 0
+    ? compileExecutionMode(executionMode)
+    : undefined;
 }

@@ -17,7 +17,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { findNode, parseSource } from './test-utils.js';
 import { STATE_UPDATE_ACTION } from '../src/constants.js';
 
 describe('supervision (delegation) compilation', () => {
@@ -45,12 +45,10 @@ topic specialist:
             | Handle complex problems
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
     // Should have a supervision tool (not a state update tool)
-    const supervisionTools = node.tools.filter(t => t.type === 'supervision');
+    const supervisionTools = node.tools!.filter(t => t.type === 'supervision');
     expect(supervisionTools.length).toBe(1);
 
     const tool = supervisionTools[0];
@@ -87,11 +85,9 @@ topic specialist:
             | Expert work
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
-    const supervisionTools = node.tools.filter(t => t.type === 'supervision');
+    const supervisionTools = node.tools!.filter(t => t.type === 'supervision');
     expect(supervisionTools.length).toBe(1);
     expect(supervisionTools[0].enabled).toContain('complexity_level');
   });
@@ -120,11 +116,9 @@ topic specialist:
             | Expert work
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
-    const supervisionTools = node.tools.filter(t => t.type === 'supervision');
+    const supervisionTools = node.tools!.filter(t => t.type === 'supervision');
     expect(supervisionTools.length).toBe(1);
     expect(supervisionTools[0].description).toBe(
       'Expert topic for complex problems'
@@ -156,11 +150,9 @@ topic specialist:
             | Expert work
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
-    const supervisionTools = node.tools.filter(t => t.type === 'supervision');
+    const supervisionTools = node.tools!.filter(t => t.type === 'supervision');
     expect(supervisionTools.length).toBe(1);
     expect(supervisionTools[0].description).toBe('Explicit description');
   });
@@ -197,11 +189,9 @@ topic manager:
             | Manager work
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
-    const supervisionTools = node.tools.filter(t => t.type === 'supervision');
+    const supervisionTools = node.tools!.filter(t => t.type === 'supervision');
     expect(supervisionTools.length).toBe(2);
 
     expect(supervisionTools[0].name).toBe('get_specialist_help');
@@ -243,18 +233,16 @@ topic next_step:
             | Next step
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
     // Should have 2 tools: supervision + state update
-    expect(node.tools.length).toBe(2);
+    expect(node.tools!.length).toBe(2);
 
-    const supervisionTools = node.tools.filter(t => t.type === 'supervision');
+    const supervisionTools = node.tools!.filter(t => t.type === 'supervision');
     expect(supervisionTools.length).toBe(1);
     expect(supervisionTools[0].name).toBe('get_specialist_help');
 
-    const transitionTools = node.tools.filter(
+    const transitionTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(transitionTools.length).toBe(1);
@@ -296,9 +284,7 @@ start_agent TestTopic:
             | Topic instructions
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TestTopic'
-    )!;
+    const node = findNode(output, 'TestTopic', 'subagent');
     expect(node.instructions).toBe(
       'topic-level override\n{{system.input_text}}\n{{variables.EndUserId}}\n{{state.StateVariable}}'
     );
@@ -322,9 +308,7 @@ start_agent TestTopic:
             | Topic instructions
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TestTopic'
-    )!;
+    const node = findNode(output, 'TestTopic', 'subagent');
     expect(node.instructions).toBe('Global instructions');
   });
 
@@ -357,9 +341,7 @@ start_agent TestTopic:
             | Test reasoning
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'TestTopic'
-    )!;
+    const node = findNode(output, 'TestTopic', 'subagent');
     expect(node.instructions).toBe(
       'Complex multiline instructions:\n*** Section 1 ***\nImportant guidelines here.\n\n*** Section 2 ***\n1. First point\n2. Second point\n\nFinal instructions.'
     );
@@ -387,9 +369,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
     expect(node.instructions).toBe('Hello {{state.my_var}}');
   });
 });
@@ -410,7 +390,7 @@ start_agent simple:
     const { output } = compile(parseSource(source));
     expect(output.agent_version.nodes.length).toBe(1);
 
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'simple', 'subagent');
     expect(node.developer_name).toBe('simple');
     expect(node.description).toBe('Simple topic description');
   });
@@ -424,7 +404,7 @@ start_agent weather_service_router:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'weather_service_router', 'subagent');
     // snake_case → Title Case
     expect(node.label).toBe('Weather Service Router');
   });
@@ -441,7 +421,7 @@ start_agent simple:
             | Please answer the question
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'simple', 'subagent');
     expect(node.focus_prompt).toBe(
       '{{state.AgentScriptInternal_agent_instructions}}'
     );
@@ -460,7 +440,7 @@ start_agent simple:
         strip_salesforce_instructions: True
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'simple', 'subagent');
     expect(node.strip_salesforce_system_prompt).toBe(true);
   });
 
@@ -475,7 +455,7 @@ start_agent simple:
         strip_salesforce_instructions: False
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'simple', 'subagent');
     expect(node.strip_salesforce_system_prompt).toBe(false);
   });
 
@@ -495,6 +475,9 @@ subagent Other:
 `;
     const { output } = compile(parseSource(source));
     for (const node of output.agent_version.nodes) {
+      if (node.type !== 'subagent') {
+        throw new Error(`unexpected node type '${node.type}'`);
+      }
       expect(node.strip_salesforce_system_prompt).toBe(true);
     }
   });
@@ -513,7 +496,7 @@ start_agent simple:
         strip_salesforce_instructions: False
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'simple', 'subagent');
     expect(node.strip_salesforce_system_prompt).toBe(false);
   });
 
@@ -526,7 +509,7 @@ start_agent simple:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'simple', 'subagent');
     expect(node.strip_salesforce_system_prompt).toBeUndefined();
   });
 });

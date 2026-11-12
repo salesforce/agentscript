@@ -15,7 +15,7 @@
  *
  * Diagnostics: action-unknown-input, action-unknown-output, action-missing-input,
  * workflow-with-ellipsis, workflow-action-missing-input,
- * workflow-action-confirmation-ignored
+ * workflow-unsupported-statement
  */
 
 import type { AstNodeLike, LintPass } from '@agentscript/language';
@@ -69,6 +69,16 @@ export interface ActionIoIssue {
   diagnostic: Diagnostic;
 }
 
+/**
+ * Statements a workflow `run` body can hold. UnknownStatement is already
+ * reported as a parse error.
+ */
+const RUN_BODY_KINDS = new Set<string | undefined>([
+  'WithClause',
+  'SetClause',
+  'UnknownStatement',
+]);
+
 export function analyzeActionIo(inv: ActionInvocation): ActionIoIssue[] {
   const { actionName, sig, statements, actionRefRange, mode } = inv;
   const issues: ActionIoIssue[] = [];
@@ -80,6 +90,21 @@ export function analyzeActionIo(inv: ActionInvocation): ActionIoIssue[] {
     if (!raw || typeof raw !== 'object') continue;
     const stmt = raw as AstNodeLike;
     const cst = stmt.__cst;
+
+    if (mode === 'workflow' && !RUN_BODY_KINDS.has(stmt.__kind) && cst) {
+      issues.push({
+        clause: stmt,
+        diagnostic: lintDiagnostic(
+          cst.range,
+          stmt.__kind === 'Template'
+            ? "A '|' line cannot be inside 'run' in a workflow. Move it to the step body."
+            : "Only 'with' and 'set' clauses can be inside 'run' in a workflow. Move this statement to the step body.",
+          DiagnosticSeverity.Error,
+          'workflow-unsupported-statement'
+        ),
+      });
+      continue;
+    }
 
     if (stmt.__kind === 'WithClause') {
       const param = stmt.param as string;
@@ -159,16 +184,6 @@ export function analyzeActionIo(inv: ActionInvocation): ActionIoIssue[] {
             "Workflow actions have no LLM to fill inputs; bind each one with a 'with' clause.",
           DiagnosticSeverity.Error,
           'workflow-action-missing-input'
-        ),
-      });
-    }
-    if (sig.requireUserConfirmation?.value === true) {
-      issues.push({
-        diagnostic: lintDiagnostic(
-          actionRefRange,
-          `Action '${actionName}' sets 'require_user_confirmation: True', which workflows do not support yet. The action runs without asking for confirmation.`,
-          DiagnosticSeverity.Warning,
-          'workflow-action-confirmation-ignored'
         ),
       });
     }

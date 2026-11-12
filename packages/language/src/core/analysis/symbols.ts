@@ -19,6 +19,7 @@ import { toRange, SymbolKind, isNamedMap, isAstNodeLike } from '../types.js';
 import {
   resolveNamespaceKeys,
   getScopeNavigation,
+  isIsolatedNamespace,
   type ScopeContext,
   type ScopeNavInfo,
   type SchemaContext,
@@ -411,12 +412,14 @@ function resolveNamespace(
           }
         }
 
-        if (!levelSym?.children) break;
-
-        const nsSym = findNamespaceSymbol(levelSym.children, namespace);
+        const nsSym = levelSym?.children
+          ? findNamespaceSymbol(levelSym.children, namespace)
+          : undefined;
         if (nsSym) {
           return (nsSym.children ?? []).map(c => ({ name: c.name, symbol: c }));
         }
+        if (levelSym && isIsolatedNamespace(ctx, level, namespace)) return [];
+        if (!levelSym?.children) break;
 
         currentChildren = levelSym.children;
       }

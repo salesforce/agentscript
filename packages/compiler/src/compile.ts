@@ -8,7 +8,7 @@
 import { VariableDeclarationNode } from '@agentscript/language';
 import type { Range } from '@agentscript/types';
 import type { Diagnostic } from './diagnostics.js';
-import type { AgentDSLAuthoring } from './types.js';
+import type { AgentDSLAuthoring, AgentVersion } from './types.js';
 import type { ParsedAgentforce } from './parsed-types.js';
 import { CompilerContext } from './compiler-context.js';
 import { SCHEMA_VERSION } from './constants.js';
@@ -28,11 +28,19 @@ import { compileContext } from './context/compile-context.js';
 import { agentDslAuthoring, contextConfigurationSchema } from './types.js';
 
 /**
+ * AgentJSON as produced by compile(). The schema also accepts an array of
+ * agent versions, but the compiler always emits exactly one.
+ */
+export type CompiledAgentDSL = Omit<AgentDSLAuthoring, 'agent_version'> & {
+  agent_version: AgentVersion;
+};
+
+/**
  * Result of the compile() function.
  */
 export interface CompileResult {
   /** The AgentJSON output object (plain values — all Sourced<T> unwrapped) */
-  output: AgentDSLAuthoring;
+  output: CompiledAgentDSL;
   /** Source range data for serializer: (object, key) → Range */
   ranges: WeakMap<object, Map<string, Range>>;
   /** Compiler diagnostics (errors, warnings) */
@@ -42,6 +50,12 @@ export interface CompileResult {
 export interface CompileOptions {
   /** Enable to optimize emitted AgentJSON for performance. Default true. */
   optimize?: boolean;
+  /**
+   * Experimental. Inline condition slots that a single gate reads (optimization
+   * 4b), dropping the runtime envelope that snapshots them. Only takes effect
+   * when `optimize` is on. Default false.
+   */
+  inlineConditionSlots?: boolean;
 }
 
 /**
@@ -117,7 +131,7 @@ export function compile(
   const context = compileContext(ast.context, ctx);
 
   // Step 8: Assemble and track output (unwraps Sourced values, records ranges)
-  const output = ctx.track<AgentDSLAuthoring>({
+  const output = ctx.track<CompiledAgentDSL>({
     schema_version: SCHEMA_VERSION,
     global_configuration: globalConfiguration,
     agent_version: agentVersion,
@@ -132,14 +146,7 @@ export function compile(
   if (context) {
     const contextValidation = contextConfigurationSchema.safeParse(context);
     if (contextValidation.success) {
-      const agentVersionOut = output.agent_version as unknown;
-      if (Array.isArray(agentVersionOut)) {
-        if (agentVersionOut.length > 0) {
-          (agentVersionOut[0] as Record<string, unknown>).context = context;
-        }
-      } else {
-        (agentVersionOut as Record<string, unknown>).context = context;
-      }
+      Object.assign(output.agent_version, { context });
     } else {
       ctx.error(
         `Context validation failed: ${contextValidation.error.message}`

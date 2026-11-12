@@ -9,7 +9,12 @@
  * Compile pipeline — parse + lint + compile in one call.
  */
 
-import { parseAndLint, dedupeDiagnostics } from '@agentscript/language';
+import {
+  parseAndLint,
+  dedupeDiagnostics,
+  isGateOpen,
+} from '@agentscript/language';
+import type { Gates } from '@agentscript/language';
 import type { Diagnostic } from '@agentscript/types';
 import { agentforceDialect } from '@agentscript/agentforce-dialect';
 import type { ParsedAgentforce } from '@agentscript/agentforce-dialect';
@@ -35,7 +40,22 @@ export interface AgentforceCompileResult {
   diagnostics: Diagnostic[];
   /** The parsed Document (for mutation, emit, etc.) */
   document: Document;
+  /**
+   * The `inlineConditionSlots` option passed to the compiler: whether
+   * {@link INLINE_CONDITION_SLOTS_GATE} was open. It records the request, not
+   * whether any slot was inlined (scripts without a single-read condition
+   * compile the same either way).
+   */
+  inlineConditionSlots: boolean;
 }
+
+/**
+ * Gate that turns on the compiler's experimental `inlineConditionSlots`
+ * optimization. Open it in `CompileSourceOptions.gates` for the orgs that
+ * should get it.
+ */
+export const INLINE_CONDITION_SLOTS_GATE =
+  'com.salesforce.agentforce.agentscript.inlineConditionSlots';
 
 /**
  * Options for `compileSource()`.
@@ -49,6 +69,15 @@ export interface CompileSourceOptions {
    * range mappings are remapped to the new keys.
    */
   camelCase?: boolean;
+
+  /**
+   * Resolved feature gates for this compile, as a map of gate id → open. The
+   * consumer resolves gates itself and injects the booleans here; the library
+   * stays gate-agnostic. A gate absent from the map is treated as closed.
+   * Drives the authoring/lint diagnostics for gated blocks, fields, and values,
+   * and compiler optimizations such as {@link INLINE_CONDITION_SLOTS_GATE}.
+   */
+  gates?: Gates;
 }
 
 /**
@@ -65,17 +94,25 @@ export function compileSource(
   const parser = getParser();
 
   const tree = parser.parse(source);
-  const parseResult = parseAndLint(tree.rootNode, agentforceDialect);
+  const parseResult = parseAndLint(tree.rootNode, agentforceDialect, {
+    gates: options.gates,
+  });
 
   const document = Document.create(
     parseResult.ast as ParsedAgentforce,
     parseResult.diagnostics,
     parseResult.store,
-    parser
+    parser,
+    options.gates
   );
 
+  const inlineConditionSlots = isGateOpen(
+    options.gates,
+    INLINE_CONDITION_SLOTS_GATE
+  );
   const compileResult: CompileResult = compile(
-    parseResult.ast as ParsedAgentforce
+    parseResult.ast as ParsedAgentforce,
+    { inlineConditionSlots }
   );
 
   // Parse, lint, and compile all run over the same source, so one problem can
@@ -95,7 +132,7 @@ export function compileSource(
       a.range.start.character - b.range.start.character
   );
 
-  let output = compileResult.output;
+  let output: AgentDSLAuthoring = compileResult.output;
   let ranges = compileResult.ranges;
   if (options.camelCase) {
     const converted = snakeKeysToCamel(output, ranges, agentDslAuthoringSchema);
@@ -108,5 +145,6 @@ export function compileSource(
     ranges,
     diagnostics,
     document,
+    inlineConditionSlots,
   };
 }

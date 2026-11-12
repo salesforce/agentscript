@@ -279,7 +279,7 @@ export class MemberExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    return `${this.object.__emit(ctx)}.${this.property}`;
+    return `${emitOperand(this.object, ctx, PRECEDENCE.postfix)}.${this.property}`;
   }
 
   static parse(
@@ -309,7 +309,7 @@ export class SubscriptExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    return `${this.object.__emit(ctx)}[${this.index.__emit(ctx)}]`;
+    return `${emitOperand(this.object, ctx, PRECEDENCE.postfix)}[${this.index.__emit(ctx)}]`;
   }
 
   static parse(
@@ -374,6 +374,96 @@ export class SliceExpression extends ExpressionBase {
   }
 }
 
+/**
+ * Operator precedence, matching the Pratt parser in `@agentscript/parser-javascript`
+ * (higher binds tighter).
+ */
+const PRECEDENCE = {
+  ternary: 0,
+  or: 1,
+  and: 2,
+  not: 3,
+  comparison: 4,
+  additive: 5,
+  multiplicative: 6,
+  unarySign: 7,
+  postfix: 8,
+  atom: 9,
+} as const;
+
+function binaryPrecedence(operator: BinaryOperator): number {
+  switch (operator) {
+    case 'or':
+      return PRECEDENCE.or;
+    case 'and':
+      return PRECEDENCE.and;
+    case '+':
+    case '-':
+      return PRECEDENCE.additive;
+    case '*':
+    case '/':
+      return PRECEDENCE.multiplicative;
+  }
+}
+
+function unaryPrecedence(operator: UnaryOperator): number {
+  return operator === 'not' ? PRECEDENCE.not : PRECEDENCE.unarySign;
+}
+
+function expressionPrecedence(expr: Expression): number {
+  if (expr instanceof TernaryExpression) return PRECEDENCE.ternary;
+  if (expr instanceof BinaryExpression) return binaryPrecedence(expr.operator);
+  if (expr instanceof ComparisonExpression) return PRECEDENCE.comparison;
+  if (expr instanceof UnaryExpression) return unaryPrecedence(expr.operator);
+  return PRECEDENCE.atom;
+}
+
+/**
+ * Emit a child expression, adding parentheses when it binds looser than
+ * `minPrecedence` and the source did not already group it (grouped nodes
+ * emit their own parentheses). A prefix operator that is the whole trailing
+ * operand needs no grouping because nothing follows it: `a == not b` parses
+ * back to the same tree. A non-trailing operand is grouped when it ends in a
+ * prefix operator that would absorb the parent's operator (see
+ * `endsInLooseUnary`).
+ */
+function emitOperand(
+  child: Expression,
+  ctx: EmitContext,
+  minPrecedence: number,
+  trailing = false
+): string {
+  const text = child.__emit(ctx);
+  if (child.__parenthesized) return text;
+  if (trailing && child instanceof UnaryExpression) return text;
+  const loose =
+    expressionPrecedence(child) < minPrecedence ||
+    (!trailing && endsInLooseUnary(child, minPrecedence));
+  return loose ? `(${text})` : text;
+}
+
+/**
+ * True when the rightmost operand of `expr` is an ungrouped prefix operator
+ * that would swallow a following operator of `precedence`:
+ * `(a * not b) + c` must not emit as `a * not b + c`.
+ */
+function endsInLooseUnary(expr: Expression, precedence: number): boolean {
+  if (expr.__parenthesized) return false;
+  if (expr instanceof UnaryExpression) {
+    return (
+      unaryPrecedence(expr.operator) < precedence ||
+      endsInLooseUnary(expr.operand, precedence)
+    );
+  }
+  if (
+    expr instanceof BinaryExpression ||
+    expr instanceof ComparisonExpression
+  ) {
+    return endsInLooseUnary(expr.right, precedence);
+  }
+  return false;
+}
+
 export type BinaryOperator = '+' | '-' | '*' | '/' | 'and' | 'or';
 
 export class BinaryExpression extends ExpressionBase {
@@ -389,7 +479,10 @@ export class BinaryExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    return `${this.left.__emit(ctx)} ${this.operator} ${this.right.__emit(ctx)}`;
+    const prec = binaryPrecedence(this.operator);
+    const left = emitOperand(this.left, ctx, prec);
+    const right = emitOperand(this.right, ctx, prec + 1, true);
+    return this.__group(`${left} ${this.operator} ${right}`);
   }
 
   static parse(
@@ -429,10 +522,11 @@ export class UnaryExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    if (this.operator === 'not') {
-      return `not ${this.operand.__emit(ctx)}`;
-    }
-    return `${this.operator}${this.operand.__emit(ctx)}`;
+    const prec = unaryPrecedence(this.operator);
+    const operand = emitOperand(this.operand, ctx, prec + 1, true);
+    return this.__group(
+      this.operator === 'not' ? `not ${operand}` : `${this.operator}${operand}`
+    );
   }
 
   static parse(
@@ -474,7 +568,16 @@ export class ComparisonExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    return `${this.left.__emit(ctx)} ${this.operator} ${this.right.__emit(ctx)}`;
+    const left = emitOperand(this.left, ctx, PRECEDENCE.comparison);
+    // `x is (not y)` must not collapse into the `is not` operator.
+    const right =
+      this.operator === 'is' &&
+      this.right instanceof UnaryExpression &&
+      this.right.operator === 'not' &&
+      !this.right.__parenthesized
+        ? `(${this.right.__emit(ctx)})`
+        : emitOperand(this.right, ctx, PRECEDENCE.comparison + 1, true);
+    return this.__group(`${left} ${this.operator} ${right}`);
   }
 
   static parse(
@@ -607,7 +710,7 @@ export class CallExpression extends ExpressionBase {
 
   __emit(ctx: EmitContext): string {
     const argsStr = this.args.map(a => a.__emit(ctx)).join(', ');
-    return `${this.func.__emit(ctx)}(${argsStr})`;
+    return `${emitOperand(this.func, ctx, PRECEDENCE.postfix)}(${argsStr})`;
   }
 
   static parse(
@@ -641,7 +744,11 @@ export class TernaryExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    return `${this.consequence.__emit(ctx)} if ${this.condition.__emit(ctx)} else ${this.alternative.__emit(ctx)}`;
+    // Right-associative: only the alternative may be an ungrouped ternary.
+    const consequence = emitOperand(this.consequence, ctx, PRECEDENCE.or);
+    const condition = emitOperand(this.condition, ctx, PRECEDENCE.or);
+    const alternative = emitOperand(this.alternative, ctx, PRECEDENCE.ternary);
+    return this.__group(`${consequence} if ${condition} else ${alternative}`);
   }
 
   static parse(
@@ -703,7 +810,7 @@ export class SpreadExpression extends ExpressionBase {
   }
 
   __emit(ctx: EmitContext): string {
-    return `*${this.expression.__emit(ctx)}`;
+    return `*${emitOperand(this.expression, ctx, PRECEDENCE.postfix)}`;
   }
 
   static parse(

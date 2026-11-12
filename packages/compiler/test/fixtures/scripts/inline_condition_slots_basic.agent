@@ -1,0 +1,33 @@
+system:
+    instructions: "You are a helpful AI assistant."
+
+config:
+    agent_name: "InlineConditionSlotsBasic"
+    agent_type: "AgentforceServiceAgent"
+    default_agent_user: "service_user"
+
+variables:
+    is_vip: mutable boolean = False
+    needs_review: mutable boolean = False
+    priority: mutable string = "normal"
+
+subagent escalations:
+    description: "Handles escalated requests"
+    reasoning:
+        instructions: ->
+            | Handle the escalated request
+
+start_agent main:
+    description: "Single-read conditions are inlined into the gate"
+    before_reasoning:
+        if @variables.is_vip:
+            set @variables.priority = "high"
+        if @variables.needs_review:
+            transition to @subagent.escalations
+    reasoning:
+        instructions: ->
+            if @variables.is_vip:
+                | Greet the customer as a VIP.
+            if @variables.is_vip:
+                | Offer priority support.
+            | How can I help?

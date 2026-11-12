@@ -32,8 +32,17 @@ import {
   isTrailingCommentOnly,
   parseOrphanBlock,
 } from './recovery.js';
-import { parseExpression, wrapExpression, parseString } from './expressions.js';
-import { parseMapping } from './parse-mapping.js';
+import {
+  parseExpression,
+  wrapExpression,
+  parseString,
+  VALID_ESCAPES,
+} from './expressions.js';
+import {
+  isMappingStart,
+  parseMapping,
+  parseMappingItem,
+} from './parse-mapping.js';
 import { parseSequence } from './parse-sequence.js';
 import type { ParserContext } from './parser.js';
 
@@ -83,7 +92,8 @@ export function isStatementStart(ctx: ParserContext): boolean {
 
 export function parseProcedure(
   ctx: ParserContext,
-  parseTemplate?: (ctx: ParserContext) => CSTNode
+  parseTemplate?: (ctx: ParserContext) => CSTNode,
+  allowRunOptions = false
 ): CSTNode {
   const startTok = ctx.peek();
   const node = ctx.startNode('procedure');
@@ -98,7 +108,10 @@ export function parseProcedure(
       break;
     }
 
-    const stmt = parseStatement(ctx, parseTemplate);
+    const stmt =
+      allowRunOptions && !isStatementStart(ctx) && isMappingStart(ctx)
+        ? parseMappingItem(ctx, parseSequence)
+        : parseStatement(ctx, parseTemplate);
     if (stmt) {
       node.appendChild(stmt);
     } else {
@@ -447,7 +460,7 @@ export function parseRunStatement(
     ctx.consume();
     // Comments before procedure body attach to run_statement
     consumeCommentsAndSkipNewlines(ctx, node);
-    const proc = parseProcedure(ctx, parseTemplate);
+    const proc = parseProcedure(ctx, parseTemplate, true);
     if (proc) {
       // If procedure contains an ERROR with `with` keyword (invalid with clause),
       // attach children directly to run_statement so the dialect's
@@ -714,7 +727,7 @@ function parseSayString(ctx: ParserContext): CSTNode {
     if (text[index] === '\\' && index + 1 < contentEnd) {
       flushContent(index);
       const escapeEnd = index + 2;
-      const validEscape = /["'\\nrt0]/.test(text[index + 1]!);
+      const validEscape = VALID_ESCAPES.has(text[index + 1]!);
       if (validEscape) {
         appendLeaf('escape_sequence', index, escapeEnd);
       } else {

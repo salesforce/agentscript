@@ -35,7 +35,11 @@ import { compile } from '../src/compile.js';
 import { snakeKeysToCamel } from '../src/snake-to-camel.js';
 import { agentDslAuthoring } from '../src/types.js';
 import { toParsedAgentforce } from '../test/test-utils.js';
-import { FIXTURES, fixtureBase } from '../test/fixture-pairs.js';
+import {
+  FIXTURES,
+  FIXTURE_COMPILE_OPTIONS,
+  fixtureBase,
+} from '../test/fixture-pairs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,7 +70,10 @@ function regenOne(agentFile: string): 'updated' | 'skipped' {
     console.warn(`SKIP ${agentFile}: dialect parse produced no value`);
     return 'skipped';
   }
-  const compiled = compile(toParsedAgentforce(dialectResult.value));
+  const compiled = compile(
+    toParsedAgentforce(dialectResult.value),
+    FIXTURE_COMPILE_OPTIONS[agentFile]
+  );
   const errs = compiled.diagnostics.filter(
     d => d.severity === DiagnosticSeverity.Error
   );

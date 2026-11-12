@@ -566,9 +566,10 @@ describe('getCompletionCandidates', () => {
     expect(names).toContain('user_input');
     expect(names).toContain('current_modality');
     expect(names).toContain('current_connection');
+    expect(names).toContain('user_id');
     expect(names).toContain('last_reply');
     expect(names).toContain('uploaded_files');
-    expect(candidates).toHaveLength(5);
+    expect(candidates).toHaveLength(6);
   });
 
   test('system_variables.uploaded_files exposes no bare sub-members (reached via subscript)', () => {

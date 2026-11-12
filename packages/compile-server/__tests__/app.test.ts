@@ -11,6 +11,7 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import request from 'supertest';
+import type { AgentforceCompileResult } from '@agentscript/agentforce';
 
 const MOCK_DSL_VERSION = '0.0.3.rc90';
 
@@ -38,11 +39,28 @@ const PACKAGE_VERSION = (
   }
 ).version;
 
+/**
+ * Build a stub compileSource() result. The server only reads `output`,
+ * `diagnostics`, and `inlineConditionSlots`, so the stubs leave the rest empty
+ * and assert the full shape once here instead of building a real Document and
+ * range map.
+ */
+function stubCompileResult(fields: {
+  output: object;
+  diagnostics: object[];
+  inlineConditionSlots?: boolean;
+}): AgentforceCompileResult {
+  return {
+    inlineConditionSlots: false,
+    ...fields,
+    ranges: new WeakMap(),
+    document: {},
+  } as unknown as AgentforceCompileResult;
+}
+
 const SUCCESSFUL_COMPILE_RESULT = {
   output: { agentType: 'External', config: {} },
   diagnostics: [],
-  annotations: {},
-  document: {},
 };
 
 const COMPILE_RESULT_WITH_ERRORS = {
@@ -59,8 +77,6 @@ const COMPILE_RESULT_WITH_ERRORS = {
       source: 'agentscript-schema',
     },
   ],
-  annotations: {},
-  document: {},
 };
 
 const COMPILE_RESULT_WITH_WARNINGS = {
@@ -77,13 +93,13 @@ const COMPILE_RESULT_WITH_WARNINGS = {
       source: 'agentscript-lint',
     },
   ],
-  annotations: {},
-  document: {},
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockCompileSource.mockReturnValue(SUCCESSFUL_COMPILE_RESULT);
+  mockCompileSource.mockReturnValue(
+    stubCompileResult(SUCCESSFUL_COMPILE_RESULT)
+  );
 });
 
 afterEach(() => {
@@ -119,8 +135,85 @@ describe('POST /parseAndCompile — successful compilation', () => {
       syntacticMap: { blocks: [] },
       dslVersion: MOCK_DSL_VERSION,
     });
-    expect(mockCompileSource).toHaveBeenCalledWith('valid source');
+    expect(mockCompileSource).toHaveBeenCalledWith('valid source', {
+      gates: undefined,
+    });
   });
+
+  it('forwards boolean gates to compileSource', async () => {
+    const res = await request(app)
+      .post('/parseAndCompile')
+      .send({
+        assets: [
+          { type: 'AgentScript', name: 'AgentScript', content: 'source' },
+        ],
+        afScriptVersion: '2.1.3',
+        gates: { 'com.example.open': true, 'com.example.closed': false },
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockCompileSource).toHaveBeenCalledWith('source', {
+      gates: { 'com.example.open': true, 'com.example.closed': false },
+    });
+  });
+
+  it('ignores gates that are not a plain object', async () => {
+    const send = (gates: unknown) =>
+      request(app)
+        .post('/parseAndCompile')
+        .send({
+          assets: [
+            { type: 'AgentScript', name: 'AgentScript', content: 'source' },
+          ],
+          afScriptVersion: '2.1.3',
+          gates,
+        });
+
+    await send(['com.example.open']);
+    expect(mockCompileSource).toHaveBeenLastCalledWith('source', {
+      gates: undefined,
+    });
+
+    await send('com.example.open');
+    expect(mockCompileSource).toHaveBeenLastCalledWith('source', {
+      gates: undefined,
+    });
+  });
+
+  it.each([
+    [true, 'compile_succeeded', SUCCESSFUL_COMPILE_RESULT],
+    [false, 'compile_succeeded', SUCCESSFUL_COMPILE_RESULT],
+    [true, 'compile_failed', COMPILE_RESULT_WITH_ERRORS],
+  ])(
+    'logs inline_condition_slots=%s from the compile result on %s',
+    async (inlineConditionSlots, event, compileResult) => {
+      mockCompileSource.mockReturnValue(
+        stubCompileResult({ ...compileResult, inlineConditionSlots })
+      );
+      const stdout = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => undefined);
+      const stderr = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+
+      await request(app)
+        .post('/parseAndCompile')
+        .send({
+          assets: [
+            { type: 'AgentScript', name: 'AgentScript', content: 'source' },
+          ],
+          afScriptVersion: '2.1.3',
+        });
+
+      const entry = [...stdout.mock.calls, ...stderr.mock.calls]
+        .map(([line]) => JSON.parse(String(line)) as { message: string })
+        .find(e => e.message.startsWith(`parseAndCompile.${event}`));
+      expect(entry?.message).toContain(
+        `inline_condition_slots=${inlineConditionSlots}`
+      );
+    }
+  );
 
   it('accepts agentScriptVersion alias', async () => {
     const res = await request(app)
@@ -152,13 +245,17 @@ describe('POST /parseAndCompile — successful compilation', () => {
     expect(res.body.status).toBe('success');
     expect(res.body.compiledArtifact).toBeDefined();
     expect(res.body.dslVersion).toBe(MOCK_DSL_VERSION);
-    expect(mockCompileSource).toHaveBeenCalledWith(agentSource);
+    expect(mockCompileSource).toHaveBeenCalledWith(agentSource, {
+      gates: undefined,
+    });
   });
 });
 
 describe('POST /parseAndCompile — compilation errors', () => {
   it('returns failure when diagnostics contain errors', async () => {
-    mockCompileSource.mockReturnValue(COMPILE_RESULT_WITH_ERRORS);
+    mockCompileSource.mockReturnValue(
+      stubCompileResult(COMPILE_RESULT_WITH_ERRORS)
+    );
 
     const res = await request(app)
       .post('/parseAndCompile')
@@ -184,7 +281,9 @@ describe('POST /parseAndCompile — compilation errors', () => {
   });
 
   it('returns success when only warnings present and excludes them from errors array', async () => {
-    mockCompileSource.mockReturnValue(COMPILE_RESULT_WITH_WARNINGS);
+    mockCompileSource.mockReturnValue(
+      stubCompileResult(COMPILE_RESULT_WITH_WARNINGS)
+    );
 
     const res = await request(app)
       .post('/parseAndCompile')
@@ -216,7 +315,7 @@ describe('POST /parseAndCompile — validation', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(mockCompileSource).toHaveBeenCalledWith('x');
+    expect(mockCompileSource).toHaveBeenCalledWith('x', { gates: undefined });
   });
 
   it('rejects missing version', async () => {
@@ -241,7 +340,7 @@ describe('POST /parseAndCompile — validation', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(mockCompileSource).toHaveBeenCalledWith('x');
+    expect(mockCompileSource).toHaveBeenCalledWith('x', { gates: undefined });
   });
 
   it('rejects multiple assets', async () => {
@@ -427,10 +526,12 @@ describe('logging privacy', () => {
     const stderr = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
-    mockCompileSource.mockReturnValue({
-      ...SUCCESSFUL_COMPILE_RESULT,
-      output: { secret: outputSecret },
-    });
+    mockCompileSource.mockReturnValue(
+      stubCompileResult({
+        ...SUCCESSFUL_COMPILE_RESULT,
+        output: { secret: outputSecret },
+      })
+    );
 
     const res = await request(app)
       .post('/parseAndCompile')
@@ -454,15 +555,17 @@ describe('logging privacy', () => {
     const stderr = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
-    mockCompileSource.mockReturnValue({
-      ...COMPILE_RESULT_WITH_ERRORS,
-      diagnostics: [
-        {
-          ...COMPILE_RESULT_WITH_ERRORS.diagnostics[0],
-          message: `Undefined variable '${diagnosticSecret}'`,
-        },
-      ],
-    });
+    mockCompileSource.mockReturnValue(
+      stubCompileResult({
+        ...COMPILE_RESULT_WITH_ERRORS,
+        diagnostics: [
+          {
+            ...COMPILE_RESULT_WITH_ERRORS.diagnostics[0],
+            message: `Undefined variable '${diagnosticSecret}'`,
+          },
+        ],
+      })
+    );
 
     const res = await request(app)
       .post('/parseAndCompile')

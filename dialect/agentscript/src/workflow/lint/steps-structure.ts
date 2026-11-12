@@ -45,6 +45,27 @@ function authoredFieldRange(
   return undefined;
 }
 
+/**
+ * The statement lists of a workflow's flow: the unnamed `steps:` body, or
+ * the body of each named `step <name>:`.
+ */
+export function workflowStepBodies(workflow: AstNodeLike): AstNodeLike[][] {
+  const bodies: AstNodeLike[][] = [];
+  const unnamed = workflow.steps;
+  if (isAstNodeLike(unnamed) && Array.isArray(unnamed.statements)) {
+    bodies.push(unnamed.statements.filter(isAstNodeLike));
+  }
+  const named = workflow.step;
+  if (isNamedMap(named)) {
+    for (const [, step] of named) {
+      if (isAstNodeLike(step) && Array.isArray(step.statements)) {
+        bodies.push(step.statements.filter(isAstNodeLike));
+      }
+    }
+  }
+  return bodies;
+}
+
 function attachError(
   target: AstNodeLike,
   range: Range,

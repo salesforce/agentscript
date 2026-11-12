@@ -36,7 +36,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
     expect(welcomeMsg).toBeDefined();
@@ -61,7 +61,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const errorMsg = output.agent_version.system_messages.find(
+    const errorMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Error'
     );
     expect(errorMsg).toBeDefined();
@@ -117,7 +117,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
     expect(welcomeMsg).toBeDefined();
@@ -153,7 +153,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
     expect(welcomeMsg).toBeDefined();
@@ -193,10 +193,10 @@ start_agent main:
 `;
     const { output } = compile(parseSource(source));
 
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
-    const errorMsg = output.agent_version.system_messages.find(
+    const errorMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Error'
     );
 
@@ -204,12 +204,12 @@ start_agent main:
     expect(errorMsg).toBeDefined();
 
     // Welcome message should contain multiple lines
-    const welcomeLines = welcomeMsg!.message.split('\n');
+    const welcomeLines = welcomeMsg!.message!.split('\n');
     expect(welcomeLines.length).toBeGreaterThanOrEqual(5);
     expect(welcomeMsg!.message).toContain('Welcome!');
 
     // Error message should contain list items
-    const errorLines = errorMsg!.message.split('\n');
+    const errorLines = errorMsg!.message!.split('\n');
     expect(errorLines.length).toBeGreaterThanOrEqual(5);
     expect(errorMsg!.message).toContain('- Issue 1');
     expect(errorMsg!.message).toContain('- Issue 2');
@@ -233,10 +233,10 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
-    const errorMsg = output.agent_version.system_messages.find(
+    const errorMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Error'
     );
 
@@ -266,7 +266,7 @@ start_agent main:
     );
     expect(systemMsgErrors).toEqual([]);
     // system_messages should be empty or undefined
-    expect(output.agent_version.system_messages.length).toBe(0);
+    expect((output.agent_version.system_messages ?? []).length).toBe(0);
   });
 
   // Python: test__system_messages.TestCompileSystemMessages.test_compile_system_messages_with_instructions_ignored
@@ -289,10 +289,10 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
-    const errorMsg = output.agent_version.system_messages.find(
+    const errorMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Error'
     );
 
@@ -326,13 +326,13 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
 
     expect(welcomeMsg).toBeDefined();
     expect(welcomeMsg!.message).toBe(longWelcome);
-    expect(welcomeMsg!.message.length).toBeGreaterThan(100);
+    expect(welcomeMsg!.message!.length).toBeGreaterThan(100);
   });
 
   // Python: test__system_messages.TestCompileSystemMessages.test_compile_system_messages_unicode_content
@@ -353,7 +353,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
 
@@ -381,10 +381,10 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
-    const errorMsg = output.agent_version.system_messages.find(
+    const errorMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Error'
     );
 
@@ -428,10 +428,10 @@ start_agent main:
     );
     expect(errors).toEqual([]);
 
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
-    const errorMsg = output.agent_version.system_messages.find(
+    const errorMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Error'
     );
 
@@ -469,7 +469,7 @@ start_agent main:
             | Help
 `;
     const { output } = compile(parseSource(source));
-    const welcomeMsg = output.agent_version.system_messages.find(
+    const welcomeMsg = (output.agent_version.system_messages ?? []).find(
       m => m.message_type === 'Welcome'
     );
 

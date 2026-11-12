@@ -1072,4 +1072,122 @@ start_agent main:
       expect(warnings[0].range).toEqual(rangesOf(source, '@inputs').at(-1));
     });
   });
+
+  describe('Workflow do directives', () => {
+    const workflowSource = (stepLines: string[]) =>
+      [
+        'variables:',
+        '  order_id: mutable string',
+        'actions:',
+        '  top_only:',
+        '    description: "Top-level action"',
+        '    target: "flow://top"',
+        'workflow returns:',
+        '  description: "Returns"',
+        '  actions:',
+        '    process_return:',
+        '      description: "Process a return"',
+        '      target: "flow://process_return"',
+        '  step confirm:',
+        ...stepLines,
+      ].join('\n');
+
+    function lintTemplateSyntax(source: string): Diagnostic[] {
+      return lint(source).filter(d => d.code === 'instruction-template-syntax');
+    }
+
+    it('reports bare references as warnings with a replacement', () => {
+      const source = workflowSource([
+        '    | Call @actions.process_return for @variables.order_id',
+      ]);
+
+      expect(lintTemplateSyntax(source)).toEqual([
+        expect.objectContaining({
+          severity: DiagnosticSeverity.Warning,
+          range: rangesOf(source, '@actions.process_return')[0],
+          data: { replacement: '{!@actions.process_return}' },
+        }),
+        expect.objectContaining({
+          severity: DiagnosticSeverity.Warning,
+          range: rangesOf(source, '@variables.order_id')[0],
+          data: { replacement: '{!@variables.order_id}' },
+        }),
+      ]);
+    });
+
+    it('treats only actions of the workflow as bare action references', () => {
+      const source = workflowSource(['    | Do not call @actions.top_only']);
+
+      expect(lintTemplateSyntax(source)).toEqual([]);
+    });
+
+    it('reports a missing exclamation mark', () => {
+      const source = workflowSource(['    | Use {@variables.order_id}']);
+
+      expect(lintTemplateSyntax(source)).toEqual([
+        expect.objectContaining({
+          range: rangesOf(source, '{@variables.order_id}')[0],
+          data: { replacement: '{!@variables.order_id}' },
+        }),
+      ]);
+    });
+
+    it('scans continuation lines, unnamed steps, and if bodies', () => {
+      const source = [
+        'variables:',
+        '  order_id: mutable string',
+        'workflow returns:',
+        '  description: "Returns"',
+        '  steps:',
+        '    | First line',
+        '      uses @variables.order_id',
+        '    if @variables.order_id:',
+        '      | Inside if @variables.order_id',
+        '    else:',
+        '      | Inside else @variables.order_id',
+      ].join('\n');
+
+      expect(lintTemplateSyntax(source).map(d => d.range)).toEqual(
+        rangesOf(source, '@variables.order_id').filter(
+          range => range.start.line !== 7
+        )
+      );
+    });
+
+    it('does not scan directives other than do', () => {
+      const source = workflowSource([
+        '    run @actions.process_return',
+        '    say "Order @variables.order_id"',
+        '    | Done with {!@variables.order_id}',
+      ]);
+
+      expect(lintTemplateSyntax(source)).toEqual([]);
+    });
+
+    it('reports output references in do directives', () => {
+      const source = workflowSource(['    | Say @outputs.result']);
+
+      expect(getOutputReferenceWarnings(lint(source))).toEqual([
+        expect.objectContaining({ range: rangesOf(source, '@outputs')[0] }),
+      ]);
+    });
+
+    it('keeps information severity outside workflows', () => {
+      const source = [
+        'variables:',
+        '  order_id: mutable string',
+        'subagent main:',
+        '  description: "Main"',
+        '  reasoning:',
+        '    instructions: ->',
+        '      | Use @variables.order_id',
+      ].join('\n');
+
+      expect(getTemplateSyntaxInfos(lint(source))).toEqual([
+        expect.objectContaining({
+          data: { replacement: '{!@variables.order_id}' },
+        }),
+      ]);
+    });
+  });
 });

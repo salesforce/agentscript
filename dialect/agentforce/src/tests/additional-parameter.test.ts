@@ -217,6 +217,46 @@ start_agent main:
     expect(warnings).toHaveLength(0);
   });
 
+  it('should warn that ungoverned additional_parameter__ fields are experimental', () => {
+    const source = `
+config:
+    developer_name: "test"
+    additional_parameter__custom_flag: True
+
+start_agent main:
+    description: "desc"
+`;
+    const warnings = runLint(source).filter(
+      d => d.code === 'experimental-additional-parameter'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].message).toBe(
+      'The additional_parameter__custom_flag parameter is experimental.'
+    );
+    expect(warnings[0].range.start.character).toBe(4);
+  });
+
+  it('should not flag governed additional_parameter__ fields as experimental', () => {
+    for (const field of [
+      'additional_parameter__disable_graph_runtime',
+      'additional_parameter__reset_to_initial_node',
+    ]) {
+      const source = `
+config:
+    developer_name: "test"
+    ${field}: True
+
+start_agent main:
+    description: "desc"
+`;
+      const experimental = runLint(source).filter(
+        d => d.code === 'experimental-additional-parameter'
+      );
+      expect(experimental).toHaveLength(0);
+    }
+  });
+
   it('should not include additional_parameter__ fields in completions', () => {
     const source = `
 config:

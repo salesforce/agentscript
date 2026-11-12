@@ -12,22 +12,36 @@
  *   - slack: only adaptive_response_allowed field is allowed; all other fields disallowed
  *   - service_email: no escalation_message; paired outbound_route_name/outbound_route_type
  *   - messaging: all-or-nothing for routing fields; warns if inputs are defined
+ *   - whatsapp_business: warns if inputs are defined (no routing fields required)
  *   - customer_web_client: warns if inputs are defined
  *
  * Diagnostics: connection-disallowed-field, connection-missing-paired-field,
- *              connection-missing-required-fields, connection-field-not-used
+ *              connection-missing-required-fields, connection-field-not-used,
+ *              connection-duplicate-name, unsupported-system-instruction-statement,
+ *              conditional-connection-instructions-input
  */
 
-import type { AstRoot, AstNodeLike, NamedMap } from '@agentscript/language';
+import type {
+  AstRoot,
+  AstNodeLike,
+  NamedMap,
+  Statement,
+} from '@agentscript/language';
 import type { LintPass, PassStore } from '@agentscript/language';
 import {
   storeKey,
   isNamedMap,
   isAstNodeLike,
   attachDiagnostic,
+  computeRanges,
+  decomposeAtMemberChain,
+  IfStatement,
   lintDiagnostic,
+  walkAstExpressions,
 } from '@agentscript/language';
+import { validateStatements } from '@agentscript/agentscript-dialect';
 import { DiagnosticSeverity } from '@agentscript/types';
+import type { Range } from '@agentscript/types';
 import { ConnectionBlock } from '../../schema.js';
 import { VALID_SCHEMES } from './action-target.js';
 import {
@@ -36,6 +50,7 @@ import {
   getBaseTypeName,
   declAcceptsFields,
   typeDescriptorProps,
+  parseSchemaComponent,
 } from './response-format-shape.js';
 
 /** Known connection fields from the ConnectionBlock schema. */
@@ -76,8 +91,9 @@ const KNOWN_SYSTEM_TARGET_NAMES: readonly string[] = [
   'MessagingChoicesWithImages',
   'MessagingTimePicker',
   'ESTypeMessage',
-  'MessagingAudio',
   'ClientAction',
+  'MessagingAudio',
+  'MessagingAttachment',
 ];
 
 /**
@@ -239,6 +255,16 @@ function validateMessaging(node: AstNodeLike): void {
   // Warn if inputs field is defined - messaging connections don't use inputs
   if (hasField(node, 'inputs')) {
     fieldNotUsedWarning(node, 'Messaging', 'inputs');
+  }
+}
+
+function validateWhatsAppBusiness(node: AstNodeLike): void {
+  if (!hasAnyField(node)) {
+    missingFieldsError(node, 'whatsapp_business');
+    return;
+  }
+  if (hasField(node, 'inputs')) {
+    fieldNotUsedWarning(node, 'WhatsApp Business', 'inputs');
   }
 }
 
@@ -531,8 +557,8 @@ function validateResponseFormats(
 
 /**
  * Validate `schema` URIs on response format input declarations.
- * The `messaging_component://` schema type is only allowed at the
- * top level of inputs (not on nested sub-fields).
+ * Component schema types ({@link SCHEMA_COMPONENT_TYPE_RULES}) are only allowed at
+ * the top level of inputs (not on nested sub-fields).
  */
 function validateInputSchemaURIs(
   inputs: NamedMap<unknown>,
@@ -566,13 +592,19 @@ function validateInputSchemaURIs(
     // Validate schema on top-level input
     validateSchemaField(props, paramName, formatNode, true, connectionType);
 
-    // Messaging component parameters must declare a default value (e.g. `field: type = @variables.x`).
-    if (isMessagingComponentInput(props)) {
-      validateMessagingComponentDefaults(props, formatNode);
-    }
-
     // Recurse into the nested sub-fields under `fields:`
+    const diagnosticCount = formatNode.__diagnostics?.length ?? 0;
     validateNestedSchemaFields(props, formatNode, connectionType);
+
+    // Drop missing-fields warnings on a schema component's fields: the
+    // component's schema owns their shape, not `fields:`
+    if (hasSupportedComponentSchema(props) && formatNode.__diagnostics) {
+      formatNode.__diagnostics = formatNode.__diagnostics.filter(
+        (d, i) =>
+          i < diagnosticCount ||
+          d.code !== 'response-format-object-missing-fields'
+      );
+    }
   }
 
   // An input block with a `schema` field must be the only input block in the format.
@@ -601,26 +633,12 @@ function validateSchemaInputIsExclusive(
       formatNode,
       lintDiagnostic(
         cst.range,
-        `Input '${paramName}' declares a schema and must the only input in this response format.`,
+        `Input '${paramName}' declares a schema and must be the only input in this response format.`,
         DiagnosticSeverity.Error,
         'response-format-schema-input-not-exclusive'
       )
     );
   }
-}
-
-/**
- * True when an input's `schema` field is a `messaging_component://<name>` URI.
- * Requires a non-empty path, matching how the compiler detects messaging
- * components (scheme `messaging_component` + a definition name).
- */
-function isMessagingComponentInput(props: AstNodeLike): boolean {
-  if (!isAstNodeLike(props.schema)) return false;
-  const value = props.schema.value;
-  if (typeof value !== 'string') return false;
-
-  const parts = value.split('://');
-  return parts[0] === 'messaging_component' && !!parts[1];
 }
 
 /**
@@ -643,8 +661,8 @@ function validateFieldsPlacement(
   const hasFields = isNamedMap(fieldsMap) && fieldsMap.size > 0;
 
   if (acceptsFields) {
-    // Messaging components describe their shape via `schema:` instead of `fields:`.
-    if (props && isMessagingComponentInput(props)) return;
+    // Schema components describe their shape via `schema:` instead of `fields:`
+    if (hasSupportedComponentSchema(props)) return;
     if (!hasFields) {
       attachDiagnostic(
         formatNode,
@@ -706,33 +724,6 @@ function validateListHasValue(
   );
 }
 
-/**
- * Validate that every parameter of a messaging-component input declares a
- * default value. The default supplies the value passed to the component, so a
- * parameter without one (e.g. `field: date`) is an error.
- */
-function validateMessagingComponentDefaults(
-  props: AstNodeLike,
-  formatNode: AstNodeLike
-): void {
-  for (const [key, decl] of iterateFieldDeclarations(props)) {
-    if (decl.defaultValue != null) continue;
-
-    const cst = decl.__cst;
-    if (!cst) continue;
-
-    attachDiagnostic(
-      formatNode,
-      lintDiagnostic(
-        cst.range,
-        `Messaging component parameter '${key}' must have a default value (e.g. '${key}: <type> = <value>').`,
-        DiagnosticSeverity.Error,
-        'response-format-messaging-component-missing-default'
-      )
-    );
-  }
-}
-
 /** Expression kinds accepted as primitive literals inside a list default. */
 const PRIMITIVE_LITERAL_KINDS = new Set([
   'StringLiteral',
@@ -792,8 +783,8 @@ function validateListDefaultValues(
 
 /**
  * Walk nested sub-field declarations to validate `fields:` placement and their
- * schema URIs with isTopLevel=false (messaging_component:// is only valid at
- * the top level).
+ * schema URIs with isTopLevel=false (schema components are only valid at the
+ * top level).
  */
 function validateNestedSchemaFields(
   props: AstNodeLike,
@@ -815,7 +806,6 @@ function validateNestedSchemaFields(
   }
 }
 
-// although we only support schema=messaging_component right now, we may expand in the future.
 function validateSchemaField(
   props: AstNodeLike,
   paramName: string,
@@ -830,14 +820,14 @@ function validateSchemaField(
   const cst = props.schema.__cst;
   if (!cst) return;
 
-  const parts = schemaValue.split('://');
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+  const schemaComponent = parseSchemaComponent(props);
+  if (!schemaComponent) {
     // Invalid structure — not in "type://target" format
     attachDiagnostic(
       formatNode,
       lintDiagnostic(
         cst.range,
-        `Input '${paramName}' has invalid schema URI '${schemaValue}'. Expected format: 'type://target' (e.g., 'messaging_component://MyComponent')`,
+        `Input '${paramName}' has invalid schema URI '${schemaValue}'. Expected format: 'type://target'`,
         DiagnosticSeverity.Error,
         'response-format-invalid-schema-uri'
       )
@@ -845,13 +835,32 @@ function validateSchemaField(
     return;
   }
 
-  // Only messaging_component is currently supported
-  if (parts[0] !== 'messaging_component') {
+  // Check that the component type is supported
+  const { type: schemaComponentType, fqn: schemaComponentFqn } =
+    schemaComponent;
+  const schemaComponentRules = Object.hasOwn(
+    SCHEMA_COMPONENT_TYPE_RULES,
+    schemaComponentType
+  )
+    ? SCHEMA_COMPONENT_TYPE_RULES[schemaComponentType]
+    : undefined;
+  if (!schemaComponentRules) {
+    const supportedComponentTypes = Object.entries(SCHEMA_COMPONENT_TYPE_RULES)
+      .filter(
+        ([, rules]) =>
+          rules.allowedConnectionTypes === 'all' ||
+          rules.allowedConnectionTypes.includes(connectionType)
+      )
+      .map(([type]) => type);
+    const supportedHint =
+      supportedComponentTypes.length > 0
+        ? ` Supported types: ${supportedComponentTypes.join(', ')}.`
+        : ` The '${connectionType}' connection does not support component schemas.`;
     attachDiagnostic(
       formatNode,
       lintDiagnostic(
         cst.range,
-        `Input '${paramName}' has unsupported schema type '${parts[0]}'. Only 'messaging_component' is currently supported.`,
+        `Input '${paramName}' has unsupported schema type '${schemaComponentType}'.${supportedHint}`,
         DiagnosticSeverity.Error,
         'response-format-unsupported-schema-type'
       )
@@ -859,38 +868,265 @@ function validateSchemaField(
     return;
   }
 
-  // messaging_component schemas are only valid on the messaging connection surface
-  if (connectionType !== 'messaging') {
+  // Each component type is only supported on some connection types
+  if (
+    schemaComponentRules.allowedConnectionTypes !== 'all' &&
+    !schemaComponentRules.allowedConnectionTypes.includes(connectionType)
+  ) {
     attachDiagnostic(
       formatNode,
       lintDiagnostic(
         cst.range,
-        `Messaging components can only be used in a messaging connection.`,
+        `The '${connectionType}' connection does not support the '${schemaComponentType}' component type.`,
         DiagnosticSeverity.Error,
-        'response-format-messaging-component-wrong-surface'
+        'response-format-component-wrong-surface'
       )
     );
     return;
   }
 
-  // messaging_component schema is only valid at the top level of inputs
+  // Component schemas are only valid at the top level of inputs
   if (!isTopLevel) {
     attachDiagnostic(
       formatNode,
       lintDiagnostic(
         cst.range,
-        `Input '${paramName}' cannot use '${parts[0]}' schema on a nested field. '${parts[0]}://' is only valid on top-level input fields.`,
+        `Input '${paramName}' has invalid schema placement: '${schemaComponentType}://' is only valid on top-level input fields.`,
         DiagnosticSeverity.Error,
         'response-format-nested-schema'
       )
     );
+    return;
   }
+
+  schemaComponentRules.validator(
+    paramName,
+    schemaComponentFqn,
+    props,
+    formatNode,
+    cst.range
+  );
+}
+
+/**
+ * A response format is the shape that a connection uses to respond. A format
+ * can use an external component as this shape:
+ * - Its single input declares `schema: "<component_type>://<fqn>"`.
+ * - The `fields:` of that input are the component parameters.
+ *
+ * Lint rules for each component type that the `schema:` URI can name:
+ * - `allowedConnectionTypes`: the connection types that support it, or `'all'`
+ *   for every connection (custom connections included).
+ * - `validator`: checks the rules of that type.
+ */
+const SCHEMA_COMPONENT_TYPE_RULES: Record<
+  string,
+  {
+    allowedConnectionTypes: readonly string[] | 'all';
+    validator: (
+      paramName: string,
+      schemaComponentFqn: string,
+      propertiesNode: AstNodeLike,
+      responseFormatNode: AstNodeLike,
+      schemaRange: Range
+    ) => void;
+  }
+> = {
+  messaging_component: {
+    allowedConnectionTypes: ['messaging', 'whatsapp_business'],
+    validator: validateMessagingComponent,
+  },
+  lightning_web_component: {
+    allowedConnectionTypes: ['customer_web_client'],
+    validator: validateLightningWebComponent,
+  },
+};
+
+/**
+ * Component types that a `schema:` URI can name: the keys of
+ * {@link SCHEMA_COMPONENT_TYPE_RULES}. The compiler imports this list.
+ */
+export const SCHEMA_COMPONENT_TYPES: readonly string[] = Object.keys(
+  SCHEMA_COMPONENT_TYPE_RULES
+);
+
+/**
+ * Returns true when an input's `schema:` URI names a supported component type
+ * and a component (`<component_type>://<fqn>`).
+ */
+function hasSupportedComponentSchema(props: AstNodeLike | undefined): boolean {
+  const schemaComponent = parseSchemaComponent(props);
+  return (
+    !!schemaComponent &&
+    Object.hasOwn(SCHEMA_COMPONENT_TYPE_RULES, schemaComponent.type)
+  );
+}
+
+/**
+ * Validates a `messaging_component://` reference:
+ * - every parameter must declare a default value
+ *   (e.g. `field: type = @variables.x`).
+ */
+function validateMessagingComponent(
+  _paramName: string,
+  _schemaComponentFqn: string,
+  propertiesNode: AstNodeLike,
+  responseFormatNode: AstNodeLike
+): void {
+  for (const [key, decl] of iterateFieldDeclarations(propertiesNode)) {
+    if (decl.defaultValue != null) continue;
+
+    const cst = decl.__cst;
+    if (!cst) continue;
+
+    attachDiagnostic(
+      responseFormatNode,
+      lintDiagnostic(
+        cst.range,
+        `Messaging component parameter '${key}' must have a default value (e.g. '${key}: <type> = <value>').`,
+        DiagnosticSeverity.Error,
+        'response-format-messaging-component-missing-default'
+      )
+    );
+  }
+}
+
+const LIGHTNING_WEB_COMPONENT_FQN_PATTERN =
+  /^[A-Za-z](_?[A-Za-z0-9])*__[A-Za-z](_?[A-Za-z0-9])*$/;
+
+/**
+ * Validates a `lightning_web_component://` reference:
+ * - the FQN must be `<namespace>__<devName>`
+ * - every parameter default, including on nested fields, must be a literal
+ *   (no variable, input, or output references)
+ */
+function validateLightningWebComponent(
+  paramName: string,
+  schemaComponentFqn: string,
+  propertiesNode: AstNodeLike,
+  responseFormatNode: AstNodeLike,
+  schemaRange: Range
+): void {
+  if (!LIGHTNING_WEB_COMPONENT_FQN_PATTERN.test(schemaComponentFqn)) {
+    attachDiagnostic(
+      responseFormatNode,
+      lintDiagnostic(
+        schemaRange,
+        `Input '${paramName}' has an invalid lightning_web_component name '${schemaComponentFqn}'. The name must be '<namespace>__<devName>' (e.g., 'acme__MenuCard').`,
+        DiagnosticSeverity.Error,
+        'response-format-invalid-component-fqn'
+      )
+    );
+  }
+
+  validateLightningWebComponentDefaults(propertiesNode, responseFormatNode);
+}
+
+/**
+ * Reports each lightning web component parameter default that is not a
+ * literal, including defaults on nested `fields:` at any depth.
+ *
+ * A list counts as a literal here; `validateListDefaultValues` checks its
+ * elements.
+ */
+function validateLightningWebComponentDefaults(
+  propertiesNode: AstNodeLike,
+  responseFormatNode: AstNodeLike
+): void {
+  for (const [key, decl] of iterateFieldDeclarations(propertiesNode)) {
+    const defaultValue = decl.defaultValue as AstNodeLike | undefined;
+    const cst = defaultValue?.__cst;
+    if (
+      defaultValue &&
+      cst &&
+      !isPrimitiveLiteral(defaultValue) &&
+      defaultValue.__kind !== 'ListLiteral'
+    ) {
+      attachDiagnostic(
+        responseFormatNode,
+        lintDiagnostic(
+          cst.range,
+          `Lightning web component parameter '${key}' only supports literal defaults: a string, number, boolean, None, or a list of these.`,
+          DiagnosticSeverity.Error,
+          'response-format-component-non-literal-default'
+        )
+      );
+    }
+
+    // Recurse into the nested sub-fields under `fields:`
+    const nestedProps = decl.properties as AstNodeLike | undefined;
+    if (nestedProps) {
+      validateLightningWebComponentDefaults(nestedProps, responseFormatNode);
+    }
+  }
+}
+
+/**
+ * Warns on each connection whose name matches an earlier connection's once
+ * letter case and `_` are ignored (e.g. `webchat` after `web_chat`).
+ */
+function validateDuplicateConnectionNames(
+  connections: NamedMap<unknown>
+): void {
+  const firstByNormalizedName = new Map<string, string>();
+  for (const [name, block] of connections) {
+    if (!isAstNodeLike(block)) continue;
+    const normalizedName = name.toLowerCase().replace(/_/g, '');
+    const first = firstByNormalizedName.get(normalizedName);
+    if (first === undefined) {
+      firstByNormalizedName.set(normalizedName, name);
+      continue;
+    }
+    if (!block.__cst) continue;
+    attachDiagnostic(
+      block,
+      lintDiagnostic(
+        computeRanges(block.__cst).selectionRange,
+        `Connection '${name}' duplicates '${first}': connection names that differ only in case or '_' count as the same name.`,
+        DiagnosticSeverity.Warning,
+        'connection-duplicate-name'
+      )
+    );
+  }
+}
+
+/**
+ * Reports every connection input reference in an
+ * additional_system_instructions procedure that has conditionals.
+ *
+ * The runtime resolves connection inputs only in static instructions.
+ */
+function reportInputReferencesInConditionalInstructions(
+  instructions: AstNodeLike,
+  statements: Statement[]
+): void {
+  if (!statements.some(statement => statement instanceof IfStatement)) return;
+  walkAstExpressions(instructions, expr => {
+    const range = expr.__cst?.range;
+    const chain = decomposeAtMemberChain(expr);
+    const isInput =
+      (chain?.namespace === 'inputs' && chain.path.length === 1) ||
+      (chain?.namespace === 'connection' &&
+        chain.path.length === 3 &&
+        chain.path[1] === 'inputs');
+    if (!range || !isInput) return;
+    attachDiagnostic(
+      expr,
+      lintDiagnostic(
+        range,
+        "Connection inputs aren't supported in conditional additional_system_instructions.",
+        DiagnosticSeverity.Error,
+        'conditional-connection-instructions-input'
+      )
+    );
+  });
 }
 
 const CONNECTION_VALIDATORS: Record<string, (node: AstNodeLike) => void> = {
   slack: validateSlack,
   service_email: validateServiceEmail,
   messaging: validateMessaging,
+  whatsapp_business: validateWhatsAppBusiness,
   customer_web_client: validateCustomerWebClient,
 };
 
@@ -902,6 +1138,8 @@ class ConnectionValidationPass implements LintPass {
   run(_store: PassStore, root: AstRoot): void {
     const connections = root.connection;
     if (!isNamedMap(connections)) return;
+
+    validateDuplicateConnectionNames(connections);
 
     for (const [name, block] of connections) {
       if (!isAstNodeLike(block)) continue;
@@ -923,6 +1161,22 @@ class ConnectionValidationPass implements LintPass {
 
       // Validate reasoning.response_actions (applies to all connection types)
       validateReasoningResponseActions(block);
+
+      // Mirror system.instructions' statement rules
+      const additionalSystemInstructions = block.additional_system_instructions;
+      if (
+        isAstNodeLike(additionalSystemInstructions) &&
+        additionalSystemInstructions.__kind === 'ProcedureValue' &&
+        Array.isArray(additionalSystemInstructions.statements)
+      ) {
+        validateStatements(
+          additionalSystemInstructions.statements as Statement[]
+        );
+        reportInputReferencesInConditionalInstructions(
+          additionalSystemInstructions,
+          additionalSystemInstructions.statements as Statement[]
+        );
+      }
     }
   }
 }

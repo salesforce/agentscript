@@ -43,6 +43,7 @@ export {
 } from './schema.js';
 
 export { COMMERCE_SHOPPER_SCHEMA } from './variants/commerce-cloud-shopper.js';
+export { analyzeRunOptions } from './run-options.js';
 export { TABLEAU_ANALYZE_DATA_SCHEMA } from './variants/tableau-analyze-data.js';
 export { BYON_SCHEMA_PREFIX } from './variants/byon.js';
 
@@ -113,6 +114,7 @@ export type ParsedRecommendedPrompts = InferFieldType<
 >;
 
 export { defaultRules } from './lint/passes/index.js';
+export { SCHEMA_COMPONENT_TYPES } from './lint/passes/connection-validation.js';
 
 export { buildSerializedSchema } from './schema-serialize.js';
 export type {

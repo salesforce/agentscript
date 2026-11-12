@@ -15,7 +15,11 @@ import {
 } from '../src/constants.js';
 import { instructionAppendValue } from '../src/nodes/optimize-actions.js';
 import type { Action } from '../src/types.js';
-import { parseSource } from './test-utils.js';
+import {
+  findNode as findCompiledNode,
+  parseSource,
+  type CompiledNodeType,
+} from './test-utils.js';
 
 const CONDITION_SLOT = `${RUNTIME_CONDITION_VARIABLE}_1`;
 
@@ -24,17 +28,21 @@ const CONDITION_SLOT = `${RUNTIME_CONDITION_VARIABLE}_1`;
 // assert the stable pre-optimization shape (separate standalone per-turn
 // reset, one append envelope per branch, condition-slot evaluation as its own
 // action). That keeps them from churning whenever optimization policy changes.
-function findNode(source: string, name: string, options?: CompileOptions) {
+function findNode<T extends CompiledNodeType>(
+  source: string,
+  name: string,
+  type: T,
+  options?: CompileOptions
+) {
   const result = compile(parseSource(source), options);
-  const node = result.output.agent_version.nodes.find(
-    candidate => candidate.developer_name === name
-  );
-  expect(node).toBeDefined();
-  return { result, node: node! };
+  const node = findCompiledNode(result.output, name, type);
+  return { result, node };
 }
 
 function stateUpdate(action: Action, name: string): string | undefined {
-  return action.state_updates?.find(update => name in update)?.[name];
+  return action.state_updates?.find(update => name in update)?.[name] as
+    | string
+    | undefined;
 }
 
 describe('conditional system instructions', () => {
@@ -55,6 +63,7 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
@@ -92,7 +101,7 @@ start_agent main:
     expect(voice?.enabled).toBe(`state.${CONDITION_SLOT}`);
     expect(fallback?.enabled).toBe(`not (state.${CONDITION_SLOT})`);
     expect(
-      result.output.agent_version.state_variables.some(
+      (result.output.agent_version.state_variables ?? []).some(
         variable => variable.developer_name === SYSTEM_INSTRUCTIONS_VARIABLE
       )
     ).toBe(true);
@@ -120,6 +129,7 @@ start_agent main:
                 | Solve in detail.
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
@@ -149,12 +159,13 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
     expect(node.instructions).toBe('Static guidance');
     expect(
-      result.output.agent_version.state_variables.some(
+      (result.output.agent_version.state_variables ?? []).some(
         variable => variable.developer_name === SYSTEM_INSTRUCTIONS_VARIABLE
       )
     ).toBe(false);
@@ -175,12 +186,13 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
     expect(result.diagnostics).toEqual([]);
     expect(
-      result.output.agent_version.state_variables.filter(
+      (result.output.agent_version.state_variables ?? []).filter(
         variable => variable.developer_name === SYSTEM_INSTRUCTIONS_VARIABLE
       )
     ).toEqual([
@@ -210,6 +222,7 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
@@ -219,7 +232,7 @@ start_agent main:
       })
     );
     expect(
-      result.output.agent_version.state_variables.filter(
+      (result.output.agent_version.state_variables ?? []).filter(
         variable => variable.developer_name === SYSTEM_INSTRUCTIONS_VARIABLE
       )
     ).toEqual([
@@ -243,6 +256,7 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
@@ -270,6 +284,7 @@ start_agent router:
     model_config:
         model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
 `,
+      'router',
       'router',
       { optimize: false }
     );
@@ -308,13 +323,14 @@ start_agent main:
                 | Use fallback guidance.
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
     expect(node.instructions).toBe(`{{state.${SYSTEM_INSTRUCTIONS_VARIABLE}}}`);
     expect(node.instructions).not.toContain('Global guidance');
     expect(
-      result.output.agent_version.state_variables.map(
+      (result.output.agent_version.state_variables ?? []).map(
         variable => variable.developer_name
       )
     ).toEqual(
@@ -323,9 +339,14 @@ start_agent main:
         `${RUNTIME_CONDITION_VARIABLE}_2`,
       ])
     );
-    expect(JSON.stringify(node.before_reasoning_iteration)).toContain(
-      'system.current_connection == \\"slack\\"'
+    const link = (node.before_reasoning_iteration as Action[]).find(action =>
+      stateUpdate(action, `${RUNTIME_CONDITION_VARIABLE}_2`)
     );
+    expect(stateUpdate(link!, `${RUNTIME_CONDITION_VARIABLE}_2`)).toBe(
+      'system.current_connection == "slack"'
+    );
+    // Only evaluated when the earlier condition was false.
+    expect(link!.enabled).toBe(`not (state.${CONDITION_SLOT})`);
   });
 
   it('compiles static router system-variable interpolation', () => {
@@ -343,6 +364,7 @@ start_agent router:
     model_config:
         model: "model://sfdc_ai__DefaultEinsteinHyperClassifier"
 `,
+      'router',
       'router',
       { optimize: false }
     );
@@ -365,6 +387,7 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 
@@ -395,6 +418,7 @@ start_agent main:
     description: "Main"
 `,
       'main',
+      'subagent',
       { optimize: false }
     );
 

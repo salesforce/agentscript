@@ -16,10 +16,12 @@
  * Skips gracefully if tree-sitter native bindings are not available.
  */
 
+import type TreeSitter from 'tree-sitter';
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { parse as parseJavascript } from '../src/index.js';
+import { VALID_ESCAPES } from '../src/expressions.js';
 import { parseCorpusFile, normalizeSExp } from './test-utils.js';
 
 // ---------------------------------------------------------------------------
@@ -42,7 +44,7 @@ try {
   const Parser = (await import('tree-sitter')).default;
   const AgentScript = (await import('@agentscript/parser-tree-sitter')).default;
   const parser = new Parser();
-  parser.setLanguage(AgentScript as unknown as typeof parser.Language);
+  parser.setLanguage(AgentScript as unknown as TreeSitter.Language);
   treeSitterParser = parser as unknown as TreeSitterParser;
   treeSitterAvailable = true;
 } catch {
@@ -155,6 +157,35 @@ describe.runIf(treeSitterAvailable)(
       expect(normalizeSExp(javascriptResult.toSExp())).toBe(
         normalizeSExp(treeSitterResult.toString())
       );
+    });
+
+    it.each([
+      ['say string', 'say "see https:\\/\\/example.com"'],
+      ['quoted key', '"a\\/b": "c\\/d"'],
+    ])(
+      'both parsers accept an escaped forward slash in a %s',
+      (_name, source) => {
+        const javascriptResult = parseJavascript(source).rootNode;
+        const treeSitterResult = treeSitterParser!.parse(source).rootNode;
+
+        expect(javascriptResult.hasError).toBe(false);
+        expect(treeSitterResult.hasError).toBe(false);
+        expect(normalizeSExp(javascriptResult.toSExp())).toBe(
+          normalizeSExp(treeSitterResult.toString())
+        );
+      }
+    );
+
+    it('both parsers accept exactly the VALID_ESCAPES set', () => {
+      for (let code = 0x20; code < 0x7f; code++) {
+        const char = String.fromCharCode(code);
+        const source = `x: "\\${char}"`;
+        const valid = VALID_ESCAPES.has(char);
+        expect(parseJavascript(source).rootNode.hasError, source).toBe(!valid);
+        expect(treeSitterParser!.parse(source).rootNode.hasError, source).toBe(
+          !valid
+        );
+      }
     });
 
     if (existsSync(SOT_FILE)) {

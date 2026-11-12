@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { parseSource, findNode } from './test-utils.js';
 import { STATE_UPDATE_ACTION } from '../src/constants.js';
 
 describe('actions field consistency', () => {
@@ -37,10 +37,10 @@ start_agent main:
 `;
 
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'main', 'subagent');
 
-    expect(node.action_definitions.length).toBe(1);
-    expect(node.action_definitions[0].developer_name).toBe('fetch');
+    expect(node.action_definitions!.length).toBe(1);
+    expect(node.action_definitions![0].developer_name).toBe('fetch');
   });
 
   it('compiles multiple action definitions', () => {
@@ -67,9 +67,9 @@ start_agent main:
 `;
 
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'main', 'subagent');
 
-    expect(node.action_definitions.length).toBe(2);
+    expect(node.action_definitions!.length).toBe(2);
   });
 });
 
@@ -103,10 +103,10 @@ start_agent main:
 `;
 
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'main', 'subagent');
 
     // Check supervised actions (reasoning actions)
-    const actionTools = node.tools.filter(
+    const actionTools = node.tools!.filter(
       t => t.target !== STATE_UPDATE_ACTION
     );
 
@@ -166,14 +166,10 @@ subagent second:
       subagentOutput.agent_version.nodes.length
     );
 
-    const topicFirstNode = topicOutput.agent_version.nodes.find(
-      n => n.developer_name === 'first'
-    )!;
-    const subagentFirstNode = subagentOutput.agent_version.nodes.find(
-      n => n.developer_name === 'first'
-    )!;
+    const topicFirstNode = findNode(topicOutput, 'first', 'subagent');
+    const subagentFirstNode = findNode(subagentOutput, 'first', 'subagent');
 
-    expect(topicFirstNode.tools.length).toBe(subagentFirstNode.tools.length);
+    expect(topicFirstNode.tools!.length).toBe(subagentFirstNode.tools!.length);
   });
 });
 
@@ -210,13 +206,13 @@ start_agent main:
 `;
 
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes[0];
+    const node = findNode(output, 'main', 'subagent');
 
     // Check action definitions
-    expect(node.action_definitions.length).toBe(2);
+    expect(node.action_definitions!.length).toBe(2);
 
     // Check tools
-    expect(node.tools.length).toBeGreaterThan(0);
+    expect(node.tools!.length).toBeGreaterThan(0);
   });
 
   it('handles documents with co-existing topic and subagent blocks', () => {
@@ -251,18 +247,16 @@ subagent second:
 
     const { output } = compile(parseSource(source));
 
-    const firstNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'first'
-    )!;
-    const secondNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'second'
-    )!;
+    const firstNode = findNode(output, 'first', 'subagent');
+    const secondNode = findNode(output, 'second', 'subagent');
 
-    expect(firstNode.action_definitions.length).toBe(1);
-    expect(firstNode.action_definitions[0].developer_name).toBe('first_action');
+    expect(firstNode.action_definitions!.length).toBe(1);
+    expect(firstNode.action_definitions![0].developer_name).toBe(
+      'first_action'
+    );
 
-    expect(secondNode.action_definitions.length).toBe(1);
-    expect(secondNode.action_definitions[0].developer_name).toBe(
+    expect(secondNode.action_definitions!.length).toBe(1);
+    expect(secondNode.action_definitions![0].developer_name).toBe(
       'second_action'
     );
   });
@@ -300,11 +294,13 @@ topic first:
 
     const { output } = compile(parseSource(source));
 
-    const router = output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    // Router vs. subagent is decided only by the model URI: compileNode checks
+    // for `sfdc_ai__DefaultEinsteinHyperClassifier`, and `model://hyperclassifier`
+    // does not match it. So this topic compiles to a 'subagent' node, not a
+    // 'router'. The assertions below only touch fields common to both node types.
+    const router = findNode(output, 'router', 'subagent');
 
-    expect(router.action_definitions.length).toBe(1);
-    expect(router.tools.length).toBeGreaterThan(0);
+    expect(router.action_definitions!.length).toBe(1);
+    expect(router.tools!.length).toBeGreaterThan(0);
   });
 });

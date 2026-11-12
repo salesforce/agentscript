@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { parseSource, findNode } from './test-utils.js';
 import { END_SESSION_TARGET } from '../src/constants.js';
 import { isHandOffAction } from '../src/types.js';
 import { DiagnosticSeverity } from '@agentscript/types';
@@ -38,11 +38,9 @@ start_agent main:
                 description: "End the conversation."
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      (n: { developer_name: string }) => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const tool = node.tools.find((t: { name: string }) => t.name === 'finish')!;
+    const tool = node.tools!.find(t => t.name === 'finish')!;
     expect(tool).toBeDefined();
     expect(tool.type).toBe('action');
     expect(tool.target).toBe(END_SESSION_TARGET);
@@ -74,11 +72,9 @@ start_agent main:
             finish: @utils.end_session
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      (n: { developer_name: string }) => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const tool = node.tools.find((t: { name: string }) => t.name === 'finish')!;
+    const tool = node.tools!.find(t => t.name === 'finish')!;
     expect(tool.description).toBe('End the session');
   });
 });
@@ -108,11 +104,9 @@ start_agent main:
                 available when @variables.allow_end
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      (n: { developer_name: string }) => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const tool = node.tools.find((t: { name: string }) => t.name === 'finish')!;
+    const tool = node.tools!.find(t => t.name === 'finish')!;
     expect(tool).toBeDefined();
     expect(tool.type).toBe('action');
     expect(tool.target).toBe(END_SESSION_TARGET);
@@ -141,14 +135,12 @@ start_agent main:
                 description: "End the session"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      (n: { developer_name: string }) => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    expect(node.tools.length).toBe(2);
-    expect(node.tools[0].name).toBe('escalate_to_human');
-    expect(node.tools[1].name).toBe('finish');
-    expect(node.tools[1].target).toBe(END_SESSION_TARGET);
+    expect(node.tools!.length).toBe(2);
+    expect(node.tools![0].name).toBe('escalate_to_human');
+    expect(node.tools![1].name).toBe('finish');
+    expect(node.tools![1].target).toBe(END_SESSION_TARGET);
 
     // Only escalate produces a handoff, not end_session
     const handoffs = node.after_all_tool_calls ?? [];
@@ -181,27 +173,20 @@ start_agent main:
       diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
     ).toHaveLength(0);
 
-    const node = output.agent_version.nodes.find(
-      (n: { developer_name: string }) => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const after = (node.after_reasoning ?? []) as {
-      type: string;
-      target: string;
-      end_turn_first?: boolean;
-      state_updates?: unknown;
-    }[];
+    const after = node.after_reasoning ?? [];
 
     // 1. The end-session action: shaped like a state update but carrying only
     //    the synthetic target. `end_turn_first` is NOT a field on `action`.
     const action = after.find(a => a.target === END_SESSION_TARGET)!;
     expect(action).toBeDefined();
     expect(action.type).toBe('action');
-    expect(action.end_turn_first).toBeUndefined();
+    expect('end_turn_first' in action).toBe(false);
     expect(action.state_updates).toBeUndefined();
 
     // 2. A handoff carrying end_turn_first, targeting the current node.
-    const handoff = after.find(a => isHandOffAction(a) && a.end_turn_first)!;
+    const handoff = after.filter(isHandOffAction).find(a => a.end_turn_first)!;
     expect(handoff).toBeDefined();
     expect(handoff.end_turn_first).toBe(true);
     expect(handoff.target).toBe('main');
@@ -233,19 +218,12 @@ start_agent main:
             end_session
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      (n: { developer_name: string }) => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const after = (node.after_reasoning ?? []) as {
-      type: string;
-      target: string;
-      end_turn_first?: boolean;
-      enabled?: string;
-    }[];
+    const after = node.after_reasoning ?? [];
 
     const action = after.find(a => a.target === END_SESSION_TARGET)!;
-    const handoff = after.find(a => isHandOffAction(a) && a.end_turn_first)!;
+    const handoff = after.filter(isHandOffAction).find(a => a.end_turn_first)!;
     // The `if` condition is AND-ed into the enabled guard on both.
     expect(action.enabled).toContain('AgentScriptInternal_condition_1');
     expect(handoff.enabled).toContain('AgentScriptInternal_condition_1');

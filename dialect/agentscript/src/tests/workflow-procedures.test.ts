@@ -20,7 +20,7 @@ import {
 } from '@agentscript/language';
 import type { Statement } from '@agentscript/language';
 
-import { agentscriptDialect } from '../index.js';
+import { agentscriptDialect, WORKFLOW_DO_MAX_LENGTH } from '../index.js';
 import { emitDocument, parseDocument, testSchemaCtx } from './test-utils.js';
 
 function lint(source: string) {
@@ -440,6 +440,24 @@ describe('workflow procedures', () => {
       ).toEqual([['workflow-with-ellipsis', DiagnosticSeverity.Error]]);
     });
 
+    test('rejects a statement other than with or set inside run', () => {
+      const source = workflowWith([
+        '        run @actions.lookup',
+        '            with orderId = @variables.order_id',
+        '            with region = "US"',
+        '            | Say the status.',
+      ]);
+      expect(
+        lint(source).filter(d => d.code === 'workflow-unsupported-statement')
+      ).toEqual([
+        expect.objectContaining({
+          severity: DiagnosticSeverity.Error,
+          message:
+            "A '|' line cannot be inside 'run' in a workflow. Move it to the step body.",
+        }),
+      ]);
+    });
+
     test('rejects unknown inputs with a suggestion and the parameter range', () => {
       const source = workflowWith([
         '        run @actions.lookup',
@@ -550,6 +568,7 @@ workflow handle_return:
           "'typo' is not a defined input of action 'no_inputs'",
         ]);
         expect(codes(source)).toContain('workflow-unknown-action');
+        expect(codes(source)).not.toContain('undefined-reference');
       }
     );
 
@@ -784,5 +803,89 @@ workflow handle_return:
       )
     ).toEqual([]);
     expect(codes(source)).toContain('duplicate-key');
+  });
+});
+
+describe('workflow do directives', () => {
+  describe('length limit', () => {
+    const workflowWith = (steps: string[]) =>
+      [
+        'workflow handle_return:',
+        '    description: "Process a return."',
+        '    step confirm:',
+        ...steps,
+      ].join('\n');
+    const tooLong = (source: string) =>
+      lint(source).filter(d => d.code === 'workflow-do-too-long');
+    const half = 'x'.repeat(WORKFLOW_DO_MAX_LENGTH / 2);
+
+    test('reports a line with continuation lines longer than the limit', () => {
+      const source = workflowWith([`        | ${half}`, `          ${half}`]);
+      const errors = tooLong(source);
+
+      expect(errors).toEqual([
+        expect.objectContaining({
+          severity: DiagnosticSeverity.Error,
+          message: expect.stringContaining(
+            `${WORKFLOW_DO_MAX_LENGTH + 1} characters`
+          ),
+        }),
+      ]);
+      expect(errors[0].range.start).toEqual(findPosition(source, '| x'));
+      expect(errors[0].range.end.line).toBe(source.split('\n').length - 1);
+    });
+
+    test('accepts text at the limit', () => {
+      expect(
+        tooLong(
+          workflowWith([`        | ${'x'.repeat(WORKFLOW_DO_MAX_LENGTH)}`])
+        )
+      ).toEqual([]);
+    });
+
+    test('checks each line separately', () => {
+      expect(
+        tooLong(
+          workflowWith([
+            `        | ${half}`,
+            `        | ${half}`,
+            '        say "Hi"',
+            `        | ${half}`,
+            '        if @variables.ready:',
+            `            | ${half}`,
+            `        | ${half}`,
+          ])
+        )
+      ).toEqual([]);
+    });
+
+    test('checks lines inside if bodies', () => {
+      expect(
+        tooLong(
+          workflowWith([
+            '        if @variables.ready:',
+            `            | ${half}`,
+            `              ${half}`,
+          ])
+        )
+      ).toHaveLength(1);
+    });
+
+    test.each(['else:', 'else if @variables.done:'])(
+      'checks lines inside %s branches',
+      branch => {
+        expect(
+          tooLong(
+            workflowWith([
+              '        if @variables.ready:',
+              '            | Inside if',
+              `        ${branch}`,
+              `            | ${half}`,
+              `              ${half}`,
+            ])
+          )
+        ).toHaveLength(1);
+      }
+    );
   });
 });
