@@ -544,9 +544,9 @@ function validateResponseFormats(
       }
     }
 
-    // Validate schema URIs on input declarations (recursive)
+    // Validate input declarations (recursive)
     if (isNamedMap(format.inputs)) {
-      validateInputSchemaURIs(
+      validateResponseFormatInputs(
         format.inputs as NamedMap<unknown>,
         format,
         connectionType
@@ -556,11 +556,14 @@ function validateResponseFormats(
 }
 
 /**
- * Validate `schema` URIs on response format input declarations.
+ * Validates response format input declarations: list defaults, `fields:`
+ * placement, list `value:`, `schema` URIs, nesting depth, and schema-input
+ * exclusivity.
+ *
  * Component schema types ({@link SCHEMA_COMPONENT_TYPE_RULES}) are only allowed at
  * the top level of inputs (not on nested sub-fields).
  */
-function validateInputSchemaURIs(
+function validateResponseFormatInputs(
   inputs: NamedMap<unknown>,
   formatNode: AstNodeLike,
   connectionType: string
@@ -588,6 +591,9 @@ function validateInputSchemaURIs(
     validateListHasValue(paramName, decl, props, formatNode);
 
     if (!props) continue;
+
+    // Validate nesting depth of the input schema
+    validateInputNestingDepth(props, formatNode);
 
     // Validate schema on top-level input
     validateSchemaField(props, paramName, formatNode, true, connectionType);
@@ -777,6 +783,46 @@ function validateListDefaultValues(
   if (props) {
     for (const [key, nested] of iterateFieldDeclarations(props)) {
       validateListDefaultValues(nested, key, formatNode);
+    }
+  }
+}
+
+/** Maximum layers an input schema may nest, counting the top-level input as layer 1. */
+const MAX_INPUT_NESTING_DEPTH = 8;
+
+/**
+ * Validates that an input schema nests at most {@link MAX_INPUT_NESTING_DEPTH}
+ * layers deep, where each `fields:` block (on an object or list[object]) adds a layer.
+ */
+function validateInputNestingDepth(
+  props: AstNodeLike,
+  formatNode: AstNodeLike,
+  depth = 1
+): void {
+  // skip component-type inputs: script does not own the component's schema
+  if (hasSupportedComponentSchema(props)) return;
+
+  for (const [key, decl] of iterateFieldDeclarations(props)) {
+    const fieldDepth = depth + 1;
+
+    if (fieldDepth > MAX_INPUT_NESTING_DEPTH) {
+      const cst = decl.__cst;
+      if (!cst) continue;
+      attachDiagnostic(
+        formatNode,
+        lintDiagnostic(
+          cst.range,
+          `Input '${key}' is nested ${fieldDepth} layers deep; input schemas can nest at most ${MAX_INPUT_NESTING_DEPTH} layers.`,
+          DiagnosticSeverity.Error,
+          'response-format-input-max-depth'
+        )
+      );
+      continue;
+    }
+
+    const nestedProps = decl.properties as AstNodeLike | undefined;
+    if (nestedProps) {
+      validateInputNestingDepth(nestedProps, formatNode, fieldDepth);
     }
   }
 }

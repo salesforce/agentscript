@@ -1698,6 +1698,91 @@ start_agent main:
     });
   });
 
+  describe('input nesting depth validation', () => {
+    const MAX_DEPTH = 'response-format-input-max-depth';
+
+    /**
+     * Builds a response format with one input nested `depth` layers deep.
+     *
+     * Each field is named after its layer: the input is `layer1`, `layer2` sits in
+     * its `fields:`, and so on down to a plain `string` field at the last layer.
+     * Each layer is a `type: object` > `fields:`, or with `list` a `type: list` > `value: object` > `fields:`.
+     * With `schemaUri`, `layer1` also declares that `schema:`.
+     */
+    function nestedInputSource(
+      depth: number,
+      layerType: 'object' | 'list' = 'object',
+      schemaUri?: string
+    ): string {
+      const indent = (text: string, spaces: number) =>
+        text
+          .split('\n')
+          .map(line => ' '.repeat(spaces) + line)
+          .join('\n');
+
+      // Build the field for `layer`, with the next layer's field nested in its `fields:`.
+      // The field at the last layer is a plain `string`.
+      const field = (layer: number): string => {
+        if (layer === depth) return `layer${layer}: string`;
+
+        const name =
+          layer === 1 && schemaUri
+            ? `layer1:\n    schema: "${schemaUri}"`
+            : `layer${layer}:`;
+
+        if (layerType === 'object') {
+          return `${name}
+    type: object
+        fields:
+${indent(field(layer + 1), 12)}`;
+        }
+        return `${name}
+    type: list
+        value: object
+            fields:
+${indent(field(layer + 1), 16)}`;
+      };
+
+      return `
+connection messaging:
+    response_formats:
+        f:
+            description: "d"
+            target: "apex://H"
+            inputs:
+${indent(field(1), 16)}
+`.trimStart();
+    }
+
+    it('errors once on the first field past 8 layers', () => {
+      const errors = runLint(nestedInputSource(10)).filter(
+        d => d.code === MAX_DEPTH
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0].severity).toBe(1 /* Error */);
+      expect(errors[0].message).toContain("'layer9'");
+      expect(errors[0].message).toContain('9 layers deep');
+    });
+
+    it('counts a list[object] value fields block as one layer', () => {
+      const errors = runLint(nestedInputSource(9, 'list')).filter(
+        d => d.code === MAX_DEPTH
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain("'layer9'");
+    });
+
+    it('skips the fields of a schema component', () => {
+      const source = nestedInputSource(
+        10,
+        'object',
+        'messaging_component://FormMessage__X'
+      );
+      const errors = runLint(source).filter(d => d.code === MAX_DEPTH);
+      expect(errors).toHaveLength(0);
+    });
+  });
+
   describe('fields block placement validation', () => {
     it('warns when an object input declares no fields block', () => {
       const source = `

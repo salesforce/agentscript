@@ -97,6 +97,56 @@ start_agent main:
     expect(error!.message).toBe('');
   });
 
+  // Only a missing welcome means "no welcome"; a blank one is kept exactly
+  // as the author wrote it.
+  it('should preserve a whitespace-only welcome message as authored', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+
+system:
+    instructions: "System"
+    messages:
+        welcome: "   "
+        error: "An error occurred."
+
+start_agent main:
+    description: "desc"
+`;
+    const { output } = compile(parseSource(source));
+    const welcome = (output.agent_version.system_messages ?? []).find(
+      m => m.message_type === 'Welcome'
+    );
+
+    expect(welcome).toBeDefined();
+    expect(welcome!.message).toBe('   ');
+  });
+
+  it('should omit the welcome message when welcome is missing', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+    agent_type: "AgentforceServiceAgent"
+
+system:
+    instructions: "System"
+    messages:
+        error: "An error occurred."
+
+start_agent main:
+    description: "desc"
+`;
+    const { output, diagnostics } = compile(parseSource(source));
+    const messages = output.agent_version.system_messages ?? [];
+
+    expect(
+      diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toEqual([]);
+    expect(messages.find(m => m.message_type === 'Welcome')).toBeUndefined();
+    expect(messages.find(m => m.message_type === 'Error')).toBeDefined();
+  });
+
   // Python: test_compile_system_messages.test_compile_template_no_variables
   it('should compile multiline template without variables', () => {
     const source = `

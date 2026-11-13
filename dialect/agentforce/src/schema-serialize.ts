@@ -1159,6 +1159,12 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
         "An object-typed response_format input declares no 'fields:' block, so it has no shape.",
     },
     {
+      code: 'response-format-input-max-depth',
+      severity: 'error',
+      description:
+        'A response_format input schema cannot nest more than 8 layers of fields.',
+    },
+    {
       code: 'response-format-fields-on-non-object',
       severity: 'error',
       description:
@@ -1485,6 +1491,14 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       severity: 'error',
       description:
         'Voice language settings reference a language that is not declared.',
+    },
+  ],
+  'voice-pronunciations': [
+    {
+      code: 'voice-pronunciations-default-locale-only',
+      severity: 'warning',
+      description:
+        'Several voice languages are configured and top-level outbound pronunciations are set; they apply to the default language only.',
     },
   ],
   'voice-version-mixing': [
