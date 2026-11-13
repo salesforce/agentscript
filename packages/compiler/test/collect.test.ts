@@ -17,7 +17,7 @@ import { parse } from '@agentscript/parser';
 import { Dialect, emitDocument } from '@agentscript/language';
 import { AgentforceSchema } from '@agentscript/agentforce-dialect';
 import { compile } from '../src/compile.js';
-import { parseSource, parseFixture } from './test-utils.js';
+import { parseSource, parseFixture, isActionTool } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
   EMPTY_TOPIC_VALUE,
@@ -202,10 +202,19 @@ function commsIntakeNode(): {
   return { node, diagnostics };
 }
 
-function gatherActionFor(
-  node: SubAgentNode,
-  needle: string
-): { enabled?: string } {
+// Compiled `enabled` conditions are always strings when present (the
+// generated type widens the field to `unknown` since it's shared with
+// authored expressions that can be int/bool/float literals). Narrow it back
+// down for the lifecycle-hook actions under test here.
+function enabledAsString(a: { enabled?: unknown }): string | undefined {
+  return typeof a.enabled === 'string' ? a.enabled : undefined;
+}
+
+type BriAction = NonNullable<
+  SubAgentNode['before_reasoning_iteration']
+>[number];
+
+function gatherActionFor(node: SubAgentNode, needle: string): BriAction {
   const bri = node.before_reasoning_iteration!;
   const match = bri.filter(
     a =>
@@ -221,7 +230,9 @@ function gatherActionFor(
 describe('collect lowering', () => {
   it('compiles without errors and treats collect as procedural (BRI present)', () => {
     const { output, diagnostics } = compile(parseSource(SCRIPT));
-    const errors = diagnostics.filter(d => d.severity === 'error');
+    const errors = diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
     expect(errors).toEqual([]);
 
     const node = output.agent_version.nodes.find(
@@ -351,9 +362,9 @@ subagent patient_intake:
 
   it('emits a capture action as a reasoning tool that writes all fields', () => {
     const node = intakeNode();
-    const capture = node.tools.find(
-      t => 'name' in t && t.name === 'capture_patient_intake_fields'
-    );
+    const capture = node
+      .tools!.filter(isActionTool)
+      .find(t => t.name === 'capture_patient_intake_fields');
     expect(capture).toBeDefined();
     expect(capture!.target).toBe(STATE_UPDATE_ACTION);
     const updatedVars = (capture!.state_updates ?? []).flatMap(su =>
@@ -373,7 +384,7 @@ subagent patient_intake:
     // what the LLM extracts for each field (e.g. "Town or city." not the whole
     // address).
     const node = intakeNode();
-    const capture = node.tools.find(
+    const capture = node.tools!.find(
       t => 'name' in t && t.name === 'capture_patient_intake_fields'
     ) as Tool;
     expect(capture).toBeDefined();
@@ -412,7 +423,7 @@ subagent patient_intake:
     const node = output.agent_version.nodes.find(
       n => n.developer_name === 'patient_intake'
     ) as SubAgentNode;
-    const capture = node.tools.find(
+    const capture = node.tools!.find(
       t => 'name' in t && t.name === 'capture_patient_intake_fields'
     ) as Tool;
     expect(capture).toBeDefined();
@@ -431,7 +442,7 @@ subagent patient_intake:
     // from the partial result. Each state-update must instead be guarded so an
     // unprovided field falls back to its current state value.
     const node = intakeNode();
-    const capture = node.tools.find(
+    const capture = node.tools!.find(
       t => 'name' in t && t.name === 'capture_patient_intake_fields'
     );
     expect(capture).toBeDefined();
@@ -593,9 +604,9 @@ subagent patient_intake:
 
   it('unions top-level AND nested collect targets into the capture tool', () => {
     const { node } = commsIntakeNode();
-    const capture = node.tools.find(
-      t => 'name' in t && t.name === 'capture_comms_intake_fields'
-    );
+    const capture = node
+      .tools!.filter(isActionTool)
+      .find(t => t.name === 'capture_comms_intake_fields');
     expect(capture).toBeDefined();
     expect(capture!.llm_inputs).toEqual([
       'communication_preference',
@@ -617,7 +628,7 @@ subagent patient_intake:
     const emailGather = gatherActionFor(node, 'email address');
     // Wrapping if predicate (stored in the runtime condition variable) AND-ed
     // with the prior-step complete guard AND this field still None.
-    expect(emailGather.enabled).toBe(
+    expect(enabledAsString(emailGather)).toBe(
       '(state.AgentScriptInternal_condition_1) and ' +
         '(state.communication_preference is not None and state.contact_email is None)'
     );
@@ -628,11 +639,11 @@ subagent patient_intake:
     const phoneGather = gatherActionFor(node, 'phone number');
     // phone's prior guard is the step BEFORE the branch group
     // (communication_preference), NOT its mutually-exclusive sibling email.
-    expect(phoneGather.enabled).toContain(
+    expect(enabledAsString(phoneGather)).toContain(
       'state.communication_preference is not None'
     );
-    expect(phoneGather.enabled).not.toContain('contact_email');
-    expect(phoneGather.enabled).toBe(
+    expect(enabledAsString(phoneGather)).not.toContain('contact_email');
+    expect(enabledAsString(phoneGather)).toBe(
       '(state.AgentScriptInternal_condition_1) and ' +
         '(state.communication_preference is not None and state.contact_phone is None)'
     );
@@ -677,7 +688,7 @@ subagent patient_intake:
   const COMPLETION_MESSAGE =
     'All required details have been captured. Thank the user and confirm the request is complete.';
 
-  function completionActions(node: SubAgentNode): Array<{ enabled?: string }> {
+  function completionActions(node: SubAgentNode): BriAction[] {
     const bri = node.before_reasoning_iteration ?? [];
     return bri.filter(
       a =>
@@ -759,9 +770,7 @@ subagent patient_intake:
   const STOP_INSTRUCTION =
     'All required details are collected. Do not ask for anything further.';
 
-  function stopInstructionActions(
-    node: SubAgentNode
-  ): Array<{ enabled?: string }> {
+  function stopInstructionActions(node: SubAgentNode): BriAction[] {
     const bri = node.before_reasoning_iteration ?? [];
     return bri.filter(
       a =>
@@ -783,7 +792,7 @@ subagent patient_intake:
     const node = intakeNode();
     const stops = stopInstructionActions(node);
     expect(stops.length).toBe(1);
-    expect(stops[0].enabled).toBe(
+    expect(enabledAsString(stops[0])).toBe(
       'state.patient_address_line1 is not None and state.patient_city is not None'
     );
   });
@@ -799,10 +808,10 @@ subagent patient_intake:
     const stops = stopInstructionActions(node);
     expect(resume).toBeDefined();
     expect(stops.length).toBe(1);
-    expect(stops[0].enabled).toBe(
+    expect(enabledAsString(stops[0])).toBe(
       'state.patient_address_line1 is not None and state.patient_city is not None'
     );
-    expect(stops[0].enabled).not.toBe(resume!.enabled);
+    expect(enabledAsString(stops[0])).not.toBe(enabledAsString(resume!));
   });
 
   it('terminal STOP instruction appends to the agent-instructions var (does not overwrite)', () => {
@@ -831,7 +840,7 @@ subagent patient_intake:
     const node = intakeNodeThreeFields();
     const stops = stopInstructionActions(node);
     expect(stops.length).toBe(1);
-    expect(stops[0].enabled).toBe(
+    expect(enabledAsString(stops[0])).toBe(
       'state.patient_address_line1 is not None and (state.patient_city is not None and state.patient_email is not None)'
     );
   });
@@ -876,15 +885,12 @@ subagent patient_intake:
     'cancel_patient_intake_collect instead.';
 
   function cancelTool(node: SubAgentNode): Tool | undefined {
-    return node.tools.find(
-      (t): t is Tool =>
-        'name' in t && t.name === 'cancel_patient_intake_collect'
-    ) as Tool | undefined;
+    return node
+      .tools!.filter(isActionTool)
+      .find(t => t.name === 'cancel_patient_intake_collect');
   }
 
-  function cancelInstructionActions(
-    node: SubAgentNode
-  ): Array<{ enabled?: string }> {
+  function cancelInstructionActions(node: SubAgentNode): BriAction[] {
     const bri = node.before_reasoning_iteration ?? [];
     return bri.filter(
       a =>
@@ -952,7 +958,7 @@ subagent patient_intake:
     const node = intakeNode();
     const instrs = cancelInstructionActions(node);
     expect(instrs.length).toBe(1);
-    expect(instrs[0].enabled).toBe(
+    expect(enabledAsString(instrs[0])).toBe(
       'state.patient_address_line1 is None or state.patient_city is None'
     );
   });
@@ -982,7 +988,7 @@ subagent patient_intake:
     })();
     // Cancel tool present...
     expect(
-      node.tools.some(
+      node.tools!.some(
         t => 'name' in t && t.name === 'cancel_patient_intake_collect'
       )
     ).toBe(true);
@@ -996,12 +1002,17 @@ subagent patient_intake:
       n => n.developer_name === 'router'
     ) as SubAgentNode;
     expect(
-      router.tools.some(t => 'name' in t && /^cancel_/.test(t.name ?? ''))
+      router.tools!.some(t => 'name' in t && /^cancel_/.test(t.name ?? ''))
     ).toBe(false);
     const cancelHandoffs = [
       ...(router.after_all_tool_calls ?? []),
       ...(router.after_reasoning ?? []),
-    ].filter(a => isHandOffAction(a) && a.enabled?.includes('=="router"'));
+    ].filter(
+      a =>
+        isHandOffAction(a) &&
+        typeof a.enabled === 'string' &&
+        a.enabled.includes('=="router"')
+    );
     expect(cancelHandoffs).toEqual([]);
   });
 });

@@ -12,6 +12,8 @@
  * Monaco editors that provide a VSCode-compatible API surface.
  */
 
+import type { Gates } from '@agentscript/language';
+
 export interface VscodeWrapper {
   vscodeApi: {
     VSCodeLanguageClientBrowser: {
@@ -37,6 +39,11 @@ export interface LspExtensionConfig {
   documentPatterns?: string[];
   /** Function to read dialect configuration */
   dialectConfig?: () => string;
+  /**
+   * Resolved feature gates (gate id → open), forwarded to the LSP server via
+   * `initializationOptions.gates`. Gates absent from the map are closed.
+   */
+  gates?: Gates;
 }
 
 export interface ExtensionManifest {
@@ -137,6 +144,7 @@ export function createLspExtension(config: LspExtensionConfig) {
             ],
             initializationOptions: {
               dialect,
+              gates: config.gates,
             },
           },
           connection: {

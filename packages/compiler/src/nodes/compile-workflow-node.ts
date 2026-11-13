@@ -6,7 +6,6 @@
  */
 
 import type {
-  Expression,
   NamedMap,
   ParameterDeclarationNode,
   Statement,
@@ -14,9 +13,12 @@ import type {
 import type { Range } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
 import {
+  RUN_UTILS_CODE,
   analyzeActionIo,
   extractActionSignature,
   resolveWorkflowAction,
+  runUtilsMessage,
+  workflowDoReferenceError,
   workflowUnknownActionMessage,
 } from '@agentscript/agentscript-dialect';
 import {
@@ -29,16 +31,19 @@ import {
   SayStatement,
   SetClause,
   Template,
+  TemplateInterpolation,
   ToClause,
   TransitionStatement,
   UnknownStatement,
-  walkAstExpressions,
   WithClause,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
+  Action,
+  HandOffAction,
   ModelConfiguration,
   StateUpdate,
+  Tool,
   WorkflowAction,
   WorkflowDirective,
   WorkflowNode,
@@ -46,13 +51,17 @@ import type {
 } from '../types.js';
 import type { Sourceable } from '../sourced.js';
 import type {
+  ParsedSystem,
+  ParsedTopicLike,
   ParsedWorkflowProcedure,
   ParsedWorkflowStep,
 } from '../parsed-types.js';
 import {
   ESCALATION_TARGET,
   STATE_UPDATE_ACTION,
+  SYSTEM_INSTRUCTIONS_VARIABLE,
   TRANSITION_TARGET_NAMESPACES,
+  workflowConditionVariableName,
 } from '../constants.js';
 import {
   extractDescriptionValue,
@@ -68,6 +77,13 @@ import {
 import { normalizeDeveloperName } from '../utils.js';
 import { compileActionDefinitions } from './compile-actions.js';
 import { resolveCollectTarget } from './compile-collect.js';
+import { conditionSnapshotAction, joinConditions } from './condition-slots.js';
+import {
+  extractTopicModelConfiguration,
+  mergeModelConfigurations,
+} from '../config/model-config.js';
+import { setDefaultLlmInputs } from './compile-tool.js';
+import { compileSystemInstructions } from './compile-system-instructions.js';
 
 /** Step name used when a workflow is authored with an unnamed `steps:` block. */
 export const DEFAULT_WORKFLOW_STEP_NAME = 'main';
@@ -80,6 +96,11 @@ interface WorkflowCompileState {
   ctx: CompilerContext;
   /** The workflow being compiled; `run` resolves against its `actions:`. */
   block: ParsedWorkflowProcedure;
+  /**
+   * Template that reads the system instructions variable, prepended to each
+   * LLM directive; '' when there are no system instructions to apply.
+   */
+  systemInstructions: string;
 }
 
 /** A directive before its positional `developer_name` is assigned. */
@@ -89,11 +110,11 @@ type UnnamedDirective = WorkflowDirective extends infer D
     : never
   : never;
 
-interface LoweredDirective {
-  directive: UnnamedDirective;
-  /** Range of the statement the directive was lowered from. */
-  range: Range | undefined;
-}
+/**
+ * Keeps an internal action out of the chat history. The reasoner otherwise adds
+ * a tool call and result for it, which the model never made.
+ */
+const NO_CHAT_HISTORY = { add_to_chat_history: false } as const;
 
 /**
  * Compile a `workflow <name>:` block into a WorkflowNode.
@@ -104,19 +125,33 @@ interface LoweredDirective {
  * - `actions:` → `action_definitions` (top-level actions are not inherited)
  * - `step <name>:` blocks (or an unnamed `steps:` block, as one step named
  *   `main`) → `steps[]`, each statement lowered to a workflow directive
- * - the agent-wide `model_config` → `model_configuration`
+ * - `model_config:` (block-level, falling back to the agent-wide default) →
+ *   `model_configuration`, merged the same way as subagent/orchestrator nodes
+ * - global `system: instructions` → built in the system
+ *   instructions state variable by `on_init`, and referenced at the start of
+ *   each `say`, `ask_for` and `do` directive, since a workflow node has no
+ *   instructions field of its own
  */
 export function compileWorkflowNode(
   name: string,
   block: ParsedWorkflowProcedure,
+  systemBlock: ParsedSystem | undefined,
   globalModelConfig: ModelConfiguration | undefined,
   ctx: CompilerContext
 ): Sourceable<WorkflowNode> {
-  const state: WorkflowCompileState = { ctx, block };
-
   // Also scopes `ctx.actionInputSignatures` to this workflow's own actions.
   const actionDefinitions = compileActionDefinitions(block.actions, ctx);
+  // A subagent compiled before this workflow can leave its tool names here.
+  ctx.actionReferenceMap.clear();
 
+  const system = compileWorkflowSystemInstructions(block, systemBlock, ctx);
+  const state: WorkflowCompileState = {
+    ctx,
+    block,
+    systemInstructions: system.reference,
+  };
+
+  const errorCount = countErrors(ctx);
   const steps: WorkflowStep[] = [];
   for (const [stepName, stmts, range] of collectSteps(block)) {
     const lowered = compileWorkflowStatements(stmts, [], state);
@@ -126,7 +161,9 @@ export function compileWorkflowNode(
       directives: nameDirectives(name, stepName, lowered, range, ctx),
     });
   }
-  if (steps.length === 0) {
+  // When the directives were dropped because of errors, those errors are the
+  // cause; do not also report the workflow as empty.
+  if (steps.length === 0 && countErrors(ctx) === errorCount) {
     ctx.error(
       `Workflow '${name}' has no compilable directives. A workflow needs at least one step with at least one directive.`,
       block.__cst?.range,
@@ -141,6 +178,10 @@ export function compileWorkflowNode(
     steps,
   };
 
+  if (system.onInit.length > 0) {
+    node.on_init = system.onInit;
+  }
+
   const description = extractDescriptionValue(block.description);
   if (description) {
     node.description = description;
@@ -150,11 +191,85 @@ export function compileWorkflowNode(
     node.action_definitions = actionDefinitions;
   }
 
-  if (globalModelConfig) {
-    node.model_configuration = globalModelConfig;
+  const modelConfig = mergeModelConfigurations(
+    globalModelConfig,
+    extractTopicModelConfiguration(block as ParsedTopicLike, ctx)
+  );
+  if (modelConfig) {
+    node.model_configuration = modelConfig;
   }
 
   return node;
+}
+
+interface WorkflowSystemInstructions {
+  /** Template prepended to each LLM directive; '' when there is none. */
+  reference: string;
+  /** Actions that build the instructions in the state variable on entry. */
+  onInit: (Action | HandOffAction)[];
+}
+
+const NO_WORKFLOW_SYSTEM_INSTRUCTIONS: WorkflowSystemInstructions = {
+  reference: '',
+  onInit: [],
+};
+
+/**
+ * Store the global system instructions in the system instructions state
+ * variable when the workflow is entered, so each directive references the
+ * variable instead of repeating the text. The variable is written on entry
+ * rather than given a default because subagents with conditional system
+ * instructions rewrite it on every turn.
+ *
+ * Conditional instructions reuse the actions that rebuild the variable before
+ * each subagent reasoning iteration. A workflow has no per-directive hook, so
+ * the conditions, like any variables in the text, are evaluated once on entry.
+ */
+function compileWorkflowSystemInstructions(
+  block: ParsedWorkflowProcedure,
+  systemBlock: ParsedSystem | undefined,
+  ctx: CompilerContext
+): WorkflowSystemInstructions {
+  const compiled = compileSystemInstructions(
+    systemBlock,
+    block as ParsedTopicLike,
+    ctx
+  );
+  if (!compiled.instructions) return NO_WORKFLOW_SYSTEM_INSTRUCTIONS;
+
+  ctx.usesSystemInstructionsVariable = true;
+  const onInit: (Action | HandOffAction)[] =
+    compiled.beforeReasoningIteration.length > 0
+      ? compiled.beforeReasoningIteration
+      : [
+          {
+            type: 'action',
+            target: STATE_UPDATE_ACTION,
+            state_updates: [
+              {
+                [SYSTEM_INSTRUCTIONS_VARIABLE]: `template::${compiled.instructions}`,
+              },
+            ],
+          },
+        ];
+  return { reference: `{{state.${SYSTEM_INSTRUCTIONS_VARIABLE}}}`, onInit };
+}
+
+/** Prepend the agent's system instructions to an LLM directive's text. */
+function withSystemInstructions(text: string, system: string): string {
+  return system ? `${system}\n\n${text}` : text;
+}
+
+/** `say` text becomes the turn's system message, so label both parts. */
+function sayWithSystemInstructions(text: string, system: string): string {
+  return system
+    ? `System Prompt:\n\n${system}\n\nMessage for the system to follow:\n\n${text}`
+    : text;
+}
+
+function countErrors(ctx: CompilerContext): number {
+  return ctx.diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    .length;
 }
 
 /** Named steps in source order, or the unnamed `steps:` block as `main`. */
@@ -179,54 +294,40 @@ function collectSteps(
 
 /**
  * Lower a list of statements to workflow directives. `conditions` is the stack
- * of enclosing `if` guards; each emitted directive is gated on their
+ * of enclosing `if` guards, outermost first; `conditions[i]` reads the workflow
+ * condition slot for depth `i + 1`. Each emitted directive is gated on their
  * conjunction via `enabled`.
  */
 function compileWorkflowStatements(
   stmts: Statement[],
   conditions: string[],
   state: WorkflowCompileState
-): LoweredDirective[] {
-  const result: LoweredDirective[] = [];
-  for (const stmt of stmts) {
-    result.push(...compileWorkflowStatement(stmt, conditions, state));
-  }
-  return result;
+): UnnamedDirective[] {
+  return stmts.flatMap(stmt =>
+    compileWorkflowStatement(stmt, conditions, state)
+  );
 }
 
 function compileWorkflowStatement(
   stmt: Statement,
   conditions: string[],
   state: WorkflowCompileState
-): LoweredDirective[] {
+): UnnamedDirective[] {
+  if (stmt instanceof IfStatement) {
+    return compileWorkflowIf(stmt, conditions, state);
+  }
+  if (stmt instanceof Template) {
+    return compileDo(stmt, conditions, state);
+  }
+
   const { ctx } = state;
   const range = stmt.__cst?.range;
 
-  if (stmt instanceof IfStatement) {
-    const condition = compileExpression(stmt.condition, ctx, {
-      expressionContext: "'if' condition",
-    });
-    const lowered = [
-      ...compileWorkflowStatements(
-        stmt.body,
-        [...conditions, condition],
-        state
-      ),
-      ...compileWorkflowStatements(
-        stmt.orelse,
-        [...conditions, `not (${condition})`],
-        state
-      ),
-    ];
-    reportConditionWrites(lowered, referencedVariables(stmt.condition), ctx);
-    return lowered;
-  }
-
   let directive: UnnamedDirective | undefined;
   if (stmt instanceof SayStatement) {
-    directive = compileSay(stmt, ctx);
+    directive = compileSay(stmt, state);
   } else if (stmt instanceof CollectClause) {
-    directive = compileAskFor(stmt, ctx);
+    directive = compileAskFor(stmt, state);
   } else if (stmt instanceof RunStatement) {
     directive = compileRun(stmt, state);
   } else if (stmt instanceof SetClause) {
@@ -241,12 +342,6 @@ function compileWorkflowStatement(
       range,
       'workflow-unsupported-statement'
     );
-  } else if (stmt instanceof Template) {
-    ctx.error(
-      "Instruction lines ('|') are not supported inside a workflow. Use 'say' to deliver a message.",
-      range,
-      'workflow-unsupported-statement'
-    );
   } else if (!(stmt instanceof UnknownStatement)) {
     // UnknownStatement is already reported as a parse-time diagnostic.
     ctx.error(
@@ -256,17 +351,157 @@ function compileWorkflowStatement(
     );
   }
 
+  return guardDirective(directive, conditions);
+}
+
+/**
+ * Lower `if C: <body> else: <orelse>`.
+ *
+ * The runtime checks a directive's `enabled` when the directive is reached,
+ * against live state. If the branches tested `C` directly, a directive that
+ * changes a variable `C` reads (including through an `ask for` or `|` line that
+ * spans turns) would change the branch taken by the directives after it, and
+ * the else could run as well. So `C` is stored once, before either branch, in a
+ * workflow condition slot, and both branches are gated on the slot.
+ *
+ * The slot is the nesting depth of the `if`. Every enclosing `if` holds a lower
+ * slot, so a nested `if` never overwrites a slot that is still being read, and
+ * a sibling `if` reuses the slot only after the previous one has finished. An
+ * `else if` is an `if` inside `orelse`: it takes the next slot, and its
+ * snapshot runs only when the earlier links were false.
+ *
+ * Evaluate `C` as a bound input, which the workflow ActionNode evaluates
+ * strictly before calling the identity action. The action echoes that input,
+ * and the state update only copies the result into the slot. Evaluating `C`
+ * directly in a state update would swallow missing-key errors and either reuse
+ * a stale slot or, with a False reset, incorrectly run the else. A bound-input
+ * error instead stops execution before either branch, just like the original
+ * enabled guard. No reset is needed because a failed evaluation cannot reach
+ * the slot's readers.
+ *
+ * The snapshot is gated like the branches, so a slot from an earlier run is only
+ * ever read alongside an enclosing guard that is false.
+ */
+function compileWorkflowIf(
+  stmt: IfStatement,
+  conditions: string[],
+  state: WorkflowCompileState
+): UnnamedDirective[] {
+  const { ctx } = state;
+  const condition = compileExpression(stmt.condition, ctx, {
+    expressionContext: "'if' condition",
+  });
+  const depth = conditions.length + 1;
+  const slotName = workflowConditionVariableName(depth);
+  const slot = `state.${slotName}`;
+
+  const branches = [
+    ...compileWorkflowStatements(stmt.body, [...conditions, slot], state),
+    ...compileWorkflowStatements(
+      stmt.orelse,
+      [...conditions, `not (${slot})`],
+      state
+    ),
+  ];
+  // Nothing reads the slot when neither branch produced a directive.
+  if (branches.length === 0) return [];
+
+  ctx.maxWorkflowConditionSlot = Math.max(ctx.maxWorkflowConditionSlot, depth);
+  const snapshot: UnnamedDirective = {
+    ...conditionSnapshotAction(slotName, condition),
+    chat_history_behavior: NO_CHAT_HISTORY,
+  };
+  return [...guardDirective(snapshot, conditions), ...branches];
+}
+
+function guardDirective(
+  directive: UnnamedDirective | undefined,
+  conditions: string[]
+): UnnamedDirective[] {
   if (!directive) return [];
   if (conditions.length > 0) {
     directive.enabled = joinConditions(conditions);
   }
-  return [{ directive, range }];
+  return [directive];
+}
+
+/**
+ * Lower a `|` line and its continuation lines to one `do` directive. Blank
+ * lines at the start and end are removed. Each `{!@actions.X}` becomes a tool
+ * that the LLM can call. The tools must be actions of the workflow itself.
+ */
+function compileDo(
+  template: Template,
+  conditions: string[],
+  state: WorkflowCompileState
+): UnnamedDirective[] {
+  const { ctx } = state;
+  const tools: Tool[] = [];
+  let valid = true;
+  for (const part of template.parts) {
+    if (!(part instanceof TemplateInterpolation)) continue;
+    const refRange = part.expression.__cst?.range ?? part.__cst?.range;
+    const error = workflowDoReferenceError(part.expression);
+    const ref = decomposeAtMemberExpression(part.expression);
+    if (error) {
+      ctx.error(
+        error.message,
+        error.range ?? refRange,
+        'workflow-do-unsupported-reference'
+      );
+      valid = false;
+    } else if (ref?.namespace === 'actions') {
+      if (!resolveWorkflowAction(state.block, ref.property)) {
+        ctx.error(
+          workflowUnknownActionMessage(ref.property, 'do'),
+          refRange,
+          'workflow-unknown-action'
+        );
+        valid = false;
+      } else if (!tools.some(tool => tool.name === ref.property)) {
+        tools.push(compileDoTool(ref.property, ctx));
+      }
+    }
+  }
+  if (!valid) return [];
+
+  const instructions = compileTemplate(template.parts, ctx, {
+    allowActionReferences: true,
+  }).trim();
+  if (instructions === '') {
+    ctx.error(
+      "A '|' line in a workflow requires non-empty text.",
+      template.__cst?.range,
+      'workflow-empty-do'
+    );
+    return [];
+  }
+
+  return guardDirective(
+    {
+      type: 'do',
+      instructions: withSystemInstructions(
+        instructions,
+        state.systemInstructions
+      ),
+      ...(tools.length > 0 ? { tools } : {}),
+    },
+    conditions
+  );
+}
+
+/** A tool for a workflow action. The LLM fills the required inputs. */
+function compileDoTool(name: string, ctx: CompilerContext): Tool {
+  const llmInputs: string[] = [];
+  setDefaultLlmInputs(name, {}, llmInputs, ctx);
+  return { type: 'action', target: name, name, llm_inputs: llmInputs };
 }
 
 function compileSay(
   stmt: SayStatement,
-  ctx: CompilerContext
+  state: WorkflowCompileState
 ): UnnamedDirective | undefined {
+  const { ctx } = state;
   const text = compileTemplate(stmt.parts, ctx);
   if (text.trim() === '') {
     ctx.error(
@@ -276,13 +511,17 @@ function compileSay(
     );
     return undefined;
   }
-  return { type: 'say', text };
+  return {
+    type: 'say',
+    text: sayWithSystemInstructions(text, state.systemInstructions),
+  };
 }
 
 function compileAskFor(
   stmt: CollectClause,
-  ctx: CompilerContext
+  state: WorkflowCompileState
 ): UnnamedDirective | undefined {
+  const { ctx } = state;
   const varName = resolveCollectTarget(stmt, ctx);
   if (!varName) return undefined;
   if (ctx.getVariableNamespace(varName) !== 'state') {
@@ -302,7 +541,14 @@ function compileAskFor(
     );
     return undefined;
   }
-  return { type: 'ask_for', llm_inputs: [varName], instructions };
+  return {
+    type: 'ask_for',
+    llm_inputs: [varName],
+    instructions: withSystemInstructions(
+      instructions,
+      state.systemInstructions
+    ),
+  };
 }
 
 function compileRun(
@@ -311,6 +557,14 @@ function compileRun(
 ): UnnamedDirective | undefined {
   const { ctx } = state;
   const decomposed = decomposeAtMemberExpression(stmt.target);
+  if (decomposed?.namespace === 'utils') {
+    ctx.error(
+      runUtilsMessage(decomposed.property),
+      stmt.target.__cst?.range ?? stmt.__cst?.range,
+      RUN_UTILS_CODE
+    );
+    return undefined;
+  }
   if (decomposed && decomposed.namespace !== 'actions') {
     ctx.error(
       `'run @${decomposed.namespace}.${decomposed.property}' is not supported inside a workflow. Only '@actions' can be run.`,
@@ -407,6 +661,7 @@ function compileSet(
     type: 'action',
     target: STATE_UPDATE_ACTION,
     state_updates: [update],
+    chat_history_behavior: NO_CHAT_HISTORY,
   };
 }
 
@@ -456,57 +711,6 @@ function compileTransition(
 }
 
 /**
- * The runtime checks each directive's `enabled` guard when that directive is
- * reached rather than once at the `if`. A directive that writes a variable its
- * enclosing condition reads would therefore change the branch taken by every
- * directive after it in the same if/else, so that shape is rejected. The last
- * directive is exempt: nothing after it is gated on the condition.
- */
-function reportConditionWrites(
-  lowered: LoweredDirective[],
-  conditionVariables: Set<string>,
-  ctx: CompilerContext
-): void {
-  if (conditionVariables.size === 0) return;
-  for (const { directive, range } of lowered.slice(0, -1)) {
-    const written = writtenVariables(directive).find(v =>
-      conditionVariables.has(v)
-    );
-    if (!written) continue;
-    ctx.error(
-      `'@variables.${written}' is read by the enclosing 'if' condition, and workflow conditions are re-checked before each directive, so writing it here changes which branch the following directives take. ` +
-        "Store the condition in a separate variable before the 'if' and test that variable instead.",
-      range,
-      'workflow-condition-written-in-branch'
-    );
-  }
-}
-
-/** `@variables.X` names an expression reads. */
-function referencedVariables(expr: Expression): Set<string> {
-  const names = new Set<string>();
-  walkAstExpressions(expr, node => {
-    const ref = decomposeAtMemberExpression(node);
-    if (ref?.namespace === 'variables') names.add(ref.property);
-  });
-  return names;
-}
-
-/** State variables a directive writes when it runs. */
-function writtenVariables(directive: UnnamedDirective): string[] {
-  switch (directive.type) {
-    case 'ask_for':
-      return directive.llm_inputs;
-    case 'action':
-      return (directive.state_updates ?? []).flatMap(update =>
-        Object.keys(update)
-      );
-    default:
-      return [];
-  }
-}
-
-/**
  * Give each directive a positional `developer_name` of the form
  * `<workflow>_<step>_<type>_<NN>`, where NN is its 1-based position in the step.
  * Step names are unique and the type is fixed per directive, so names are
@@ -515,12 +719,12 @@ function writtenVariables(directive: UnnamedDirective): string[] {
 function nameDirectives(
   workflowName: string,
   stepName: string,
-  lowered: LoweredDirective[],
+  directives: UnnamedDirective[],
   range: Range | undefined,
   ctx: CompilerContext
 ): WorkflowDirective[] {
   let reported = false;
-  return lowered.map(({ directive }, index) => {
+  return directives.map((directive, index) => {
     const ordinal = String(index + 1).padStart(2, '0');
     const developerName = `${workflowName}_${stepName}_${directive.type}_${ordinal}`;
     const problem = directiveNameProblem(developerName);
@@ -541,9 +745,4 @@ function directiveNameProblem(developerName: string): string | undefined {
     return `Generated directive name '${developerName}' is not a valid developer name. Avoid consecutive or trailing underscores in the workflow and step names.`;
   }
   return undefined;
-}
-
-function joinConditions(conditions: string[]): string {
-  if (conditions.length === 1) return conditions[0];
-  return conditions.map(c => `(${c})`).join(' and ');
 }

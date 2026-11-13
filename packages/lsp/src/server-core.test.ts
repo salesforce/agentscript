@@ -95,6 +95,18 @@ describe('setupServer onInitialize', () => {
     expect(config.defaultDialect).toBeUndefined();
   });
 
+  test('sets config.gates from initializationOptions.gates', async () => {
+    const config: LspConfig = { ...testConfig };
+    const { connection, handlers } = createMockConnection();
+
+    setupServer(connection, config);
+
+    const gates = { 'com.example.gate': true };
+    await handlers['initialize'](makeInitParams({ gates }));
+
+    expect(config.gates).toEqual(gates);
+  });
+
   test('does not crash when initializationOptions is undefined', async () => {
     const config: LspConfig = { ...testConfig };
     const { connection, handlers } = createMockConnection();

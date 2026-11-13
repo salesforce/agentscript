@@ -10,18 +10,24 @@ import { extractStringValue, getCstRange } from '../ast-helpers.js';
 
 /**
  * Billing configuration matching agent-dsl BillingConfig.
- *
- * The dialect surface uses the exact agent-dsl `billingMode` enum values, so
- * the parsed mode passes through to AgentJSON unchanged.
  */
 export interface BillingConfiguration {
   mode: 'ACTION_BASED' | 'OUTCOME_BASED';
 }
 
-const BILLING_MODES: ReadonlyArray<BillingConfiguration['mode']> = [
-  'ACTION_BASED',
-  'OUTCOME_BASED',
-];
+/**
+ * Authored billing mode → agent-dsl `billingMode` value.
+ *
+ * The DSL surface uses RESOLUTION_BASED, which agent JSON still calls
+ * OUTCOME_BASED. OUTCOME_BASED remains accepted as a deprecated alias (the
+ * dialect warns on it) and compiles to the same agent JSON.
+ */
+const BILLING_MODES: ReadonlyMap<string, BillingConfiguration['mode']> =
+  new Map([
+    ['ACTION_BASED', 'ACTION_BASED'],
+    ['RESOLUTION_BASED', 'OUTCOME_BASED'],
+    ['OUTCOME_BASED', 'OUTCOME_BASED'],
+  ]);
 
 /**
  * Compile the billing block (nested under config) from AST to AgentJSON format.
@@ -43,13 +49,14 @@ export function compileBilling(
     return undefined;
   }
 
-  if (!BILLING_MODES.includes(mode as BillingConfiguration['mode'])) {
+  const compiledMode = BILLING_MODES.get(mode);
+  if (!compiledMode) {
     ctx.error(
-      `Invalid billing mode: "${mode}". Must be one of: ${BILLING_MODES.join(', ')}`,
+      `Invalid billing mode: "${mode}". Must be one of: ${[...BILLING_MODES.keys()].join(', ')}`,
       getCstRange(block.mode)
     );
     return undefined;
   }
 
-  return { mode: mode as BillingConfiguration['mode'] };
+  return { mode: compiledMode };
 }

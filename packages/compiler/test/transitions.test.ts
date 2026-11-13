@@ -29,7 +29,7 @@ import { CompilerContext } from '../src/compiler-context.js';
 import type { ParsedTool } from '../src/parsed-types.js';
 import { isHandOffAction } from '../src/types.js';
 import * as schema from '../src/generated/agent-dsl.js';
-import { parseSource } from './test-utils.js';
+import { findNode, parseSource } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
   EMPTY_TOPIC_VALUE,
@@ -64,12 +64,10 @@ topic destination:
     const { output, diagnostics } = compile(parseSource(source));
     // Successful transition compilation should produce zero diagnostics
     expect(diagnostics).toHaveLength(0);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
     // Should have a state update tool
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -125,11 +123,9 @@ topic second_dest:
             | second
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'current'
-    )!;
+    const node = findNode(output, 'current', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(2);
@@ -174,12 +170,10 @@ topic destination:
     description: "destination"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
     // Manual transition should create a state update tool gated by condition
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -223,11 +217,9 @@ topic destination:
     description: "destination"
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -273,11 +265,9 @@ topic destination:
             | destination
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -311,11 +301,9 @@ topic destination:
             | destination
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -345,11 +333,9 @@ topic destination:
             | destination
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -377,11 +363,9 @@ connected_subagent Support_Agent:
     description: "Handles support inquiries"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -413,11 +397,9 @@ connected_subagent Support_Agent:
     description: "Handles support inquiries"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(1);
@@ -457,13 +439,11 @@ topic complete:
     expect(output.agent_version.nodes.length).toBe(2);
 
     // Verify descriptions contain "transition" as a word without conflict
-    const testNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const testNode = findNode(output, 'test', 'subagent');
     expect(testNode.description).toContain('transition to the new interface');
 
     // Verify state variables include user-defined ones
-    const stateVarNames = output.agent_version.state_variables.map(
+    const stateVarNames = output.agent_version.state_variables!.map(
       v => v.developer_name
     );
     expect(stateVarNames).toContain('transition_status');
@@ -507,11 +487,9 @@ topic finalize_interview:
             | Finalize the interview
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'general_faq'
-    )!;
+    const node = findNode(output, 'general_faq', 'subagent');
 
-    const stateUpdateTools = node.tools.filter(
+    const stateUpdateTools = node.tools!.filter(
       t => t.target === STATE_UPDATE_ACTION
     );
     expect(stateUpdateTools.length).toBe(2);
@@ -545,7 +523,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const nextTopicVars = output.agent_version.state_variables.filter(
+    const nextTopicVars = output.agent_version.state_variables!.filter(
       v => v.developer_name === NEXT_TOPIC_VARIABLE
     );
     expect(nextTopicVars.length).toBe(1);
@@ -565,13 +543,13 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const nextTopicVars = output.agent_version.state_variables.filter(
+    const nextTopicVars = output.agent_version.state_variables!.filter(
       v => v.developer_name === NEXT_TOPIC_VARIABLE
     );
     expect(nextTopicVars.length).toBe(1);
 
     // User variable should also be present
-    const readyVar = output.agent_version.state_variables.find(
+    const readyVar = output.agent_version.state_variables!.find(
       v => v.developer_name === 'ready'
     );
     expect(readyVar).toBeDefined();
@@ -766,9 +744,7 @@ topic other:
             | other
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'test'
-    )!;
+    const node = findNode(output, 'test', 'subagent');
 
     const handoffs = [
       ...(node.after_all_tool_calls ?? []),

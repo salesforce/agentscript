@@ -59,7 +59,7 @@ describe('Document', () => {
         'config:\n    description: "My agent"',
         'config'
       );
-      doc.setField('config', newConfig, 'Add config');
+      doc.setField('config', newConfig!, 'Add config');
       const emitted = doc.emit();
       expect(emitted).toContain('config');
       expect(emitted).toContain('My agent');

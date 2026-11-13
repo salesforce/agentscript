@@ -26,7 +26,7 @@ import {
 } from './lint/passes/connection-validation.js';
 import { ALLOWED_AGENT_TYPES } from './lint/agent-types.js';
 import { keywordNames, getGlobalScopes } from '@agentscript/language';
-import type { GlobalScopeMember } from '@agentscript/language';
+import type { GlobalScopeMember, GateRequirement } from '@agentscript/language';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +38,8 @@ interface SerializedFieldBase {
   required?: boolean;
   deprecated?: { message?: string; since?: string; removeIn?: string };
   experimental?: boolean;
+  gatedBy?: GateRequirement;
+  gatedValues?: Record<string, GateRequirement>;
   constraints?: Record<string, unknown>;
   omitArrow?: boolean;
   crossBlockReferenceable?: boolean;
@@ -167,6 +169,9 @@ function extractMetadata(field: Record<string, unknown>): SerializedFieldBase {
   if (meta.deprecated)
     result.deprecated = meta.deprecated as SerializedFieldBase['deprecated'];
   if (meta.experimental) result.experimental = true;
+  if (meta.gatedBy) result.gatedBy = meta.gatedBy as GateRequirement;
+  if (meta.gatedValues)
+    result.gatedValues = meta.gatedValues as Record<string, GateRequirement>;
   if (meta.omitArrow) result.omitArrow = true;
   if (meta.crossBlockReferenceable) result.crossBlockReferenceable = true;
 
@@ -411,7 +416,19 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       code: 'workflow-unknown-action',
       severity: 'error',
       description:
-        "A workflow 'run @actions.X' targets an action that is not defined in the workflow's own 'actions'. Top-level actions are not available to workflows.",
+        "A workflow 'run @actions.X', or a '{!@actions.X}' in a '|' line of a workflow step, refers to an action that is not defined in the workflow's own 'actions'.",
+    },
+    {
+      code: 'workflow-do-too-long',
+      severity: 'error',
+      description:
+        "A '|' line in a workflow step, with its continuation lines, has more than 1,000 characters of instructions.",
+    },
+    {
+      code: 'workflow-do-unsupported-reference',
+      severity: 'error',
+      description:
+        "A '|' line in a workflow step refers to a namespace other than '@variables', '@system_variables', '@knowledge', or '@actions', or uses '@actions.X' as only part of a '{! }' expression.",
     },
     {
       code: 'action-unknown-input',
@@ -424,12 +441,6 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       severity: 'error',
       description:
         'A workflow \'run @actions.X\' sets from an output not defined on the action. Includes "did you mean?" suggestions.',
-    },
-    {
-      code: 'workflow-action-confirmation-ignored',
-      severity: 'warning',
-      description:
-        "A workflow 'run @actions.X' targets an action with 'require_user_confirmation: True'. Workflows don't support confirmation yet, so the action runs without it.",
     },
     {
       code: 'workflow-duplicate-node-name',
@@ -944,6 +955,30 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       description:
         "A render 'with' binding's `@connection.X.inputs.Y` value names a connection other than the active one.",
     },
+    {
+      code: 'render-with-non-displayable-output',
+      severity: 'warning',
+      description:
+        "A render 'with' binding's value uses an action output that isn't marked `is_displayable: True`.",
+    },
+    {
+      code: 'render-with-component-unsupported-value',
+      severity: 'error',
+      description:
+        "A render 'with' binding binds a lightning web component parameter to something other than an action output (`@outputs.X`) or a string, number, or boolean literal.",
+    },
+    {
+      code: 'render-with-component-non-dict-value',
+      severity: 'error',
+      description:
+        "A render 'with' binding binds a schema component (e.g. a messaging or lightning web component) to something other than an inline dict of its parameters.",
+    },
+    {
+      code: 'render-with-duplicate-render-rule',
+      severity: 'error',
+      description:
+        'An action definition has more than one customer_web_client render rule in a subagent; it can have only one renderer.',
+    },
   ],
   'render-rule-scope': [
     {
@@ -1048,6 +1083,24 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
         "A connection declares only one of the paired 'outbound_route_name'/'outbound_route_type' fields.",
     },
     {
+      code: 'connection-duplicate-name',
+      severity: 'warning',
+      description:
+        "Connection names that differ only in case or '_' count as duplicates.",
+    },
+    {
+      code: 'unsupported-system-instruction-statement',
+      severity: 'error',
+      description:
+        "A connection's additional_system_instructions procedure contains a statement other than instruction text or an if/else conditional.",
+    },
+    {
+      code: 'conditional-connection-instructions-input',
+      severity: 'error',
+      description:
+        'A connection input is referenced in additional_system_instructions that contain conditionals.',
+    },
+    {
       code: 'connection-input-invalid-type',
       severity: 'error',
       description:
@@ -1139,19 +1192,31 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       code: 'response-format-unsupported-schema-type',
       severity: 'error',
       description:
-        "A response_format input's 'schema' URI uses an unsupported schema type (only messaging_component is supported).",
+        "A response_format input's 'schema' URI uses an unsupported schema type.",
     },
     {
-      code: 'response-format-messaging-component-wrong-surface',
+      code: 'response-format-component-wrong-surface',
       severity: 'error',
       description:
-        'A messaging_component schema is used on a connection type other than messaging.',
+        'A component schema is used on a connection type that does not support that component type.',
+    },
+    {
+      code: 'response-format-invalid-component-fqn',
+      severity: 'error',
+      description:
+        "A lightning_web_component schema URI does not reference a fully qualified component name ('<namespace>__<devName>').",
+    },
+    {
+      code: 'response-format-component-non-literal-default',
+      severity: 'error',
+      description:
+        'A lightning_web_component parameter default is not a literal (e.g. it references a variable, input, or action output).',
     },
     {
       code: 'response-format-nested-schema',
       severity: 'error',
       description:
-        'A messaging_component schema is used on a nested field; it is only valid on top-level input fields.',
+        'A component schema is used on a nested field; it is only valid on top-level input fields.',
     },
   ],
   'system-message-variables': [
@@ -1168,6 +1233,28 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       severity: 'error',
       description:
         'A system instruction procedure contains a statement other than instruction text or an if/else conditional.',
+    },
+  ],
+  'on-exit-handoffs': [
+    {
+      code: 'handoff-in-on-exit',
+      severity: 'error',
+      description:
+        "A custom subagent's on_exit contains a transition, escalate, or end_session statement; on_exit only runs actions.",
+    },
+  ],
+  'run-target': [
+    {
+      code: 'run-utils-unsupported',
+      severity: 'error',
+      description:
+        '`run @utils.X` is never valid; `@utils` members are reasoning-action targets. Use the statement form instead (`escalate`, `transition to`, `set`, `end_session`).',
+    },
+    {
+      code: 'subagent-unknown-action',
+      severity: 'error',
+      description:
+        "A subagent's `run @actions.X` names a reasoning action (an LLM-callable tool such as @utils.escalate) rather than an action defined in `actions`; there is no action to run.",
     },
   ],
   'connected-agent/bound-inputs': [
@@ -1271,6 +1358,12 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       description:
         "A 'billing' block is declared on an agent type that does not support it.",
     },
+    {
+      code: 'deprecated-billing-mode',
+      severity: 'warning',
+      description:
+        "The deprecated billing mode 'OUTCOME_BASED' is used; use 'RESOLUTION_BASED' instead.",
+    },
   ],
   'variable-validation': [
     {
@@ -1318,6 +1411,14 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       description: "An object-typed field does not declare a 'schema'.",
     },
   ],
+  'action-outputs-all-filtered': [
+    {
+      code: 'action-outputs-all-filtered',
+      severity: 'warning',
+      description:
+        "An action's outputs are all hidden from the agent (via 'filter_from_agent' or 'is_used_by_planner: False'), so the LLM sees the call but gets an empty result.",
+    },
+  ],
   'custom-subagent-validation': [
     {
       code: 'custom-subagent-validation',
@@ -1358,6 +1459,12 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       severity: 'warning',
       description:
         'A deprecated additional_parameter__ field is declared; use the corresponding config.runtime.* field instead.',
+    },
+    {
+      code: 'experimental-additional-parameter',
+      severity: 'warning',
+      description:
+        'An additional_parameter__ field with no governed meaning is declared; it is experimental and passed to the runtime unvalidated.',
     },
   ],
   'voice-language-validation': [
@@ -1422,6 +1529,29 @@ export const DIAGNOSTIC_CODES: Record<string, SerializedDiagnosticCode[]> = {
       code: 'recommended-prompts-type',
       severity: 'error',
       description: 'A starter prompt entry is not a text value.',
+    },
+  ],
+  'workflow-beta-notice': [
+    {
+      code: 'workflow-beta-notice',
+      severity: 'information',
+      description:
+        'A workflow block is used; workflow is a pilot or beta service subject to the Beta Services Terms.',
+    },
+  ],
+  'live-experimental': [
+    {
+      code: 'live-experimental',
+      severity: 'warning',
+      description: 'A live block is used; the live block is experimental.',
+    },
+  ],
+  'workflow-self-transition': [
+    {
+      code: 'workflow-self-transition',
+      severity: 'warning',
+      description:
+        'A workflow transitions to itself, which can cause an infinite loop.',
     },
   ],
   'function-argument-type-check': [

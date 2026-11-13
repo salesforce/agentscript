@@ -5,12 +5,17 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
-import { NamedMap, ParameterDeclarationNode } from '@agentscript/language';
+import {
+  IfStatement,
+  NamedMap,
+  ParameterDeclarationNode,
+} from '@agentscript/language';
 import type { BlockCore } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
   OutboundRouteConfig,
   ResponseAction,
+  ResponseFormat,
   Surface,
   SurfaceInputParameter,
 } from '../types.js';
@@ -28,6 +33,10 @@ import type { Sourceable } from '../sourced.js';
 import { extractDefaultValue } from '../variables/state-variables.js';
 import { compileResponseFormats } from './compile-response-formats.js';
 import { compileTemplateValue } from '../expressions/compile-template.js';
+import {
+  extractProcedureStatements,
+  validateSystemInstructionStatements,
+} from '../nodes/compile-system-instructions.js';
 
 /**
  * Known connection type mappings.
@@ -102,6 +111,13 @@ function compileSurface(
   // (instructions + response_actions) is inert at runtime — don't emit it.
   const includeReasoning = adaptiveResponseAllowed?.value !== false;
 
+  // Compile format_definitions (response_formats) before response_actions,
+  // which default their descriptions from the referenced format
+  const responseFormats = compileResponseFormats(
+    def.response_formats as NamedMap<BlockCore> | undefined,
+    ctx
+  );
+
   // Compile reasoning.response_actions first to populate responseFormatReferenceMap
   // (needed for @response_actions resolution in instructions)
   const responseActions = includeReasoning
@@ -109,6 +125,7 @@ function compileSurface(
         def.reasoning?.response_actions as
           | NamedMap<Record<string, unknown>>
           | undefined,
+        responseFormats,
         ctx
       )
     : [];
@@ -127,7 +144,17 @@ function compileSurface(
 
   const additionalSystemInstructionsNode =
     def.additional_system_instructions as Record<string, unknown> | undefined;
-  const additionalSystemInstructions = additionalSystemInstructionsNode
+  const procedureStatements = extractProcedureStatements(
+    additionalSystemInstructionsNode
+  );
+  // Conditional text moves into the subagents' system instructions, which
+  // validate it; static text stays on the surface unless it is invalid.
+  const isStaticSystemInstructions =
+    additionalSystemInstructionsNode !== undefined &&
+    !procedureStatements?.some(statement => statement instanceof IfStatement) &&
+    (!procedureStatements ||
+      validateSystemInstructionStatements(procedureStatements, ctx));
+  const additionalSystemInstructions = isStaticSystemInstructions
     ? dedent(compileTemplateValue(additionalSystemInstructionsNode, ctx))
     : undefined;
 
@@ -136,12 +163,6 @@ function compileSurface(
 
   // Compile inputs (aka surface variables)
   const inputs = compileInputs(def, ctx);
-
-  // Compile format_definitions (response_formats)
-  const responseFormats = compileResponseFormats(
-    def.response_formats as NamedMap<BlockCore> | undefined,
-    ctx
-  );
 
   // Validate connection type constraints
   validateConnection(name, connectionType, def, agentType, ctx);
@@ -227,10 +248,14 @@ function compileOutboundRouteConfigs(
  */
 function compileResponseActions(
   responseActions: NamedMap<Record<string, unknown>> | undefined,
+  responseFormats: ResponseFormat[],
   ctx: CompilerContext
 ): ResponseAction[] {
   if (!responseActions) return [];
 
+  const formatDescriptions = new Map(
+    responseFormats.map(format => [format.developer_name, format.description])
+  );
   const result: ResponseAction[] = [];
 
   for (const [name, def] of iterateNamedMap(responseActions)) {
@@ -248,7 +273,9 @@ function compileResponseActions(
     result.push({
       target,
       name,
-      description: normalizeDeveloperName(name),
+      // Fall back to the action name when the format has no description
+      description:
+        formatDescriptions.get(target) || normalizeDeveloperName(name),
     });
   }
 

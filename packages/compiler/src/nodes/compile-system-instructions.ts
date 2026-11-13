@@ -7,14 +7,25 @@
 
 import { IfStatement } from '@agentscript/language';
 import type { Statement } from '@agentscript/language';
-import type { CompilerContext } from '../compiler-context.js';
+import type {
+  CompilerContext,
+  DynamicConnectionSystemInstructions,
+} from '../compiler-context.js';
 import type { ParsedSystem, ParsedTopicLike } from '../parsed-types.js';
 import type { Action, HandOffAction } from '../types.js';
-import { SYSTEM_INSTRUCTIONS_VARIABLE } from '../constants.js';
+import {
+  CONNECTION_SYSTEM_INSTRUCTIONS_VARIABLE,
+  SYSTEM_INSTRUCTIONS_VARIABLE,
+} from '../constants.js';
 import { getCstRange } from '../ast-helpers.js';
 import { compileTemplateValue } from '../expressions/compile-template.js';
 import { dedent } from '../utils.js';
 import { compileDeterministicDirectives } from './compile-directives.js';
+import {
+  createInstructionResetAction,
+  createStateUpdateAction,
+  instructionAppendValue,
+} from './optimize-actions.js';
 
 export interface CompiledSystemInstructions {
   instructions: string;
@@ -81,7 +92,7 @@ function compileInstructionValue(
       : undefined;
   }
 
-  ctx.usesDynamicSystemInstructions = true;
+  ctx.usesSystemInstructionsVariable = true;
   const actions = compileDeterministicDirectives(statements, ctx, {
     addNextTopicResetAction: false,
     gateOnNextTopicEmpty: false,
@@ -96,7 +107,129 @@ function compileInstructionValue(
   };
 }
 
-function extractProcedureStatements(value: unknown): Statement[] | undefined {
+/**
+ * Appends each conditional connection's system instructions to a subagent's
+ * compiled system instructions, gated on its connection.
+ * Static text stays as is; only the connection part is rebuilt before each
+ * reasoning iteration.
+ */
+export function appendConnectionSystemInstructions(
+  compiled: CompiledSystemInstructions,
+  ctx: CompilerContext
+): CompiledSystemInstructions {
+  const connections = ctx.dynamicConnectionSystemInstructions;
+  if (connections.length === 0) return compiled;
+
+  // Compiled per subagent, so condition slots follow the subagent's own.
+  const connectionActions = connections.flatMap(connection =>
+    compileConnectionSystemInstructions(connection, ctx)
+  );
+  ctx.usesSystemInstructionsVariable = true;
+  ctx.usesDynamicConnectionSystemInstructions = true;
+  const isStatic = compiled.beforeReasoningIteration.length === 0;
+  if (isStatic) {
+    return {
+      instructions: `${compiled.instructions}{{state.${SYSTEM_INSTRUCTIONS_VARIABLE}}}`,
+      beforeReasoningIteration: [
+        createInstructionResetAction(SYSTEM_INSTRUCTIONS_VARIABLE),
+        ...connectionActions,
+      ],
+    };
+  }
+  return {
+    instructions: compiled.instructions,
+    beforeReasoningIteration: [
+      ...compiled.beforeReasoningIteration,
+      ...connectionActions,
+    ],
+  };
+}
+
+/**
+ * Compiles actions that build one connection's system instructions in a
+ * separate state variable, line by line as their conditions pass, then append
+ * that text to the system instructions.
+ * The append is skipped when no line was added.
+ */
+function compileConnectionSystemInstructions(
+  { connectionName, statements }: DynamicConnectionSystemInstructions,
+  ctx: CompilerContext
+): (Action | HandOffAction)[] {
+  const activeConnectionGate = buildConnectionGate(connectionName);
+  const previousConnectionName = ctx.connectionName;
+  // Compiles `@inputs.X` to `connection.<name>.X`.
+  ctx.connectionName = connectionName;
+  try {
+    return [
+      ...compileDeterministicDirectives(statements, ctx, {
+        addNextTopicResetAction: false,
+        gateOnNextTopicEmpty: false,
+        agentInstructionsVariable: CONNECTION_SYSTEM_INSTRUCTIONS_VARIABLE,
+        enabled: activeConnectionGate,
+      }),
+      createStateUpdateAction(
+        [
+          {
+            [SYSTEM_INSTRUCTIONS_VARIABLE]: instructionAppendValue(
+              SYSTEM_INSTRUCTIONS_VARIABLE,
+              `{{state.${CONNECTION_SYSTEM_INSTRUCTIONS_VARIABLE}}}`
+            ),
+          },
+        ],
+        `(${activeConnectionGate}) and (state.${CONNECTION_SYSTEM_INSTRUCTIONS_VARIABLE} != "")`
+      ),
+    ];
+  } finally {
+    // Leave the connection context, so later `@inputs` keep their plain form.
+    ctx.connectionName = previousConnectionName;
+  }
+}
+
+/**
+ * Returns a gate that evaluates to true while `connectionName` is the current
+ * connection.
+ * Only 2 spellings are officially accepted:
+ * - Core Enum (PascalCase/camelCase: `CustomerWebClient`, `customerWebClient`)
+ * - Script name (snake_case: `customer_web_client`).
+ * The gate lowercases both sides, so either spelling matches.
+ */
+function buildConnectionGate(connectionName: string): string {
+  const name = connectionName.toLowerCase();
+  const spellings = name.includes('_')
+    ? [name, name.replace(/_/g, '')]
+    : [name];
+  const list = spellings.map(spelling => JSON.stringify(spelling)).join(', ');
+  return `lower(system.current_connection or "") in [${list}]`;
+}
+
+/**
+ * Returns the connections whose `additional_system_instructions` is a valid
+ * procedure with at least one `if`; their whole field moves into the standard
+ * subagents' system instructions.
+ * Static text and procedures without an `if` are skipped and left to the
+ * surface; invalid procedures are reported and dropped.
+ */
+export function collectDynamicConnectionSystemInstructions(
+  connections: Iterable<[string, { additional_system_instructions?: unknown }]>,
+  ctx: CompilerContext
+): DynamicConnectionSystemInstructions[] {
+  const result: DynamicConnectionSystemInstructions[] = [];
+  for (const [name, def] of connections) {
+    const statements = extractProcedureStatements(
+      def.additional_system_instructions
+    );
+    if (!statements?.some(statement => statement instanceof IfStatement)) {
+      continue;
+    }
+    if (!validateSystemInstructionStatements(statements, ctx)) continue;
+    result.push({ connectionName: name, statements });
+  }
+  return result;
+}
+
+export function extractProcedureStatements(
+  value: unknown
+): Statement[] | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const procedure = value as { __kind?: unknown; statements?: unknown };
   if (
@@ -108,7 +241,7 @@ function extractProcedureStatements(value: unknown): Statement[] | undefined {
   return procedure.statements as Statement[];
 }
 
-function validateSystemInstructionStatements(
+export function validateSystemInstructionStatements(
   statements: readonly Statement[],
   ctx: CompilerContext,
   insideConditional = false

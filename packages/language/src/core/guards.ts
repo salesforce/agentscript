@@ -25,6 +25,7 @@ import {
 } from './expressions.js';
 
 import {
+  Template,
   IfStatement,
   SayStatement,
   TransitionStatement,
@@ -71,6 +72,10 @@ export function isAtIdentifier(node: unknown): node is AtIdentifier {
 }
 
 // ── Statement guards ─────────────────────────────────────────────────
+
+export function isTemplate(node: unknown): node is Template {
+  return node instanceof Template;
+}
 
 export function isIfStatement(node: unknown): node is IfStatement {
   return node instanceof IfStatement;

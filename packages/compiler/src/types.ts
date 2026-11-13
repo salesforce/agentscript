@@ -174,11 +174,13 @@ export type SayAction = z.input<typeof schema.sayAction> & { type: 'say' };
 export type AskForAction = z.input<typeof schema.askForAction> & {
   type: 'ask_for';
 };
+export type DoAction = z.input<typeof schema.doAction> & { type: 'do' };
 export type WorkflowDirective =
   | WorkflowAction
   | WorkflowHandoff
   | SayAction
-  | AskForAction;
+  | AskForAction
+  | DoAction;
 
 // -- File references (MANAGED file-upload) --
 // One compiler-emitted `@system_variables.uploaded_files` descriptor: exactly
@@ -211,6 +213,7 @@ export type Tool = z.input<typeof schema.tool> & {
 };
 
 export type RenderRule = z.input<typeof schema.renderRule>;
+export type InputBindingValue = z.input<typeof schema.inputBindingValue>;
 export type SupervisionTool = z.input<typeof schema.supervisionTool> & {
   type: 'supervision';
 };
@@ -245,6 +248,9 @@ export type SecurityConfiguration = z.input<
 
 // -- Runtime Configuration --
 export type RuntimeConfiguration = z.input<typeof schema.runtimeConfiguration>;
+
+// -- Live Configuration (experimental) --
+export type LiveConfiguration = z.input<typeof schema.liveConfiguration>;
 
 // ---------------------------------------------------------------------------
 // Additional types not in the OpenAPI schema (compiler-specific)

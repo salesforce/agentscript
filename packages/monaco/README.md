@@ -65,6 +65,10 @@ const extension = createLspExtension({
 
   // Dialect configuration function (optional, defaults to 'agentforce')
   dialectConfig: () => 'agentforce',
+
+  // Resolved feature gates, forwarded to the server as
+  // initializationOptions.gates (optional; a gate absent from the map is closed)
+  gates: resolvedGates,
 });
 
 // In your editor initialization with VSCode API wrapper:

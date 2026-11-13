@@ -71,6 +71,9 @@ export {
   undefinedReferenceDiagnostic,
 } from './diagnostics.js';
 
+export { isGateOpen } from './gates.js';
+export type { Gates, GateRequirement, ReleaseStage } from './gates.js';
+
 export {
   StringValue,
   NullableStringValue,
@@ -180,6 +183,7 @@ export {
   AvailableWhen,
   TransitionStatement,
   RunStatement,
+  RunOption,
   IfStatement,
   UnknownStatement,
 } from './statements.js';
@@ -193,6 +197,7 @@ export {
   isNoneLiteral,
   isSubscriptExpression,
   isAtIdentifier,
+  isTemplate,
   isIfStatement,
   isTransitionStatement,
   isToClause,

@@ -21,6 +21,7 @@ import {
   type SchemaFieldInfo,
 } from './schema-hover.js';
 import { keywordNames } from '../types.js';
+import { interpretEscape } from '../string-escapes.js';
 
 // ---------------------------------------------------------------------------
 // Node accessor – the only thing each platform must implement
@@ -372,7 +373,7 @@ function extractKeyTexts<N>(keyNode: N, a: NodeAccessor<N>): string[] {
  * Get the text value of a key node, handling string nodes with escape
  * sequences the same way `getKeyText` does for native SyntaxNodes.
  */
-function getKeyTextGeneric<N>(node: N, a: NodeAccessor<N>): string {
+export function getKeyTextGeneric<N>(node: N, a: NodeAccessor<N>): string {
   if (a.type(node) === 'id') return a.text(node);
 
   if (a.type(node) === 'string') {
@@ -381,14 +382,7 @@ function getKeyTextGeneric<N>(node: N, a: NodeAccessor<N>): string {
       if (a.type(child) === 'string_content') {
         value += a.text(child);
       } else if (a.type(child) === 'escape_sequence') {
-        const t = a.text(child);
-        if (t === '\\"') value += '"';
-        else if (t === "\\'") value += "'";
-        else if (t === '\\\\') value += '\\';
-        else if (t === '\\n') value += '\n';
-        else if (t === '\\r') value += '\r';
-        else if (t === '\\t') value += '\t';
-        else if (t === '\\0') value += '\0';
+        value += interpretEscape(a.text(child)[1] ?? '') ?? '';
       }
     }
     return value;

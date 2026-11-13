@@ -47,13 +47,13 @@ import {
   ProcedureValue,
   ExpressionValue,
   ExpressionSequence,
-} from '@agentscript/agentforce';
+} from '../src/index.js';
 import type {
   BlockCore,
   NamedMap,
   ParameterDeclarationNode,
   Parsed,
-} from '@agentscript/agentforce';
+} from '../src/index.js';
 
 function assertDefined<T>(val: T | undefined | null): asserts val is T {
   expect(val).toBeDefined();
@@ -294,7 +294,7 @@ describe('programmatic block construction and emit', () => {
         'action'
       );
       assertDefined(action);
-      actions.set('Get_Weather', action);
+      actions.set('Get_Weather', asParsed(action));
 
       const emitted = actions.__emit({ indent: 0 });
       expect(emitted).toContain('Get_Weather:');
@@ -518,8 +518,6 @@ describe('programmatic block construction and emit', () => {
     });
 
     test('parse action, mutate target, emit', () => {
-      // 'action' overload returns a wide union; mutateComponent provides
-      // type-safe field access via helpers.
       const action = parseComponent(
         'Get_Status:\n    description: "Get status"\n    target: "flow://OldFlow"',
         'action'
@@ -672,7 +670,11 @@ describe('programmatic block construction and emit', () => {
         phoneme: new StringLiteral('ay-pee-eye'),
         type: new StringLiteral('IPA'),
       });
-      voice.pronunciation_dict = new SequenceNode([entry]);
+      // pronunciation_dict is a voice-variant field, so it isn't on the
+      // inferred `modality` type; set it through the mutation helpers.
+      mutateComponent(voice, (_block, helpers) => {
+        helpers.setField('pronunciation_dict', new SequenceNode([entry]));
+      });
 
       const output = emitComponent(voice);
       expect(output).toContain('modality voice:');

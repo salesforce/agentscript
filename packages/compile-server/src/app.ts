@@ -147,7 +147,8 @@ app.use(express.json({ limit: '10mb' }));
 
 app.post('/parseAndCompile', (req: Request, res: Response) => {
   try {
-    const { assets, afScriptVersion, agentScriptVersion } = req.body ?? {};
+    const { assets, afScriptVersion, agentScriptVersion, gates } =
+      req.body ?? {};
     const version: string | undefined = afScriptVersion ?? agentScriptVersion;
 
     if (!version) {
@@ -193,8 +194,16 @@ app.post('/parseAndCompile', (req: Request, res: Response) => {
       source_chars: source.length,
       source_lines: source.length === 0 ? 0 : source.split(/\r\n|\r|\n/).length,
     });
+    // `gates` is an optional resolved gate map ({ [gateId]: boolean }) from the
+    // caller. Only a literal `true` opens a gate, so any plain object is passed
+    // through as-is; anything else is ignored.
+    const resolvedGates: af.CompileSourceOptions['gates'] =
+      gates && typeof gates === 'object' && !Array.isArray(gates)
+        ? gates
+        : undefined;
+
     const compileStart = Date.now();
-    const result = af.compileSource(source);
+    const result = af.compileSource(source, { gates: resolvedGates });
     const compileMs = Date.now() - compileStart;
 
     const errorDiagnostics = result.diagnostics.filter(
@@ -208,6 +217,7 @@ app.post('/parseAndCompile', (req: Request, res: Response) => {
         compile_ms: compileMs,
         error_count: errors.length,
         diagnostic_count: result.diagnostics.length,
+        inline_condition_slots: result.inlineConditionSlots,
         // Diagnostic descriptions can quote identifiers or other portions of
         // the user's AgentScript. Keep only compiler-controlled categories and
         // source locations in logs; full diagnostics remain in the response.
@@ -225,6 +235,7 @@ app.post('/parseAndCompile', (req: Request, res: Response) => {
       log('INFO', 'parseAndCompile.compile_succeeded', {
         compile_ms: compileMs,
         diagnostic_count: result.diagnostics.length,
+        inline_condition_slots: result.inlineConditionSlots,
       });
     }
 

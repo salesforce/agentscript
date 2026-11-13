@@ -17,6 +17,11 @@ export interface Expression {
   __comments?: Comment[];
   /** User-friendly description for error messages (e.g., "number 42") */
   __describe(): string;
+  /**
+   * True when the source wrapped this expression in grouping parentheses.
+   * The parser unwraps `( ... )`, so this is the only record of them.
+   */
+  __parenthesized?: boolean;
 }
 
 /**
@@ -26,6 +31,13 @@ export interface Expression {
 export abstract class ExpressionBase extends AstNodeBase implements Expression {
   abstract readonly __kind: string;
   abstract __emit(ctx: EmitContext): string;
+
+  __parenthesized?: boolean;
+
+  /** Re-wrap emitted text in the parentheses the author wrote around it. */
+  protected __group(text: string): string {
+    return this.__parenthesized ? `(${text})` : text;
+  }
 
   __describe(): string {
     return `expression ${this.__emit({ indent: 0 })}`;

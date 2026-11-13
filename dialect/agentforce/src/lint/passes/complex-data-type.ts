@@ -27,11 +27,13 @@ import {
   isNamedMap,
   isAstNodeLike,
   schemaContextKey,
-  resolveNamespaceKeys,
 } from '@agentscript/language';
 import type { CstMeta } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
-import { getBlockRange as getDeclRange } from '../utils.js';
+import {
+  getBlockRange as getDeclRange,
+  iterateActionsWithOwner,
+} from '../utils.js';
 
 /** Get type text from a declaration's `type` field via CST source. */
 function getTypeText(decl: AstNodeLike): string | null {
@@ -73,28 +75,9 @@ class ComplexDataTypePass implements LintPass {
     const ctx = store.get(schemaContextKey);
     if (!ctx) return;
 
-    const allKeys = new Set([
-      ...resolveNamespaceKeys('topic', ctx),
-      ...resolveNamespaceKeys('subagent', ctx),
-    ]);
-
-    for (const topicKey of allKeys) {
-      const topicMap = root[topicKey];
-      if (!isNamedMap(topicMap)) continue;
-
-      for (const [, block] of topicMap) {
-        if (!isAstNodeLike(block)) continue;
-
-        const actionsMap = block.actions;
-        if (!isNamedMap(actionsMap)) continue;
-
-        for (const [actionName, actBlock] of actionsMap) {
-          if (!isAstNodeLike(actBlock)) continue;
-
-          this.checkDecls(actBlock.inputs, actionName, 'input');
-          this.checkDecls(actBlock.outputs, actionName, 'output');
-        }
-      }
+    for (const { actionName, actBlock } of iterateActionsWithOwner(root, ctx)) {
+      this.checkDecls(actBlock.inputs, actionName, 'input');
+      this.checkDecls(actBlock.outputs, actionName, 'output');
     }
   }
 

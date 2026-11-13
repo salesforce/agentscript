@@ -171,7 +171,7 @@ describe('programmatic construction and emit', () => {
         '*',
         new Identifier('c')
       );
-      expect(expr.__emit(ctx)).toBe('a + b * c');
+      expect(expr.__emit(ctx)).toBe('(a + b) * c');
     });
 
     test('UnaryExpression with not', () => {
@@ -1056,7 +1056,7 @@ describe('programmatic construction and emit', () => {
           new Identifier('outer'),
           new StringLiteral('c')
         );
-        expect(expr.__emit(ctx)).toBe('"a" if x else "b" if outer else "c"');
+        expect(expr.__emit(ctx)).toBe('("a" if x else "b") if outer else "c"');
       });
     });
 

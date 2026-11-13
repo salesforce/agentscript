@@ -6,13 +6,26 @@
  */
 
 import type { Range } from '@agentscript/types';
+import type { NamedMap, ParameterDeclarationNode } from '@agentscript/language';
 import { DiagnosticSeverity, FALLBACK_RANGE } from './diagnostics.js';
 import type { Diagnostic } from './diagnostics.js';
+import type { Statement } from '@agentscript/language';
 import type { ContextVariable, StateVariable } from './types.js';
 import { Sourced } from './sourced.js';
 import type { Sourceable } from './sourced.js';
 import { FileReferenceCapture } from './file-reference-capture.js';
 import type { CompileOptions } from './compile.js';
+
+/**
+ * One connection whose `additional_system_instructions` is a valid procedure
+ * with an `if`; each standard subagent compiles it into its own actions.
+ */
+export interface DynamicConnectionSystemInstructions {
+  /** Connection block name, e.g. `messaging`. */
+  connectionName: string;
+  /** The parsed `additional_system_instructions` statements. */
+  statements: Statement[];
+}
 
 export interface ConnectedAgentInputSignature {
   /** Input names that have definition-time defaults (optional at invocation). */
@@ -40,8 +53,12 @@ export class CompilerContext {
 
   readonly optimize: boolean;
 
+  /** Optimization 4b (condition-slot inlining); opt-in, requires `optimize`. */
+  readonly inlineConditionSlots: boolean;
+
   constructor(options?: CompileOptions) {
     this.optimize = options?.optimize ?? true;
+    this.inlineConditionSlots = options?.inlineConditionSlots ?? false;
   }
 
   /**
@@ -74,15 +91,39 @@ export class CompilerContext {
   private readonly onceEmittedCodes = new Set<string>();
 
   /**
-   * Highest chain-link condition slot index used during node compilation.
-   * Populated by `compileChainIfDirective` as it walks `else if` chains.
+   * Highest subagent condition slot index used during node compilation.
+   * Raised by `declareConditionSlot` when an `if` emits its snapshot.
    * The agent_version assembler reads this after node compilation to declare
    * `AgentScriptInternal_condition_1 .. _N` in `state_variables`.
    */
-  maxChainConditionSlot: number = 0;
+  maxConditionSlot: number = 0;
 
-  /** True when at least one node compiles conditional system instructions. */
-  usesDynamicSystemInstructions: boolean = false;
+  /**
+   * Deepest workflow `if` nesting observed during node compilation. Populated
+   * by the workflow compiler, which stores each `if` condition in the slot for
+   * its depth. The agent_version assembler reads this after node compilation
+   * to declare `AgentScriptInternal_workflow_condition_1 .. _N` in
+   * `state_variables`.
+   */
+  maxWorkflowConditionSlot: number = 0;
+
+  /**
+   * True when a node reads system instructions from the
+   * `AgentScriptInternal_system_instructions` state variable: conditional
+   * system instructions (including from a conditional connection), or any
+   * workflow with system instructions.
+   */
+  usesSystemInstructionsVariable: boolean = false;
+
+  /** True when at least one node compiles conditional connection system instructions. */
+  usesDynamicConnectionSystemInstructions: boolean = false;
+
+  /**
+   * Each connection's `additional_system_instructions` procedure with at least
+   * one `if`, in declaration order.
+   */
+  dynamicConnectionSystemInstructions: DynamicConnectionSystemInstructions[] =
+    [];
 
   /**
    * Per-node base for condition-slot allocation. Sibling conditionals normally
@@ -118,9 +159,20 @@ export class CompilerContext {
 
   /**
    * Current connection name (e.g. "service_email") for @inputs reference resolution.
-   * Set per-connection during surface compilation.
+   * Set per-connection during surface compilation, and while compiling
+   * conditional connection system instructions.
    */
   connectionName: string | undefined;
+
+  /**
+   * Declared response format inputs: connection name → format name → inputs.
+   * Populated before node compilation so render rules (compiled inside
+   * reasoning actions) can emit every declared input of their render target.
+   */
+  responseFormatInputs: Map<
+    string,
+    Map<string, NamedMap<ParameterDeclarationNode>>
+  > = new Map();
 
   /**
    * Connected agent input signatures: agent developer name → set of input names.
@@ -147,6 +199,13 @@ export class CompilerContext {
    * map to still seed the action's required `llm_inputs`.
    */
   topLevelActionSignatures: Map<string, ActionInputSignature> = new Map();
+
+  /**
+   * `reasoning.actions` keys of the subagent node being compiled that name no
+   * action definition (see `reasoningOnlyActionNames`); a `run` may not target
+   * them. Set per node in the node loop; empty outside it.
+   */
+  reasoningOnlyActionNames: ReadonlySet<string> = new Set();
 
   /**
    * All `@system_variables.uploaded_files` capture state and logic for this

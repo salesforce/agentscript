@@ -66,6 +66,31 @@
         "is_list": false,
         "visibility": "Internal",
         "default": false
+      },
+      {
+        "developer_name": "AgentScriptInternal_workflow_condition_1",
+        "label": "Workflow Condition 1",
+        "description": "Condition of a workflow if at nesting depth 1, stored before its branches run",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_workflow_condition_2",
+        "label": "Workflow Condition 2",
+        "description": "Condition of a workflow if at nesting depth 2, stored before its branches run",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_system_instructions",
+        "label": "System Instructions",
+        "description": "Dynamic system instructions for the current turn",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
       }
     ],
     "initial_node": "main",
@@ -153,7 +178,7 @@
                 "llm_inputs": [
                   "order_id"
                 ],
-                "instructions": "Ask for the order number.",
+                "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\nAsk for the order number.",
                 "developer_name": "order_status_main_ask_for_01"
               },
               {
@@ -170,27 +195,71 @@
                 "developer_name": "order_status_main_action_02"
               },
               {
-                "type": "say",
-                "text": "Your order {{state.order_id}} has shipped.",
-                "enabled": "state.order_status == \"shipped\"",
-                "developer_name": "order_status_main_say_03"
+                "type": "action",
+                "target": "__state_update_action__",
+                "bound_inputs": {
+                  "condition": "state.order_status == \"shipped\""
+                },
+                "state_updates": [
+                  {
+                    "AgentScriptInternal_workflow_condition_1": "result.condition"
+                  }
+                ],
+                "chat_history_behavior": {
+                  "add_to_chat_history": false
+                },
+                "developer_name": "order_status_main_action_03"
               },
               {
                 "type": "say",
-                "text": "As a VIP, we are prioritizing your order.",
-                "enabled": "(not (state.order_status == \"shipped\")) and (state.is_vip)",
+                "text": "System Prompt:\n\n{{state.AgentScriptInternal_system_instructions}}\n\nMessage for the system to follow:\n\nYour order {{state.order_id}} has shipped.",
+                "enabled": "state.AgentScriptInternal_workflow_condition_1",
                 "developer_name": "order_status_main_say_04"
               },
               {
+                "type": "action",
+                "target": "__state_update_action__",
+                "bound_inputs": {
+                  "condition": "state.is_vip"
+                },
+                "state_updates": [
+                  {
+                    "AgentScriptInternal_workflow_condition_2": "result.condition"
+                  }
+                ],
+                "chat_history_behavior": {
+                  "add_to_chat_history": false
+                },
+                "enabled": "not (state.AgentScriptInternal_workflow_condition_1)",
+                "developer_name": "order_status_main_action_05"
+              },
+              {
                 "type": "say",
-                "text": "Your order is {{state.order_status}}.",
-                "enabled": "(not (state.order_status == \"shipped\")) and (not (state.is_vip))",
-                "developer_name": "order_status_main_say_05"
+                "text": "System Prompt:\n\n{{state.AgentScriptInternal_system_instructions}}\n\nMessage for the system to follow:\n\nAs a VIP, we are prioritizing your order.",
+                "enabled": "(not (state.AgentScriptInternal_workflow_condition_1)) and (state.AgentScriptInternal_workflow_condition_2)",
+                "developer_name": "order_status_main_say_06"
+              },
+              {
+                "type": "say",
+                "text": "System Prompt:\n\n{{state.AgentScriptInternal_system_instructions}}\n\nMessage for the system to follow:\n\nYour order is {{state.order_status}}.",
+                "enabled": "(not (state.AgentScriptInternal_workflow_condition_1)) and (not (state.AgentScriptInternal_workflow_condition_2))",
+                "developer_name": "order_status_main_say_07"
               },
               {
                 "type": "handoff",
                 "target": "support",
-                "developer_name": "order_status_main_handoff_06"
+                "developer_name": "order_status_main_handoff_08"
+              }
+            ]
+          }
+        ],
+        "on_init": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "state_updates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::You help customers check order status."
               }
             ]
           }

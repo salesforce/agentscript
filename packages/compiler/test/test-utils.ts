@@ -14,6 +14,7 @@ import { parse } from '@agentscript/parser';
 import { Dialect } from '@agentscript/language';
 import { AgentforceSchema } from '@agentscript/agentforce-dialect';
 import type { ParsedAgentforce } from '../src/parsed-types.js';
+import type { CompiledAgentDSL } from '../src/compile.js';
 import { agentDslAuthoring } from '../src/types.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -61,6 +62,54 @@ export function parseFixture(fixtureName: string): ParsedAgentforce {
   );
   const source = fs.readFileSync(fixturePath, 'utf-8');
   return parseSource(source);
+}
+
+type CompiledNode = CompiledAgentDSL['agent_version']['nodes'][number];
+export type CompiledNodeType = CompiledNode['type'];
+export type CompiledNodeOfType<T extends CompiledNodeType> = Extract<
+  CompiledNode,
+  { type: T }
+>;
+
+function isNodeOfType<T extends CompiledNodeType>(
+  node: CompiledNode,
+  type: T
+): node is CompiledNodeOfType<T> {
+  return node.type === type;
+}
+
+/**
+ * Find a compiled node by developer_name and narrow it to the expected node
+ * type. Throws (failing the test) if the node is missing or has another type.
+ */
+export function findNode<T extends CompiledNodeType>(
+  output: CompiledAgentDSL,
+  name: string,
+  type: T
+): CompiledNodeOfType<T> {
+  const node = output.agent_version.nodes.find(n => n.developer_name === name);
+  if (!node) {
+    throw new Error(`Node '${name}' not found`);
+  }
+  if (!isNodeOfType(node, type)) {
+    throw new Error(`Node '${name}' has type '${node.type}', not '${type}'`);
+  }
+  return node;
+}
+
+/** A tool on a compiled subagent node: either an action or a supervision tool. */
+export type SubagentTool = NonNullable<
+  CompiledNodeOfType<'subagent'>['tools']
+>[number];
+
+/**
+ * Narrow a subagent tool to the action variant, which is the only one that
+ * carries bound_inputs, llm_inputs, input_parameters, and render_rules.
+ */
+export function isActionTool(
+  tool: SubagentTool
+): tool is Extract<SubagentTool, { type: 'action' }> {
+  return tool.type === 'action';
 }
 
 /**

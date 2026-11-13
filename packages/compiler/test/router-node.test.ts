@@ -13,7 +13,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { findNode, parseSource } from './test-utils.js';
 
 function compileSource(source: string) {
   return compile(parseSource(source));
@@ -94,9 +94,7 @@ describe('router node: tool filtering', () => {
                 description: "Route to self-service"`)
     );
 
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     expect(node).toBeDefined();
     expect(node.type).toBe('router');
@@ -122,12 +120,10 @@ describe('router node: tool filtering', () => {
                 description: "Route to self-service"`)
     );
 
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     // action_definitions should contain the underlying actions
-    const actionNames = node.action_definitions.map(a => a.developer_name);
+    const actionNames = node.action_definitions!.map(a => a.developer_name);
     expect(actionNames).toContain('search_kb');
     expect(actionNames).toContain('create_case');
   });
@@ -141,9 +137,7 @@ describe('router node: tool filtering', () => {
                 description: "Route to self-service"`)
     );
 
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     expect(node.tools.length).toBe(2);
     expect(node.tools[0].name).toBe('go_support');
@@ -161,9 +155,7 @@ describe('router node: tool filtering', () => {
                 description: "Route to self-service"`)
     );
 
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     // Only transitions — escalation should be excluded
     expect(node.tools.length).toBe(2);
@@ -193,9 +185,7 @@ topic support:
             | Help.
 `;
     const result = compileSource(source);
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     expect(node.tools.length).toBe(0);
   });
@@ -223,9 +213,7 @@ connected_subagent CRM_Agent:
       )
     );
 
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     expect(node).toBeDefined();
     expect(node.type).toBe('router');
@@ -253,9 +241,7 @@ connected_subagent CRM_Agent:
                 description: "Route to support"`)
     );
 
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     // Should only include the transition
     expect(node.tools.length).toBe(1);
@@ -308,9 +294,7 @@ connected_subagent CRM_Agent:
     expect(setVarsError).toBeDefined();
 
     // Router should only have the transition tool (disallowed actions filtered out)
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
     expect(node.tools.length).toBe(1);
     expect(node.tools[0].name).toBe('go_support');
   });
@@ -339,9 +323,7 @@ connected_subagent CRM_Agent:
     expect(llmInputError!.message).toContain('param=...');
 
     // Router should only have the transition tool
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
     expect(node.tools.length).toBe(1);
     expect(node.tools[0].name).toBe('go_support');
   });
@@ -400,9 +382,7 @@ connected_subagent CRM_Agent:
     );
 
     // Router should only have the transition tools (handoff filtered out)
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
     expect(node.tools.length).toBe(2);
     expect(node.tools[0].name).toBe('go_support');
     expect(node.tools[1].name).toBe('go_self_service');
@@ -434,9 +414,7 @@ topic support:
             | Help.
 `;
     const result = compileSource(source);
-    const node = result.output.agent_version.nodes.find(
-      n => n.developer_name === 'router'
-    )!;
+    const node = findNode(result.output, 'router', 'router');
 
     expect(node).toBeDefined();
     expect(node.type).toBe('router');

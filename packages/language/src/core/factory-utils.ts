@@ -7,6 +7,7 @@
 
 import type { Schema, FieldType, FieldMetadata } from './types.js';
 import { union } from './primitives.js';
+import type { ReleaseStage } from './gates.js';
 
 /**
  * Override builder methods on a factory to mutate `__metadata` in-place and
@@ -42,6 +43,17 @@ export function overrideFactoryBuilderMethods(factory: object): void {
     opts?: { since?: string; removeIn?: string; replacement?: string }
   ) => applyMeta({ deprecated: { message: msg, ...opts } });
   f.experimental = () => applyMeta({ experimental: true });
+  // Gating returns a copy rather than mutating: a factory may be shared across
+  // schema keys (e.g. one actions block under several parents), and gating one
+  // key must not gate the others.
+  f.gatedBy = (id: string, stage: ReleaseStage = 'beta') => {
+    const gated = (f.clone as () => Record<string, unknown>)();
+    gated.__metadata = {
+      ...(gated.__metadata as FieldMetadata | undefined),
+      gatedBy: { id, stage },
+    };
+    return gated;
+  };
   f.crossBlockReferenceable = () =>
     applyMeta({ crossBlockReferenceable: true });
   f.transitionContainer = () => applyMeta({ transitionContainer: true });

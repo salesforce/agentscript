@@ -13,6 +13,7 @@
  */
 
 import { parseAndLint } from '@agentscript/language';
+import type { Gates } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import type { Diagnostic } from '@agentscript/types';
 import { agentforceDialect } from '@agentscript/agentforce-dialect';
@@ -28,6 +29,9 @@ import { Document } from './document.js';
  * the failure.
  *
  * @param source - The AgentScript source text.
+ * @param options - `gates`: resolved feature gates (gate id → open) that drive
+ *   `gated-feature` errors and `pre-release-feature` notices. A gate absent
+ *   from the map is treated as closed.
  * @returns A Document with the parsed AST, diagnostics, and mutation API.
  *
  * @example
@@ -39,16 +43,22 @@ import { Document } from './document.js';
  * console.log(doc.emit());
  * ```
  */
-export function parse(source: string): Document {
+export function parse(
+  source: string,
+  options: { gates?: Gates } = {}
+): Document {
   try {
     const parser = getParser();
     const tree = parser.parse(source);
-    const result = parseAndLint(tree.rootNode, agentforceDialect);
+    const result = parseAndLint(tree.rootNode, agentforceDialect, {
+      gates: options.gates,
+    });
     return Document.create(
       result.ast as ParsedAgentforce,
       result.diagnostics,
       result.store,
-      parser
+      parser,
+      options.gates
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

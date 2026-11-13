@@ -9,6 +9,8 @@ import type { Diagnostic } from './diagnostics.js';
 import type { Dialect } from './dialect.js';
 import type { BlockChild } from './children.js';
 import type { NamedMap } from './named-map.js';
+import type { GateRequirement } from './gates.js';
+import { escapeStringValue, interpretEscape } from './string-escapes.js';
 
 // Foundational types — canonical definitions live in @agentscript/types.
 // Re-exported here so internal language modules can import from './types.js'.
@@ -124,13 +126,7 @@ export function getKeyText(node: SyntaxNode): string {
       if (child.type === 'string_content') {
         value += child.text;
       } else if (child.type === 'escape_sequence') {
-        if (child.text === '\\"') value += '"';
-        else if (child.text === "\\'") value += "'";
-        else if (child.text === '\\\\') value += '\\';
-        else if (child.text === '\\n') value += '\n';
-        else if (child.text === '\\r') value += '\r';
-        else if (child.text === '\\t') value += '\t';
-        else if (child.text === '\\0') value += '\0';
+        value += interpretEscape(child.text[1] ?? '') ?? '';
       }
     }
     return value;
@@ -148,14 +144,7 @@ export function emitKeyName(name: string): string {
 
 /** Always quotes the key name (for keys that were originally quoted in source). */
 export function quoteKeyName(name: string): string {
-  const escaped = name
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t')
-    .replace(/\0/g, '\\0');
-  return `"${escaped}"`;
+  return `"${escapeStringValue(name)}"`;
 }
 
 export function isKeyNode(node: SyntaxNode): boolean {
@@ -535,6 +524,14 @@ export interface DocumentationMetadata {
     replacement?: string;
   };
   experimental?: boolean;
+  /**
+   * Feature gate that must be open for this field/block to be allowed. When the
+   * resolved gate set (injected by the consumer) does not open it, authoring
+   * the field produces a `gated-feature` lint error; when it is open, a
+   * `pre-release-feature` notice names the release stage. Absent means the
+   * feature is ungated. See {@link ./gates.ts}.
+   */
+  gatedBy?: GateRequirement;
 }
 
 /** Full metadata for a schema field — extends DocumentationMetadata with field-specific behavior. */
@@ -551,6 +548,13 @@ export interface FieldMetadata extends DocumentationMetadata {
    * pass) or other values are legitimately allowed.
    */
   suggestions?: ReadonlyArray<string>;
+  /**
+   * Per-value gate map: a specific accepted value → the gate that must be open
+   * for that value to be allowed. Unlike {@link DocumentationMetadata.gatedBy}
+   * (which gates the whole field/block), this gates individual values. A value
+   * not present in this map is ungated. See {@link ./gates.ts}.
+   */
+  gatedValues?: Readonly<Record<string, GateRequirement>>;
   /** When true, ProcedureValue fields emit without the arrow (->) syntax. */
   omitArrow?: boolean;
   /** When true, ProcedureValue fields disallow Template statements. */
@@ -651,6 +655,8 @@ interface FieldTypeBase<V = any, F = V> {
   emitField?: (key: string, value: V, ctx: EmitContext) => string;
   schema?: Schema;
   scopeAlias?: string;
+  /** See `NamedBlockOpts.isolatedNamespaces`. */
+  readonly isolatedNamespaces?: readonly string[];
   /** Semantic capabilities declared by this block type (e.g., 'invocationTarget', 'transitionTarget'). */
   readonly capabilities?: readonly BlockCapability[];
 

@@ -59,6 +59,17 @@ function collectLocales(language: AstNodeLike): Set<string> {
   return locales;
 }
 
+/**
+ * Build a set containing just a language block's `default_locale` (if any).
+ * Used for the voice-language fallback, which only ever resolves to the agent's
+ * default locale, never its additional_locales (see `compileAgentLanguageFallback`
+ * in the compiler).
+ */
+function collectDefaultLocale(language: AstNodeLike): Set<string> {
+  const defaultLocale = extractStringValue(language.default_locale);
+  return defaultLocale ? new Set([defaultLocale]) : new Set();
+}
+
 class VoiceLanguageValidationPass implements LintPass {
   readonly id = storeKey('voice-language-validation');
   readonly description =
@@ -78,8 +89,57 @@ class VoiceLanguageValidationPass implements LintPass {
       isNamedMap(voiceSettings) && voiceSettings.size > 0;
     if (!hasVoiceLanguage && !hasVoiceSettings) return;
 
+    // Explicit 'all_additional_locales: True' expands eagerly to the agent's full
+    // locale set (see compileAgentAllLocales); an omitted voice.language block falls
+    // back to just the agent's default_locale (see compileAgentLanguageFallback).
+    // On the all-locales path the compiler keeps voice.language's own default_locale
+    // as the first (start) language and accepts any supported locale there (it
+    // validates the code itself), but still ignores additional_locales. So lint does
+    // not require the voice default to be declared in the text language block on that
+    // path; it only treats it as a valid language_settings key. The declared-subset
+    // check below applies to the explicit path only.
+    const allAdditionalLocales = hasVoiceLanguage
+      ? extractBooleanValue(voiceLanguage.all_additional_locales)
+      : undefined;
+    const usesAgentLanguageFallback =
+      !hasVoiceLanguage || allAdditionalLocales === true;
+    const voiceDefaultLocale = hasVoiceLanguage
+      ? extractStringValue(voiceLanguage.default_locale)
+      : undefined;
+
+    // Get the effective voice locales: either from voice.language or fall back to agent language
+    let effectiveVoiceLocales: Set<string> | undefined;
+
+    if (hasVoiceLanguage && !usesAgentLanguageFallback) {
+      effectiveVoiceLocales = collectLocales(voiceLanguage);
+    } else if (usesAgentLanguageFallback) {
+      // Default to an empty set (rather than leaving this undefined) when no agent
+      // 'language' block exists, so language_settings is still validated below instead
+      // of silently skipped.
+      const textLanguage = root.language as AstNodeLike | undefined;
+      const hasTextLanguage =
+        !!textLanguage && typeof textLanguage === 'object';
+      effectiveVoiceLocales = hasTextLanguage
+        ? allAdditionalLocales === true
+          ? collectLocales(textLanguage)
+          : collectDefaultLocale(textLanguage)
+        : new Set();
+      // compileAgentAllLocales keeps the voice default, so language_settings may target
+      // it. It returns nothing without an agent language block, so only add it then.
+      if (
+        hasTextLanguage &&
+        allAdditionalLocales === true &&
+        voiceDefaultLocale
+      ) {
+        effectiveVoiceLocales.add(voiceDefaultLocale);
+      }
+    }
+
     // Check A: the voice languages must be a subset of the top-level text languages.
-    if (hasVoiceLanguage) {
+    // Only the agent-level 'all_additional_locales: True' lifts this requirement: it opens
+    // the text language block to every supported locale, so there is no declared subset
+    // to check against. The voice block's own flag does not.
+    if (hasVoiceLanguage && !usesAgentLanguageFallback) {
       const textLanguage = root.language as AstNodeLike | undefined;
 
       if (!textLanguage || typeof textLanguage !== 'object') {
@@ -93,10 +153,12 @@ class VoiceLanguageValidationPass implements LintPass {
             'voice-language-missing-language-block'
           )
         );
-      } else {
+      } else if (
+        extractBooleanValue(textLanguage.all_additional_locales) !== true
+      ) {
         const textLocales = collectLocales(textLanguage);
 
-        const defaultLocale = extractStringValue(voiceLanguage.default_locale);
+        const defaultLocale = voiceDefaultLocale;
         if (defaultLocale && !textLocales.has(defaultLocale)) {
           attachDiagnostic(
             voiceLanguage,
@@ -128,27 +190,16 @@ class VoiceLanguageValidationPass implements LintPass {
       }
     }
 
-    // Check B: each language_settings key must be a declared voice language.
+    // Check B: each language_settings key must be a declared voice language (explicit or derived).
     if (hasVoiceSettings) {
-      // A voice 'all_additional_locales: True' accepts every language_settings key.
-      const allAdditionalLocales = hasVoiceLanguage
-        ? extractBooleanValue(voiceLanguage.all_additional_locales)
-        : undefined;
-
-      if (allAdditionalLocales !== true) {
-        // Locales declared on the voice language block. Empty when there is no
-        // voice language block, in which case every settings key is undeclared.
-        const voiceLocales = hasVoiceLanguage
-          ? collectLocales(voiceLanguage)
-          : new Set<string>();
-
+      if (effectiveVoiceLocales !== undefined) {
         for (const [langKey, decl] of voiceSettings) {
-          if (!voiceLocales.has(langKey)) {
+          if (!effectiveVoiceLocales.has(langKey)) {
             attachDiagnostic(
               decl as AstNodeLike,
               lintDiagnostic(
                 getBlockRange(decl as AstNodeLike),
-                `Voice language setting '${langKey}' is not a declared voice language. Add it to the voice 'language' block's 'default_locale' or 'additional_locales'.`,
+                `Voice language setting '${langKey}' is not a declared voice language. Add it to the voice 'language' block's 'default_locale' or 'additional_locales', or add it to the agent's 'language' block.`,
                 DiagnosticSeverity.Error,
                 'voice-language-settings-not-declared'
               )

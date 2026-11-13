@@ -14,9 +14,11 @@
  *   - DEPRECATED_ADDITIONAL_PARAMS — suffix → its config.runtime.* replacement
  *     field. The deprecation message is interpolated from the destination, and
  *     the diagnostic is a Warning tagged Deprecated (strike-through in editors).
- * Any other additional_parameter__ field is allowed and produces no diagnostic.
+ * Any other (ungoverned) additional_parameter__ field is allowed but flagged as
+ * experimental with a Warning, since it is passed to the runtime unvalidated.
  *
- * Diagnostics: disabled-additional-parameter, deprecated-additional-parameter
+ * Diagnostics: disabled-additional-parameter, deprecated-additional-parameter,
+ * experimental-additional-parameter
  */
 
 import type { AstRoot, LintPass, PassStore } from '@agentscript/language';
@@ -33,6 +35,7 @@ const PREFIX = 'additional_parameter__';
 
 const DISABLED_CODE = 'disabled-additional-parameter';
 const DEPRECATED_CODE = 'deprecated-additional-parameter';
+const EXPERIMENTAL_CODE = 'experimental-additional-parameter';
 
 /**
  * Deprecated additional_parameter__ suffixes → their config.runtime.* replacement
@@ -58,6 +61,10 @@ const FORBIDDEN_ADDITIONAL_PARAMS: ReadonlyMap<string, string> = new Map([
 
 function deprecationMessage(suffix: string, runtimeField: string): string {
   return `The ${PREFIX}${suffix} parameter is deprecated and will be removed in a future release. Use config.runtime.${runtimeField} instead.`;
+}
+
+function experimentalMessage(suffix: string): string {
+  return `The ${PREFIX}${suffix} parameter is experimental.`;
 }
 
 class GovernedAdditionalParametersPass implements LintPass {
@@ -92,8 +99,10 @@ class GovernedAdditionalParametersPass implements LintPass {
         // Deprecations strike the field through in editors; errors have no tag.
         tags = [DiagnosticTag.Deprecated];
       } else {
-        // Ungoverned additional_parameter__ field — allowed, no diagnostic.
-        continue;
+        // Ungoverned additional_parameter__ field — allowed, but experimental.
+        message = experimentalMessage(suffix);
+        severity = DiagnosticSeverity.Warning;
+        code = EXPERIMENTAL_CODE;
       }
 
       // Anchor the diagnostic on the offending field when possible; fall back to

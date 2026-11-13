@@ -17,7 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { findNode, parseSource } from './test-utils.js';
 import type { InputParameter } from '../src/types.js';
 
 // ---------------------------------------------------------------------------
@@ -52,8 +52,8 @@ start_agent main:
           url: string = @knowledge.citations_url
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'url'
     );
 
@@ -79,8 +79,8 @@ start_agent main:
           debug: boolean = @knowledge.citations_enabled
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'debug'
     );
 
@@ -106,8 +106,8 @@ start_agent main:
           debug: boolean = @knowledge.citations_enabled
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'debug'
     );
 
@@ -164,8 +164,8 @@ start_agent main:
           cite: boolean = @knowledge.citations_enabled
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const params = node.action_definitions[0].input_type;
+    const node = findNode(output, 'main', 'subagent');
+    const params = node.action_definitions![0].input_type!;
 
     const urlParam = params.find(
       (p: InputParameter) => p.developer_name === 'url'
@@ -202,8 +202,8 @@ start_agent main:
           url: string = "https://example.com"
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'url'
     );
 
@@ -226,8 +226,8 @@ start_agent main:
           enabled: boolean = True
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'enabled'
     );
 
@@ -250,8 +250,8 @@ start_agent main:
           enabled: boolean = False
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'enabled'
     );
 
@@ -274,8 +274,8 @@ start_agent main:
           optional_field: string = ""
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'optional_field'
     );
 
@@ -304,8 +304,8 @@ start_agent main:
           enabled: boolean = False
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'enabled'
     );
 
@@ -329,8 +329,8 @@ start_agent main:
           optional: string = ""
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'optional'
     );
 
@@ -354,8 +354,8 @@ start_agent main:
           required_param: string
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'required_param'
     );
 
@@ -380,8 +380,8 @@ start_agent main:
           optional: string = @knowledge.citations_url
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'optional'
     );
 
@@ -406,8 +406,8 @@ start_agent main:
           enabled: boolean = @knowledge.citations_enabled
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const param = node.action_definitions[0].input_type.find(
+    const node = findNode(output, 'main', 'subagent');
+    const param = node.action_definitions![0].input_type!.find(
       (p: InputParameter) => p.developer_name === 'enabled'
     );
 
@@ -443,8 +443,8 @@ start_agent main:
           optional: string
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const params = node.action_definitions[0].input_type;
+    const node = findNode(output, 'main', 'subagent');
+    const params = node.action_definitions![0].input_type!;
 
     const urlParam = params.find(
       (p: InputParameter) => p.developer_name === 'url'
@@ -490,18 +490,18 @@ start_agent main:
           enabled: boolean = True
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const action1 = node.action_definitions.find(
+    const node = findNode(output, 'main', 'subagent');
+    const action1 = node.action_definitions!.find(
       a => a.developer_name === 'action1'
     );
-    const action2 = node.action_definitions.find(
+    const action2 = node.action_definitions!.find(
       a => a.developer_name === 'action2'
     );
 
-    expect(action1!.input_type[0].constant_value).toBe(
+    expect(action1!.input_type![0].constant_value).toBe(
       'https://api.example.com'
     );
-    expect(action2!.input_type[0].constant_value).toBe(true);
+    expect(action2!.input_type![0].constant_value).toBe(true);
   });
 
   it('should preserve constant_value in action_definitions output structure', () => {
@@ -518,14 +518,14 @@ start_agent main:
           url: string = "https://example.com"
 `;
     const { output } = compileSource(source);
-    const node = output.agent_version.nodes[0];
-    const actionDef = node.action_definitions[0];
+    const node = findNode(output, 'main', 'subagent');
+    const actionDef = node.action_definitions![0];
 
     expect(actionDef).toHaveProperty('developer_name', 'test_action');
     expect(actionDef).toHaveProperty('input_type');
     expect(Array.isArray(actionDef.input_type)).toBe(true);
-    expect(actionDef.input_type[0]).toHaveProperty('developer_name', 'url');
-    expect(actionDef.input_type[0]).toHaveProperty(
+    expect(actionDef.input_type![0]).toHaveProperty('developer_name', 'url');
+    expect(actionDef.input_type![0]).toHaveProperty(
       'constant_value',
       'https://example.com'
     );

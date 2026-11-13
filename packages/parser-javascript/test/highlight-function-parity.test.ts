@@ -17,6 +17,7 @@
  *
  */
 
+import type TreeSitter from 'tree-sitter';
 import { describe, it, expect } from 'vitest';
 import { BUILTIN_FUNCTION_NAMES } from '@agentscript/types';
 import { parse as parseJavascript } from '../src/index.js';
@@ -37,7 +38,7 @@ interface TSParser {
 const Parser = (await import('tree-sitter')).default;
 const AS = (await import('@agentscript/parser-tree-sitter')).default;
 const nativeParser = new Parser();
-nativeParser.setLanguage(AS as unknown as typeof nativeParser.Language);
+nativeParser.setLanguage(AS as unknown as TreeSitter.Language);
 const parser = nativeParser as unknown as TSParser;
 const QueryCtor = (
   Parser as unknown as { Query: new (lang: unknown, src: string) => TSQuery }

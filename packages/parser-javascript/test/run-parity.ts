@@ -26,6 +26,7 @@
  * with a clear message if they are unavailable rather than writing stale data.
  */
 
+import type TreeSitter from 'tree-sitter';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,7 +77,7 @@ async function loadTreeSitter(): Promise<TreeSitterParser> {
   const Parser = (await import('tree-sitter')).default;
   const AgentScript = (await import('@agentscript/parser-tree-sitter')).default;
   const parser = new Parser();
-  parser.setLanguage(AgentScript as unknown as typeof parser.Language);
+  parser.setLanguage(AgentScript as unknown as TreeSitter.Language);
   return parser as unknown as TreeSitterParser;
 }
 

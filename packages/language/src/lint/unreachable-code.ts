@@ -142,6 +142,20 @@ function checkStatements(stmts: readonly unknown[]): void {
   }
 }
 
+/**
+ * True for a named block whose entry is a procedure body (`name: ->`), such as
+ * a workflow `step`. Its statements live on the block itself rather than in a
+ * nested ProcedureValue. Blocks with a colinear value (`name: @actions.X`) are
+ * excluded: their body holds clauses attached to that value.
+ */
+function isProcedureBodyBlock(value: AstNodeLike): boolean {
+  const ctor = value.constructor as {
+    hasBody?: boolean;
+    hasColinear?: boolean;
+  };
+  return ctor.hasBody === true && ctor.hasColinear !== true;
+}
+
 class UnreachableCodePass implements LintPass {
   readonly id = storeKey('unreachable-code');
   readonly description =
@@ -154,7 +168,8 @@ class UnreachableCodePass implements LintPass {
   }
 
   enterNode(_key: string, value: unknown, _parent: unknown): void {
-    if (isAstNodeLike(value) && value.__kind === 'ProcedureValue') {
+    if (!isAstNodeLike(value)) return;
+    if (value.__kind === 'ProcedureValue' || isProcedureBodyBlock(value)) {
       this.procedures.push(value);
     }
   }

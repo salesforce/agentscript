@@ -540,6 +540,7 @@ export const WorkflowProcedureBlock = NamedBlock(
   },
   {
     scopeAlias: 'workflow',
+    isolatedNamespaces: ['actions'],
     capabilities: ['transitionTarget'],
     symbol: { kind: SymbolKind.Method },
   }
@@ -851,6 +852,7 @@ export const AgentScriptSchemaInfo: SchemaInfo = {
       ['user_input', { type: 'string' }],
       ['current_modality', { type: 'string' }],
       ['current_connection', { type: 'string' }],
+      ['user_id', { type: 'string' }],
       [
         'last_reply',
         {

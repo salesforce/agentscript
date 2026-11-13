@@ -21,6 +21,7 @@ import { MemberExpression, AtIdentifier } from '@agentscript/language';
 import { compile } from '../src/compile.js';
 import type { CompileResult } from '../src/compile.js';
 import type { InputParameter } from '../src/types.js';
+import type { ParsedKnowledge } from '../src/parsed-types.js';
 import { CompilerContext } from '../src/compiler-context.js';
 import { compileExpression } from '../src/expressions/compile-expression.js';
 import { validateKnowledgeReferences } from '../src/validation/validate-knowledge-refs.js';
@@ -35,6 +36,27 @@ import { parseSource } from './test-utils.js';
 function compileSource(source: string): CompileResult {
   const ast = parseSource(source);
   return compile(ast);
+}
+
+/**
+ * Build a minimal `ParsedKnowledge` block for unit-testing
+ * `validateKnowledgeReferences` directly, without going through a full
+ * parse. Only the three known knowledge fields are settable here; the
+ * `BlockCore` plumbing (`__kind`/`__diagnostics`/`__emit`) is stubbed since
+ * `validateKnowledgeReferences` never reads it.
+ */
+function makeKnowledgeBlock(
+  fields: Pick<
+    ParsedKnowledge,
+    'citations_enabled' | 'citations_url' | 'rag_feature_config_id'
+  >
+): ParsedKnowledge {
+  return {
+    __kind: 'KnowledgeBlock',
+    __diagnostics: [],
+    __emit: () => '',
+    ...fields,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -660,9 +682,9 @@ start_agent main:
 describe('knowledge: boolean value extraction', () => {
   it('should extract boolean True from knowledge block', () => {
     const ctx = new CompilerContext();
-    const knowledge = {
+    const knowledge = makeKnowledgeBlock({
       citations_enabled: true,
-    };
+    });
 
     validateKnowledgeReferences(knowledge, ctx);
     expect(ctx.knowledgeFields.get('citations_enabled')).toBe(true);
@@ -670,9 +692,9 @@ describe('knowledge: boolean value extraction', () => {
 
   it('should extract boolean False from knowledge block', () => {
     const ctx = new CompilerContext();
-    const knowledge = {
+    const knowledge = makeKnowledgeBlock({
       citations_enabled: false,
-    };
+    });
 
     validateKnowledgeReferences(knowledge, ctx);
     expect(ctx.knowledgeFields.get('citations_enabled')).toBe(false);
@@ -680,11 +702,11 @@ describe('knowledge: boolean value extraction', () => {
 
   it('should handle mixed string and boolean knowledge values', () => {
     const ctx = new CompilerContext();
-    const knowledge = {
+    const knowledge = makeKnowledgeBlock({
       citations_url: 'https://api.example.com',
       citations_enabled: true,
       rag_feature_config_id: 'WorldKnowledge',
-    };
+    });
 
     validateKnowledgeReferences(knowledge, ctx);
 
@@ -738,7 +760,7 @@ start_agent main:
 `;
     const { output } = compileSource(source);
     const node = output.agent_version.nodes[0];
-    const params = node.action_definitions[0].input_type;
+    const params = node.action_definitions![0].input_type!;
 
     const citeParam = params.find(
       (p: InputParameter) => p.developer_name === 'cite'

@@ -153,7 +153,7 @@ describe('discriminant value-position completions (variant-declared)', () => {
 });
 
 describe('discriminant value-position completions (enum regression guard)', () => {
-  it('LLM `kind: ` still suggests enum discriminators (OpenAI, Gemini)', () => {
+  it('LLM `kind: ` still suggests enum discriminators (OpenAI, Gemini, Anthropic, BedrockAnthropic)', () => {
     const kindLine = `${INDENT8}kind: `;
     const source = build(
       'llm:',
@@ -166,6 +166,8 @@ describe('discriminant value-position completions (enum regression guard)', () =
 
     expect(labels).toContain('OpenAI');
     expect(labels).toContain('Gemini');
+    expect(labels).toContain('Anthropic');
+    expect(labels).toContain('BedrockAnthropic');
   });
 
   it('Trigger `kind: ` still suggests its enum discriminator (a2a)', () => {

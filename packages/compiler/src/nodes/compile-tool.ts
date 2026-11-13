@@ -19,6 +19,9 @@ import {
   RenderStatement,
   ShowAndReturnStatement,
   BooleanLiteral,
+  AtIdentifier,
+  forEachExpressionChild,
+  isAstNodeLike,
 } from '@agentscript/language';
 import type { CompilerContext } from '../compiler-context.js';
 import type {
@@ -36,6 +39,7 @@ import {
 } from '@agentscript/language';
 import { toRange } from '@agentscript/types';
 import { compileExpression } from '../expressions/compile-expression.js';
+import { compileRenderInputBindings } from './compile-render-bindings.js';
 import {
   extractSourcedString,
   extractSourcedDescription,
@@ -43,17 +47,24 @@ import {
 } from '../ast-helpers.js';
 import type { Sourceable } from '../sourced.js';
 import {
+  STATE_UPDATE_ACTION,
   TRANSITION_TARGET_NAMESPACES,
-  chainConditionVariableName,
 } from '../constants.js';
 import {
-  isElseIfChainHead,
-  walkElseIfChain,
-  buildChainBranchGate,
-  buildChainElseGate,
-} from './else-if-chain.js';
-import { compileDeterministicRunInputs } from './compile-run-inputs.js';
-import { compileExecutionMode } from './compile-execution-mode.js';
+  allocateConditionSlot,
+  conditionSnapshotAction,
+  declareConditionSlot,
+  joinConditions,
+  withReservedConditionSlots,
+} from './condition-slots.js';
+import {
+  compileDeterministicRunInputs,
+  resolveRunTarget,
+} from './compile-run-inputs.js';
+import {
+  compileExecutionMode,
+  compileRunExecutionMode,
+} from './compile-execution-mode.js';
 
 /**
  * Compile a single reasoning action (tool) from a topic's reasoning block.
@@ -146,7 +157,7 @@ export function compileTool(
       }
     } else if (stmt instanceof IfStatement) {
       // Post-action conditional - compile into post-tool-call actions
-      const result = compilePostActionConditional(stmt, ctx);
+      const result = compilePostActionConditional(stmt, [], ctx);
       postActions.push(...result.actions);
       handOffActions.push(...result.handOffs);
     } else if (stmt instanceof WhenStatement) {
@@ -260,12 +271,7 @@ function compilePostToolAction(
   stmt: RunStatement,
   ctx: CompilerContext
 ): Action | undefined {
-  const targetName = resolveAtReference(
-    stmt.target,
-    'actions',
-    ctx,
-    'action target'
-  );
+  const targetName = resolveRunTarget(stmt, ctx);
   if (!targetName) return undefined;
 
   // A nested `run` lowers into a post_tool_call action, which the runtime
@@ -280,14 +286,16 @@ function compilePostToolAction(
     ['variables', 'outputs']
   );
 
-  const action: Action = {
+  const action: Sourceable<Action> = {
     type: 'action',
     target: targetName,
     bound_inputs: Object.keys(boundInputs).length > 0 ? boundInputs : {},
     llm_inputs: [],
     state_updates: stateUpdates,
   };
-  return action;
+  const nonBlockingBehavior = compileRunExecutionMode(stmt, ctx);
+  if (nonBlockingBehavior) action.non_blocking_behavior = nonBlockingBehavior;
+  return ctx.track<Action>(action);
 }
 
 /**
@@ -379,11 +387,20 @@ function compileWhenConnection(
     }
   }
 
-  return {
+  const rule: RenderRule = {
     surface_type: surface,
     response_format_name: rendererName,
     end_turn: endTurn,
   };
+  // compile the renderRule bindings
+  const inputBindings = compileRenderInputBindings(
+    renderStmt,
+    surface,
+    rendererName,
+    ctx
+  );
+  if (inputBindings) rule.input_bindings = inputBindings;
+  return rule;
 }
 
 /**
@@ -422,120 +439,73 @@ function resolveRendererRef(
 
 /**
  * Compile a post-action conditional (if [/ else if ...] [/ else]) into
- * post-tool-call actions.
+ * post-tool-call actions, following the workflow lowering.
  *
- * Plain `if`/`else` writes the compiled condition into the shared
- * `AgentScriptInternal_condition` runtime variable and gates body / else
- * off it (matches today's behavior).
+ * `conditions` is the stack of enclosing `if` guards, outermost first. The
+ * condition is stored once, before either branch, in the slot for this `if`'s
+ * nesting depth, and both branches gate on the slot. An `else if` is an `if`
+ * inside `orelse`: it takes the next slot, and its snapshot is gated on the
+ * earlier conditions being false, so it is only evaluated when reached.
  *
- * `else if` chains use per-link suffixed slots
- * (`AgentScriptInternal_condition_1`, `_2`, ...) so prior links' negations
- * stay stable when later links overwrite their own slots. Slot indices
- * start at 1 for each call; the agent_version assembler declares slots
- * based on `ctx.maxChainConditionSlot`.
+ * The snapshot evaluates the condition as a bound input: post-tool-call
+ * `state_updates` resolve `result` against the state-update action's own
+ * output, so only a bound input sees the intercepted tool's `@outputs`.
+ *
+ * An `if` whose branches produce no actions emits no snapshot.
  */
 function compilePostActionConditional(
   stmt: IfStatement,
+  conditions: string[],
   ctx: CompilerContext
 ): { actions: Action[]; handOffs: HandOffAction[] } {
-  // Plain `if`/`else` — no chain links. Use the shared runtime variable.
-  if (!isElseIfChainHead(stmt)) {
-    return compilePlainPostActionConditional(stmt, ctx);
-  }
-
-  return compileChainPostActionConditional(stmt, ctx);
-}
-
-/** Compile a non-chain post-action conditional via slot 1. */
-function compilePlainPostActionConditional(
-  stmt: IfStatement,
-  ctx: CompilerContext
-): { actions: Action[]; handOffs: HandOffAction[] } {
-  const actions: Action[] = [];
-  const handOffs: HandOffAction[] = [];
-
-  const compiledCondition = compileExpression(stmt.condition, ctx, {
+  const condition = compileExpression(stmt.condition, ctx, {
     expressionContext: "'if' statement condition",
   });
+  const slot = allocateConditionSlot(ctx);
+  const slotRef = `state.${slot.name}`;
 
-  const slotName = chainConditionVariableName(1);
-  ctx.maxChainConditionSlot = Math.max(ctx.maxChainConditionSlot ?? 0, 1);
-
-  actions.push({
-    type: 'action',
-    target: '__state_update_action__',
-    enabled: 'True',
-    state_updates: [{ [slotName]: compiledCondition }],
-  });
-
-  const condRef = `state.${slotName}`;
-  const bodyResult = compileConditionalBody(stmt.body, condRef, ctx);
-  actions.push(...bodyResult.actions);
-  handOffs.push(...bodyResult.handOffs);
-
-  if (stmt.orelse.length > 0) {
-    const elseResult = compileConditionalBody(
-      stmt.orelse,
-      `not ${condRef}`,
+  const branches = withReservedConditionSlots(ctx, slot.index, () => {
+    const body = compileConditionalBody(
+      stmt.body,
+      [...conditions, slotRef],
       ctx
     );
-    actions.push(...elseResult.actions);
-    handOffs.push(...elseResult.handOffs);
-  }
+    const orelse = compileConditionalBody(
+      stmt.orelse,
+      [...conditions, `not (${slotRef})`],
+      ctx
+    );
+    return {
+      actions: [...body.actions, ...orelse.actions],
+      handOffs: [...body.handOffs, ...orelse.handOffs],
+    };
+  });
+  // Nothing reads the slot when neither branch produced an action.
+  if (branches.actions.length === 0) return branches;
 
-  return { actions, handOffs };
-}
-
-/** Compile an `else if` chain post-action conditional via per-link slots. */
-function compileChainPostActionConditional(
-  head: IfStatement,
-  ctx: CompilerContext
-): { actions: Action[]; handOffs: HandOffAction[] } {
-  const actions: Action[] = [];
-  const handOffs: HandOffAction[] = [];
-  const { branches, elseBody } = walkElseIfChain(
-    head,
-    ctx,
-    "'if' statement condition"
-  );
-
-  // Each branch: write its slot, then compile body with gate referencing
-  // prior slots (negated) AND this slot (positive).
-  for (let i = 0; i < branches.length; i++) {
-    const b = branches[i];
-    actions.push({
-      type: 'action',
-      target: '__state_update_action__',
-      enabled: 'True',
-      state_updates: [{ [b.slotName]: b.condition }],
-    });
-    const gate = buildChainBranchGate(branches, i);
-    const branchResult = compileConditionalBody(b.body, gate, ctx);
-    actions.push(...branchResult.actions);
-    handOffs.push(...branchResult.handOffs);
-  }
-
-  // Trailing `else:` body — every slot negated.
-  if (elseBody) {
-    const gate = buildChainElseGate(branches);
-    const elseResult = compileConditionalBody(elseBody, gate, ctx);
-    actions.push(...elseResult.actions);
-    handOffs.push(...elseResult.handOffs);
-  }
-
-  return { actions, handOffs };
+  declareConditionSlot(ctx, slot);
+  const snapshot: Action = {
+    ...conditionSnapshotAction(slot.name, condition),
+    enabled: conditions.length > 0 ? joinConditions(conditions) : 'True',
+  };
+  return {
+    actions: [snapshot, ...branches.actions],
+    handOffs: branches.handOffs,
+  };
 }
 
 /**
- * Compile the body of a conditional statement.
+ * Compile the body of a conditional statement, gating each action on the
+ * enclosing `conditions`.
  */
 function compileConditionalBody(
   body: Statement[],
-  enabledCondition: string,
+  conditions: string[],
   ctx: CompilerContext
 ): { actions: Action[]; handOffs: HandOffAction[] } {
   const actions: Action[] = [];
   const handOffs: HandOffAction[] = [];
+  const enabledCondition = joinConditions(conditions);
 
   for (const stmt of body) {
     if (stmt instanceof TransitionStatement) {
@@ -558,16 +528,9 @@ function compileConditionalBody(
         'variable name'
       );
       if (varName) {
-        const compiledValue = compileExpression(stmt.value, ctx, {
-          expressionContext: "'set' clause",
-        });
-        const setAction: Action = {
-          type: 'action',
-          target: '__state_update_action__',
-          enabled: enabledCondition,
-          state_updates: [{ [varName]: compiledValue }],
-        };
-        actions.push(setAction);
+        actions.push(
+          compileConditionalSet(stmt, varName, enabledCondition, ctx)
+        );
       }
     } else if (stmt instanceof RunStatement) {
       // Nested action call in conditional
@@ -580,21 +543,60 @@ function compileConditionalBody(
         actions.push(gatedAction);
       }
     } else if (stmt instanceof IfStatement) {
-      // Nested if statement - recursively compile
-      const nestedResult = compilePostActionConditional(stmt, ctx);
-      // Combine the nested condition with the parent condition
-      const combinedActions = nestedResult.actions.map(action => ({
-        ...action,
-        enabled: action.enabled
-          ? `(${enabledCondition}) and (${action.enabled})`
-          : enabledCondition,
-      }));
-      actions.push(...combinedActions);
+      // Nested if (including an `else if`): its actions carry the full guard.
+      const nestedResult = compilePostActionConditional(stmt, conditions, ctx);
+      actions.push(...nestedResult.actions);
       handOffs.push(...nestedResult.handOffs);
     }
   }
 
   return { actions, handOffs };
+}
+
+/**
+ * Compile a `set` inside a post-tool-call conditional into its own
+ * state-update action gated on `enabledCondition`.
+ *
+ * A value that reads `@outputs` is evaluated as a bound input, for the same
+ * reason as the condition snapshot: this action's `state_updates` resolve
+ * `result` against its own output, so only a bound input sees the intercepted
+ * tool's result. Other values keep the direct `state_updates` form.
+ */
+function compileConditionalSet(
+  stmt: SetClause,
+  varName: string,
+  enabledCondition: string,
+  ctx: CompilerContext
+): Action {
+  const value = compileExpression(stmt.value, ctx, {
+    expressionContext: "'set' clause",
+  });
+  if (!readsOutputs(stmt.value)) {
+    return {
+      type: 'action',
+      target: STATE_UPDATE_ACTION,
+      enabled: enabledCondition,
+      state_updates: [{ [varName]: value }],
+    };
+  }
+  return {
+    type: 'action',
+    target: STATE_UPDATE_ACTION,
+    enabled: enabledCondition,
+    bound_inputs: { value },
+    state_updates: [{ [varName]: 'result.value' }],
+  };
+}
+
+/** Whether `expr` references `@outputs` anywhere. */
+function readsOutputs(expr: unknown): boolean {
+  if (expr instanceof AtIdentifier) return expr.name === 'outputs';
+  if (!isAstNodeLike(expr)) return false;
+  let found = false;
+  forEachExpressionChild(expr, child => {
+    found ||= readsOutputs(child);
+  });
+  return found;
 }
 
 /**

@@ -33,6 +33,7 @@ import {
   DiagnosticCollector,
 } from './diagnostics.js';
 import { addBuilderMethods } from './field-builder.js';
+import { assertUngated } from './gates.js';
 
 /**
  * AST node representing a sequence (dash-prefixed list).
@@ -232,6 +233,7 @@ function createSequenceFieldType<T extends Schema>(
  * against the given block type's schema. Expression elements are parsed as expressions.
  */
 export function Sequence<T extends Schema>(blockType: BlockFactory<T>) {
+  assertUngated(blockType, 'Sequence');
   return createSequenceFieldType(blockType);
 }
 
@@ -243,5 +245,6 @@ export function Sequence<T extends Schema>(blockType: BlockFactory<T>) {
  *   that type. Omitting it preserves the existing behavior of accepting any expression.
  */
 export function ExpressionSequence(elementType?: FieldType) {
+  assertUngated(elementType, 'ExpressionSequence');
   return createSequenceFieldType(undefined, elementType);
 }

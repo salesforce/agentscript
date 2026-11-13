@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
 import { DiagnosticSeverity } from '../src/diagnostics.js';
-import { parseSource } from './test-utils.js';
+import { findNode as findSubagentNode, parseSource } from './test-utils.js';
 import {
   NEXT_TOPIC_VARIABLE,
   EMPTY_TOPIC_VALUE,
@@ -305,11 +305,9 @@ connected_subagent Support_Agent:
     description: "Handles support"
 `;
     const { output } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const tool = mainNode.tools.find(t => t.name === 'call_support');
+    const tool = mainNode.tools!.find(t => t.name === 'call_support');
     expect(tool).toBeDefined();
     expect(tool!.target).toBe('Support_Agent');
   });
@@ -330,11 +328,9 @@ connected_subagent Billing_Agent:
     description: "Handles billing"
 `;
     const { output } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const tool = mainNode.tools.find(t => t.name === 'invoke_billing');
+    const tool = mainNode.tools!.find(t => t.name === 'invoke_billing');
     expect(tool).toBeDefined();
     expect(tool!.target).toBe('Billing_Agent');
     expect(tool!.description).toBe('Invoke billing agent');
@@ -355,11 +351,9 @@ connected_subagent Support_Agent:
     description: "Handles support inquiries"
 `;
     const { output } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const tool = mainNode.tools.find(t => t.name === 'call_support');
+    const tool = mainNode.tools!.find(t => t.name === 'call_support');
     expect(tool).toBeDefined();
     expect(tool!.target).toBe('Support_Agent');
     // With no inline description the supervision tool inherits the connected
@@ -393,15 +387,13 @@ connected_subagent Order_Agent:
     description: "Handles orders"
 `;
     const { output } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const lookupTool = mainNode.tools.find(t => t.name === 'lookup');
+    const lookupTool = mainNode.tools!.find(t => t.name === 'lookup');
     expect(lookupTool).toBeDefined();
     expect(lookupTool!.target).toBe('Lookup_Order');
 
-    const agentTool = mainNode.tools.find(t => t.name === 'call_agent');
+    const agentTool = mainNode.tools!.find(t => t.name === 'call_agent');
     expect(agentTool).toBeDefined();
     expect(agentTool!.target).toBe('Order_Agent');
   });
@@ -568,16 +560,14 @@ connected_subagent Order_Agent:
         search_query: string
 `;
     const { output } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const tool = mainNode.tools.find(t => t.name === 'call_agent');
+    const tool = mainNode.tools!.find(t => t.name === 'call_agent');
     expect(tool).toBeDefined();
     expect(tool!.type).toBe('supervision');
     expect(tool!.target).toBe('Order_Agent');
-    expect(tool!.bound_inputs).toBeUndefined();
-    expect(tool!.llm_inputs).toBeUndefined();
+    expect(tool).not.toHaveProperty('bound_inputs');
+    expect(tool).not.toHaveProperty('llm_inputs');
   });
 
   it('does not auto-fill llm_inputs for connected agents missing required inputs', () => {
@@ -602,13 +592,11 @@ connected_subagent Order_Agent:
         customer_id: string
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
-    const tool = mainNode.tools.find(t => t.name === 'call_agent');
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
+    const tool = mainNode.tools!.find(t => t.name === 'call_agent');
     expect(tool).toBeDefined();
-    expect(tool!.bound_inputs).toBeUndefined();
-    expect(tool!.llm_inputs).toBeUndefined();
+    expect(tool).not.toHaveProperty('bound_inputs');
+    expect(tool).not.toHaveProperty('llm_inputs');
     expect(
       diagnostics.some(d =>
         d.message.includes('Missing required input "customer_id"')
@@ -640,20 +628,18 @@ connected_subagent Support_Agent:
     description: "Handles support"
 `;
     const { output } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
     // Connected agent tool
-    const agentTool = mainNode.tools.find(t => t.name === 'call_agent');
+    const agentTool = mainNode.tools!.find(t => t.name === 'call_agent');
     expect(agentTool).toBeDefined();
     expect(agentTool!.target).toBe('Support_Agent');
     expect(agentTool!.type).toBe('supervision');
-    expect(agentTool!.bound_inputs).toBeUndefined();
-    expect(agentTool!.llm_inputs).toBeUndefined();
+    expect(agentTool).not.toHaveProperty('bound_inputs');
+    expect(agentTool).not.toHaveProperty('llm_inputs');
 
     // Transition tool
-    const transitionTool = mainNode.tools.find(t => t.name === 'go_billing');
+    const transitionTool = mainNode.tools!.find(t => t.name === 'go_billing');
     expect(transitionTool).toBeDefined();
     expect(transitionTool!.target).toBe('__state_update_action__');
 
@@ -685,11 +671,9 @@ start_agent Main:
     // ctx.connectedAgentInputs.get(target) returns undefined and
     // input validation is skipped. No crash, no warning about unknown inputs.
     const { output, diagnostics } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const tool = mainNode.tools.find(t => t.name === 'call_agent');
+    const tool = mainNode.tools!.find(t => t.name === 'call_agent');
     expect(tool).toBeDefined();
     expect(tool!.target).toBe('Nonexistent_Agent');
 
@@ -728,11 +712,9 @@ connected_subagent Support_Agent:
     description: "Handles support"
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const mainNode = output.agent_version.nodes.find(
-      n => n.developer_name === 'Main'
-    )!;
+    const mainNode = findSubagentNode(output, 'Main', 'subagent');
 
-    const tool = mainNode.tools.find(t => t.name === 'call_agent');
+    const tool = mainNode.tools!.find(t => t.name === 'call_agent');
     expect(tool).toBeDefined();
     expect(tool!.target).toBe('Support_Agent');
     expect(tool!.state_updates).toEqual([{ Last_Agent: '"Support_Agent"' }]);
@@ -867,14 +849,14 @@ connected_subagent Order_Agent:
         transition to @topic.Wrap_Up
 `;
     const { output } = compile(parseSource(source));
-    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+    const node = findSubagentNode(output, 'Order_Agent', 'related_agent');
 
     expect(node.after_response).toBeDefined();
-    const actions = node.after_response as Record<string, unknown>[];
+    const actions = node.after_response ?? [];
 
-    const handoff = actions.find(
-      a => isHandOffAction(a) && a.target === 'Wrap_Up'
-    ) as Record<string, unknown> | undefined;
+    const handoff = actions
+      .filter(isHandOffAction)
+      .find(a => a.target === 'Wrap_Up');
     expect(handoff).toBeDefined();
     expect(handoff!.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="Wrap_Up"`);
     expect(handoff!.state_updates).toEqual([
@@ -957,10 +939,10 @@ connected_subagent Order_Agent:
         transition to @topic.Wrap_Up
 `;
     const { output } = compile(parseSource(source));
-    const node = findNode(output, 'Order_Agent') as Record<string, unknown>;
+    const node = findSubagentNode(output, 'Order_Agent', 'related_agent');
 
     expect(node.after_response).toBeDefined();
-    const actions = node.after_response as Record<string, unknown>[];
+    const actions = node.after_response ?? [];
 
     expect(
       actions.some(

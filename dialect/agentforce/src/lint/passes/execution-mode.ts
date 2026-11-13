@@ -31,6 +31,7 @@ import type {
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { extractStringValue, getBlockRange } from '../utils.js';
+import { analyzeRunOptions } from '../../run-options.js';
 
 function referencesOutputs(value: unknown, seen = new Set<object>()): boolean {
   if (value instanceof AtIdentifier) return value.name === 'outputs';
@@ -89,6 +90,14 @@ class ExecutionModePass implements LintPass {
   readonly description =
     'Validates non-blocking tool execution and output availability';
   readonly requires = [schemaContextKey];
+  enterNode(_key: string, value: unknown): void {
+    if (!isAstNodeLike(value)) return;
+    if (value instanceof RunStatement) {
+      for (const diagnostic of analyzeRunOptions(value).diagnostics) {
+        attachDiagnostic(value, diagnostic);
+      }
+    }
+  }
 
   run(store: PassStore, root: AstRoot): void {
     const ctx = store.get(schemaContextKey);

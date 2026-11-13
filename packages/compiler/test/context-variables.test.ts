@@ -14,7 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { parseSource, findNode } from './test-utils.js';
 import { CompilerContext } from '../src/compiler-context.js';
 
 describe('context variables: linked variable compilation', () => {
@@ -32,7 +32,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const userIdVar = contextVars.find(v => v.developer_name === 'user_id');
     expect(userIdVar).toBeDefined();
@@ -57,7 +57,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     expect(contextVars.length).toBe(2);
 
@@ -84,14 +84,14 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     // Only the linked variable should be in context_variables
     expect(contextVars.length).toBe(1);
     expect(contextVars[0].developer_name).toBe('user_id');
 
     // The mutable variable should be in state_variables
-    const stateVars = output.agent_version.state_variables;
+    const stateVars = output.agent_version.state_variables!;
     const counterVar = stateVars.find(v => v.developer_name === 'counter');
     expect(counterVar).toBeDefined();
   });
@@ -111,7 +111,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const accountVar = contextVars.find(v => v.developer_name === 'account_id');
     expect(accountVar).toBeDefined();
@@ -132,7 +132,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const orderVar = contextVars.find(v => v.developer_name === 'order_total');
     expect(orderVar).toBeDefined();
@@ -154,7 +154,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const activeVar = contextVars.find(v => v.developer_name === 'is_active');
     expect(activeVar).toBeDefined();
@@ -177,7 +177,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const dateVar = contextVars.find(v => v.developer_name === 'start_date');
     expect(dateVar).toBeDefined();
@@ -200,7 +200,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const priceVar = contextVars.find(v => v.developer_name === 'price');
     expect(priceVar).toBeDefined();
@@ -223,7 +223,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const idVar = contextVars.find(v => v.developer_name === 'user_id');
     expect(idVar).toBeDefined();
@@ -245,7 +245,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const sessionVar = contextVars.find(v => v.developer_name === 'session_id');
     expect(sessionVar).toBeDefined();
@@ -272,7 +272,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const customVar = contextVars.find(
       v => v.developer_name === 'WelcomeMessage__c'
@@ -297,7 +297,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     const voiceCallVar = contextVars.find(
       v => v.developer_name === 'voice_call_id'
@@ -345,7 +345,7 @@ start_agent main:
     description: "desc"
 `;
     const { output } = compile(parseSource(source));
-    const contextVars = output.global_configuration.context_variables;
+    const contextVars = output.global_configuration.context_variables!;
 
     expect(contextVars).toEqual([]);
   });
@@ -490,11 +490,9 @@ topic dest:
     description: "dest"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const tool = node.tools[0];
+    const tool = node.tools![0];
     // Linked variable should compile to variables.user_status
     expect(tool.enabled).toContain('variables.user_status');
   });
@@ -521,11 +519,9 @@ topic dest:
     description: "dest"
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
 
-    const tool = node.tools[0];
+    const tool = node.tools![0];
     // Mutable variable should compile to state.counter
     expect(tool.enabled).toContain('state.counter');
   });

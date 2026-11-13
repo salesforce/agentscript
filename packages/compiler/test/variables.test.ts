@@ -232,7 +232,7 @@ start_agent main:
 `;
     const ast = parseSource(source);
     const { output } = compile(ast);
-    const userNameVar = output.agent_version.state_variables.find(
+    const userNameVar = output.agent_version.state_variables!.find(
       v => v.developer_name === 'user_name'
     );
     expect(userNameVar).toBeDefined();
@@ -255,7 +255,7 @@ start_agent main:
 `;
     const ast = parseSource(source);
     const { output } = compile(ast);
-    const countVar = output.agent_version.state_variables.find(
+    const countVar = output.agent_version.state_variables!.find(
       v => v.developer_name === 'count'
     );
     expect(countVar).toBeDefined();
@@ -277,7 +277,7 @@ start_agent main:
 `;
     const ast = parseSource(source);
     const { output } = compile(ast);
-    const boolVar = output.agent_version.state_variables.find(
+    const boolVar = output.agent_version.state_variables!.find(
       v => v.developer_name === 'is_active'
     );
     expect(boolVar).toBeDefined();
@@ -298,7 +298,7 @@ start_agent main:
     const ast = parseSource(source);
     const { output } = compile(ast);
 
-    const nextTopicCount = output.agent_version.state_variables.filter(
+    const nextTopicCount = output.agent_version.state_variables!.filter(
       v => v.developer_name === 'AgentScriptInternal_next_topic'
     ).length;
     expect(nextTopicCount).toBe(1);
@@ -319,7 +319,7 @@ start_agent main:
     const ast = parseSource(source);
     const { output } = compile(ast);
 
-    const accountVar = output.agent_version.state_variables.find(
+    const accountVar = output.agent_version.state_variables!.find(
       v => v.developer_name === 'account_id'
     );
     expect(accountVar).toBeUndefined();
@@ -341,7 +341,7 @@ start_agent main:
     const ast = parseSource(source);
     const { output } = compile(ast);
 
-    const contextVar = output.global_configuration.context_variables.find(
+    const contextVar = output.global_configuration.context_variables!.find(
       v => v.developer_name === 'account_id'
     );
     expect(contextVar).toBeDefined();

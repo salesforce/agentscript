@@ -50,6 +50,7 @@ import {
   OrchestratorBlock,
   WorkflowProcedureBlock,
   AgentScriptSchema,
+  SystemInstructionValue,
   AgentScriptSchemaAliases,
   AgentScriptSchemaInfo,
   defaultSubagentFields,
@@ -157,6 +158,23 @@ export const ModelConfigBlock = Block('ModelConfigBlock', {
     'Additional model parameters (e.g., temperature: 0.7, max_tokens: 2000)'
   ),
 }).describe('Model selection and parameter configuration.');
+
+const LiveParamsBlock = Block(
+  'LiveParamsBlock',
+  {},
+  {
+    wildcardPrefixes: [{ prefix: '', fieldType: ExpressionValue }],
+  }
+).describe(
+  'Live parameters as key-value pairs. Accepts arbitrary parameters (e.g., provider: "openai", model: "gpt-live"). Values can be strings, numbers, booleans, or arrays.'
+);
+
+export const LiveBlock = Block('LiveBlock', {
+  enabled: BooleanValue.describe('True to enable Agentforce Live'),
+  params: LiveParamsBlock.describe(
+    'Additional live parameters (e.g., provider: "openai", model: "gpt-live")'
+  ),
+}).describe('Agentforce Live layer configuration.');
 
 const ContextMemoryBlock = Block('ContextMemoryBlock', {
   enabled: BooleanValue.describe(
@@ -346,9 +364,10 @@ const AFConfigBlock = ConfigBlock.extend(
     billing: Block('BillingConfig', {
       mode: StringValue.describe(
         'How usage of the agent is billed. "ACTION_BASED" (default) bills per ' +
-          'action and matches legacy behavior; "OUTCOME_BASED" bills per outcome ' +
-          'rather than per action. When omitted, the agent behaves as ACTION_BASED.'
-      ).enum(['ACTION_BASED', 'OUTCOME_BASED']),
+          'action and matches legacy behavior; "RESOLUTION_BASED" bills per ' +
+          'resolution rather than per action. "OUTCOME_BASED" is a deprecated ' +
+          'alias for RESOLUTION_BASED. When omitted, the agent behaves as ACTION_BASED.'
+      ).enum(['ACTION_BASED', 'RESOLUTION_BASED', 'OUTCOME_BASED']),
     }).describe(
       'Billing configuration for the agent. Only supported for AgentforceServiceAgent.'
     ),
@@ -680,6 +699,9 @@ export const AFWorkflowProcedureBlock = WorkflowProcedureBlock.extend({
   actions: AFActionsBlock.describe(
     'Action definitions scoped to this workflow. A workflow can only run its own actions.'
   ),
+  model_config: ModelConfigBlock.describe(
+    'Model configuration for LLM-backed directives in this workflow (e.g. say, ask for). Falls back to the agent-wide model_config default when omitted.'
+  ),
 }).describe('A named workflow containing an executable directive flow.');
 
 export const KnowledgeBlock = Block('KnowledgeBlock', {
@@ -803,7 +825,7 @@ _typeDescriptorHolder.field = ResponseFormatTypeDescriptor;
 export const ResponseFormatInputPropertiesBlock = InputPropertiesBlock.extend(
   {
     schema: StringValue.describe(
-      'Schema URI for input validation (e.g., "messaging_components://FormName").'
+      'Schema URI for input validation (e.g., "messaging_component://FormName" or "lightning_web_component://acme__MenuCard").'
     ),
     type: ResponseFormatTypeDescriptor,
   },
@@ -923,8 +945,8 @@ export const ConnectionBlock = NamedBlock(
     inputs: AFConnectionInputsBlock.describe(
       'Parameters defined by connection owners.'
     ),
-    additional_system_instructions: StringValue.describe(
-      'Additional system instructions that append to global system instructions. Supports {!<expression>} template interpolation.'
+    additional_system_instructions: SystemInstructionValue.describe(
+      'Additional system instructions appended to the system instructions while this connection is active. Supports {!<expression>} template interpolation and if/else conditionals.'
     ),
     reasoning: ConnectionReasoningBlock.describe(
       'Reasoning configuration with instructions and available formats.'
@@ -1011,6 +1033,7 @@ export const AgentforceSchema = {
   knowledge: KnowledgeBlock,
   connection: ConnectionsBlock,
   connected_subagent: NamedCollectionBlock(ConnectedSubagentBlock),
+  live: LiveBlock,
   modality: ModalitiesBlock,
   access: AccessBlock,
   context: ContextBlock,

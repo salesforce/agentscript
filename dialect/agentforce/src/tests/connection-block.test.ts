@@ -809,3 +809,239 @@ connection messaging:
     expect(emitted).toContain('{!@inputs.agent_name}');
   });
 });
+
+describe('connection names', () => {
+  function nameWarnings(...names: string[]): Diagnostic[] {
+    const source = names
+      .map(name => `connection ${name}:\n    label: "${name}"\n`)
+      .join('\n');
+    const engine = new LintEngine({ passes: defaultRules() });
+    return engine
+      .run(parseDocument(source), testSchemaCtx)
+      .diagnostics.filter(d => d.code === 'connection-duplicate-name');
+  }
+
+  it('warns on a name that differs only in case', () => {
+    const warnings = nameWarnings('Voice', 'voice');
+
+    expect(warnings.map(d => d.message)).toEqual([
+      "Connection 'voice' duplicates 'Voice': connection names that differ only in case or '_' count as the same name.",
+    ]);
+    // Points at the second connection header, `connection voice` on line 3 (0-based).
+    expect(warnings[0].range).toEqual({
+      start: { line: 3, character: 0 },
+      end: { line: 3, character: 16 },
+    });
+  });
+
+  it('warns on a name with the _ moved', () => {
+    const warnings = nameWarnings('custom_connection2', 'customconnection_2');
+
+    expect(warnings.map(d => d.message)).toEqual([
+      "Connection 'customconnection_2' duplicates 'custom_connection2': connection names that differ only in case or '_' count as the same name.",
+    ]);
+  });
+
+  it('compares every later duplicate with the first', () => {
+    const warnings = nameWarnings('web_chat', 'webchat', 'Web_Chat');
+
+    expect(warnings.map(d => d.message)).toEqual([
+      expect.stringContaining("'webchat' duplicates 'web_chat'"),
+      expect.stringContaining("'Web_Chat' duplicates 'web_chat'"),
+    ]);
+  });
+
+  it('does not warn on distinct names', () => {
+    expect(nameWarnings('messaging', 'service_email', 'voice')).toEqual([]);
+  });
+
+  it('leaves identical names to duplicate-key', () => {
+    expect(nameWarnings('web_chat', 'web_chat')).toEqual([]);
+  });
+});
+
+describe('conditional additional_system_instructions', () => {
+  it('round-trips the procedure form with comments and else-if chains', () => {
+    const source = `
+connection service_email:
+    additional_system_instructions: ->
+        # Lead comment.
+        | Always confirm identity.
+        if @variables.verified: # Trailing comment.
+            # Branch comment.
+            | Verified guidance.
+        else if @variables.tier == "gold":
+            | Gold guidance.
+        else:
+            | Unverified guidance.
+`.trimStart();
+
+    expect(emitDocument(parseDocument(source))).toBe(source.trimEnd());
+  });
+
+  /** Returns the lint codes for `source`, ignoring unused-variable warnings. */
+  function lintCodes(source: string): Diagnostic['code'][] {
+    const engine = new LintEngine({ passes: defaultRules() });
+    return engine
+      .run(parseDocument(source), testSchemaCtx)
+      .diagnostics.map(d => d.code)
+      .filter(code => code !== 'unused-variable');
+  }
+
+  it('accepts variables and system variables in an if, and reports inputs', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    inputs:
+        case_id: string
+            description: "Case"
+    additional_system_instructions: ->
+        if @variables.verified:
+            | On {!@system_variables.current_modality}, case {!@inputs.case_id}.
+`;
+
+    expect(lintCodes(source)).toEqual([
+      'conditional-connection-instructions-input',
+    ]);
+  });
+
+  it('reports inputs in conditions and in lines outside the if', () => {
+    const source = `
+connection service_email:
+    inputs:
+        case_id: string
+            description: "Case"
+    additional_system_instructions: ->
+        | Case {!@connection.service_email.inputs.case_id}.
+        if @inputs.case_id == "a":
+            | Case A.
+`;
+
+    expect(lintCodes(source)).toEqual([
+      'conditional-connection-instructions-input',
+      'conditional-connection-instructions-input',
+    ]);
+  });
+
+  it('accepts inputs in static text', () => {
+    const source = `
+connection service_email:
+    inputs:
+        case_id: string
+            description: "Case"
+    additional_system_instructions: |
+        Case {!@inputs.case_id}.
+`;
+
+    expect(lintCodes(source)).toEqual([]);
+  });
+
+  // Each test below matches what the same text reports under system.instructions.
+  it('reports @outputs in an if', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    additional_system_instructions: ->
+        if @variables.verified:
+            | {!@outputs.x}
+`;
+
+    expect(lintCodes(source)).toEqual(['instruction-output-reference']);
+  });
+
+  it('reports @outputs in static text', () => {
+    const source = `
+connection service_email:
+    additional_system_instructions: |
+        {!@outputs.x}
+`;
+
+    expect(lintCodes(source)).toEqual(['instruction-output-reference']);
+  });
+
+  it('reports an undefined variable in an if', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    additional_system_instructions: ->
+        if @variables.nope:
+            | Text.
+`;
+
+    expect(lintCodes(source)).toEqual(['undefined-reference']);
+  });
+
+  it('reports a nested if', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    additional_system_instructions: ->
+        if @variables.verified:
+            if @variables.verified:
+                | Text.
+`;
+
+    expect(lintCodes(source)).toEqual(['unsupported-nested-if']);
+  });
+
+  it('reports set, run, and transition statements', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    additional_system_instructions: ->
+        if @variables.verified:
+            set @variables.verified = False
+            run @actions.lookup
+            transition to @subagent.main
+
+start_agent main:
+    description: "Main"
+`;
+
+    // A connection has no actions of its own, so `@actions.lookup` is also
+    // undefined.
+    expect(lintCodes(source)).toEqual([
+      'unsupported-system-instruction-statement',
+      'unsupported-system-instruction-statement',
+      'undefined-reference',
+      'unsupported-system-instruction-statement',
+    ]);
+  });
+
+  it('reports a reference without ! in an if', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    additional_system_instructions: ->
+        if @variables.verified:
+            | Verified: {@variables.verified}
+`;
+
+    expect(lintCodes(source)).toEqual(['instruction-template-syntax']);
+  });
+
+  it('reports a reference without ! in static text', () => {
+    const source = `
+variables:
+    verified: mutable boolean = False
+
+connection service_email:
+    additional_system_instructions: |
+        Verified: {@variables.verified}
+`;
+
+    expect(lintCodes(source)).toEqual(['instruction-template-syntax']);
+  });
+});

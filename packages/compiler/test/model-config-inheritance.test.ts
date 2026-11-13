@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { parseSource, findNode } from './test-utils.js';
 
 function compileSource(source: string) {
   return compile(parseSource(source));
@@ -38,16 +38,12 @@ subagent billing:
 `;
       const { output } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
-      const billingNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'billing'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
+      const billingNode = findNode(output, 'billing', 'subagent');
       expect(orderNode).toBeDefined();
       expect(orderNode.model_configuration).toBeDefined();
-      expect(orderNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(orderNode.model_configuration.configuration).toEqual({
+      expect(orderNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(orderNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
       });
 
@@ -83,26 +79,22 @@ subagent billing:
 `;
       const { output } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
-      const billingNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'billing'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
+      const billingNode = findNode(output, 'billing', 'subagent');
 
       // Both nodes should inherit global config
       expect(orderNode).toBeDefined();
       expect(orderNode.model_configuration).toBeDefined();
-      expect(orderNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(orderNode.model_configuration.configuration).toEqual({
+      expect(orderNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(orderNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
         max_tokens: 2000,
       });
 
       expect(billingNode).toBeDefined();
       expect(billingNode.model_configuration).toBeDefined();
-      expect(billingNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(billingNode.model_configuration.configuration).toEqual({
+      expect(billingNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(billingNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
         max_tokens: 2000,
       });
@@ -136,23 +128,19 @@ subagent billing:
         false
       );
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
-      const billingNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'billing'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
+      const billingNode = findNode(output, 'billing', 'subagent');
 
       // Both nodes inherit the global params with no model_ref.
       expect(orderNode.model_configuration).toBeDefined();
-      expect(orderNode.model_configuration.model_ref).toBeNull();
-      expect(orderNode.model_configuration.configuration).toEqual({
+      expect(orderNode.model_configuration!.model_ref).toBeNull();
+      expect(orderNode.model_configuration!.configuration).toEqual({
         max_tokens: 2000,
       });
 
       expect(billingNode.model_configuration).toBeDefined();
-      expect(billingNode.model_configuration.model_ref).toBeNull();
-      expect(billingNode.model_configuration.configuration).toEqual({
+      expect(billingNode.model_configuration!.model_ref).toBeNull();
+      expect(billingNode.model_configuration!.configuration).toEqual({
         max_tokens: 2000,
       });
     });
@@ -187,18 +175,14 @@ subagent billing:
 `;
       const { output } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
-      const billingNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'billing'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
+      const billingNode = findNode(output, 'billing', 'subagent');
 
       // order_management: topic params override global (temperature), inherit max_tokens
       expect(orderNode).toBeDefined();
       expect(orderNode.model_configuration).toBeDefined();
-      expect(orderNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(orderNode.model_configuration.configuration).toEqual({
+      expect(orderNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(orderNode.model_configuration!.configuration).toEqual({
         temperature: 0.9,
         max_tokens: 2000,
       });
@@ -206,8 +190,8 @@ subagent billing:
       // billing: inherits global config unchanged
       expect(billingNode).toBeDefined();
       expect(billingNode.model_configuration).toBeDefined();
-      expect(billingNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(billingNode.model_configuration.configuration).toEqual({
+      expect(billingNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(billingNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
         max_tokens: 2000,
       });
@@ -233,16 +217,14 @@ subagent order_management:
 `;
       const { output } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
 
       // Topic model_ref overrides global
       expect(orderNode).toBeDefined();
       expect(orderNode.model_configuration).toBeDefined();
-      expect(orderNode.model_configuration.model_ref).toBe('gpt-3.5-turbo');
+      expect(orderNode.model_configuration!.model_ref).toBe('gpt-3.5-turbo');
       // Global params still inherited
-      expect(orderNode.model_configuration.configuration).toEqual({
+      expect(orderNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
       });
     });
@@ -270,15 +252,13 @@ subagent order_management:
 `;
       const { output } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
 
       // Should inherit global model_ref, merge params
       expect(orderNode).toBeDefined();
       expect(orderNode.model_configuration).toBeDefined();
-      expect(orderNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(orderNode.model_configuration.configuration).toEqual({
+      expect(orderNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(orderNode.model_configuration!.configuration).toEqual({
         temperature: 0.5, // Topic override
         max_tokens: 2000, // Inherited from global
         top_p: 0.9, // New param from topic
@@ -319,21 +299,17 @@ subagent support:
 `;
       const { output } = compileSource(source);
 
-      const routerNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'router'
-      )!;
-      const supportNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'support'
-      )!;
+      const routerNode = findNode(output, 'router', 'router');
+      const supportNode = findNode(output, 'support', 'subagent');
 
       // Router should use its own config (override global)
       expect(routerNode).toBeDefined();
       expect(routerNode.type).toBe('router');
       expect(routerNode.model_configuration).toBeDefined();
-      expect(routerNode.model_configuration.model_ref).toBe(
+      expect(routerNode.model_configuration!.model_ref).toBe(
         'sfdc_ai__DefaultEinsteinHyperClassifier'
       );
-      expect(routerNode.model_configuration.configuration).toEqual({
+      expect(routerNode.model_configuration!.configuration).toEqual({
         temperature: 0.9,
       });
 
@@ -341,8 +317,8 @@ subagent support:
       expect(supportNode).toBeDefined();
       expect(supportNode.type).toBe('subagent');
       expect(supportNode.model_configuration).toBeDefined();
-      expect(supportNode.model_configuration.model_ref).toBe('gpt-4');
-      expect(supportNode.model_configuration.configuration).toEqual({
+      expect(supportNode.model_configuration!.model_ref).toBe('gpt-4');
+      expect(supportNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
       });
     });
@@ -377,16 +353,14 @@ subagent support:
 `;
       const { output } = compileSource(source);
 
-      const routerNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'router'
-      )!;
+      const routerNode = findNode(output, 'router', 'router');
 
       // Router should use its model but inherit global params
       expect(routerNode).toBeDefined();
-      expect(routerNode.model_configuration.model_ref).toBe(
+      expect(routerNode.model_configuration!.model_ref).toBe(
         'sfdc_ai__DefaultEinsteinHyperClassifier'
       );
-      expect(routerNode.model_configuration.configuration).toEqual({
+      expect(routerNode.model_configuration!.configuration).toEqual({
         temperature: 0.7,
       });
     });
@@ -406,9 +380,7 @@ subagent order_management:
 `;
       const { output } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
 
       expect(orderNode).toBeDefined();
       expect(orderNode.model_configuration).toBeUndefined();
@@ -436,15 +408,9 @@ subagent topic3:
 `;
       const { output } = compileSource(source);
 
-      const topic1 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic1'
-      )!;
-      const topic2 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic2'
-      )!;
-      const topic3 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic3'
-      )!;
+      const topic1 = findNode(output, 'topic1', 'subagent');
+      const topic2 = findNode(output, 'topic2', 'subagent');
+      const topic3 = findNode(output, 'topic3', 'subagent');
 
       expect(topic1).toBeDefined();
       expect(topic1.model_configuration).toBeUndefined();
@@ -472,9 +438,7 @@ subagent order_management:
 `;
       const { output, diagnostics } = compileSource(source);
 
-      const orderNode = output.agent_version.nodes.find(
-        n => n.developer_name === 'order_management'
-      )!;
+      const orderNode = findNode(output, 'order_management', 'subagent');
 
       // Should have undefined model_config due to validation error
       expect(orderNode).toBeDefined();
@@ -530,18 +494,10 @@ subagent topic4:
 `;
       const { output } = compileSource(source);
 
-      const topic1 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic1'
-      )!;
-      const topic2 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic2'
-      )!;
-      const topic3 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic3'
-      )!;
-      const topic4 = output.agent_version.nodes.find(
-        n => n.developer_name === 'topic4'
-      )!;
+      const topic1 = findNode(output, 'topic1', 'subagent');
+      const topic2 = findNode(output, 'topic2', 'subagent');
+      const topic3 = findNode(output, 'topic3', 'subagent');
+      const topic4 = findNode(output, 'topic4', 'subagent');
 
       // topic1: inherits global config
       expect(topic1.model_configuration).toEqual({

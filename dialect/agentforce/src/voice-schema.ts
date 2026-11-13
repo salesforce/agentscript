@@ -49,6 +49,11 @@ export const SpeakUpConfigBlock = Block('SpeakUpConfigBlock', {
 }).describe('Configuration for speak-up behavior.');
 
 export const EndpointingConfigBlock = Block('EndpointingConfigBlock', {
+  min_wait_time_ms: NumberValue.describe(
+    'Minimum wait time in milliseconds of silence before endpointing can trigger. 0 uses the platform default.'
+  )
+    .min(0)
+    .max(60000),
   max_wait_time_ms: NumberValue.describe(
     'Maximum wait time in milliseconds for endpointing detection.'
   )

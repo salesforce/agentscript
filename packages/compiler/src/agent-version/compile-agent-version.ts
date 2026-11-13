@@ -13,6 +13,7 @@ import type {
   ContextVariable,
   AdditionalParameters,
   RuntimeConfiguration,
+  StateVariable,
 } from '../types.js';
 import type {
   ParsedAgentforce,
@@ -22,11 +23,17 @@ import type {
 } from '../parsed-types.js';
 import {
   DEFAULT_PLANNER_TYPE,
-  chainConditionStateVariable,
+  conditionStateVariable,
+  workflowConditionStateVariable,
   SYSTEM_INSTRUCTION_STATE_VARIABLE,
+  CONNECTION_SYSTEM_INSTRUCTION_STATE_VARIABLE,
 } from '../constants.js';
 import { ParameterDeclarationNode } from '@agentscript/language';
-import { workflowNameCollisions } from '@agentscript/agentscript-dialect';
+import type { AstNodeLike } from '@agentscript/language';
+import {
+  reasoningOnlyActionNames,
+  workflowNameCollisions,
+} from '@agentscript/agentscript-dialect';
 import {
   extractStringValue,
   extractDescriptionValue,
@@ -41,6 +48,7 @@ import {
 import { compileModalityParameters } from '../modality/compile-modality.js';
 import { compileNode } from '../nodes/compile-node.js';
 import { compileConnectedAgentNode } from '../nodes/compile-connected-agent-node.js';
+import { referencedConditionSlots } from '../nodes/optimize-actions.js';
 import {
   compileTopLevelActions,
   mergeTopLevelActionsIntoSubagent,
@@ -64,8 +72,11 @@ import {
   BYON_SCHEMA_PREFIX,
 } from '@agentscript/agentforce-dialect';
 import { compileSurfaces } from '../surfaces/compile-surfaces.js';
+import { collectResponseFormatInputs } from '../surfaces/compile-response-formats.js';
+import { collectDynamicConnectionSystemInstructions } from '../nodes/compile-system-instructions.js';
 import type { FileUploadConfiguration } from '../config/compile-file-upload.js';
 import type { BillingConfiguration } from '../config/compile-billing.js';
+import { compileLive } from '../config/compile-live.js';
 import { extractCompanyAndRole } from '../config/agent-configuration.js';
 import { extractGlobalModelConfiguration } from '../config/model-config.js';
 
@@ -174,6 +185,10 @@ export function compileAgentVersion(
     }
   }
 
+  // Collect response format inputs BEFORE compiling nodes, so render rules
+  // in reasoning actions can emit every declared input of their target.
+  collectResponseFormatInputs(parsed.connection, ctx);
+
   // Compile top-level actions (GBA). These are inherited by every subagent:
   // their action definitions and synthesized tool references are prepended to
   // each subagent node below. Compiled ONCE before the node loop — the
@@ -181,6 +196,14 @@ export function compileAgentVersion(
   // `compileActionDefinitions` re-clears and repopulates `actionInputSignatures`
   // for its local actions (see Risk R5).
   const topLevelActions = compileTopLevelActions(parsed.actions, ctx);
+
+  // Subagent nodes read this to append the connection system instructions,
+  // so compute it before compiling them.
+  ctx.dynamicConnectionSystemInstructions =
+    collectDynamicConnectionSystemInstructions(
+      iterateNamedMap(parsed.connection),
+      ctx
+    );
 
   // Compile all nodes
   const nodes: AgentNode[] = [];
@@ -191,6 +214,10 @@ export function compileAgentVersion(
     // Open a fresh file-reference capture window for this node.
     ctx.fileCapture.enterNode();
     ctx.nodeConditionSlotBase = 0;
+    ctx.reasoningOnlyActionNames = reasoningOnlyActionNames(
+      block as AstNodeLike,
+      parsed.actions
+    );
 
     const schemaValue = extractStringValue(block.schema);
     if (schemaValue === TABLEAU_ANALYZE_DATA_SCHEMA) {
@@ -227,6 +254,7 @@ export function compileAgentVersion(
     attachFileReferences(node, ctx);
     nodes.push(node);
   }
+  ctx.reasoningOnlyActionNames = new Set();
 
   // Compile orchestrator nodes (GBA entry point)
   const parsedWithOrchestrator = parsed as ParsedAgentforce & {
@@ -268,12 +296,14 @@ export function compileAgentVersion(
       );
       continue;
     }
+    ctx.nodeConditionSlotBase = 0;
     // Workflow nodes cannot represent file_references. Keep capture closed and
     // diagnose prompt references rather than silently discarding attachments.
     const node = ctx.fileCapture.withUnsupportedNode('workflow', () =>
       compileWorkflowNode(
         name,
         block as ParsedWorkflowProcedure,
+        parsed.system,
         globalModelConfig,
         ctx
       )
@@ -299,35 +329,58 @@ export function compileAgentVersion(
     }
   }
 
-  // Append per-chain-link condition slot variables. Node compilation tracks
-  // the maximum chain depth observed across the agent in
-  // `ctx.maxChainConditionSlot`; we declare slots 1..N here, after nodes have
-  // been compiled. Sharing the counter across all nodes means a node with a
-  // shallower chain doesn't allocate fresh indices.
-  for (let i = 1; i <= ctx.maxChainConditionSlot; i++) {
-    stateVariables.push(chainConditionStateVariable(i));
+  // Append condition slot variables. Node compilation tracks the deepest
+  // slot observed across the agent in `ctx.maxConditionSlot`; we declare
+  // slots 1..N here, after nodes have been compiled. Sharing the counter
+  // across all nodes means a node with shallower nesting doesn't allocate
+  // fresh indices. When inlining condition
+  // slots, slots that optimization 4b inlined away everywhere are no longer referenced by
+  // any node, so they are not declared.
+  const referencedSlots =
+    ctx.optimize && ctx.inlineConditionSlots && ctx.maxConditionSlot > 0
+      ? referencedConditionSlots(nodes)
+      : null;
+  for (let i = 1; i <= ctx.maxConditionSlot; i++) {
+    if (referencedSlots && !referencedSlots.has(i)) continue;
+    stateVariables.push(conditionStateVariable(i));
   }
 
-  if (ctx.usesDynamicSystemInstructions) {
+  // Workflow `if` conditions live in their own slots, one per nesting depth,
+  // so declare 1..N for the deepest workflow `if` in the agent.
+  for (let i = 1; i <= ctx.maxWorkflowConditionSlot; i++) {
+    stateVariables.push(workflowConditionStateVariable(i));
+  }
+
+  const reservedVariables: { variable: StateVariable; reservedWhen: string }[] =
+    [];
+  if (ctx.usesSystemInstructionsVariable) {
+    reservedVariables.push({
+      variable: SYSTEM_INSTRUCTION_STATE_VARIABLE,
+      reservedWhen:
+        'the agent uses conditional system instructions, or has system instructions and a workflow',
+    });
+  }
+  if (ctx.usesDynamicConnectionSystemInstructions) {
+    reservedVariables.push({
+      variable: CONNECTION_SYSTEM_INSTRUCTION_STATE_VARIABLE,
+      reservedWhen:
+        'a connection uses conditional additional_system_instructions',
+    });
+  }
+  for (const { variable: reserved, reservedWhen } of reservedVariables) {
     const collisionIndex = stateVariables.findIndex(
-      variable =>
-        variable.developer_name ===
-        SYSTEM_INSTRUCTION_STATE_VARIABLE.developer_name
+      variable => variable.developer_name === reserved.developer_name
     );
     if (collisionIndex >= 0) {
-      const declaration = parsed.variables?.get(
-        SYSTEM_INSTRUCTION_STATE_VARIABLE.developer_name
-      );
+      const declaration = parsed.variables?.get(reserved.developer_name);
       ctx.error(
-        `Variable '${SYSTEM_INSTRUCTION_STATE_VARIABLE.developer_name}' is reserved when conditional system instructions are used. Rename the user-defined variable.`,
+        `Variable '${reserved.developer_name}' is reserved when ${reservedWhen}. Rename the user-defined variable.`,
         declaration?.__cst?.range,
         'dynamic-system-instructions-variable-conflict'
       );
-      stateVariables.splice(collisionIndex, 1, {
-        ...SYSTEM_INSTRUCTION_STATE_VARIABLE,
-      });
+      stateVariables.splice(collisionIndex, 1, { ...reserved });
     } else {
-      stateVariables.push({ ...SYSTEM_INSTRUCTION_STATE_VARIABLE });
+      stateVariables.push({ ...reserved });
     }
   }
 
@@ -417,6 +470,14 @@ export function compileAgentVersion(
   // places `billing` on agent_version, not global_configuration).
   if (billing) {
     version.billing = billing;
+  }
+
+  // Attach live configuration (experimental). Live is agent-version-level
+  // config: it lives on agent_version only and is intentionally not part of
+  // the graph-MD (runtime) schema. Emitted only when a `live:` block is authored.
+  const live = compileLive(parsed.live, ctx);
+  if (live) {
+    version.live = live;
   }
 
   // Attach GBA version-level arrays (bundles / workflows / triggers), only when

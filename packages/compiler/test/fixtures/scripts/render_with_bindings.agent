@@ -1,0 +1,105 @@
+system:
+    instructions: "You are an order support agent. Answer through the channel's rich formats."
+    messages:
+        welcome: "Hi! How can I help with your order?"
+        error: "Sorry, something went wrong."
+
+config:
+    developer_name: "RenderWithBindings"
+    agent_label: "Render With Bindings Agent"
+    description: "Bind action outputs and variables to response format inputs with render `with`"
+
+access:
+    default_agent_user: "support_bot@example.com"
+
+variables:
+    customer_name: mutable string = "Ada"
+    session_id: linked string
+        source: @MessagingSession.Id
+        description: "Messaging session id"
+
+connection messaging:
+    response_formats:
+        order_card:
+            description: "Order summary card"
+            inputs:
+                title: string
+                order_total: number
+                is_delayed: boolean
+                status_label: string
+                currency_code: string = "USD"
+                note:
+                    type: string
+                    is_required: False
+                customer:
+                    type: object
+                        fields:
+                            name: string
+                            tier: string = "standard"
+                            session_id: string
+                items:
+                    type: list
+                        value: object
+                            fields:
+                                name: string
+                                quantity: integer = 1
+                tracking_numbers: list[string]
+
+connection service_email:
+    inputs:
+        signature: string = "The Support Team"
+    response_formats:
+        order_email:
+            description: "Order update email"
+            inputs:
+                subject: string
+                greeting: string
+                customer_question: string
+                signed_by: string = @inputs.signature
+                footer:
+                    type: object
+                        fields:
+                            text: string
+
+start_agent main:
+    description: "Route support requests"
+
+subagent orders:
+    description: "Answer questions about an order"
+    actions:
+        Get_Order:
+            description: "Look up an order"
+            target: "flow://GetOrder"
+            inputs:
+                order_number: string
+            outputs:
+                order_number: string
+                total: number
+                days_late: integer
+                first_item: string
+                first_item_quantity: integer
+                tracking_numbers: list[string]
+    reasoning:
+        instructions: ->
+            | Look up the order, then show its summary.
+        actions:
+            Get_Order: @actions.Get_Order
+                with order_number = ...
+                when @connection.messaging
+                    render: @response_formats.order_card
+                        # Inputs without a `with` get their default, or null.
+                        with title = "Order " + @outputs.order_number
+                        with order_total = @outputs.total
+                        with is_delayed = @outputs.days_late > 0
+                        with status_label = "Delayed" if @outputs.days_late > 0 else "On time"
+                        # Fields the dict leaves out get their default.
+                        with customer = {name: @variables.customer_name, session_id: @variables.session_id}
+                        with items = [{name: @outputs.first_item, quantity: @outputs.first_item_quantity}, {name: "Gift wrap"}]
+                        with tracking_numbers = @outputs.tracking_numbers
+                        show_and_return: True
+                when @connection.service_email
+                    render: @connection.service_email.response_formats.order_email
+                        with subject = "Your order " + @outputs.order_number
+                        with greeting = "Hi " + @variables.customer_name
+                        with customer_question = @system_variables.user_input
+                        with footer = {text: "Sent by " + @connection.service_email.inputs.signature}

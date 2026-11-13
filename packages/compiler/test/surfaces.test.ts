@@ -396,7 +396,7 @@ connection messaging:
       {
         target: 'messaging_choices',
         name: 'my_choice',
-        description: 'My Choice',
+        description: 'A choices format',
       },
     ]);
   });
@@ -426,7 +426,7 @@ connection messaging:
       {
         target: 'messaging_choices',
         name: 'my_choice',
-        description: 'My Choice',
+        description: 'A choices format',
       },
     ]);
   });
@@ -1363,7 +1363,7 @@ connection messaging:
 
     const messagingSurface = findSurface(result, 'messaging');
     expect(messagingSurface).toBeDefined();
-    expect(messagingSurface!.outbound_route_configs.length).toBeGreaterThan(0);
+    expect(messagingSurface!.outbound_route_configs!.length).toBeGreaterThan(0);
   });
 
   // Python: test_surfaces.test_slack_empty_case_insensitive

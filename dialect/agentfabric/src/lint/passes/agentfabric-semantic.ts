@@ -14,6 +14,7 @@ import type {
 } from '@agentscript/language';
 import { checkActionBindingRules } from './rules/action-binding-rules.js';
 import { checkAgenticLlmRules } from './rules/agentic-llm-rules.js';
+import { checkAnthropicLlmRules } from './rules/anthropic-llm-rules.js';
 import { checkConnectionUriRules } from './rules/connection-rules.js';
 import { checkCycleRules } from './rules/cycle-rules.js';
 import { checkEchoRules } from './rules/echo-rules.js';
@@ -49,6 +50,7 @@ class AgentFabricSemanticPass implements LintPass {
     checkFirstArtifactAppendRules(root);
     checkArtifactAfterTerminalRules(root);
     checkAgenticLlmRules(root);
+    checkAnthropicLlmRules(root);
     checkExecuteRules(root);
     checkActionBindingRules(root);
     checkCycleRules(root);

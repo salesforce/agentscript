@@ -347,6 +347,25 @@ export function provideCodeActions(
         });
       }
 
+      // Quick fix for a template reference without `{! }`. The range covers
+      // the whole incorrect reference.
+      if (diagnostic.code === 'instruction-template-syntax') {
+        const replacement = diagnostic.data?.replacement;
+        if (typeof replacement !== 'string' || !replacement) continue;
+
+        actions.push({
+          title: `Change to '${replacement}'`,
+          kind: CodeActionKind.QuickFix,
+          diagnostics: [diagnostic],
+          isPreferred: true,
+          edit: {
+            changes: {
+              [uri]: [{ range: diagnostic.range, newText: replacement }],
+            },
+          },
+        });
+      }
+
       // Quick fix for unknown dialect — offer each available dialect
       if (diagnostic.code === 'unknown-dialect') {
         const availableNames = diagnostic.data?.availableNames as

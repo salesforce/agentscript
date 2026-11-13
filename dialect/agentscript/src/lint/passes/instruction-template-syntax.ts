@@ -24,14 +24,19 @@
  * - ProcedureValue: only its Template (pipe-text) statements — procedural
  *   directives (if/with/run/etc.) are not scanned.
  *
- * Only scans instruction fields (system.instructions, reasoning.instructions).
+ * Scans instruction fields (system.instructions, reasoning.instructions, and
+ * any `instructionFields` a dialect adds) and the `do` directives (`|` lines)
+ * of workflow steps. In a workflow, a reference without `{! }` is a Warning:
+ * only `{!@actions.X}` gives the action to the LLM as a tool. Each diagnostic
+ * carries `data.replacement` for a quick fix.
  *
  * Diagnostic code: instruction-template-syntax
  *
  * Also emits Warning diagnostics for prohibited references in
- * system/reasoning instruction text or workflow prompts. In procedural
- * instructions, only Template statements are scanned; run/with/set syntax is
- * intentionally excluded. Prohibited references are configured in
+ * system/reasoning instruction text, workflow prompts, or workflow step
+ * `do` directives. In procedural instructions and workflow steps, only
+ * Template statements are scanned; run/with/set syntax is intentionally
+ * excluded. Prohibited references are configured in
  * PROHIBITED_PROMPT_REFERENCES.
  */
 
@@ -40,10 +45,14 @@ import {
   storeKey,
   attachDiagnostic,
   LINT_SOURCE,
+  isAstNodeLike,
+  isIfStatement,
   isNamedMap,
+  isTemplate,
 } from '@agentscript/language';
 import { DiagnosticSeverity } from '@agentscript/types';
 import type { CstMeta, Range, SyntaxNode } from '@agentscript/types';
+import { workflowStepBodies } from '../../workflow/lint/steps-structure.js';
 
 export const instructionTemplateSyntaxKey = storeKey<void>(
   'instruction-template-syntax'
@@ -54,6 +63,8 @@ interface PatternMatch {
   message: string;
   offset: number;
   length: number;
+  /** Correct template syntax that replaces the matched text. */
+  replacement: string;
 }
 
 interface TextSpan {
@@ -109,11 +120,18 @@ interface CstScanContext {
   inInstructionProcedure: boolean;
 }
 
+export interface InstructionTemplateSyntaxOptions {
+  /** Extra field names to scan like `instructions`, e.g. `additional_system_instructions`. */
+  instructionFields?: readonly string[];
+}
+
 class InstructionTemplateSyntaxPass implements LintPass {
   readonly id = instructionTemplateSyntaxKey;
   readonly description =
     'Validates template syntax patterns in instruction fields';
   readonly requires = [];
+
+  constructor(private readonly instructionFields: readonly string[] = []) {}
 
   run(_store: PassStore, root: AstNodeLike): void {
     this.scanProhibitedPromptReferences(root);
@@ -136,6 +154,36 @@ class InstructionTemplateSyntaxPass implements LintPass {
     // visited WeakSet prevents infinite loops when traversing circular AST references
     const visited = new WeakSet<object>();
     this.walkForBlocks(root, visited, variableNames, actionNames);
+
+    this.scanWorkflowSteps(root, variableNames);
+  }
+
+  /**
+   * Scan the `do` directives of each workflow step. A `do` directive can
+   * only call the workflow's own actions, so only those names count as
+   * bare action references.
+   */
+  private scanWorkflowSteps(
+    root: AstNodeLike,
+    variableNames: ReadonlySet<string>
+  ): void {
+    const workflows = root.workflow;
+    if (!isNamedMap(workflows)) return;
+
+    for (const [, workflow] of workflows) {
+      if (!isAstNodeLike(workflow)) continue;
+      const actionNames = new Set<string>(
+        isNamedMap(workflow.actions) ? workflow.actions.keys() : []
+      );
+      for (const statements of workflowStepBodies(workflow)) {
+        this.scanStatements(
+          statements,
+          variableNames,
+          actionNames,
+          DiagnosticSeverity.Warning
+        );
+      }
+    }
   }
 
   /**
@@ -196,10 +244,14 @@ class InstructionTemplateSyntaxPass implements LintPass {
         const key = keyNode?.text.trim();
         const owner = context.mappingPath.at(-1);
         const isInstruction =
-          key === 'instructions' &&
-          (owner === 'system' || owner === 'reasoning');
+          (key === 'instructions' &&
+            (owner === 'system' || owner === 'reasoning')) ||
+          (key !== undefined && this.instructionFields.includes(key));
         const isWorkflowPrompt =
           key === 'prompt' && context.mappingPath.includes('workflows');
+        const isWorkflowStepBody =
+          context.mappingPath[0]?.startsWith('workflow ') === true &&
+          (key === 'steps' || key?.startsWith('step ') === true);
 
         for (const child of node.namedChildren) {
           if (child === valueNode && key) {
@@ -216,7 +268,8 @@ class InstructionTemplateSyntaxPass implements LintPass {
               mappingPath: [...context.mappingPath, key],
               inInstructionProcedure:
                 context.inInstructionProcedure ||
-                (isInstruction && isProcedure),
+                (isInstruction && isProcedure) ||
+                isWorkflowStepBody,
             });
           } else {
             visit(child, context);
@@ -341,6 +394,16 @@ class InstructionTemplateSyntaxPass implements LintPass {
         actionNames
       );
     }
+    for (const field of this.instructionFields) {
+      const value = anyNode[field];
+      if (value && typeof value === 'object') {
+        this.scanInstructionNode(
+          value as AstNodeLike,
+          variableNames,
+          actionNames
+        );
+      }
+    }
 
     // Recurse through all object properties
     for (const key in node) {
@@ -401,7 +464,8 @@ class InstructionTemplateSyntaxPass implements LintPass {
   private scanTemplateExpression(
     node: AstNodeLike,
     variableNames: ReadonlySet<string>,
-    actionNames: ReadonlySet<string>
+    actionNames: ReadonlySet<string>,
+    severity: DiagnosticSeverity = DiagnosticSeverity.Information
   ): void {
     const templateNode = node as { parts?: AstNodeLike[]; value?: string };
 
@@ -411,7 +475,8 @@ class InstructionTemplateSyntaxPass implements LintPass {
         templateNode.value,
         node,
         variableNames,
-        actionNames
+        actionNames,
+        severity
       );
       return;
     }
@@ -427,7 +492,8 @@ class InstructionTemplateSyntaxPass implements LintPass {
             textNode.value,
             part,
             variableNames,
-            actionNames
+            actionNames,
+            severity
           );
         }
       }
@@ -441,34 +507,46 @@ class InstructionTemplateSyntaxPass implements LintPass {
   ): void {
     const procedureNode = node as { statements?: AstNodeLike[] };
     if (!Array.isArray(procedureNode.statements)) return;
+    this.scanStatements(
+      procedureNode.statements,
+      variableNames,
+      actionNames,
+      DiagnosticSeverity.Information
+    );
+  }
 
-    const scanStatements = (statements: AstNodeLike[]): void => {
-      for (const statement of statements) {
-        if (statement.__kind === 'Template') {
-          this.scanTemplateExpression(statement, variableNames, actionNames);
-          continue;
-        }
-        if (statement.__kind === 'IfStatement') {
-          const conditional = statement as {
-            body?: AstNodeLike[];
-            orelse?: AstNodeLike[];
-          };
-          if (Array.isArray(conditional.body)) scanStatements(conditional.body);
-          if (Array.isArray(conditional.orelse)) {
-            scanStatements(conditional.orelse);
-          }
+  /** Scan the Template statements of a procedure, including `if` bodies. */
+  private scanStatements(
+    statements: readonly unknown[],
+    variableNames: ReadonlySet<string>,
+    actionNames: ReadonlySet<string>,
+    severity: DiagnosticSeverity
+  ): void {
+    for (const statement of statements) {
+      if (!isAstNodeLike(statement)) continue;
+      if (isTemplate(statement)) {
+        this.scanTemplateExpression(
+          statement,
+          variableNames,
+          actionNames,
+          severity
+        );
+        continue;
+      }
+      if (isIfStatement(statement)) {
+        for (const branch of [statement.body, statement.orelse]) {
+          this.scanStatements(branch, variableNames, actionNames, severity);
         }
       }
-    };
-
-    scanStatements(procedureNode.statements);
+    }
   }
 
   private scanTextAndAttach(
     text: string,
     node: AstNodeLike,
     variableNames: ReadonlySet<string>,
-    actionNames: ReadonlySet<string>
+    actionNames: ReadonlySet<string>,
+    severity: DiagnosticSeverity = DiagnosticSeverity.Information
   ): void {
     const sourceText = (node.__cst as CstMeta | undefined)?.node.text ?? text;
     const matches = this.detectPatterns(sourceText, variableNames, actionNames);
@@ -486,9 +564,10 @@ class InstructionTemplateSyntaxPass implements LintPass {
       attachDiagnostic(node, {
         range,
         message: match.message,
-        severity: DiagnosticSeverity.Information,
+        severity,
         code: 'instruction-template-syntax',
         source: LINT_SOURCE,
+        data: { replacement: match.replacement },
       });
     }
   }
@@ -587,6 +666,7 @@ class InstructionTemplateSyntaxPass implements LintPass {
           message: `Reference syntax should be {!@${namespace}.${match[1]}} (note the exclamation mark). The '!' is required for template interpolation.`,
           offset: match.index!,
           length: match[0].length,
+          replacement: `{!@${namespace}.${match[1]}}`,
         });
       }
     }
@@ -630,6 +710,7 @@ class InstructionTemplateSyntaxPass implements LintPass {
         message: `'${reference}' should be wrapped in template syntax — did you mean {!@${namespace}.${name}}? ${namespaceLabel} references require {! ... } for interpolation.`,
         offset,
         length: reference.length,
+        replacement: `{!@${namespace}.${name}}`,
       });
     }
 
@@ -681,6 +762,8 @@ class InstructionTemplateSyntaxPass implements LintPass {
   }
 }
 
-export function instructionTemplateSyntaxPass(): LintPass {
-  return new InstructionTemplateSyntaxPass();
+export function instructionTemplateSyntaxPass(
+  options: InstructionTemplateSyntaxOptions = {}
+): LintPass {
+  return new InstructionTemplateSyntaxPass(options.instructionFields);
 }

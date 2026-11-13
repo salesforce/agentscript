@@ -28,6 +28,7 @@ export {
   getSchemaNamespaces,
   getGlobalScopes,
   activeScopeForNamespace,
+  isIsolatedNamespace,
 } from './scope.js';
 
 export type { ScopeContext, SchemaContext } from './scope.js';

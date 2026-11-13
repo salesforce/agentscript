@@ -38,6 +38,7 @@ import {
 import type { ScopeContext } from './core/analysis/scope.js';
 import { positionIndexKey } from './core/analysis/position-index.js';
 import type { DialectConfig } from './dialect-config.js';
+import type { Gates } from './core/gates.js';
 
 export interface LanguageService {
   update(cstNode: SyntaxNode): void;
@@ -75,13 +76,13 @@ class LanguageServiceImpl implements LanguageService {
   private readonly dialect: Dialect;
   private readonly source: string;
 
-  constructor(config: { dialect: DialectConfig }) {
+  constructor(config: { dialect: DialectConfig; gates?: Gates }) {
     this.dialectConfig = config.dialect;
     this.source = config.dialect.source ?? `${config.dialect.name}-lint`;
 
     this.schemaContext = createSchemaContext(config.dialect.schemaInfo);
 
-    this.dialect = new Dialect();
+    this.dialect = new Dialect({ gates: config.gates });
   }
 
   update(cstNode: SyntaxNode): void {
@@ -190,6 +191,11 @@ class LanguageServiceImpl implements LanguageService {
 
 export function createLanguageService(config: {
   dialect: DialectConfig;
+  /**
+   * Resolved feature gates; drives `gated-feature` errors and
+   * `pre-release-feature` notices. See gates.ts.
+   */
+  gates?: Gates;
 }): LanguageService {
   return new LanguageServiceImpl(config);
 }

@@ -26,6 +26,7 @@ import type { BuilderMethods } from './field-builder.js';
 import type { BlockChild } from './children.js';
 import type { BlockCore, NamedMap } from './named-map.js';
 import type { TypedDeclarationBase } from './typed-declarations.js';
+import type { ReleaseStage } from './gates.js';
 
 // ---------------------------------------------------------------------------
 // Instance types
@@ -43,6 +44,8 @@ export type NamedBlockInstance<T extends Schema> = BlockInstance<T> & {
   value?: unknown;
   /** Body procedure statements (with/set/to clauses). */
   statements?: Statement[];
+  /** Emit the block with its schema key prefix (e.g., `topic main:`). */
+  emitWithKey(schemaKey: string, ctx: EmitContext): string;
 };
 
 /** Instance type of a CollectionBlock — a NamedMap with typed entries over __children. */
@@ -72,6 +75,7 @@ export interface NamedBlockClass<T extends Schema> {
   readonly isNamed: true;
   readonly allowAnonymous: boolean;
   readonly scopeAlias?: string;
+  readonly isolatedNamespaces?: readonly string[];
   readonly colinearType?: SingularFieldType;
   readonly hasColinear: boolean;
   readonly hasBody: boolean;
@@ -126,6 +130,14 @@ export interface NamedBlockOpts {
   body?: SingularFieldType;
   symbol?: import('./types.js').SymbolMeta;
   scopeAlias?: string;
+  /**
+   * Namespaces that resolve only against this block's own fields. Inside the
+   * block, completion and go to definition do not fall back to the
+   * root-level definitions of the same namespace. undefined-reference still
+   * accepts a root-level name, so the dialect can report it with its own
+   * diagnostic.
+   */
+  isolatedNamespaces?: readonly string[];
   /** Variant schemas keyed by instance name or discriminant value. Prefer the chained `.variant()` API. */
   variants?: Record<string, Schema>;
   /**
@@ -240,6 +252,14 @@ export interface FactoryBuilderMethods<Self> {
     opts?: { since?: string; removeIn?: string; replacement?: string }
   ): Self;
   experimental(): Self;
+  /**
+   * Gate the whole block behind a feature gate (stage defaults to `'beta'`).
+   * Returns a gated copy, so other keys sharing this factory stay ungated.
+   * Gates are only checked at schema keys: passing a gated block into a
+   * collection or `Sequence` throws, so gate the collection's key instead.
+   * See gates.ts.
+   */
+  gatedBy(id: string, stage?: ReleaseStage): Self;
   required(): Self;
   crossBlockReferenceable(): Self;
   transitionContainer(): Self;
@@ -346,6 +366,7 @@ export interface NamedBlockFactory<
   emit(value: BlockInstance<T>, ctx: EmitContext): string;
   emitField?(key: string, value: unknown, ctx: EmitContext): string;
   scopeAlias?: string;
+  readonly isolatedNamespaces?: readonly string[];
   /** Semantic capabilities declared by this block type. */
   readonly capabilities?: readonly BlockCapability[];
   parse(

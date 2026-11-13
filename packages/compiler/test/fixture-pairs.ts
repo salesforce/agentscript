@@ -5,6 +5,8 @@
  * For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
  */
 
+import type { CompileOptions } from '../src/compile.js';
+
 /**
  * The list of `.agent` source fixtures driving both the parity test
  * (`compare-all.test.ts`) and the regen script (`scripts/regen-fixtures.ts`).
@@ -208,6 +210,7 @@ export const FIXTURES: string[] = [
   'edge_conn_custom.agent',
   'connection_inputs.agent',
   'connection_additional_system_instructions.agent',
+  'connection_conditional_system_instructions.agent',
   'edge_conn_messaging.agent',
   'edge_conn_messaging_full.agent',
   'edge_conn_messaging_routing.agent',
@@ -315,6 +318,7 @@ export const FIXTURES: string[] = [
   'tableau_analyze_data.agent',
   // Connection fixtures
   'connection_with_unified_email.agent',
+  'connection_lightning_web_component.agent',
   // Collect (gather one field at a time) fixtures
   'collect_patient_intake.agent',
   // Collect inside if (branching + branch convergence)
@@ -334,7 +338,11 @@ export const FIXTURES: string[] = [
   // Render rules — E2E coverage for `when @connection.<surface>` blocks
   // emitting `render_rules[]` on Tool.
   'edge_render_rules_multi_connection.agent',
-  // Billing: outcome-based billing mode compiles to agent_version.billing.
+  // Render `with` bindings compile to `render_rules[].input_bindings`.
+  'render_with_bindings.agent',
+  // Billing: resolution-based billing mode compiles to agent_version.billing
+  // as OUTCOME_BASED; the deprecated OUTCOME_BASED alias compiles identically.
+  'resolution_based_billing.agent',
   'outcome_based_billing.agent',
   // Large synthetic fixture for perf-guard corpus stress testing.
   'large_script_perf_test_01.agent',
@@ -348,7 +356,24 @@ export const FIXTURES: string[] = [
   // guards, and @workflow transition targets.
   'workflow_refund.agent',
   'workflow_unnamed_steps.agent',
+  // Workflow `do` directives: one per `|` line, `{!@actions.X}` tools,
+  // and a line inside an `if` body.
+  'workflow_do.agent',
+  // Condition-slot inlining (optimization 4b) — compiled with the opt-in
+  // `inlineConditionSlots` option; see FIXTURE_COMPILE_OPTIONS.
+  'inline_condition_slots_basic.agent',
+  'inline_condition_slots_mixed.agent',
 ];
+
+/**
+ * Per-fixture compile options. Fixtures not listed compile with the defaults.
+ * Shared by the parity test and the regen script.
+ */
+export const FIXTURE_COMPILE_OPTIONS: Readonly<Record<string, CompileOptions>> =
+  {
+    'inline_condition_slots_basic.agent': { inlineConditionSlots: true },
+    'inline_condition_slots_mixed.agent': { inlineConditionSlots: true },
+  };
 
 /**
  * Strip the `.agent` suffix to get the base used for fixture filenames.

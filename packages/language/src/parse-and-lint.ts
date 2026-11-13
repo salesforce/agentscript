@@ -17,16 +17,26 @@ import { LintEngine, PassStore } from './core/analysis/lint-engine.js';
 import { createSchemaContext } from './core/analysis/scope.js';
 import type { DialectConfig } from './dialect-config.js';
 import type { SyntaxNode } from './core/types.js';
+import type { Gates } from './core/gates.js';
 
 export function parseAndLint(
   node: SyntaxNode,
   dialect: DialectConfig,
-  options?: { dialectParser?: Dialect; engine?: LintEngine }
+  options?: {
+    dialectParser?: Dialect;
+    engine?: LintEngine;
+    /**
+     * Resolved feature gates for the default parser. Ignored when
+     * `dialectParser` is passed — that parser carries its own gates.
+     */
+    gates?: Gates;
+  }
 ): { ast: AstRoot; diagnostics: Diagnostic[]; store: PassStore } {
   const schemaCtx = createSchemaContext(dialect.schemaInfo);
 
   const source = dialect.source ?? `${dialect.name}-lint`;
-  const parser = options?.dialectParser ?? new Dialect();
+  const parser =
+    options?.dialectParser ?? new Dialect({ gates: options?.gates });
   // Parser-level diagnostics (ERROR/MISSING nodes) are now collected
   // inside Dialect.parse() with source 'parser' — no separate CST walk needed.
   const result = parser.parse(node, dialect.schemaInfo.schema);

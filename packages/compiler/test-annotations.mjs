@@ -42,6 +42,7 @@ modality voice:
                 speak_up_follow_up_wait_time_ms: 3000
                 speak_up_message: "Hello?"
             endpointing_config:
+                min_wait_time_ms: 200
                 max_wait_time_ms: 2000
             beepboop_config:
                 max_wait_time_ms: 1500
@@ -124,6 +125,11 @@ const checks = [
     obj: voice.additional_configs,
     field: 'endpointing_config',
     label: 'additional_configs.endpointing_config',
+  },
+  {
+    obj: voice.additional_configs?.endpointing_config,
+    field: 'min_wait_time_ms',
+    label: 'endpointing_config.min_wait_time_ms',
   },
   {
     obj: voice.additional_configs?.endpointing_config,

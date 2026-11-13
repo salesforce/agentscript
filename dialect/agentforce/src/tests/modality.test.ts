@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { DiagnosticSeverity } from '@agentscript/types';
 import { parse } from '@agentscript/parser';
 import { parseAndLint, SequenceNode, isNamedMap } from '@agentscript/language';
 import { agentforceDialect } from '../index.js';
@@ -79,6 +80,7 @@ modality voice:
             speak_up_follow_up_wait_time_ms: 10000
             speak_up_message: "Are you still there?"
         endpointing_config:
+            min_wait_time_ms: 200
             max_wait_time_ms: 1000
         beepboop_config:
             max_wait_time_ms: 1000
@@ -178,6 +180,7 @@ modality voice:
       expectedSpeakUpConfigKind: 'SpeakUpConfigBlock',
       expectedSpeakUpFirstWait: 10000,
       expectedSpeakUpMessage: 'Are you still there?',
+      expectedEndpointingMinWait: 200,
       expectedEndpointingMaxWait: 1000,
       expectedBeepboopMaxWait: 1000,
       expectedAutoHangupKind: undefined,
@@ -215,6 +218,7 @@ modality voice:
       expectedSpeakUpConfigKind: 'SpeakUpConfigBlock',
       expectedSpeakUpFirstWait: 10000,
       expectedSpeakUpMessage: 'Are you still there2?',
+      expectedEndpointingMinWait: undefined,
       expectedEndpointingMaxWait: undefined,
       expectedBeepboopMaxWait: undefined,
       expectedAllLanguagesKind: 'BooleanValue',
@@ -256,6 +260,7 @@ modality voice:
       expectedSpeakUpConfigKind,
       expectedSpeakUpFirstWait,
       expectedSpeakUpMessage,
+      expectedEndpointingMinWait,
       expectedEndpointingMaxWait,
       expectedBeepboopMaxWait,
       expectedModelIdKind,
@@ -364,6 +369,10 @@ modality voice:
       const endpointingConfig = additionalConfigs?.endpointing_config as
         | Record<string, unknown>
         | undefined;
+      const endpointingMinWait = endpointingConfig?.min_wait_time_ms as
+        | Record<string, unknown>
+        | undefined;
+      expect(endpointingMinWait?.value).toBe(expectedEndpointingMinWait);
       const endpointingMaxWait = endpointingConfig?.max_wait_time_ms as
         | Record<string, unknown>
         | undefined;
@@ -818,6 +827,53 @@ start_agent main:
     );
     expect(rangeErrors).toHaveLength(1);
     expect(rangeErrors[0].message).toContain('must be >= 500');
+  });
+
+  const endpointingMinSource = (value: number | string) => `
+config:
+    agent_name: "TestBot"
+
+modality voice:
+    voice_id: "test"
+    additional_configs:
+        endpointing_config:
+            min_wait_time_ms: ${value}
+
+start_agent main:
+    description: "test"
+`;
+
+  it('reports error when endpointing min_wait_time_ms is above maximum', () => {
+    const { diagnostics } = parseAndLintSource(endpointingMinSource(60001));
+    const rangeErrors = diagnostics.filter(
+      d =>
+        d.code === 'constraint-maximum' &&
+        d.message.includes('min_wait_time_ms')
+    );
+    expect(rangeErrors).toHaveLength(1);
+    expect(rangeErrors[0].message).toContain('must be <= 60000');
+  });
+
+  it('reports error when endpointing min_wait_time_ms is below minimum', () => {
+    // A negative literal parses as a unary expression rather than a number
+    // literal, so it is rejected as a type mismatch before the >= 0 constraint
+    // is evaluated. Either way it is a hard error.
+    const { diagnostics } = parseAndLintSource(endpointingMinSource(-1));
+    const errors = diagnostics.filter(
+      d =>
+        d.severity === DiagnosticSeverity.Error &&
+        (d.code === 'constraint-minimum' || d.code === 'type-mismatch')
+    );
+    expect(errors).toHaveLength(1);
+  });
+
+  it('accepts endpointing min_wait_time_ms boundary values 0 and 60000', () => {
+    for (const value of [0, 60000]) {
+      const { diagnostics } = parseAndLintSource(endpointingMinSource(value));
+      expect(
+        diagnostics.filter(d => d.message.includes('min_wait_time_ms'))
+      ).toEqual([]);
+    }
   });
 
   it('reports error when pronunciation_dict entry has invalid structure (missing grapheme/phoneme/type)', () => {

@@ -61,6 +61,7 @@ setupServer(connection, {
   defaultDialect: 'mydialect',         // Falls back to first dialect
   queryExecutor: { ... },               // For semantic token highlights
   compile: (name) => compileHookOrUndefined,
+  gates: resolvedGates,                 // Host-resolved gate id → boolean; absent = closed
   enableCompletionProvider: true,       // Default: true
   enableSemanticTokens: true,           // Default: true
   onBeforeInitialize: async () => {},   // e.g., WASM parser init

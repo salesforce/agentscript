@@ -457,3 +457,54 @@ start_agent topic_selector:
     expect(actions).toHaveLength(0);
   });
 });
+
+describe('instruction-template-syntax quick-fix', () => {
+  const agent = (line: string) => `config:
+    developer_name: "agent"
+    agent_type: "AgentforceServiceAgent"
+
+variables:
+    order_id: string = ""
+
+workflow returns:
+    description: "Returns"
+    actions:
+        process_return:
+            description: "Process a return"
+            target: "flow://process_return"
+    steps:
+        ${line}
+`;
+
+  function getTemplateSyntaxActions(source: string) {
+    const state = createState(source);
+    const diags = state.diagnostics.filter(
+      d => d.code === 'instruction-template-syntax'
+    );
+    const range = {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 },
+    };
+    return { diags, actions: provideCodeActions(state, range, diags) };
+  }
+
+  test.each([
+    [
+      '| Call @actions.process_return',
+      '| Call {!@actions.process_return}',
+      '{!@actions.process_return}',
+    ],
+    [
+      '| Use {@variables.order_id} now',
+      '| Use {!@variables.order_id} now',
+      '{!@variables.order_id}',
+    ],
+  ])('rewrites %s', (line, fixed, replacement) => {
+    const source = agent(line);
+    const { actions } = getTemplateSyntaxActions(source);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].title).toBe(`Change to '${replacement}'`);
+    const edits = Object.values(actions[0].edit!.changes!)[0];
+    expect(applyEdits(source, edits)).toBe(agent(fixed));
+  });
+});

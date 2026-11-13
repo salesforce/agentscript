@@ -1,0 +1,1165 @@
+{
+  "schemaVersion": "2.0",
+  "globalConfiguration": {
+    "developerName": "ConnectionConditionalInstructions",
+    "label": "Connection Conditional Instructions",
+    "description": "Conditional additional_system_instructions next to static and conditional system instructions",
+    "enableEnhancedEventLogs": false,
+    "agentType": "EinsteinServiceAgent",
+    "contextVariables": [
+      {
+        "developerName": "EndUserLanguage",
+        "label": "End User Language",
+        "description": "Customer language",
+        "dataType": "string",
+        "fieldMapping": "MessagingSession.EndUserLanguage"
+      }
+    ]
+  },
+  "agentVersion": {
+    "plannerType": "Atlas__ConcurrentMultiAgentOrchestration",
+    "systemMessages": [],
+    "stateVariables": [
+      {
+        "developerName": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "dataType": "string",
+        "isList": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "verified",
+        "label": "Verified",
+        "description": "Whether the customer is verified",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developerName": "tier",
+        "label": "Tier",
+        "description": "Customer tier",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'standard'"
+      },
+      {
+        "developerName": "LegalDisclosure",
+        "label": "Legal Disclosure",
+        "description": "Legal disclaimer text",
+        "dataType": "string",
+        "isList": false,
+        "visibility": "Internal",
+        "default": "'This email may be monitored for quality.'"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_condition_2",
+        "label": "Runtime Condition 2",
+        "description": "Runtime condition evaluation for if statements at nesting depth 2",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_system_instructions",
+        "label": "System Instructions",
+        "description": "Dynamic system instructions for the current turn",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_connection_system_instructions",
+        "label": "Connection System Instructions",
+        "description": "Dynamic connection system instructions for the current turn",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
+      }
+    ],
+    "initialNode": "router",
+    "nodes": [
+      {
+        "modelConfiguration": {
+          "modelRef": "sfdc_ai__DefaultEinsteinHyperClassifier"
+        },
+        "type": "router",
+        "description": "Routes requests",
+        "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\n{{state.AgentScriptInternal_agent_instructions}}",
+        "tools": [
+          {
+            "name": "go_to_main",
+            "target": "main",
+            "description": "General support"
+          },
+          {
+            "name": "go_to_billing",
+            "target": "billing",
+            "description": "Billing questions"
+          },
+          {
+            "name": "go_to_returns",
+            "target": "returns",
+            "description": "Returns"
+          }
+        ],
+        "developerName": "router",
+        "label": "Router",
+        "actionDefinitions": [],
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::\nYou are a customer support agent for an online store."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_condition_1",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\nThe customer is signed in and verified."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nRoute the customer to the right subagent."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "General support",
+        "tools": [],
+        "developerName": "main",
+        "label": "Main",
+        "actionDefinitions": [],
+        "instructions": "{{state.AgentScriptInternal_system_instructions}}",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::\nYou are a customer support agent for an online store."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_condition_1",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\nThe customer is signed in and verified."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nIgnore email signatures and quoted replies."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "variables.EndUserLanguage == \"fr\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nReply in French."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nReply in the customer's language."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.tier == \"gold\" or state.tier == \"platinum\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nOffer a callback from a senior agent."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "state.LegalDisclosure != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and ((not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nEnd the email with: {{state.LegalDisclosure}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and ((not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2)))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nEnd the email with the standard sign-off."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nKeep the email under 200 words."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"messaging\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nYou may share order and account details."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "system.current_modality == \"voice\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and ((not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to say their order number to verify their identity."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and ((not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2)))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to type their order number to verify their identity."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nThe customer has a {{state.tier}} membership."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "not state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to sign in before sharing order details."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nUse the uploaded receipt to find the order: {{system.uploaded_files[-1].name}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nAssist the customer with their inquiry."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "state.tier == \"gold\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_condition_2",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nThank the customer for being a gold member."
+              }
+            ]
+          }
+        ],
+        "fileReferences": [
+          {
+            "index": -1,
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)"
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Billing questions",
+        "tools": [],
+        "developerName": "billing",
+        "label": "Billing",
+        "actionDefinitions": [],
+        "instructions": "{{state.AgentScriptInternal_system_instructions}}",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::\nYou are a billing specialist."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "system.current_modality == \"voice\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_condition_1",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\nRead amounts out in full, for example \"twelve dollars and fifty cents\"."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nIgnore email signatures and quoted replies."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "variables.EndUserLanguage == \"fr\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nReply in French."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nReply in the customer's language."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.tier == \"gold\" or state.tier == \"platinum\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nOffer a callback from a senior agent."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "state.LegalDisclosure != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and ((not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nEnd the email with: {{state.LegalDisclosure}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and ((not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2)))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nEnd the email with the standard sign-off."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nKeep the email under 200 words."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"messaging\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nYou may share order and account details."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "system.current_modality == \"voice\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and ((not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to say their order number to verify their identity."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and ((not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2)))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to type their order number to verify their identity."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nThe customer has a {{state.tier}} membership."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "not state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to sign in before sharing order details."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nUse the uploaded receipt to find the order: {{system.uploaded_files[-1].name}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nAnswer billing questions."
+              }
+            ]
+          }
+        ],
+        "fileReferences": [
+          {
+            "index": -1,
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)"
+          }
+        ]
+      },
+      {
+        "type": "subagent",
+        "reasoningType": "salesforce.default",
+        "description": "Returns",
+        "tools": [],
+        "developerName": "returns",
+        "label": "Returns",
+        "actionDefinitions": [],
+        "instructions": "You are a returns specialist.{{state.AgentScriptInternal_system_instructions}}",
+        "focusPrompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "beforeReasoningIteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nIgnore email signatures and quoted replies."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "variables.EndUserLanguage == \"fr\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nReply in French."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nReply in the customer's language."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.tier == \"gold\" or state.tier == \"platinum\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nOffer a callback from a senior agent."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "state.LegalDisclosure != \"\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and ((not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nEnd the email with: {{state.LegalDisclosure}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and ((not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2)))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nEnd the email with the standard sign-off."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nKeep the email under 200 words."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"service_email\", \"serviceemail\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"messaging\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nYou may share order and account details."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (not (state.AgentScriptInternal_condition_1))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_2": "system.current_modality == \"voice\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and ((not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to say their order number to verify their identity."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and ((not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2)))",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to type their order number to verify their identity."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"messaging\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nThe customer has a {{state.tier}} membership."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "not state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nAsk the customer to sign in before sharing order details."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_condition_1": "state.verified"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_connection_system_instructions": "template::{{state.AgentScriptInternal_connection_system_instructions}}\nUse the uploaded receipt to find the order: {{system.uploaded_files[-1].name}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_connection_system_instructions != \"\")",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::{{state.AgentScriptInternal_system_instructions}}\n{{state.AgentScriptInternal_connection_system_instructions}}"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::\nHelp the customer return an item."
+              }
+            ]
+          }
+        ],
+        "fileReferences": [
+          {
+            "index": -1,
+            "enabled": "(lower(system.current_connection or \"\") in [\"customer_web_client\", \"customerwebclient\"]) and (state.AgentScriptInternal_condition_1)"
+          }
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "surfaceType": "service_email",
+        "outboundRouteConfigs": []
+      },
+      {
+        "surfaceType": "messaging",
+        "outboundRouteConfigs": []
+      },
+      {
+        "surfaceType": "customer_web_client",
+        "outboundRouteConfigs": []
+      },
+      {
+        "surfaceType": "voice",
+        "additionalSystemInstructions": "Speak clearly and avoid reading out links.",
+        "outboundRouteConfigs": []
+      },
+      {
+        "surfaceType": "telephony",
+        "additionalSystemInstructions": "Keep answers to one or two sentences.",
+        "outboundRouteConfigs": []
+      }
+    ],
+    "modalityParameters": {},
+    "additionalParameters": {
+      "reset_to_initial_node": true
+    },
+    "fileUpload": {
+      "mode": "managed"
+    }
+  }
+}

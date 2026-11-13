@@ -28,6 +28,7 @@
  *   SEED=12345 pnpm --filter @agentscript/parser-javascript test fuzz-parity
  */
 
+import type TreeSitter from 'tree-sitter';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { parse as parseJS } from '../src/index.js';
 import { normalizeSExp } from './test-utils.js';
@@ -63,7 +64,7 @@ try {
   const Parser = (await import('tree-sitter')).default;
   const AgentScript = (await import('@agentscript/parser-tree-sitter')).default;
   const parser = new Parser();
-  parser.setLanguage(AgentScript as unknown as typeof parser.Language);
+  parser.setLanguage(AgentScript as unknown as TreeSitter.Language);
   treeSitterParser = parser as unknown as TreeSitterParser;
   treeSitterAvailable = true;
 } catch {

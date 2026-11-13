@@ -93,6 +93,16 @@ export class FileReferenceCapture {
     return this.refs.length;
   }
 
+  /**
+   * The `enabled` gates of the references captured so far this node. The
+   * runtime evaluates them after the node's directives run, so the
+   * optimization pipeline keeps any condition slot they name (see
+   * `inlineSingleReadConditionSlots`).
+   */
+  get gates(): string[] {
+    return this.refs.flatMap(ref => (ref.enabled ? [ref.enabled] : []));
+  }
+
   /** Open a fresh capture window for a node body. */
   enterNode(): void {
     this.refs = [];

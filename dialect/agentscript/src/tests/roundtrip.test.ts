@@ -1060,10 +1060,9 @@ describe('expression round-trips', () => {
     });
   }
 
-  // Known normalizations
-  test('parenthesized expression drops parens (known normalization)', () => {
+  test('parenthesized expression keeps its parens', () => {
     const parsed = parseExpression('(a + b)');
-    expect(parsed.__emit({ indent: 0 })).toBe('a + b');
+    expect(parsed.__emit({ indent: 0 })).toBe('(a + b)');
   });
 });
 

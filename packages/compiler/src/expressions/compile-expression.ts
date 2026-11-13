@@ -29,6 +29,7 @@ import {
   KeywordArgument,
   NoneLiteral,
   decomposeAtMemberExpression,
+  decomposeAtMemberChain,
   escapeStringValue,
 } from '@agentscript/language';
 import type { Range, SyntaxNode } from '@agentscript/types';
@@ -260,6 +261,8 @@ function compileMemberExpression(
             return 'system.current_modality';
           case 'current_connection':
             return 'system.current_connection';
+          case 'user_id':
+            return 'system.user_id';
           case 'last_reply':
             // Nested object; sub-members (`.interrupted`,
             // `.interrupted_heard_text`) fall through to the generic member
@@ -301,6 +304,17 @@ function compileMemberExpression(
         return `${obj}.${property}`;
       }
     }
+  }
+
+  // Long-form connection input `@connection.X.inputs.Y` compiles like the
+  // short form `@inputs.Y`: to `connection.X.Y`.
+  const chain = decomposeAtMemberChain(expr);
+  if (
+    chain?.namespace === 'connection' &&
+    chain.path.length === 3 &&
+    chain.path[1] === 'inputs'
+  ) {
+    return `connection.${chain.path[0]}.${chain.path[2]}`;
   }
 
   const obj = compileExprNode(expr.object, ctx, opts);
@@ -352,6 +366,8 @@ function compileSubscriptExpression(
         return 'system["current_modality"]';
       case '"current_connection"':
         return 'system["current_connection"]';
+      case '"user_id"':
+        return 'system["user_id"]';
       case '"last_reply"':
         // Nested object; sub-member subscripts fall through to the generic
         // subscript builder, yielding `system["last_reply"][...]`.

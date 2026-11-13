@@ -66,6 +66,23 @@
         "isList": false,
         "visibility": "Internal",
         "default": "''"
+      },
+      {
+        "developerName": "AgentScriptInternal_workflow_condition_1",
+        "label": "Workflow Condition 1",
+        "description": "Condition of a workflow if at nesting depth 1, stored before its branches run",
+        "dataType": "boolean",
+        "isList": false,
+        "visibility": "Internal"
+      },
+      {
+        "developerName": "AgentScriptInternal_system_instructions",
+        "label": "System Instructions",
+        "description": "Dynamic system instructions for the current turn",
+        "dataType": "string",
+        "isList": false,
+        "default": "''",
+        "visibility": "Internal"
       }
     ],
     "initialNode": "intent_router",
@@ -150,7 +167,7 @@
             "directives": [
               {
                 "type": "say",
-                "text": "Hi! I can help you process a refund.",
+                "text": "System Prompt:\n\n{{state.AgentScriptInternal_system_instructions}}\n\nMessage for the system to follow:\n\nHi! I can help you process a refund.",
                 "developerName": "refund_workflow_greet_say_01"
               }
             ]
@@ -163,7 +180,7 @@
                 "llmInputs": [
                   "order_id"
                 ],
-                "instructions": "Ask the user for the order id they want refunded.",
+                "instructions": "{{state.AgentScriptInternal_system_instructions}}\n\nAsk the user for the order id they want refunded.",
                 "developerName": "refund_workflow_collect_order_ask_for_01"
               }
             ]
@@ -179,6 +196,9 @@
                     "customer_name": "\"SomeData\""
                   }
                 ],
+                "chatHistoryBehavior": {
+                  "addToChatHistory": false
+                },
                 "developerName": "refund_workflow_issue_refund_action_01"
               },
               {
@@ -195,22 +215,49 @@
                 "developerName": "refund_workflow_issue_refund_action_02"
               },
               {
+                "type": "action",
+                "target": "__state_update_action__",
+                "boundInputs": {
+                  "condition": "state.refund_complete == True"
+                },
+                "stateUpdates": [
+                  {
+                    "AgentScriptInternal_workflow_condition_1": "result.condition"
+                  }
+                ],
+                "chatHistoryBehavior": {
+                  "addToChatHistory": false
+                },
+                "developerName": "refund_workflow_issue_refund_action_03"
+              },
+              {
                 "type": "say",
-                "text": "Your refund for order {{state.order_id}} has been issued.",
-                "enabled": "state.refund_complete == True",
-                "developerName": "refund_workflow_issue_refund_say_03"
+                "text": "System Prompt:\n\n{{state.AgentScriptInternal_system_instructions}}\n\nMessage for the system to follow:\n\nYour refund for order {{state.order_id}} has been issued.",
+                "enabled": "state.AgentScriptInternal_workflow_condition_1",
+                "developerName": "refund_workflow_issue_refund_say_04"
               },
               {
                 "type": "handoff",
                 "target": "refund_followup",
-                "enabled": "state.refund_complete == True",
-                "developerName": "refund_workflow_issue_refund_handoff_04"
+                "enabled": "state.AgentScriptInternal_workflow_condition_1",
+                "developerName": "refund_workflow_issue_refund_handoff_05"
               },
               {
                 "type": "handoff",
                 "target": "__human__",
-                "enabled": "not (state.refund_complete == True)",
-                "developerName": "refund_workflow_issue_refund_handoff_05"
+                "enabled": "not (state.AgentScriptInternal_workflow_condition_1)",
+                "developerName": "refund_workflow_issue_refund_handoff_06"
+              }
+            ]
+          }
+        ],
+        "onInit": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "stateUpdates": [
+              {
+                "AgentScriptInternal_system_instructions": "template::You are a helpful refund assistant."
               }
             ]
           }

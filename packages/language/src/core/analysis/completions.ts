@@ -35,6 +35,7 @@ import {
   resolveEntryInScope,
   getNamespaceMetadata,
   activeScopeForNamespace,
+  isIsolatedNamespace,
   type ScopeContext,
   type SchemaContext,
 } from './scope.js';
@@ -253,8 +254,12 @@ export function getCompletionCandidates(
 
   const scopesRequired = getScopedNamespaces(ctx).get(namespace);
   const activeScope = activeScopeForNamespace(scopesRequired, effectiveScope);
+  // An isolated namespace offers only the active scope's own entries, which
+  // the scoped-child lookup below returns. The symbol lookups can reach the
+  // root-level definitions.
+  const isolated = isIsolatedNamespace(ctx, activeScope, namespace);
 
-  if (symbols) {
+  if (symbols && !isolated) {
     // When a cursor position is available, use position-based bottom-up
     // resolution so the innermost-enclosing namespace map wins (shadowing).
     // Without a position, fall back to scope-chain top-down resolution.
@@ -296,7 +301,7 @@ export function getCompletionCandidates(
   // generalizes from capability metadata rather than special-casing the
   // `actions` field name.
   if (activeScope && effectiveScope) {
-    if (ctx.invocationTargetNamespaces.has(namespace)) {
+    if (ctx.invocationTargetNamespaces.has(namespace) && !isolated) {
       const rootDefs = getRootCandidates(ast, namespace, ctx);
       const scopedDefs = getScopedChildCandidates(
         ast,

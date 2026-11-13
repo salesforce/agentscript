@@ -91,13 +91,9 @@ workflow refund:
     expect(unknownFieldErrors(source)).toHaveLength(0);
   });
 
-  test.each([
-    ['True', ['workflow-action-confirmation-ignored']],
-    ['False', []],
-    [undefined, []],
-  ])(
-    'warns only for require_user_confirmation: %s on a workflow action',
-    (value, expected) => {
+  test.each(['True', 'False', undefined])(
+    'accepts require_user_confirmation: %s on run and instruction lines',
+    value => {
       const field =
         value === undefined
           ? ''
@@ -111,16 +107,19 @@ workflow refund:
             target: "flow://IssueRefund"${field}
     steps: ->
         run @actions.issue_refund
+        | Call {!@actions.issue_refund}
 `;
       const { diagnostics } = parseAndLint(
         parse(source).rootNode,
         agentforceDialect
       );
       expect(
-        diagnostics
-          .filter(d => d.severity === DiagnosticSeverity.Warning)
-          .map(d => d.code)
-      ).toEqual(expected);
+        diagnostics.filter(
+          d =>
+            d.severity === DiagnosticSeverity.Error ||
+            d.severity === DiagnosticSeverity.Warning
+        )
+      ).toEqual([]);
     }
   );
 
@@ -224,5 +223,24 @@ workflow return_order:
     expect(
       parseDocument(source).workflow?.get('return_order')?.label?.value
     ).toBe('Return Order');
+  });
+});
+
+describe('workflow model_config', () => {
+  test('accepts a model_config block on a workflow', () => {
+    const source = `${HEADER}
+workflow refund:
+    description: "Issue a refund"
+    model_config:
+        model: "model://workflow_model"
+        params:
+            temperature: 0.4
+    steps: ->
+        say "Hello"
+`;
+    expect(allErrors(source)).toHaveLength(0);
+    const modelConfig =
+      parseDocument(source).workflow?.get('refund')?.model_config;
+    expect(modelConfig?.model?.value).toBe('model://workflow_model');
   });
 });

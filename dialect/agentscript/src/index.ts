@@ -63,8 +63,13 @@ export {
   resolveWorkflowAction,
   workflowUnknownActionMessage,
   workflowNameCollisions,
+  WORKFLOW_DO_MAX_LENGTH,
+  workflowDoReferenceError,
 } from './workflow/index.js';
-export type { WorkflowNameCollision } from './workflow/index.js';
+export type {
+  WorkflowDoReferenceError,
+  WorkflowNameCollision,
+} from './workflow/index.js';
 
 // Parsed types derived from schema via InferFields (replaces codegen)
 import type {
@@ -125,6 +130,13 @@ export {
   extractActionSignature,
   actionTypeCheckRule,
   parseFormatRef,
+  validateStatements,
+  instructionTemplateSyntaxPass,
+  runUtilsMessage,
+  subagentUnknownActionMessage,
+  reasoningOnlyActionNames,
+  RUN_UTILS_CODE,
+  SUBAGENT_UNKNOWN_ACTION_CODE,
 } from './lint/passes/index.js';
 
 export type {
@@ -141,6 +153,7 @@ export type {
   ReasoningActionEntry,
   ActionInvocation,
   ActionIoIssue,
+  InstructionTemplateSyntaxOptions,
 } from './lint/passes/index.js';
 
 export { createLintEngine } from './lint/index.js';

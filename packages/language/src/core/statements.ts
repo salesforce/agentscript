@@ -463,6 +463,73 @@ export class WhenStatement extends AstNodeBase implements Statement {
   }
 }
 
+/** A scalar invocation option inside a run body, interpreted by its dialect. */
+export class RunOption extends AstNodeBase implements Statement {
+  readonly __kind = 'RunOption';
+
+  constructor(
+    public key: string,
+    public value: Expression
+  ) {
+    super();
+  }
+
+  __emit(ctx: EmitContext): string {
+    return `${emitIndent(ctx)}${emitKeyName(this.key)}: ${this.value.__emit(ctx)}`;
+  }
+
+  static parse(
+    node: SyntaxNode,
+    parseExpr: (n: SyntaxNode) => Expression
+  ): RunOption | UnknownStatement {
+    const key = node.childForFieldName('key');
+    const value = node.childForFieldName('colinear_value');
+    if (
+      key &&
+      value &&
+      !node.childForFieldName('block_value') &&
+      !value.childForFieldName('with_to_statement_list')
+    ) {
+      const option = withCst(
+        new RunOption(
+          getKeyText(
+            key.namedChildren.length === 1 ? (key.namedChildren[0] ?? key) : key
+          ),
+          parseExpr(value)
+        ),
+        node
+      );
+      attach(
+        option,
+        node.namedChildren
+          .filter(c => c.type === 'comment' && c.startRow === node.startRow)
+          .map(c => parseCommentNode(c, 'inline'))
+      );
+      return option;
+    }
+    const range = toRange(node);
+    const text = node.text
+      .trimEnd()
+      .split('\n')
+      .map((line, index) =>
+        index === 0
+          ? line
+          : line.slice(Math.min(range.start.character, line.search(/\S|$/)))
+      )
+      .join('\n');
+    const unknown = withCst(new UnknownStatement(text), node);
+    unknown.__diagnostics.push(
+      createDiagnostic(
+        range,
+        'Run options require a single value without nested blocks or output bindings.',
+        DiagnosticSeverity.Error,
+        'syntax-error'
+      )
+    );
+    return unknown;
+  }
+}
+
 export class RunStatement extends AstNodeBase implements Statement {
   readonly __kind = 'RunStatement';
 
@@ -582,7 +649,10 @@ export class RunStatement extends AstNodeBase implements Statement {
           }
           continue;
         }
-        const result = parseStmt(child);
+        const result =
+          child.type === 'mapping_element'
+            ? RunOption.parse(child, parseExpr)
+            : parseStmt(child);
         if (!result) continue;
         if (Array.isArray(result)) {
           const normalized = result.filter(

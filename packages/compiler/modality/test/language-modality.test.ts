@@ -30,7 +30,7 @@ start_agent main:
     description: "test"
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const language = output.agent_version.modality_parameters.language;
+    const language = output.agent_version.modality_parameters!.language;
 
     expect(language?.additional_locales).toEqual(['fr', 'de']);
     expect(diagnostics).toHaveLength(0);
@@ -49,7 +49,7 @@ start_agent main:
     description: "test"
 `;
     const { output } = compile(parseSource(source));
-    const language = output.agent_version.modality_parameters.language;
+    const language = output.agent_version.modality_parameters!.language;
 
     expect(language?.additional_locales).toEqual(['fr', 'de']);
   });
@@ -69,7 +69,7 @@ start_agent main:
     description: "test"
 `;
     const { output } = compile(parseSource(source));
-    const language = output.agent_version.modality_parameters.language;
+    const language = output.agent_version.modality_parameters!.language;
 
     expect(language?.additional_locales).toEqual(['fr', 'de']);
   });
@@ -90,7 +90,7 @@ start_agent main:
     description: "test"
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const language = output.agent_version.modality_parameters.language;
+    const language = output.agent_version.modality_parameters!.language;
 
     expect(language?.additional_locales).toEqual(['fr', 'de']);
     expect(diagnostics).toHaveLength(0);
@@ -115,7 +115,7 @@ start_agent main:
     description: "test"
 `;
     const { output, diagnostics } = compile(parseSource(source));
-    const language = output.agent_version.modality_parameters.language;
+    const language = output.agent_version.modality_parameters!.language;
 
     expect(language?.additional_locales).toEqual([]);
     const inlineListWarnings = diagnostics.filter(d =>
@@ -154,7 +154,7 @@ start_agent main:
       );
       expect(localeErrors).toHaveLength(0);
 
-      expect(output.agent_version.modality_parameters.language).toBeDefined();
+      expect(output.agent_version.modality_parameters!.language).toBeDefined();
     });
 
     it('should emit warnings for invalid additional_locales', () => {
@@ -189,9 +189,9 @@ start_agent main:
       );
       expect(localeErrors).toHaveLength(0);
 
-      expect(output.agent_version.modality_parameters.language).toBeDefined();
+      expect(output.agent_version.modality_parameters!.language).toBeDefined();
       expect(
-        output.agent_version.modality_parameters.language?.default_locale
+        output.agent_version.modality_parameters!.language?.default_locale
       ).toBe('en_US');
     });
 
@@ -210,9 +210,9 @@ start_agent main:
       const ast = parseSource(source);
       const { output, diagnostics } = compile(ast);
 
-      expect(output.agent_version.modality_parameters.language).toBeDefined();
+      expect(output.agent_version.modality_parameters!.language).toBeDefined();
       expect(
-        output.agent_version.modality_parameters.language
+        output.agent_version.modality_parameters!.language
           ?.all_additional_locales
       ).toBe(true);
 
@@ -238,7 +238,7 @@ start_agent main:
     description: "test"
 `;
       const { output } = compile(parseSource(source));
-      const lang = output.agent_version.modality_parameters.language;
+      const lang = output.agent_version.modality_parameters!.language;
       expect(lang).toBeDefined();
       expect(lang?.default_locale).toBe('en_US');
       expect(JSON.parse(JSON.stringify(lang))).not.toHaveProperty('adaptive');
@@ -256,7 +256,7 @@ start_agent main:
     description: "test"
 `;
       const { output, diagnostics } = compile(parseSource(source));
-      const lang = output.agent_version.modality_parameters.language;
+      const lang = output.agent_version.modality_parameters!.language;
       expect(lang).toBeDefined();
       expect(lang?.adaptive).toBe(true);
       expect(lang?.default_locale).toBeUndefined();
@@ -291,7 +291,7 @@ start_agent main:
     description: "test"
 `;
       const { output } = compile(parseSource(source));
-      const lang = output.agent_version.modality_parameters.language;
+      const lang = output.agent_version.modality_parameters!.language;
       expect(lang).toEqual({
         adaptive: true,
         default_locale: 'en_US',
@@ -313,7 +313,7 @@ start_agent main:
     description: "test"
 `;
       const { output } = compile(parseSource(source));
-      const lang = output.agent_version.modality_parameters.language;
+      const lang = output.agent_version.modality_parameters!.language;
       expect(lang?.adaptive).toBe(false);
       expect(lang?.default_locale).toBe('fr');
     });

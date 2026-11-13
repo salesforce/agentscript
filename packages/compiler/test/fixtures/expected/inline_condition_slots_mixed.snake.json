@@ -1,0 +1,235 @@
+{
+  "schema_version": "2.0",
+  "global_configuration": {
+    "developer_name": "InlineConditionSlotsMixed",
+    "label": "Inline Condition Slots Mixed",
+    "description": "Inline Condition Slots Mixed",
+    "enable_enhanced_event_logs": false,
+    "agent_type": "EinsteinServiceAgent",
+    "context_variables": [],
+    "default_agent_user": "service_user"
+  },
+  "agent_version": {
+    "planner_type": "Atlas__ConcurrentMultiAgentOrchestration",
+    "system_messages": [],
+    "state_variables": [
+      {
+        "developer_name": "AgentScriptInternal_next_topic",
+        "label": "Next Topic",
+        "description": "The next topic to be visited",
+        "data_type": "string",
+        "is_list": false,
+        "default": "\"__EMPTY__\"",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_agent_instructions",
+        "label": "Agent Instructions",
+        "description": "The agent instructions",
+        "data_type": "string",
+        "is_list": false,
+        "default": "''",
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "tier",
+        "label": "Tier",
+        "description": "Tier",
+        "data_type": "string",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": "'basic'"
+      },
+      {
+        "developer_name": "attempts",
+        "label": "Attempts",
+        "description": "Attempts",
+        "data_type": "number",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": 0
+      },
+      {
+        "developer_name": "verified",
+        "label": "Verified",
+        "description": "Verified",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal",
+        "default": false
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition_1",
+        "label": "Runtime Condition 1",
+        "description": "Runtime condition evaluation for if statements",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      },
+      {
+        "developer_name": "AgentScriptInternal_condition_2",
+        "label": "Runtime Condition 2",
+        "description": "Runtime condition evaluation for if statements at nesting depth 2",
+        "data_type": "boolean",
+        "is_list": false,
+        "visibility": "Internal"
+      }
+    ],
+    "initial_node": "main",
+    "nodes": [
+      {
+        "type": "subagent",
+        "reasoning_type": "salesforce.default",
+        "description": "Conditions read more than once keep their slot",
+        "tools": [],
+        "developer_name": "main",
+        "label": "Main",
+        "action_definitions": [],
+        "instructions": "You are a helpful AI assistant.",
+        "focus_prompt": "{{state.AgentScriptInternal_agent_instructions}}",
+        "before_reasoning_iteration": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "''"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.tier == \"gold\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_condition_1",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome back, gold member."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "not (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_2": "state.tier == \"silver\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(not (state.AgentScriptInternal_condition_1)) and (state.AgentScriptInternal_condition_2)",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome back, silver member."
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(not (state.AgentScriptInternal_condition_1)) and (not (state.AgentScriptInternal_condition_2))",
+            "state_updates": [
+              {
+                "AgentScriptInternal_agent_instructions": "template::{{state.AgentScriptInternal_agent_instructions}}\nWelcome."
+              }
+            ]
+          }
+        ],
+        "before_reasoning": [
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "True",
+            "state_updates": [
+              {
+                "AgentScriptInternal_next_topic": "\"__EMPTY__\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.tier == \"gold\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "verified": "True"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (not (state.AgentScriptInternal_condition_1))",
+            "state_updates": [
+              {
+                "verified": "False"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "state.AgentScriptInternal_next_topic==\"__EMPTY__\"",
+            "state_updates": [
+              {
+                "AgentScriptInternal_condition_1": "state.attempts > 0"
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.AgentScriptInternal_condition_1)",
+            "state_updates": [
+              {
+                "attempts": "state.attempts - 1"
+              },
+              {
+                "tier": "\"basic\""
+              }
+            ]
+          },
+          {
+            "type": "action",
+            "target": "__state_update_action__",
+            "enabled": "(state.AgentScriptInternal_next_topic==\"__EMPTY__\") and (state.verified)",
+            "state_updates": [
+              {
+                "attempts": "0"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "surfaces": [],
+    "modality_parameters": {},
+    "additional_parameters": {
+      "reset_to_initial_node": true
+    }
+  }
+}

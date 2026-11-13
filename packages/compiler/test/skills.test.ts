@@ -15,7 +15,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource, checkSchemaConformance } from './test-utils.js';
+import { parseSource, checkSchemaConformance, findNode } from './test-utils.js';
 
 // Narrow the loosely-typed `agent_version` bag to the skill_definitions table.
 function skillDefinitionsOf(output: {
@@ -251,11 +251,7 @@ subagent skilled_agent:
             my_inline_skill: @skill_definitions.myInlineSkill
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'skilled_agent'
-    )!;
-
-    expect(node).toBeDefined();
+    const node = findNode(output, 'skilled_agent', 'subagent');
     // Map order is preserved; handle → name, definition → target.
     expect(node.skills).toEqual([
       { name: 'my_stored_skill', target: 'myStoredSkill' },
@@ -287,11 +283,7 @@ subagent skilled_agent:
             my_stored_skill: @skill_definitions.myStoredSkill
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'skilled_agent'
-    )!;
-
-    expect(node).toBeDefined();
+    const node = findNode(output, 'skilled_agent', 'subagent');
     expect(node.skills).toEqual([
       { name: 'my_stored_skill', target: 'myStoredSkill' },
     ]);
@@ -381,11 +373,7 @@ subagent plain_agent:
             | act
 `;
     const { output } = compile(parseSource(source));
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'plain_agent'
-    )!;
-
-    expect(node).toBeDefined();
+    const node = findNode(output, 'plain_agent', 'subagent');
     expect(node.skills).toBeUndefined();
   });
 });

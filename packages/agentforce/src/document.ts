@@ -13,7 +13,12 @@
  * `__children` in sync with root-level property changes.
  */
 
-import type { AstRoot, FieldType, InferFieldType } from '@agentscript/language';
+import type {
+  AstRoot,
+  FieldType,
+  Gates,
+  InferFieldType,
+} from '@agentscript/language';
 import type { Diagnostic } from '@agentscript/types';
 import { DiagnosticSeverity } from '@agentscript/types';
 import { emitDocument, isNamedMap, PassStore } from '@agentscript/language';
@@ -32,6 +37,7 @@ import type {
   HistoryEntry,
   SingularKeys,
   NamedKeys,
+  ComponentResultMap,
 } from './types.js';
 import {
   syncSingularField,
@@ -49,6 +55,7 @@ export class Document {
   private _ast: ParsedAgentforce;
   private _diagnostics: readonly Diagnostic[];
   private _parser: AgentScriptParser;
+  private _gates: Gates | undefined;
   private _isDirty: boolean;
   private _history: HistoryEntry[];
   private _historyIndex: number;
@@ -58,11 +65,13 @@ export class Document {
     ast: ParsedAgentforce,
     diagnostics: readonly Diagnostic[],
     _store: PassStore,
-    parser: AgentScriptParser
+    parser: AgentScriptParser,
+    gates?: Gates
   ) {
     this._ast = ast;
     this._diagnostics = diagnostics;
     this._parser = parser;
+    this._gates = gates;
     this._isDirty = false;
     this._history = [];
     this._historyIndex = 0;
@@ -74,9 +83,10 @@ export class Document {
     ast: ParsedAgentforce,
     diagnostics: readonly Diagnostic[],
     store: PassStore,
-    parser: AgentScriptParser
+    parser: AgentScriptParser,
+    gates?: Gates
   ): Document {
-    return new Document(ast, diagnostics, store, parser);
+    return new Document(ast, diagnostics, store, parser, gates);
   }
 
   /** @internal Factory for creating an empty document (used when parse fails). */
@@ -218,7 +228,7 @@ export class Document {
   addEntry<K extends NamedKeys>(
     key: K,
     name: string,
-    value: InferFieldType<AgentforceSchemaType[K]>,
+    value: ComponentResultMap[K],
     label?: string
   ): this {
     return this.mutate(
@@ -328,7 +338,9 @@ export class Document {
 
   private _parseFrom(source: string): void {
     const tree = this._parser.parse(source);
-    const result = parseAndLint(tree.rootNode, agentforceDialect);
+    const result = parseAndLint(tree.rootNode, agentforceDialect, {
+      gates: this._gates,
+    });
     this._ast = result.ast as ParsedAgentforce;
     this._diagnostics = result.diagnostics;
   }

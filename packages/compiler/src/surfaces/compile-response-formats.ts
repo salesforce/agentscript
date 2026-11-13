@@ -13,8 +13,10 @@ import {
   SequenceNode,
 } from '@agentscript/language';
 import type { BlockCore, Expression } from '@agentscript/language';
+import { SCHEMA_COMPONENT_TYPES } from '@agentscript/agentforce-dialect';
 import type { CompilerContext } from '../compiler-context.js';
 import type { ResponseFormat } from '../types.js';
+import type { ParsedConnection } from '../parsed-types.js';
 import { normalizeDeveloperName, parseUri, dedent } from '../utils.js';
 import {
   extractStringValue,
@@ -51,7 +53,7 @@ interface JsonSchema {
   minItems?: number;
   maxItems?: number;
   $schema?: string;
-  /** Used by messaging component parameters to denote list element type. */
+  /** Used by schema component parameters to denote list element type. */
   itemType?: string;
 }
 
@@ -83,6 +85,29 @@ export function compileResponseFormats(
   }
 
   return result;
+}
+
+/**
+ * Collect each connection's declared response format inputs into
+ * `ctx.responseFormatInputs`.
+ */
+export function collectResponseFormatInputs(
+  connections: NamedMap<ParsedConnection> | undefined,
+  ctx: CompilerContext
+): void {
+  for (const [connectionName, def] of iterateNamedMap(connections)) {
+    const formats = new Map<string, NamedMap<ParameterDeclarationNode>>();
+    const responseFormats = def.response_formats as
+      | NamedMap<BlockCore>
+      | undefined;
+    for (const [formatName, format] of iterateNamedMap(responseFormats)) {
+      const inputs = format['inputs'];
+      if (inputs instanceof NamedMap) {
+        formats.set(formatName, inputs as NamedMap<ParameterDeclarationNode>);
+      }
+    }
+    ctx.responseFormatInputs.set(connectionName, formats);
+  }
 }
 
 function compileResponseFormat(
@@ -223,7 +248,7 @@ function compileResponseFormatInputSchema(
 ): string {
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
-  let hasMessagingComponent = false;
+  let schemaComponentType: string | undefined;
 
   if (inputs) {
     for (const [name, decl] of iterateNamedMap(inputs)) {
@@ -231,15 +256,16 @@ function compileResponseFormatInputSchema(
       if (result) {
         properties[name] = result.schema;
         if (result.isRequired) required.push(name);
-        if (result.isMessagingComponent) hasMessagingComponent = true;
+        if (result.schemaComponentType)
+          schemaComponentType = result.schemaComponentType;
       }
     }
   }
 
-  // A format of messaging component type is typed as
-  // 'messaging_component' for easier rehydration lookup in Core
+  // A format of component type is typed as its component type
+  // (e.g. 'messaging_component') for easier rehydration lookup in Core
   const schema: JsonSchema = {
-    type: hasMessagingComponent ? 'messaging_component' : 'object',
+    type: schemaComponentType ?? 'object',
     properties,
   };
   if (required.length > 0) schema.required = required;
@@ -254,7 +280,7 @@ function compileInputProperty(
   decl: ParameterDeclarationNode,
   ctx: CompilerContext
 ):
-  | { schema: JsonSchema; isRequired: boolean; isMessagingComponent?: boolean }
+  | { schema: JsonSchema; isRequired: boolean; schemaComponentType?: string }
   | undefined {
   const typeStr = getExpressionName(decl.type);
   if (!typeStr) return undefined;
@@ -276,25 +302,25 @@ function compileInputProperty(
     jsonType = TYPE_MAP[typeStr] ?? 'string';
   }
 
-  // input schema of a messaging component is compiled into a bastardized version of json schema
+  // input schema of a component is compiled into a bastardized version of json schema
   // because there's no perfect mapping of component types to json schema types
   // (Core will rehydrate it into the correct consumable format)
   const schemaUri = extractStringValue(props?.['schema']);
   if (schemaUri) {
     const { scheme, path } = parseUri(schemaUri);
-    if (scheme === 'messaging_component' && path) {
-      const parameters = compileMessagingComponentParameters(props, ctx);
+    if (SCHEMA_COMPONENT_TYPES.includes(scheme) && path) {
+      const parameters = compileSchemaComponentParameters(props, ctx);
 
       const schema: JsonSchema = {
         type: 'object',
         $schema: schemaUri,
       };
 
-      // Parameterized components (dynamic messaging components) additionally carry a
-      // `properties` map; parameterless (static messaging components) ones simply omit it.
+      // Parameterized components (e.g. dynamic messaging components) additionally carry a
+      // `properties` map; parameterless (e.g. static messaging components) ones simply omit it.
       if (parameters) schema.properties = parameters;
 
-      return { schema, isRequired: true, isMessagingComponent: true };
+      return { schema, isRequired: true, schemaComponentType: scheme };
     }
   }
 
@@ -394,11 +420,12 @@ function compileInputProperty(
 }
 
 /**
- * Compile the parameters of a messaging component with parameteres
- * (aka Dynamic Messaging Component).
+ * Compile the parameters of a component with parameters
+ * (e.g. a Dynamic Messaging Component, or a Lightning Web Component).
  *
- * A messaging component (`schema: "messaging_component://..."`) may declare
- * component parameters under its `fields:` block, e.g.:
+ * A component (`schema: "messaging_component://..."` or
+ * `"lightning_web_component://..."`) may declare component parameters under its
+ * `fields:` block, e.g.:
  *
  *   penguin_pet_intake_form: object
  *       schema: "messaging_component://FormMessage__PetIntakeForm"
@@ -409,9 +436,10 @@ function compileInputProperty(
  *
  * Each parameter is emitted with its raw AgentScript type (not the JSON Schema
  * mapping): list types use `type: "list"` + `itemType`, and `const` carries the
- * parameter value (variable refs → `{{state.X}}`, literals verbatim).
+ * parameter value (variable refs → `{{state.X}}`, literals verbatim). A
+ * parameter without a default (allowed for lightning web components) has no `const`.
  */
-function compileMessagingComponentParameters(
+function compileSchemaComponentParameters(
   props: BlockCore | undefined,
   ctx: CompilerContext
 ): Record<string, JsonSchema> | undefined {
@@ -425,7 +453,7 @@ function compileMessagingComponentParameters(
     | undefined;
 
   for (const [key, decl] of iterateNamedMap(fields)) {
-    const paramSchema = compileMessagingComponentParameter(decl, ctx);
+    const paramSchema = compileSchemaComponentParameter(decl, ctx);
     if (paramSchema) {
       properties[key] = paramSchema;
       hasParameters = true;
@@ -436,9 +464,9 @@ function compileMessagingComponentParameters(
 }
 
 /**
- * Compile a single messaging-component parameter declaration
+ * Compile a single component parameter declaration
  */
-function compileMessagingComponentParameter(
+function compileSchemaComponentParameter(
   decl: ParameterDeclarationNode,
   ctx: CompilerContext
 ): JsonSchema | undefined {
@@ -449,7 +477,7 @@ function compileMessagingComponentParameter(
     ? { type: 'list', itemType: typeName }
     : { type: typeName };
 
-  // Description of a messaging component param does not support template
+  // Description of a component param does not support template
   const rawDescription = extractDescriptionValue(
     decl.properties?.['description']
   );
@@ -538,33 +566,39 @@ function getValueDescriptor(
 }
 
 /**
- * Extract nested object fields from the type descriptor:
+ * Return the nested `fields:` declared under an input's type descriptor:
  * - type: object → .fields
  * - type: list → .value.properties.fields
+ *
+ * Returns undefined for scalar inputs and short-form declarations.
+ */
+export function getDeclaredFields(
+  props: BlockCore | undefined
+): NamedMap<ParameterDeclarationNode> | undefined {
+  const typeDesc = getTypeDescriptor(props);
+  const typeDescProps = typeDesc?.properties;
+  if (!typeDescProps) return undefined;
+
+  // Direct object type: type: object → fields in typeDescProps
+  const direct = typeDescProps['fields'] as
+    | NamedMap<ParameterDeclarationNode>
+    | undefined;
+  if (direct) return direct;
+
+  // List of objects: type: list → value.properties.fields
+  return getValueDescriptor(typeDesc)?.properties?.['fields'] as
+    | NamedMap<ParameterDeclarationNode>
+    | undefined;
+}
+
+/**
+ * Compile the nested object fields of an input's type descriptor.
  */
 function compileNestedObjectFields(
   props: BlockCore | undefined,
   ctx: CompilerContext
 ): { properties: Record<string, JsonSchema>; required: string[] } | undefined {
-  if (!props) return undefined;
-
-  const typeDesc = getTypeDescriptor(props);
-  const typeDescProps = typeDesc?.properties;
-  let fieldsSource: NamedMap<ParameterDeclarationNode> | undefined;
-
-  if (typeDescProps) {
-    // Direct object type: type: object → fields in typeDescProps
-    fieldsSource = typeDescProps['fields'] as
-      | NamedMap<ParameterDeclarationNode>
-      | undefined;
-
-    // List of objects: type: list → value.properties.fields
-    if (!fieldsSource) {
-      fieldsSource = getValueDescriptor(typeDesc)?.properties?.['fields'] as
-        | NamedMap<ParameterDeclarationNode>
-        | undefined;
-    }
-  }
+  const fieldsSource = getDeclaredFields(props);
 
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];

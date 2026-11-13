@@ -26,7 +26,6 @@ import {
   NEXT_TOPIC_EMPTY_CONDITION,
   AGENT_INSTRUCTIONS_VARIABLE,
   TRANSITION_TARGET_NAMESPACES,
-  chainConditionVariableName,
   EMPTY_ESCALATION_NODE_VALUE,
   ESCALATION_TARGET,
   END_SESSION_TARGET,
@@ -43,17 +42,23 @@ import {
   buildPriorGuardByTarget,
 } from './compile-collect.js';
 import {
-  isElseIfChainHead,
-  walkElseIfChain,
+  allocateConditionSlot,
+  declareConditionSlot,
   advanceConditionSlotBaseIfFileGated,
-} from './else-if-chain.js';
+  withReservedConditionSlots,
+} from './condition-slots.js';
 import {
   optimizeDirectiveActions,
   instructionAppendValue,
   createStateUpdateAction,
   createInstructionResetAction,
 } from './optimize-actions.js';
-import { compileDeterministicRunInputs } from './compile-run-inputs.js';
+import {
+  compileDeterministicRunInputs,
+  resolveRunTarget,
+} from './compile-run-inputs.js';
+import { compileRunExecutionMode } from './compile-execution-mode.js';
+import type { Sourceable } from '../sourced.js';
 
 /**
  * Compile a list of deterministic directives (before_reasoning, after_reasoning,
@@ -74,6 +79,8 @@ export function compileDeterministicDirectives(
     actionDefinitionNames,
     endTurnFirst = false,
     topicName,
+    handoffsDisallowedIn,
+    enabled,
   } = options;
 
   const conditionStack = new ConditionStack();
@@ -105,6 +112,8 @@ export function compileDeterministicDirectives(
     endTurnFirst,
     topicName,
     collectPriorGuards,
+    handoffsDisallowedIn,
+    enabled,
   };
 
   for (const directive of directives) {
@@ -123,10 +132,15 @@ export function compileDeterministicDirectives(
       : result;
   }
 
-  // Otherwise fuse instruction appends, fold the per-turn reset into the first
+  // Otherwise (when enabled) inline single-read condition slots (optimization
+  // 4b), fuse instruction appends, fold the per-turn reset into the first
   // unconditional append, and fuse adjacent same-gate state-update envelopes
   // (optimization 4a). See optimize-actions.ts for the full ordering contract.
-  return optimizeDirectiveActions(result, { agentInstructionsVariable });
+  return optimizeDirectiveActions(result, {
+    agentInstructionsVariable,
+    inlineConditionSlots: ctx.inlineConditionSlots,
+    fileReferenceGates: ctx.fileCapture.gates,
+  });
 }
 
 export interface DirectiveOptions {
@@ -143,11 +157,23 @@ export interface DirectiveOptions {
   endTurnFirst?: boolean;
   /** Owning subagent name — used to name a collect's capture action. */
   topicName?: string;
+  /**
+   * Set for procedures that can only hold actions (e.g. a custom subagent's
+   * `on_exit`); names the procedure in diagnostics. Transition, escalate, and
+   * end_session directives are then dropped whole — handoff and companion
+   * state-update/end-session action alike — each with a warning. Dropping only
+   * the handoff would leave the companion writing a stale `next_topic` or
+   * ending the session.
+   */
+  handoffsDisallowedIn?: string;
+  /** Condition ANDed into every action's `enabled`. */
+  enabled?: string;
 }
 
 interface DirectiveContext {
   conditionStack: ConditionStack;
   gateOnNextTopicEmpty: boolean;
+  enabled?: string;
   agentInstructionsVariable?: string;
   toolNames?: Set<string>;
   actionDefinitionNames?: Set<string>;
@@ -161,6 +187,15 @@ interface DirectiveContext {
    * mutually-exclusive sibling.
    */
   collectPriorGuards?: Map<string, string[]>;
+  handoffsDisallowedIn?: string;
+}
+
+/** Keyword of a directive that compiles to a handoff, if `stmt` is one. */
+function handoffKeyword(stmt: Statement): string | undefined {
+  if (stmt instanceof TransitionStatement) return 'transition';
+  if (stmt instanceof EscalateStatement) return 'escalate';
+  if (stmt instanceof EndSessionStatement) return 'end_session';
+  return undefined;
 }
 
 function compileDirective(
@@ -168,6 +203,15 @@ function compileDirective(
   ctx: CompilerContext,
   dctx: DirectiveContext
 ): (Action | HandOffAction)[] {
+  const keyword = dctx.handoffsDisallowedIn && handoffKeyword(stmt);
+  if (keyword) {
+    ctx.warning(
+      `\`${keyword}\` in ${dctx.handoffsDisallowedIn} was dropped: it only runs actions.`,
+      stmt.__cst?.range,
+      'dropped-handoff'
+    );
+    return [];
+  }
   if (stmt instanceof RunStatement) {
     return compileRunDirective(stmt, ctx, dctx);
   }
@@ -210,12 +254,7 @@ function compileRunDirective(
   ctx: CompilerContext,
   dctx: DirectiveContext
 ): Action[] {
-  const target = resolveAtReference(
-    stmt.target,
-    'actions',
-    ctx,
-    'action target'
-  );
+  const target = resolveRunTarget(stmt, ctx);
   if (!target) return [];
 
   // Deterministic run: reject LLM-filled inputs (they would land as a literal
@@ -230,18 +269,20 @@ function compileRunDirective(
 
   const enabled = buildEnabledCondition(dctx);
 
-  const action: Action = {
+  const action: Sourceable<Action> = {
     type: 'action',
     target,
     bound_inputs: Object.keys(boundInputs).length > 0 ? boundInputs : {},
     llm_inputs: [],
     state_updates: stateUpdates,
   };
+  const nonBlockingBehavior = compileRunExecutionMode(stmt, ctx);
+  if (nonBlockingBehavior) action.non_blocking_behavior = nonBlockingBehavior;
   if (enabled) {
     action.enabled = enabled;
   }
 
-  return [action];
+  return [ctx.track<Action>(action)];
 }
 
 // ---------------------------------------------------------------------------
@@ -453,159 +494,64 @@ function compileCollectDirective(
 // If statement (conditional)
 // ---------------------------------------------------------------------------
 
+/**
+ * Lower `if C: <body> else: <orelse>`, following the workflow lowering.
+ *
+ * `C` is stored once, before either branch, in the condition slot for this
+ * `if`'s nesting depth, and both branches gate on the slot, so a branch that
+ * changes a variable `C` reads cannot switch branches. An `else if` is an
+ * `if` inside `orelse`: it takes the next slot, and its snapshot is gated on
+ * the earlier conditions being false, so it is only evaluated when reached.
+ *
+ * The snapshot writes `C` directly in `state_updates`, unlike the workflow and
+ * post-tool snapshots, which evaluate it as a bound input. Lifecycle-hook bound
+ * inputs read missing keys as None, so moving `C` there would not make missing
+ * keys stop execution.
+ *
+ * An `if` whose branches produce no actions emits no snapshot.
+ */
 function compileIfDirective(
   stmt: IfStatement,
   ctx: CompilerContext,
   dctx: DirectiveContext
 ): (Action | HandOffAction)[] {
-  // Plain `if/else` (no chain links): use the shared
-  // AgentScriptInternal_condition variable. Sequential plain ifs reuse the
-  // same variable since each one writes before its body runs.
-  if (!isElseIfChainHead(stmt)) {
-    return compilePlainIfDirective(stmt, ctx, dctx);
-  }
-
-  // Chain (`if / else if [/ else if ...] [/ else]`): each link gets its own
-  // suffixed variable (condition_1, condition_2, ...) so prior links'
-  // negations stay stable when later links overwrite their own slots.
-  return compileChainIfDirective(stmt, ctx, dctx);
-}
-
-/**
- * Compile a non-chain `if [/ else]`. Writes the compiled condition into slot
- * `ctx.nodeConditionSlotBase + 1` and gates the body / else off it. Sequential
- * plain ifs reuse the same slot (each writes before its body runs); the base is
- * bumped only to reserve slots a captured file reference gates on.
- */
-function compilePlainIfDirective(
-  stmt: IfStatement,
-  ctx: CompilerContext,
-  dctx: DirectiveContext
-): (Action | HandOffAction)[] {
-  const result: (Action | HandOffAction)[] = [];
   const fileRefCountBefore = ctx.fileCapture.count;
-
   const condition = compileExpression(stmt.condition, ctx, {
     expressionContext: "'if' condition",
   });
+  const slot = allocateConditionSlot(ctx);
+  const slotRef = `state.${slot.name}`;
 
-  const slotIndex = ctx.nodeConditionSlotBase + 1;
-  const slotName = chainConditionVariableName(slotIndex);
-  ctx.maxChainConditionSlot = Math.max(
-    ctx.maxChainConditionSlot ?? 0,
-    slotIndex
-  );
+  const branches = withReservedConditionSlots(ctx, slot.index, () => [
+    ...compileGatedDirectives(stmt.body, slotRef, 'positive', ctx, dctx),
+    ...compileGatedDirectives(stmt.orelse, slotRef, 'negative', ctx, dctx),
+  ]);
+  advanceConditionSlotBaseIfFileGated(ctx, fileRefCountBefore, slot.index);
+  // Nothing reads the slot when neither branch produced an action.
+  if (branches.length === 0) return [];
 
-  const condEnabled =
+  declareConditionSlot(ctx, slot);
+  const snapshotEnabled =
     buildEnabledCondition(dctx) ??
     (dctx.agentInstructionsVariable ? 'True' : null);
-  result.push(
-    createStateUpdateAction([{ [slotName]: condition }], condEnabled)
-  );
-
-  // Warn about nested if+else — slot 1 is shared across plain ifs, so a real
-  // nested if/else would overwrite the outer if's value before the outer's
-  // else body reads it.
-  if (dctx.conditionStack.depth > 0 && stmt.orelse.length > 0) {
-    const range = stmt.condition.__cst?.range ?? stmt.__cst?.range;
-    ctx.warning(
-      'Nested if/else is not fully supported: the runtime uses a single condition variable, ' +
-        'so the else branch may not evaluate correctly',
-      range
-    );
-  }
-
-  const condRef = `state.${slotName}`;
-  dctx.conditionStack.push(condRef, 'positive');
-  for (const child of stmt.body) {
-    result.push(...compileDirective(child, ctx, dctx));
-  }
-  dctx.conditionStack.pop();
-
-  if (stmt.orelse.length > 0) {
-    dctx.conditionStack.push(condRef, 'negative');
-    for (const child of stmt.orelse) {
-      result.push(...compileDirective(child, ctx, dctx));
-    }
-    dctx.conditionStack.pop();
-  }
-
-  advanceConditionSlotBaseIfFileGated(ctx, fileRefCountBefore, slotIndex);
-
-  return result;
+  return [
+    createStateUpdateAction([{ [slot.name]: condition }], snapshotEnabled),
+    ...branches,
+  ];
 }
 
-/**
- * Compile an `if [/ else if ...] [/ else]` chain. Each branch's condition is
- * stored into its own slot variable (`AgentScriptInternal_condition_1` for
- * the head, `_2`, `_3`, ... for chain links). This avoids the
- * single-variable overwrite problem: when later branches gate on prior
- * branches' negations, those reads still resolve to the original truth value.
- *
- * Slot indices reset to 1 at the start of each chain — multiple chains in
- * the same node reuse the same slots, which is safe because chains execute
- * sequentially. The compiler tracks the max index used across the agent so
- * the agent_version assembly can declare exactly the slots needed.
- */
-function compileChainIfDirective(
-  head: IfStatement,
+/** Compile `stmts` with `slotRef` pushed onto the condition stack as `type`. */
+function compileGatedDirectives(
+  stmts: Statement[],
+  slotRef: string,
+  type: ConditionType,
   ctx: CompilerContext,
   dctx: DirectiveContext
 ): (Action | HandOffAction)[] {
-  const result: (Action | HandOffAction)[] = [];
-  const fileRefCountBefore = ctx.fileCapture.count;
-  const { branches, elseBody, maxSlotIndex } = walkElseIfChain(
-    head,
-    ctx,
-    "'if' condition"
-  );
-
-  // For each branch: emit the condition-write action, then compile the body
-  // with prior branches' slots negated and this branch's slot positive.
-  for (let i = 0; i < branches.length; i++) {
-    const b = branches[i];
-
-    // Action: write this branch's condition into its slot. Gated on the
-    // outer enabled condition (e.g. next_topic empty), since these slot
-    // writes need to respect any surrounding gates.
-    const writeEnabled =
-      buildEnabledCondition(dctx) ??
-      (dctx.agentInstructionsVariable ? 'True' : null);
-    result.push(
-      createStateUpdateAction([{ [b.slotName]: b.condition }], writeEnabled)
-    );
-
-    // Push prior branches' slot refs (negated) plus this branch's (positive).
-    for (let j = 0; j < i; j++) {
-      dctx.conditionStack.push(`state.${branches[j].slotName}`, 'negative');
-    }
-    dctx.conditionStack.push(`state.${b.slotName}`, 'positive');
-
-    for (const child of b.body) {
-      result.push(...compileDirective(child, ctx, dctx));
-    }
-
-    // Pop everything we just pushed (one positive + i negatives).
-    for (let j = 0; j <= i; j++) {
-      dctx.conditionStack.pop();
-    }
-  }
-
-  // Trailing `else:` — gate is every chain slot negated.
-  if (elseBody) {
-    for (const b of branches) {
-      dctx.conditionStack.push(`state.${b.slotName}`, 'negative');
-    }
-    for (const child of elseBody) {
-      result.push(...compileDirective(child, ctx, dctx));
-    }
-    for (let i = 0; i < branches.length; i++) {
-      dctx.conditionStack.pop();
-    }
-  }
-
-  advanceConditionSlotBaseIfFileGated(ctx, fileRefCountBefore, maxSlotIndex);
-
+  if (stmts.length === 0) return [];
+  dctx.conditionStack.push(slotRef, type);
+  const result = stmts.flatMap(child => compileDirective(child, ctx, dctx));
+  dctx.conditionStack.pop();
   return result;
 }
 
@@ -642,9 +588,9 @@ function compileTemplateDirective(
 type ConditionType = 'positive' | 'negative';
 
 /**
- * A single branch's gate component. The `expression` is the compiled source
- * boolean (e.g. `state.x == "a"`); `type` decides whether it's used directly
- * (positive branch) or negated (else / else-if-chain prior branches).
+ * A single branch's gate component. The `expression` is the condition slot
+ * read (e.g. `state.AgentScriptInternal_condition_1`); `type` decides whether
+ * it's used directly (`if` body) or negated (`else`, including `else if`).
  */
 interface ConditionEntry {
   type: ConditionType;
@@ -691,6 +637,9 @@ function buildEnabledCondition(dctx: DirectiveContext): string | null {
 
   if (dctx.gateOnNextTopicEmpty) {
     parts.push(NEXT_TOPIC_EMPTY_CONDITION);
+  }
+  if (dctx.enabled) {
+    parts.push(dctx.enabled);
   }
 
   const stackCondition = dctx.conditionStack.currentCondition;

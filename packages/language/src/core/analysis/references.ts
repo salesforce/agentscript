@@ -18,6 +18,7 @@ import {
   resolveEntryInScope,
   updateScopeContext,
   activeScopeForNamespace,
+  isIsolatedNamespace,
 } from './scope.js';
 import type { ScopeContext, SchemaContext } from './scope.js';
 import {
@@ -172,7 +173,13 @@ export function resolveReference(
   scope?: ScopeContext,
   symbols?: DocumentSymbol[]
 ): ResolvedReference | null {
-  if (symbols) {
+  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
+  const activeScope = activeScopeForNamespace(scopesRequired, scope);
+  // An isolated namespace resolves only in the active scope; the symbol
+  // lookup can reach the root-level definitions.
+  const isolated = isIsolatedNamespace(ctx, activeScope, namespace);
+
+  if (symbols && !isolated) {
     const entry = findSymbolEntry(symbols, namespace, name, ctx, scope);
     if (entry) {
       return {
@@ -185,12 +192,9 @@ export function resolveReference(
     }
   }
 
-  const scopesRequired = getScopedNamespaces(ctx).get(namespace);
-  const activeScope = activeScopeForNamespace(scopesRequired, scope);
-
   if (activeScope && scope) {
     const scoped = resolveFromScopedChild(ast, namespace, name, scope, ctx);
-    if (scoped) return scoped;
+    if (scoped || isolated) return scoped;
     return resolveFromRoot(ast, namespace, name, ctx);
   }
 

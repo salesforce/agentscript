@@ -27,7 +27,7 @@ const UNSUPPORTED_STATEMENT_MESSAGE =
   'System instructions only support instruction text and if/else conditionals. ' +
   'Move actions, assignments, transitions, collection, and escalation logic to reasoning instructions.';
 
-function validateStatements(statements: readonly Statement[]): void {
+export function validateStatements(statements: readonly Statement[]): void {
   for (const statement of statements) {
     if (statement.__kind === 'Template') continue;
 

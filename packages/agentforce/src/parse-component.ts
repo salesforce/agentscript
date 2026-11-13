@@ -17,8 +17,13 @@
 
 import { parseAndLint, isNamedMap } from '@agentscript/language';
 import type { Diagnostic, Range, SyntaxNode } from '@agentscript/types';
-import type { Expression, Statement } from '@agentscript/language';
+import type {
+  Expression,
+  InferEntryType,
+  Statement,
+} from '@agentscript/language';
 import { agentforceDialect } from '@agentscript/agentforce-dialect';
+import type { AFActionsBlock } from '@agentscript/agentforce-dialect';
 import type { AgentforceSchema as AgentforceSchemaType } from '@agentscript/agentforce-dialect';
 import type {
   ComponentResultMap,
@@ -103,7 +108,11 @@ export function parseComponent(
 ): Expression | undefined;
 export function parseComponent(
   source: string,
-  kind: 'action' | 'actions' | 'reasoning_actions'
+  kind: 'action'
+): InferEntryType<typeof AFActionsBlock> | undefined;
+export function parseComponent(
+  source: string,
+  kind: 'actions' | 'reasoning_actions'
 ): ComponentResultMap[keyof ComponentResultMap] | undefined;
 export function parseComponent<K extends keyof AgentforceSchemaType>(
   source: string,

@@ -8,16 +8,18 @@
 import { describe, it, expect } from 'vitest';
 import { parse } from '@agentscript/parser';
 import { parseAndLint, DiagnosticSeverity } from '@agentscript/language';
+import { DiagnosticTag } from '@agentscript/types';
 import { parseDocument } from './test-utils.js';
 import { agentforceDialect } from '../index.js';
 
 // ============================================================================
 // billing nested inside config block
 //
-// `mode` uses the exact agent-dsl `billingMode` enum values (ACTION_BASED /
-// OUTCOME_BASED). Validation is a field-level `.enum()` constraint, so it
-// surfaces through the lint pipeline as `constraint-enum` — these tests run the
-// full parseAndLint pipeline rather than parse-only (which skips lint).
+// `mode` accepts ACTION_BASED / RESOLUTION_BASED, plus OUTCOME_BASED as a
+// deprecated alias for RESOLUTION_BASED. Validation is a field-level `.enum()`
+// constraint, so it surfaces through the lint pipeline as `constraint-enum` —
+// these tests run the full parseAndLint pipeline rather than parse-only (which
+// skips lint).
 // ============================================================================
 
 function lint(source: string) {
@@ -34,7 +36,7 @@ describe('billing in config block', () => {
 config:
     developer_name: "test_agent"
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 `.trimStart();
 
     const ast = parseDocument(source);
@@ -46,12 +48,12 @@ config:
     expect(billing.mode).toBeDefined();
   });
 
-  it('produces no errors for a valid billing mode (OUTCOME_BASED)', () => {
+  it('produces no errors for a valid billing mode (RESOLUTION_BASED)', () => {
     const source = `
 config:
     developer_name: "test_agent"
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 `.trimStart();
 
     const { diagnostics } = lint(source);
@@ -90,8 +92,61 @@ config:
     expect(enumError).toBeDefined();
     expect(enumError?.severity).toBe(DiagnosticSeverity.Error);
     expect(enumError?.message).toContain('ACTION_BASED');
-    expect(enumError?.message).toContain('OUTCOME_BASED');
+    expect(enumError?.message).toContain('RESOLUTION_BASED');
   });
+});
+
+// ============================================================================
+// OUTCOME_BASED is a deprecated alias for RESOLUTION_BASED
+//
+// It still compiles to the same agent JSON, so it is a Warning tagged
+// Deprecated (strike-through in editors), not an error.
+// ============================================================================
+
+describe('billing mode deprecation', () => {
+  it('warns that OUTCOME_BASED is deprecated in favor of RESOLUTION_BASED', () => {
+    const source = `
+config:
+    developer_name: "test_agent"
+    billing:
+        mode: "OUTCOME_BASED"
+`.trimStart();
+
+    const { diagnostics } = lint(source);
+    const warnings = diagnostics.filter(
+      d => d.code === 'deprecated-billing-mode'
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe(DiagnosticSeverity.Warning);
+    expect(warnings[0].tags ?? []).toContain(DiagnosticTag.Deprecated);
+    expect(warnings[0].message).toContain('OUTCOME_BASED');
+    expect(warnings[0].message).toContain('RESOLUTION_BASED');
+    // Ranged on the `mode` value (0-based line 3).
+    expect(warnings[0].range.start.line).toBe(3);
+
+    // A deprecation must not also surface as a hard error.
+    const errors = diagnostics.filter(
+      d => d.severity === DiagnosticSeverity.Error
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  for (const mode of ['RESOLUTION_BASED', 'ACTION_BASED']) {
+    it(`does not warn for ${mode}`, () => {
+      const source = `
+config:
+    developer_name: "test_agent"
+    billing:
+        mode: "${mode}"
+`.trimStart();
+
+      const { diagnostics } = lint(source);
+      const warnings = diagnostics.filter(
+        d => d.code === 'deprecated-billing-mode'
+      );
+      expect(warnings).toHaveLength(0);
+    });
+  }
 });
 
 // ============================================================================
@@ -109,7 +164,7 @@ config:
     developer_name: "test_agent"
     agent_type: "AgentforceEmployeeAgent"
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 `.trimStart();
 
     const { diagnostics } = lint(source);
@@ -126,7 +181,7 @@ config:
     agent_type: "AgentforceServiceAgent"
     default_agent_user: "support@example.com"
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 `.trimStart();
 
     const { diagnostics } = lint(source);
@@ -141,7 +196,7 @@ config:
     agent_type: " AgentforceServiceAgent "
     default_agent_user: "support@example.com"
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 `.trimStart();
 
     const { diagnostics } = lint(source);
@@ -154,7 +209,7 @@ config:
 config:
     developer_name: "test_agent"
     billing:
-        mode: "OUTCOME_BASED"
+        mode: "RESOLUTION_BASED"
 `.trimStart();
 
     const { diagnostics } = lint(source);

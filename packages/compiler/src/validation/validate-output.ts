@@ -55,6 +55,10 @@ export function validateOutput(
     // generic Zod restatement here to avoid duplicate diagnostics.
     if (isRecommendedPromptsField(path)) continue;
 
+    // An empty workflow `steps` list is reported by the workflow compiler, or
+    // follows from the errors that dropped its directives.
+    if (isEmptyWorkflowSteps(output, issue)) continue;
+
     const location = resolveLocation(output, path, ctx);
     const found = resolveInputValue(output, path);
 
@@ -73,6 +77,15 @@ function isLocaleField(path: (string | number)[]): boolean {
 function isRecommendedPromptsField(path: (string | number)[]): boolean {
   return path.some(
     segment => typeof segment === 'string' && segment === 'starter_prompts'
+  );
+}
+
+function isEmptyWorkflowSteps(output: unknown, issue: Issue): boolean {
+  const path = issue.path as (string | number)[];
+  return (
+    issue.code === 'too_small' &&
+    path.at(-1) === 'steps' &&
+    resolveInputValue(output, [...path.slice(0, -1), 'type']) === 'workflow'
   );
 }
 
