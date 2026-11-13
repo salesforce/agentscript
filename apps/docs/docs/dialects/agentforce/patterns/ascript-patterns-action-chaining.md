@@ -100,6 +100,24 @@ reasoning:
       | Explain that the user is not eligible for this offer.
 ```
 
+## pre_tool_call and post_tool_call
+
+You may see `pre_tool_call` and `post_tool_call` in the generated Agent DSL schema or in compiled IR. Those names are **compiler/runtime concepts**, not Agent Script authoring keywords you write by hand in Agentforce.
+
+**What to write instead**
+
+- To run follow-up work after the LLM calls a reasoning action, use **chained actions** in `reasoning.actions` — nested `run`, `set`, `if` / `elif` / `else`, or `transition` under the tool (see examples above). The compiler emits that follow-up logic as `post_tool_call` for you.
+- Prefer the documented patterns on this page and in [Tools (Reasoning Actions)](../reference/ascript-ref-tools.md) over raw DSL hook fields.
+
+**Support status**
+
+| Hook             | Authoring support                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `post_tool_call` | Supported **indirectly**: produced by the compiler from chained reasoning-action bodies (nested `run` / conditionals / transitions).                                                       |
+| `pre_tool_call`  | **Not supported** for Agent Script authoring today. It appears in generated schema types only; there is no documented authoring surface or compiler path that emits it. Do not rely on it. |
+
+If you need work to run before the LLM reasons, use `before_reasoning` / instructions at the start of the subagent — see [After Reasoning](../reference/ascript-ref-before-after-reasoning.md).
+
 ## Tips
 
 - **Use sequential instructions for deterministic flows**: When you always want actions to run in a specific order.
@@ -110,3 +128,4 @@ reasoning:
 - Reference: [Actions](../reference/ascript-ref-actions.md)
 - Reference: [Reasoning Instructions](../reference/ascript-ref-instructions.md)
 - Reference: [Tools (Reasoning Actions)](../reference/ascript-ref-tools.md)
+- Reference: [After Reasoning](../reference/ascript-ref-before-after-reasoning.md)
