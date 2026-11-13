@@ -1,0 +1,353 @@
+# Copyright (c) 2026, Salesforce, Inc.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# For full license text, see the LICENSE file in the repo root or https://www.apache.org/licenses/LICENSE-2.0
+
+name: VSCode Release Draft
+
+on:
+  schedule:
+    # Every Wednesday at 09:00 UTC
+    - cron: '0 9 * * 3'
+  workflow_dispatch:
+    inputs:
+      override_last_version:
+        description: 'Override last released version (e.g. 2.2.4) — leave empty to auto-detect from git log'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: vscode-release
+  cancel-in-progress: true
+
+env:
+  TREE_SITTER_VERSION: '0.25.3'
+
+jobs:
+  generate-release-pr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Cache tree-sitter CLI
+        id: cache-tree-sitter
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.local/bin/tree-sitter
+          key: tree-sitter-${{ env.TREE_SITTER_VERSION }}-linux-x64
+
+      - name: Install tree-sitter CLI
+        if: steps.cache-tree-sitter.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin
+          curl -sSL "https://github.com/tree-sitter/tree-sitter/releases/download/v${TREE_SITTER_VERSION}/tree-sitter-linux-x64.gz" \
+            | gunzip > ~/.local/bin/tree-sitter
+          chmod +x ~/.local/bin/tree-sitter
+          # TODO: replace the placeholder below with the verified SHA-256 of
+          # tree-sitter-linux-x64 v${TREE_SITTER_VERSION} before merging to main.
+          # Obtain it with: sha256sum after a manual download and inspect.
+          EXPECTED_SHA="b2fb85f5d5303ab3b0506e6ae4b5de35e55d23d8c3f8cd8e6741a74d1f2ad59b"
+          ACTUAL_SHA=$(sha256sum ~/.local/bin/tree-sitter | awk '{print $1}')
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "ERROR: tree-sitter checksum mismatch. Got $ACTUAL_SHA, expected $EXPECTED_SHA"
+            exit 1
+          fi
+
+      - name: Add tree-sitter to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build vscode package and its dependencies
+        run: pnpm build --filter @agentscript/vscode...
+
+      - name: Generate release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OVERRIDE_LAST_VERSION: ${{ inputs.override_last_version }}
+        run: |
+          set -euo pipefail
+
+          # Validate override input format before doing anything else
+          if [ -n "${OVERRIDE_LAST_VERSION:-}" ] && ! echo "$OVERRIDE_LAST_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: override_last_version must be a semver string (e.g. 2.2.4), got: $OVERRIDE_LAST_VERSION"
+            exit 1
+          fi
+
+          # Determine last released version
+          if [ -n "${OVERRIDE_LAST_VERSION:-}" ]; then
+            LAST_VERSION="$OVERRIDE_LAST_VERSION"
+            echo "Using override version: $LAST_VERSION"
+          else
+            LAST_VERSION=$(node -p "require('./packages/vscode/package.json').version")
+            echo "Detected version from package.json: $LAST_VERSION"
+          fi
+
+          echo "Last release version: $LAST_VERSION"
+
+          # Find the commit where packages/vscode/package.json was set to LAST_VERSION.
+          # Uses git pickaxe (-S) to jump directly to the commit without iterating history.
+          # The `|| true` prevents SIGPIPE (exit 141) when head -1 closes the pipe early.
+          LAST_RELEASE_COMMIT=$(git log -S "\"version\": \"${LAST_VERSION}\"" \
+            --oneline \
+            -- packages/vscode/package.json \
+            | head -1 \
+            | awk '{print $1}' || true)
+
+          echo "Commit where vscode was last set to $LAST_VERSION: $LAST_RELEASE_COMMIT"
+
+          if [ -z "$LAST_RELEASE_COMMIT" ]; then
+            echo "ERROR: could not find release commit for version $LAST_VERSION"
+            exit 1
+          fi
+
+          TODAY=$(date +%Y-%m-%d)
+
+          # Read lsp-server version at the release commit and at HEAD
+          LSP_VERSION_AT_RELEASE=$(git show \
+            "${LAST_RELEASE_COMMIT}:packages/lsp-server/package.json" \
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version")
+
+          LSP_VERSION_NOW=$(node -p "require('./packages/lsp-server/package.json').version")
+
+          echo "lsp-server at last release: $LSP_VERSION_AT_RELEASE"
+          echo "lsp-server now:             $LSP_VERSION_NOW"
+          echo "vscode version now:         $LAST_VERSION"
+
+          export TODAY LAST_VERSION LAST_RELEASE_COMMIT LSP_VERSION_AT_RELEASE LSP_VERSION_NOW
+
+          # Compute proposed vscode version based on lsp-server diff (even-minor = stable)
+          PROPOSED_VERSION=$(node -e "
+            const current = process.env.LAST_VERSION;
+            const lspOld = process.env.LSP_VERSION_AT_RELEASE;
+            const lspNew = process.env.LSP_VERSION_NOW;
+
+            const [curMaj, curMin, curPat] = current.split('.').map(Number);
+            const [oldMaj, oldMin] = lspOld.split('.').map(Number);
+            const [newMaj, newMin] = lspNew.split('.').map(Number);
+
+            let proposed;
+            if (newMaj > oldMaj) {
+              proposed = (curMaj + 1) + '.0.0';
+            } else if (newMin > oldMin) {
+              // Convention: even minor = stable release (e.g. 2.4.0), odd minor = pre-release.
+              // We always bump to the next even minor on a minor-level change.
+              const nextEvenMinor = curMin % 2 === 0 ? curMin + 2 : curMin + 1;
+              proposed = curMaj + '.' + nextEvenMinor + '.0';
+            } else {
+              proposed = curMaj + '.' + curMin + '.' + (curPat + 1);
+            }
+
+            console.log(proposed);
+          ")
+
+          echo "Proposed vscode version: $PROPOSED_VERSION"
+          export PROPOSED_VERSION
+
+          # Collect new changelog entries from two sources and combine them:
+          # 1. Package CHANGELOG.md diffs — captures changeset entries (rich prose)
+          # 2. Git log commits — catches direct commits not covered by changesets
+          CHANGELOG_ENTRIES=$(node -e "
+            const { execSync } = require('child_process');
+
+            const packages = [
+              'packages/lsp-server',
+              'packages/lsp',
+              'packages/language',
+              'packages/compiler',
+              'packages/parser',
+              'packages/parser-javascript',
+              'packages/parser-tree-sitter',
+              'packages/agentforce',
+              'packages/types',
+              'dialect/agentscript',
+              'dialect/agentforce',
+              'dialect/agentfabric',
+            ];
+
+            const releaseCommit = process.env.LAST_RELEASE_COMMIT;
+            const allEntries = [];
+
+            // Source 1: added lines in each package's CHANGELOG.md since the release commit
+            for (const pkg of packages) {
+              const changelogPath = pkg + '/CHANGELOG.md';
+
+              let diff;
+              try {
+                diff = execSync(
+                  'git diff ' + releaseCommit + '..HEAD -- ' + changelogPath,
+                  { encoding: 'utf8' }
+                );
+              } catch {
+                continue;
+              }
+
+              if (!diff.trim()) continue;
+
+              const addedLines = diff
+                .split('\n')
+                .filter(l => l.startsWith('+') && !l.startsWith('+++'))
+                .map(l => l.slice(1));
+
+              const meaningful = addedLines.filter(l => {
+                if (!l.trim()) return false;
+                if (l.match(/^### (Patch|Minor|Major) Changes/)) return false;
+                if (l.match(/^## \d+\.\d+\.\d+/)) return false;
+                if (l.match(/^# @agentscript\//)) return false;
+                return true;
+              });
+
+              if (meaningful.length > 0) {
+                allEntries.push('<!-- ' + pkg + ' (changelog) -->');
+                allEntries.push(...meaningful);
+                allEntries.push('');
+              }
+            }
+
+            // Source 2: git log commits on the bundle closure since the release commit
+            let commits;
+            try {
+              commits = execSync(
+                'git log ' + releaseCommit + '..HEAD --oneline --no-merges -- ' +
+                packages.join(' '),
+                { encoding: 'utf8' }
+              ).trim();
+            } catch {
+              commits = '';
+            }
+
+            const meaningfulCommits = commits
+              .split('\n')
+              .filter(l => l.trim() && !l.match(/bump version/i));
+
+            if (meaningfulCommits.length > 0) {
+              allEntries.push('<!-- git commits -->');
+              allEntries.push(...meaningfulCommits.map(l => '- ' + l));
+              allEntries.push('');
+            }
+
+            process.stdout.write(allEntries.join('\n'));
+          ")
+
+          if [ -z "$CHANGELOG_ENTRIES" ]; then
+            echo "::notice title=No release drafted::No changelog entries found since ${LAST_RELEASE_COMMIT}. Nothing to release."
+            exit 0
+          fi
+
+          echo "Changelog entries collected."
+          export CHANGELOG_ENTRIES
+
+          # Build CHANGELOG draft and insert it before the first versioned section
+          node -e "
+            const fs = require('fs');
+            const today = process.env.TODAY;
+            const proposed = process.env.PROPOSED_VERSION;
+            const lspOld = process.env.LSP_VERSION_AT_RELEASE;
+            const lspNew = process.env.LSP_VERSION_NOW;
+            const entries = process.env.CHANGELOG_ENTRIES;
+
+            const draft = [
+              '## [' + proposed + '] - ' + today,
+              '',
+              '> :pencil: Review and rewrite the entries below into user-facing language before merging.',
+              '',
+              '### Added',
+              '',
+              '### Fixed',
+              '',
+              '### Changed',
+              '',
+              entries,
+              '',
+              '---',
+              '_lsp-server: ' + lspOld + ' → ' + lspNew + ' (basis for version bump)_',
+            ].join('\n');
+
+            const content = fs.readFileSync('packages/vscode/CHANGELOG.md', 'utf8');
+            const lines = content.split('\n');
+            const idx = lines.findIndex(l => /^## \[[0-9]/.test(l));
+            if (idx === -1) {
+              fs.writeFileSync('packages/vscode/CHANGELOG.md', content + '\n' + draft);
+            } else {
+              lines.splice(idx, 0, draft, '');
+              fs.writeFileSync('packages/vscode/CHANGELOG.md', lines.join('\n'));
+            }
+          "
+
+          # Bump version in package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/vscode/package.json', 'utf8'));
+            pkg.version = process.env.PROPOSED_VERSION;
+            fs.writeFileSync('packages/vscode/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # Build VSIX with the updated version baked in
+          pnpm --filter @agentscript/vscode prepackage
+          pnpm --filter @agentscript/vscode package
+
+          VSIX_SRC=$(find packages/vscode/publish -maxdepth 1 -name '*.vsix' | head -1)
+          VSIX_DEST="packages/vscode/vsix-versions/$(basename "$VSIX_SRC")"
+          cp "$VSIX_SRC" "$VSIX_DEST"
+          echo "VSIX staged at: $VSIX_DEST"
+
+          # Commit and open PR
+          BRANCH="release-draft-${PROPOSED_VERSION}"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add \
+            packages/vscode/package.json \
+            packages/vscode/CHANGELOG.md \
+            "$VSIX_DEST"
+          git commit -m "chore: draft release ${PROPOSED_VERSION} (was ${LAST_VERSION})"
+          git push origin "$BRANCH" --force-with-lease
+
+          # Write PR body
+          node -e "
+            const { writeFileSync } = require('fs');
+            const proposed = process.env.PROPOSED_VERSION;
+            const lastVersion = process.env.LAST_VERSION;
+            const lspOld = process.env.LSP_VERSION_AT_RELEASE;
+            const lspNew = process.env.LSP_VERSION_NOW;
+            const body = [
+              '## Release draft: ' + lastVersion + ' → ' + proposed,
+              '',
+              '**Proposed version:** \`' + proposed + '\`',
+              '**lsp-server changed:** ' + lspOld + ' → ' + lspNew,
+              '',
+              '### Before merging',
+              '- [ ] Confirm the proposed version is correct; if not, edit \`packages/vscode/package.json\` and \`packages/vscode/CHANGELOG.md\`, then run \`/rebuild-vsix\` to regenerate the VSIX with the final version.',
+              '- [ ] Polish the CHANGELOG entries into user-facing language (run \`/polish-changelog\` for an AI-assisted draft).',
+              '- [ ] Get approval from the agentscript team.',
+              '',
+              '> Once merged, the publish workflow will build the final VSIX (with the merged CHANGELOG) and release to the VS Code Marketplace and Open VSX.',
+            ].join('\n');
+            writeFileSync('/tmp/pr-body.md', body);
+          "
+
+          gh pr create \
+            --title "chore: release ${PROPOSED_VERSION} (was ${LAST_VERSION})" \
+            --body-file /tmp/pr-body.md \
+            --base main \
+            --head "$BRANCH" \
+            || echo "PR already exists for branch $BRANCH"
