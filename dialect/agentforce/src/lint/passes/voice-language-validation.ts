@@ -17,6 +17,8 @@
  *   - voice-language-not-declared: A voice language is not in the declared locales of the text languages.
  *   - voice-language-missing-language-block: Voice languages defined but no language block exists
  *   - voice-language-settings-not-declared: A voice language setting is not in the declared voice languages.
+ *
+ * `VoicePronunciationsPass` (below) adds voice-pronunciations-default-locale-only.
  */
 
 import type { AstNodeLike, AstRoot } from '@agentscript/language';
@@ -48,6 +50,12 @@ function extractBooleanValue(value: unknown): boolean | undefined {
   return undefined;
 }
 
+function extractSequenceItems(value: unknown): unknown[] {
+  if (value == null || typeof value !== 'object') return [];
+  const items = (value as { items?: unknown[] }).items;
+  return Array.isArray(items) ? items : [];
+}
+
 /**
  * Build a set of locales declared on a language block from its `default_locale`
  * and `additional_locales` fields.
@@ -68,6 +76,47 @@ function collectLocales(language: AstNodeLike): Set<string> {
 function collectDefaultLocale(language: AstNodeLike): Set<string> {
   const defaultLocale = extractStringValue(language.default_locale);
   return defaultLocale ? new Set([defaultLocale]) : new Set();
+}
+
+/**
+ * The voice languages in effect: the explicit `modality voice: language` locales, or the agent-language
+ * fallback (default locale only, or every agent locale for `all_additional_locales: True`).
+ * Undefined when the voice block declares neither a language nor language_settings.
+ */
+function resolveEffectiveVoiceLocales(
+  root: AstRoot,
+  voice: AstNodeLike
+): Set<string> | undefined {
+  const voiceLanguage = voice.language as AstNodeLike | undefined;
+  const hasVoiceLanguage = !!voiceLanguage && typeof voiceLanguage === 'object';
+  const allAdditionalLocales = hasVoiceLanguage
+    ? extractBooleanValue(voiceLanguage.all_additional_locales)
+    : undefined;
+  const usesAgentLanguageFallback =
+    !hasVoiceLanguage || allAdditionalLocales === true;
+
+  if (hasVoiceLanguage && !usesAgentLanguageFallback) {
+    return collectLocales(voiceLanguage);
+  }
+
+  // Default to an empty set (rather than undefined) when no agent 'language' block exists,
+  // so language_settings is still validated instead of silently skipped.
+  const textLanguage = root.language as AstNodeLike | undefined;
+  const hasTextLanguage = !!textLanguage && typeof textLanguage === 'object';
+  const locales = hasTextLanguage
+    ? allAdditionalLocales === true
+      ? collectLocales(textLanguage)
+      : collectDefaultLocale(textLanguage)
+    : new Set<string>();
+  // compileAgentAllLocales keeps the voice default, so language_settings may target it.
+  // It returns nothing without an agent language block, so only add it then.
+  const voiceDefaultLocale = hasVoiceLanguage
+    ? extractStringValue(voiceLanguage.default_locale)
+    : undefined;
+  if (hasTextLanguage && allAdditionalLocales === true && voiceDefaultLocale) {
+    locales.add(voiceDefaultLocale);
+  }
+  return locales;
 }
 
 class VoiceLanguageValidationPass implements LintPass {
@@ -107,33 +156,7 @@ class VoiceLanguageValidationPass implements LintPass {
       ? extractStringValue(voiceLanguage.default_locale)
       : undefined;
 
-    // Get the effective voice locales: either from voice.language or fall back to agent language
-    let effectiveVoiceLocales: Set<string> | undefined;
-
-    if (hasVoiceLanguage && !usesAgentLanguageFallback) {
-      effectiveVoiceLocales = collectLocales(voiceLanguage);
-    } else if (usesAgentLanguageFallback) {
-      // Default to an empty set (rather than leaving this undefined) when no agent
-      // 'language' block exists, so language_settings is still validated below instead
-      // of silently skipped.
-      const textLanguage = root.language as AstNodeLike | undefined;
-      const hasTextLanguage =
-        !!textLanguage && typeof textLanguage === 'object';
-      effectiveVoiceLocales = hasTextLanguage
-        ? allAdditionalLocales === true
-          ? collectLocales(textLanguage)
-          : collectDefaultLocale(textLanguage)
-        : new Set();
-      // compileAgentAllLocales keeps the voice default, so language_settings may target
-      // it. It returns nothing without an agent language block, so only add it then.
-      if (
-        hasTextLanguage &&
-        allAdditionalLocales === true &&
-        voiceDefaultLocale
-      ) {
-        effectiveVoiceLocales.add(voiceDefaultLocale);
-      }
-    }
+    const effectiveVoiceLocales = resolveEffectiveVoiceLocales(root, voice);
 
     // Check A: the voice languages must be a subset of the top-level text languages.
     // Only the agent-level 'all_additional_locales: True' lifts this requirement: it opens
@@ -213,6 +236,43 @@ class VoiceLanguageValidationPass implements LintPass {
 
 export function voiceLanguageValidationRule(): LintPass {
   return new VoiceLanguageValidationPass();
+}
+
+/**
+ * Warns when top-level `outbound: pronunciations` is set while several voice languages are in effect:
+ * the compiler applies it to the default language only (see `moveRootPronunciationsToDefaultLanguage`).
+ */
+class VoicePronunciationsPass implements LintPass {
+  readonly id = storeKey('voice-pronunciations');
+  readonly description =
+    'Warns that top-level voice pronunciations apply to the default language only when several voice languages are configured';
+
+  run(_store: PassStore, root: AstRoot): void {
+    const modality = root.modality;
+    if (!isNamedMap(modality) || !modality.has('voice')) return;
+
+    const voice = modality.get('voice') as AstNodeLike;
+    const rootPronunciations = (voice.outbound as AstNodeLike | undefined)
+      ?.pronunciations;
+    if (extractSequenceItems(rootPronunciations).length === 0) return;
+
+    const locales = resolveEffectiveVoiceLocales(root, voice);
+    if (locales === undefined || locales.size <= 1) return;
+
+    attachDiagnostic(
+      voice,
+      lintDiagnostic(
+        getBlockRange(rootPronunciations),
+        "Multiple voice languages are configured, so 'outbound: pronunciations' is used for the default language only, and it is ignored there if 'language_settings.<default locale>.outbound.pronunciations' is set, because language settings take priority. Add 'pronunciations' under 'language_settings.<locale>.outbound' for the other languages.",
+        DiagnosticSeverity.Warning,
+        'voice-pronunciations-default-locale-only'
+      )
+    );
+  }
+}
+
+export function voicePronunciationsRule(): LintPass {
+  return new VoicePronunciationsPass();
 }
 
 // --- V1/V2 voice property mixing detection ---

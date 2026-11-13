@@ -79,6 +79,7 @@ export { governedAdditionalParametersRule } from './governed-additional-paramete
 export {
   voiceLanguageValidationRule,
   voiceVersionMixingRule,
+  voicePronunciationsRule,
 } from './voice-language-validation.js';
 export { emptyBlockRule } from './empty-block.js';
 export { recommendedPromptsValidationRule } from './recommended-prompts-validation.js';
@@ -112,6 +113,7 @@ import { governedAdditionalParametersRule } from './governed-additional-paramete
 import {
   voiceLanguageValidationRule,
   voiceVersionMixingRule,
+  voicePronunciationsRule,
 } from './voice-language-validation.js';
 import { emptyBlockRule } from './empty-block.js';
 import { recommendedPromptsValidationRule } from './recommended-prompts-validation.js';
@@ -163,6 +165,7 @@ export function defaultRules(): LintPass[] {
     governedAdditionalParametersRule(),
     voiceLanguageValidationRule(),
     voiceVersionMixingRule(),
+    voicePronunciationsRule(),
     emptyBlockRule(),
     recommendedPromptsValidationRule(),
     workflowBetaNoticeRule(),

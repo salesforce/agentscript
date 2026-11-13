@@ -4370,6 +4370,51 @@ subagent main:
 // ============================================================================
 
 describe('voice language validation', () => {
+  describe('voice pronunciations with multiple languages', () => {
+    const lintVoice = (voiceLanguage: string, outbound: string) =>
+      runSecurityLint(`
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "fr_CA"
+
+config:
+  agent_name: "TestAgent"
+
+modality voice:
+  language:
+${voiceLanguage}
+${outbound}
+start_agent main:
+  description: "Main"
+`).filter(d => d.code === 'voice-pronunciations-default-locale-only');
+
+    const PRONUNCIATIONS = `  outbound:
+    pronunciations:
+      - grapheme: "SQL"
+        phoneme: "sequel"
+        type: "IPA"
+`;
+    const TWO_LANGUAGES = `    default_locale: "en_US"
+    additional_locales:
+      - "fr_CA"`;
+    const ONE_LANGUAGE = `    default_locale: "en_US"`;
+
+    it('warns when several languages and root pronunciations are set', () => {
+      const found = lintVoice(TWO_LANGUAGES, PRONUNCIATIONS);
+      expect(found).toHaveLength(1);
+      expect(found[0].severity).toBe(DiagnosticSeverity.Warning);
+      expect(found[0].message).toContain('default language only');
+    });
+
+    it('does not warn with a single voice language', () => {
+      expect(lintVoice(ONE_LANGUAGE, PRONUNCIATIONS)).toHaveLength(0);
+    });
+
+    it('does not warn without root pronunciations', () => {
+      expect(lintVoice(TWO_LANGUAGES, '')).toHaveLength(0);
+    });
+  });
   it('allows voice languages that match declared text locales', () => {
     const diagnostics = runSecurityLint(`
 language:

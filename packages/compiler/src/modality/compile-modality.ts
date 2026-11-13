@@ -180,6 +180,7 @@ function compileVoiceConfiguration(
   );
   if (languages !== undefined) {
     voiceV2Config.languages = languages;
+    moveRootPronunciationsToDefaultLanguage(voiceV2Config, languages);
   }
 
   // ensure V1 & V2 aren't being used simultaneously
@@ -319,6 +320,28 @@ function extractOutboundDirection(
   // Return undefined if nothing was extracted
   if (Object.keys(result).length === 0) return undefined;
   return result;
+}
+
+/**
+ * Root-level `outbound.pronunciations` belong to the default locale only: a
+ * dictionary written for one language must not leak into the others. Move it
+ * from the shared outbound block onto the default language (index 0). An
+ * explicit `language_settings.<default>.outbound.pronunciations` wins.
+ */
+function moveRootPronunciationsToDefaultLanguage(
+  voiceV2Config: Sourceable<VoiceV2Config>,
+  languages: Array<Sourceable<VoiceLanguageConfig>>
+): void {
+  const rootOutbound = voiceV2Config.outbound;
+  const dict = rootOutbound?.pronunciation_dict;
+  const defaultLang = languages[0];
+  if (!rootOutbound || !dict || !defaultLang) return;
+
+  delete rootOutbound.pronunciation_dict;
+  if (Object.keys(rootOutbound).length === 0) delete voiceV2Config.outbound;
+
+  defaultLang.outbound = defaultLang.outbound ?? {};
+  defaultLang.outbound.pronunciation_dict ??= dict;
 }
 
 function createVoiceLanguageConfig(lang: string, isDefault = false) {

@@ -127,7 +127,7 @@ const OutboundDirectionBlock = Block('VoiceOutboundDirectionBlock', {
     'List of filler sentence entries to use during outbound speech pauses.'
   ),
   pronunciations: Sequence(PronunciationDictEntryBlock).describe(
-    'List of pronunciation dictionary entries for custom word pronunciations.'
+    'List of pronunciation dictionary entries for custom word pronunciations. At the top-level outbound block they apply to the default locale only; use language_settings.<locale>.outbound.pronunciations for other locales.'
   ),
 });
 

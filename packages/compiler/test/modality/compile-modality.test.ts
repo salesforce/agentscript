@@ -185,6 +185,56 @@ modality voice:
     expect(voiceOutput.voice2_config!.languages![0].language_code).toBe('de');
   });
 
+  it('scopes root outbound pronunciations to the default locale only', () => {
+    const source = `
+config:
+  agent_name: "PronunciationScope"
+
+language:
+  default_locale: "en_US"
+  additional_locales:
+    - "es"
+    - "en_AU"
+
+modality voice:
+  language:
+    default_locale: "en_US"
+    additional_locales:
+      - "es"
+      - "en_AU"
+
+  outbound:
+    persona_id: "p1"
+    pronunciations:
+      - grapheme: "Z"
+        phoneme: "Z EH D"
+        type: "CMU"
+      - grapheme: "Eliquis"
+        phoneme: "ɛlɪk"
+        type: "IPA"
+
+start_agent main:
+  description: "test"
+`.trimStart();
+
+    const { output, diagnostics } = compile(parseSource(source));
+    const voice =
+      output.agent_version.modality_parameters!.voice!.voice2_config!;
+
+    expect(diagnostics).toHaveLength(0);
+    // Not applied to the shared outbound block (which every language inherits).
+    expect(voice.outbound!.voice_id).toBe('p1');
+    expect(voice.outbound!.pronunciation_dict).toBeUndefined();
+    const [def, ...others] = voice.languages!;
+    expect(def.language_code).toBe('en_US');
+    expect(def.outbound!.pronunciation_dict!.pronunciations).toEqual([
+      { grapheme: 'Z', phoneme: 'Z EH D', type: 'CMU' },
+      { grapheme: 'Eliquis', phoneme: 'ɛlɪk', type: 'IPA' },
+    ]);
+    expect(others.map(l => l.language_code)).toEqual(['es', 'en_AU']);
+    for (const l of others) expect(l.outbound).toBeUndefined();
+  });
+
   it.each([
     ['bare', '      - in\n      - is', ['in', 'is']],
     ['quoted', '      - "fr"\n      - "de"', ['fr', 'de']],
