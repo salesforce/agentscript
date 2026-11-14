@@ -1253,3 +1253,51 @@ variables:
     expect(findStateVar(result, 'obj_no_default')!.default).toBeUndefined();
   });
 });
+
+describe('issue #101: empty objects in variable defaults', () => {
+  it.each([
+    {
+      name: 'an empty child beside a populated child',
+      type: 'object',
+      literal: '{"empty": {}, "full": {"n": 1}}',
+      expected: { empty: {}, full: { n: 1 } },
+    },
+    {
+      name: 'a recursive chain ending in an empty object',
+      type: 'object',
+      literal: '{"a": {"b": {}}}',
+      expected: { a: { b: {} } },
+    },
+    {
+      name: 'empty objects at their original list positions',
+      type: 'list[object]',
+      literal: '[{}, {"n": 1}, {}]',
+      expected: [{}, { n: 1 }, {}],
+    },
+    {
+      name: 'a list containing only empty objects',
+      type: 'list[object]',
+      literal: '[{}, {}]',
+      expected: [{}, {}],
+    },
+    {
+      name: 'an empty object inside a nested list',
+      type: 'object',
+      literal: '{"a": [{}]}',
+      expected: { a: [{}] },
+    },
+  ])('preserves $name', ({ type, literal, expected }) => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    payload: mutable ${type} = ${literal}`)
+    );
+
+    expect(
+      result.diagnostics.filter(d => d.severity === DiagnosticSeverity.Error)
+    ).toEqual([]);
+    const variable = findStateVar(result, 'payload');
+    expect(variable).toBeDefined();
+    expect(variable!.default).toStrictEqual(expected);
+  });
+});

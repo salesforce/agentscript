@@ -152,3 +152,30 @@ live:
     });
   });
 });
+
+describe('issue #101: empty objects in live parameters', () => {
+  it.each([
+    { name: 'an empty dictionary value', literal: '{}', expected: {} },
+    {
+      name: 'empty objects at their original list positions',
+      literal: '[{}, {"n": 1}, {}]',
+      expected: [{}, { n: 1 }, {}],
+    },
+  ])('preserves $name', ({ literal, expected }) => {
+    const { output, diagnostics } = compile(
+      parseSource(
+        agent(`
+live:
+    enabled: True
+    params:
+        profile: ${literal}
+`)
+      )
+    );
+
+    expect(diagnostics.filter(d => d.severity === 1)).toEqual([]);
+    expect(output.agent_version.live?.params).toStrictEqual({
+      profile: expected,
+    });
+  });
+});

@@ -313,7 +313,8 @@ export function extractDictExpression(
     }
   }
 
-  return Object.keys(result).length > 0 ? result : undefined;
+  // An empty dictionary is a value, including inside other dictionaries or lists.
+  return result;
 }
 
 /**
