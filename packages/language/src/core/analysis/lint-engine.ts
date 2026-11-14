@@ -22,6 +22,7 @@ import type { NamedMap } from '../block.js';
 import { isNamedMap, isAstNodeLike } from '../types.js';
 import type { ScopeContext, SchemaContext } from './scope.js';
 import { collectDiagnostics, dispatchAstChildren } from './ast-walkers.js';
+import { LINT_SOURCE } from '../../lint/lint-utils.js';
 
 /** A branded string that carries value type `T` at the type level. */
 export type StoreKey<T> = string & { readonly __type: T };
@@ -252,7 +253,7 @@ export class LintEngine {
   private readonly source: string;
 
   constructor(options?: { passes?: readonly LintPass[]; source?: string }) {
-    this.source = options?.source ?? 'lint';
+    this.source = options?.source ?? LINT_SOURCE;
     for (const p of options?.passes ?? []) this.addPass(p);
   }
 
