@@ -12,14 +12,24 @@ import {
   AtIdentifier,
   Identifier,
   MemberExpression,
+  NoneLiteral,
 } from '@agentscript/language';
-import { resolveAtReference } from '../src/ast-helpers.js';
+import {
+  extractExpressionValue,
+  resolveAtReference,
+} from '../src/ast-helpers.js';
 import { CompilerContext } from '../src/compiler-context.js';
 
 let ctx: CompilerContext;
 
 beforeEach(() => {
   ctx = new CompilerContext();
+});
+
+describe('extractExpressionValue', () => {
+  it('should extract NoneLiteral as JSON null', () => {
+    expect(extractExpressionValue(new NoneLiteral())).toBeNull();
+  });
 });
 
 describe('resolveAtReference', () => {
