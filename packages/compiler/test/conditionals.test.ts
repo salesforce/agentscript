@@ -654,6 +654,73 @@ topic login:
     expect(elseHandoff).toBeDefined();
     expect(elseHandoff?.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="login"`);
   });
+
+  it('should compile bare post-action transition to unconditional state update + handoff', () => {
+    const source = `
+config:
+    agent_name: "TestBot"
+
+variables:
+    result: mutable string = ""
+
+start_agent main:
+    description: "Test"
+    actions:
+        lookup:
+            description: "Lookup"
+            target: "flow://lookup"
+            inputs:
+                q: string
+            outputs:
+                out: string
+    reasoning:
+        instructions: ->
+            | Run lookup
+        actions:
+            lookup: @actions.lookup
+                with q="x"
+                set @variables.result = @outputs.out
+                transition to @topic.dashboard
+
+topic dashboard:
+    description: "Dashboard"
+    reasoning:
+        instructions: ->
+            | Dashboard
+`;
+    const { output } = compile(parseSource(source));
+    const node = output.agent_version.nodes.find(
+      n => n.developer_name === 'main'
+    )! as SubAgentNode;
+    expect(node).toBeDefined();
+
+    const postToolCall = (node.post_tool_call ?? []).find(
+      p => p.target === 'lookup'
+    );
+    expect(postToolCall).toBeDefined();
+
+    const nextTopicUpdate = postToolCall!.actions.find(a => {
+      const updates = a.state_updates as Array<Record<string, string>>;
+      return (
+        a.target === STATE_UPDATE_ACTION &&
+        updates?.some(
+          u =>
+            NEXT_TOPIC_VARIABLE in u && u[NEXT_TOPIC_VARIABLE] === '"dashboard"'
+        )
+      );
+    });
+    expect(nextTopicUpdate).toBeDefined();
+    expect(nextTopicUpdate?.enabled).toBe('True');
+
+    const handoff = (node.after_all_tool_calls ?? [])
+      .filter(isHandOffAction)
+      .find(h => h.target === 'dashboard');
+    expect(handoff).toBeDefined();
+    expect(handoff?.enabled).toBe(`state.${NEXT_TOPIC_VARIABLE}=="dashboard"`);
+    expect(handoff?.state_updates).toEqual([
+      { [NEXT_TOPIC_VARIABLE]: EMPTY_TOPIC_VALUE },
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------

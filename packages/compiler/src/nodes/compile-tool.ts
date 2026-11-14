@@ -160,6 +160,13 @@ export function compileTool(
       const result = compilePostActionConditional(stmt, [], ctx);
       postActions.push(...result.actions);
       handOffActions.push(...result.handOffs);
+    } else if (stmt instanceof TransitionStatement) {
+      // Unconditional post-action transition - emit state update + handoff
+      const result = compileTransitionInConditional(stmt, 'True', ctx);
+      if (result) {
+        postActions.push(result.action);
+        handOffActions.push(result.handOff);
+      }
     } else if (stmt instanceof WhenStatement) {
       const rule = compileWhenConnection(stmt, ctx);
       if (rule && !fireAndForget) renderRules.push(rule);
