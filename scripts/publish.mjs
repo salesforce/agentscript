@@ -29,11 +29,12 @@ import {
   statSync,
   existsSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const INTERNAL_SCOPE = '@agentscript/';
 const PUBLISH_SCOPE = '@sf-agentscript/';
+const REPOSITORY_URL = 'git+https://github.com/salesforce/agentscript.git';
 
 // File extensions whose contents may contain bare module specifiers we need to
 // rewrite. Sourcemaps (.map) embed `sources`/`names` strings as plain JSON, so
@@ -93,6 +94,20 @@ for (const pkg of packages) {
       `  ✓ ${pkg.name} → ${pkg.name.replace(INTERNAL_SCOPE, PUBLISH_SCOPE)}`
     );
   }
+}
+
+// npm provenance rejects a publish (E422) unless repository.url matches the
+// GitHub repo that built it.
+for (const pkg of packages) {
+  const pkgJsonPath = join(pkg.path, 'package.json');
+  const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
+  if (pkgJson.private) continue;
+  pkgJson.repository = {
+    type: 'git',
+    url: REPOSITORY_URL,
+    directory: relative(ROOT, pkg.path),
+  };
+  writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
 }
 
 // Step 3: Rewrite source-text files inside each package's published dirs.
