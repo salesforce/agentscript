@@ -12,7 +12,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
 import { compile } from '../src/compile.js';
-import { parseSource } from './test-utils.js';
+import { findNode, parseSource } from './test-utils.js';
 import {
   RUNTIME_CONDITION_VARIABLE,
   STATE_UPDATE_ACTION,
@@ -48,9 +48,7 @@ start_agent main:
             set @variables.total = (1 + 2) * (3 + 4)
             | Do something
 `);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
     const updates = (node.before_reasoning_iteration ?? []).flatMap(
       a =>
         (a as { state_updates?: Record<string, string>[] }).state_updates ?? []
@@ -68,9 +66,7 @@ start_agent main:
                 set @variables.c = True
             | Do something
 `);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
     const updates = (node.before_reasoning_iteration ?? []).flatMap(
       a =>
         (a as { state_updates?: Record<string, string>[] }).state_updates ?? []
@@ -94,10 +90,8 @@ start_agent main:
 topic destination:
     description: "destination"
 `);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
-    const tool = node.tools.find(t => t.target === STATE_UPDATE_ACTION)!;
+    const node = findNode(output, 'main', 'subagent');
+    const tool = node.tools!.find(t => t.target === STATE_UPDATE_ACTION)!;
     expect(tool.enabled).toBe('(state.a or state.b) and state.c');
   });
 
@@ -125,9 +119,7 @@ start_agent main:
                 set @variables.c = True
             | Test
 `);
-    const node = output.agent_version.nodes.find(
-      n => n.developer_name === 'main'
-    )!;
+    const node = findNode(output, 'main', 'subagent');
     const updates = (node.before_reasoning_iteration ?? []).flatMap(
       a =>
         (a as { state_updates?: Record<string, string>[] }).state_updates ?? []
