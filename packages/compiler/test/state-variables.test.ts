@@ -1140,6 +1140,51 @@ variables:
 // ---------------------------------------------------------------------------
 
 describe('state variables: dict and object defaults', () => {
+  it.each([
+    {
+      name: 'object properties containing None',
+      type: 'object',
+      literal: '{"missing": None, "kept": 1}',
+      expected: { missing: null, kept: 1 },
+    },
+    {
+      name: 'list positions containing None',
+      type: 'list[object]',
+      literal: '[None, {"n": 1}, None]',
+      expected: [null, { n: 1 }, null],
+    },
+    {
+      name: 'None inside an object containing a list and another object',
+      type: 'object',
+      literal:
+        '{"outer": {"items": [None, {"missing": None, "kept": 1}, None]}}',
+      expected: { outer: { items: [null, { missing: null, kept: 1 }, null] } },
+    },
+    {
+      name: 'None inside a list containing another list and an object',
+      type: 'list[object]',
+      literal: '[None, [None, {"missing": None, "kept": 1}], None]',
+      expected: [null, [null, { missing: null, kept: 1 }], null],
+    },
+    {
+      name: 'falsy values inside objects and lists',
+      type: 'object',
+      literal: '{"no": False, "zero": 0, "empty": "", "items": [False, 0, ""]}',
+      expected: { no: false, zero: 0, empty: '', items: [false, 0, ''] },
+    },
+  ])('should preserve $name in defaults', ({ type, literal, expected }) => {
+    const result = compileSource(
+      agentSource(`
+variables:
+    value: mutable ${type} = ${literal}`)
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    const sv = findStateVar(result, 'value');
+    expect(sv).toBeDefined();
+    expect(sv!.default).toStrictEqual(expected);
+  });
+
   it('should compile variable with empty dict default', () => {
     const result = compileSource(
       agentSource(`

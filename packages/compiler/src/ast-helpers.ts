@@ -353,6 +353,10 @@ export function extractExpressionValue(value: unknown): unknown {
   if (typeof value === 'object') {
     const obj = value as { __kind?: string; elements?: unknown[] };
 
+    if (obj.__kind === 'NoneLiteral') {
+      return null;
+    }
+
     if (obj.__kind === 'DictLiteral') {
       return extractDictExpression(value as Expression);
     }
