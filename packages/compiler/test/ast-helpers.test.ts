@@ -10,10 +10,17 @@ import { DiagnosticSeverity } from '@agentscript/types';
 import {
   type Expression,
   AtIdentifier,
+  DictLiteral,
+  ListLiteral,
+  StringLiteral,
   Identifier,
   MemberExpression,
 } from '@agentscript/language';
-import { resolveAtReference } from '../src/ast-helpers.js';
+import {
+  resolveAtReference,
+  extractDictExpression,
+  extractExpressionValue,
+} from '../src/ast-helpers.js';
 import { CompilerContext } from '../src/compiler-context.js';
 
 let ctx: CompilerContext;
@@ -70,5 +77,76 @@ describe('resolveAtReference', () => {
           d.code === 'UNRESOLVED_REFERENCE'
       )
     ).toBe(true);
+  });
+});
+
+describe('issue #101: dictionary extraction contract', () => {
+  it('extracts an empty dictionary as an object', () => {
+    expect(extractDictExpression(new DictLiteral([]))).toStrictEqual({});
+  });
+
+  it('keeps missing dictionary input undefined', () => {
+    expect(extractDictExpression(undefined)).toBeUndefined();
+  });
+
+  it('keeps non-dictionary input undefined', () => {
+    expect(extractDictExpression(new StringLiteral('value'))).toBeUndefined();
+  });
+
+  it('keeps unsupported expressions undefined', () => {
+    expect(
+      extractExpressionValue(new Identifier('unresolved'))
+    ).toBeUndefined();
+  });
+
+  it('preserves empty dictionary values while omitting unsupported values', () => {
+    const expression = new DictLiteral([
+      {
+        key: new StringLiteral('empty'),
+        value: new DictLiteral([]),
+        __diagnostics: [],
+      },
+      {
+        key: new StringLiteral('unsupported'),
+        value: new Identifier('unresolved'),
+        __diagnostics: [],
+      },
+      {
+        key: new StringLiteral('kept'),
+        value: new StringLiteral('value'),
+        __diagnostics: [],
+      },
+    ]);
+
+    expect(extractExpressionValue(expression)).toStrictEqual({
+      empty: {},
+      kept: 'value',
+    });
+  });
+
+  it('preserves empty list elements while omitting unsupported expressions', () => {
+    const expression = new ListLiteral([
+      new DictLiteral([]),
+      new Identifier('unresolved'),
+      new StringLiteral('value'),
+      new DictLiteral([]),
+    ]);
+
+    expect(extractExpressionValue(expression)).toStrictEqual([{}, 'value', {}]);
+  });
+
+  it('preserves empty plain-array elements while omitting unsupported expressions', () => {
+    const expressions = [
+      new DictLiteral([]),
+      new Identifier('unresolved'),
+      new StringLiteral('value'),
+      new DictLiteral([]),
+    ];
+
+    expect(extractExpressionValue(expressions)).toStrictEqual([
+      {},
+      'value',
+      {},
+    ]);
   });
 });

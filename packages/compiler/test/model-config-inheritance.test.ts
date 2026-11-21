@@ -525,3 +525,61 @@ subagent topic4:
     });
   });
 });
+
+describe('issue #101: empty model parameter values', () => {
+  it('preserves nested empty values inherited from global parameters', () => {
+    const { output, diagnostics } = compileSource(`
+config:
+    developer_name: "TestAgent"
+model_config:
+    model: "model://gpt-4"
+    params:
+        profile: {"empty": {}, "full": {"n": 1}}
+start_agent main:
+    description: "Entry point"
+subagent support:
+    description: "Support"
+    reasoning:
+        instructions: ->
+            | Help with requests
+`);
+
+    expect(diagnostics.filter(d => d.severity === 1)).toEqual([]);
+    expect(
+      findNode(output, 'support', 'subagent').model_configuration
+    ).toStrictEqual({
+      model_ref: 'gpt-4',
+      configuration: { profile: { empty: {}, full: { n: 1 } } },
+    });
+  });
+
+  it('allows an empty topic parameter to override a populated global value', () => {
+    const { output, diagnostics } = compileSource(`
+config:
+    developer_name: "TestAgent"
+model_config:
+    model: "model://gpt-4"
+    params:
+        profile: {"n": 1}
+        temperature: 0.7
+start_agent main:
+    description: "Entry point"
+subagent support:
+    description: "Support"
+    model_config:
+        params:
+            profile: {}
+    reasoning:
+        instructions: ->
+            | Help with requests
+`);
+
+    expect(diagnostics.filter(d => d.severity === 1)).toEqual([]);
+    expect(
+      findNode(output, 'support', 'subagent').model_configuration
+    ).toStrictEqual({
+      model_ref: 'gpt-4',
+      configuration: { profile: {}, temperature: 0.7 },
+    });
+  });
+});
